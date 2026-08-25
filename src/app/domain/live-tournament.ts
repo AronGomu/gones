@@ -1,4 +1,6 @@
-import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, createTournament, defaultIdFactory, IdFactory, MatchRoundEntry, PlayerArchetypeDocument, RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { createByeRoundEntry, createMatchRoundEntry, createRound, createRoundEntry, defaultIdFactory, IdFactory, MatchRoundEntry, PlayerArchetypeDocument, RoundEntry, trimPlayerName } from './models';
+import { createArchiveTournament } from './archive-models';
+import type { ArchiveTournamentDocument } from './archive-models';
 
 export type LiveTournamentStage = 'registration' | 'round' | 'standings' | 'completed';
 export type LiveTournamentType = 'swiss';
@@ -385,16 +387,35 @@ export function updateLiveRoundEntryResult(tournament: LiveTournamentDocument, r
   });
 }
 
-export function finalizeLiveTournament(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): TournamentDocument {
-  return createTournament({
+/**
+ * The finished Live Tournament, in the shape the C# `LiveRules.Finalize` returns: the Live capability
+ * names the target League on the record it hands over, and the API's archive writer is what turns that
+ * into a Season reference (or a standalone Tournament when it is empty). Frozen by the cross-stack
+ * Live parity corpus, so the field name stays `leagueId` here too.
+ */
+export interface LiveFinalizedTournament extends Omit<ArchiveTournamentDocument, 'seasonId'> {
+  leagueId: string;
+}
+
+export function finalizeLiveTournament(tournament: LiveTournamentDocument, { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}): LiveFinalizedTournament {
+  const { seasonId: _seasonId, ...archived } = createArchiveTournament({
     id: tournament.finalizedTournamentId,
-    leagueId: tournament.leagueId,
     name: tournament.name,
     tournamentDate: tournament.tournamentDate,
     status: 'active',
     rounds: tournament.rounds.filter((round) => round.validated).map((round) => createRound({ entries: round.entries.map((item) => withLivePlayerArchetypes(item.entry, tournament)) }, { idFactory })),
     playerArchetypes: livePlayerArchetypeRows(tournament)
   }, { idFactory });
+  // Key order is part of the frozen parity artifact: `id, leagueId, name, …`.
+  return {
+    id: archived.id,
+    leagueId: tournament.leagueId,
+    name: archived.name,
+    tournamentDate: archived.tournamentDate,
+    status: archived.status,
+    rounds: archived.rounds,
+    playerArchetypes: archived.playerArchetypes
+  };
 }
 
 export function liveTournamentFinished(tournament: LiveTournamentDocument): boolean {

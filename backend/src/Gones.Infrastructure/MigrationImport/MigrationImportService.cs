@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Gones.Application.Migration;
+using Gones.Domain.Archive;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Leagues;
@@ -128,17 +129,24 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
     {
         await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
+        // A bundle League is a flat record; the archive has three tiers and a Season needs a parent, so
+        // each imported League becomes one ArchiveLeague holding one ArchiveLeagueSeason of the same
+        // name. The Season keeps the bundle's League id, because that is the id the report, the manifest
+        // resolutions and the verifier all key on. Its Tournaments become their own rows beneath it.
         foreach (var league in plan.LeaguesToCreate)
         {
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(league, now));
+            database.ArchiveLeagues.Add(ArchiveLeague.Create(LeagueTierId(league.Id), league.Name, now));
+            database.ArchiveLeagueSeasons.Add(ArchiveLeagueSeason.Create(league.Id, LeagueTierId(league.Id), league.Name, league.Status, now));
+            foreach (var tournament in league.Tournaments)
+            {
+                database.ArchiveTournaments.Add(ArchiveTournament.Create(ArchiveDocument(tournament, league.Id), now));
+            }
         }
 
-        if (plan.PlaceholderLeagueTarget == LeagueNormalizer.PlaceholderLeagueId && plan.TournamentsForPlaceholderTarget.Count > 0)
+        // No League, no Season: the fixed placeholder row they used to merge into is retired.
+        foreach (var tournament in plan.StandaloneTournaments)
         {
-            var placeholder = await database.LeagueArchiveAggregates
-                .SingleAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
-            var document = placeholder.ReadDocument();
-            placeholder.Apply(document with { Tournaments = [.. document.Tournaments, .. plan.TournamentsForPlaceholderTarget] }, now);
+            database.ArchiveTournaments.Add(ArchiveTournament.Create(ArchiveDocument(tournament, null), now));
         }
 
         await database.SaveChangesAsync(cancellationToken);
@@ -197,7 +205,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             ["counts"] = new JsonObject
             {
                 ["leaguesCreated"] = plan.LeaguesToCreate.Count,
-                ["tournamentsImported"] = plan.LeaguesToCreate.Sum(league => league.Tournaments.Count) + plan.TournamentsForPlaceholderTarget.Count,
+                ["tournamentsImported"] = plan.LeaguesToCreate.Sum(league => league.Tournaments.Count) + plan.StandaloneTournaments.Count,
                 ["scheduledTournamentsCreated"] = plan.ScheduledTournaments.Count,
                 ["liveTournamentsCreated"] = plan.LiveTournamentsToCreate.Count,
                 ["deckArchetypesCreated"] = plan.DeckArchetypesToAdd.Count
@@ -244,26 +252,33 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         database.ChangeTracker.Clear();
 
         var leagueIds = plan.LeaguesToCreate.Select(league => league.Id).ToArray();
-        var storedLeagues = await database.LeagueArchiveAggregates
+        var storedSeasons = await database.ArchiveLeagueSeasons
             .AsNoTracking()
-            .Where(aggregate => leagueIds.Contains(aggregate.DocumentId) && aggregate.DeletedAt == null)
+            .Where(season => leagueIds.Contains(season.DocumentId) && season.DeletedAt == null)
             .ToListAsync(cancellationToken);
-        if (storedLeagues.Count != plan.LeaguesToCreate.Count)
+        var storedTournaments = await database.ArchiveTournaments
+            .AsNoTracking()
+            .Where(tournament => tournament.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+        if (storedSeasons.Count != plan.LeaguesToCreate.Count)
         {
-            failures.Add($"expected {plan.LeaguesToCreate.Count} imported Leagues but found {storedLeagues.Count}");
+            failures.Add($"expected {plan.LeaguesToCreate.Count} imported Leagues but found {storedSeasons.Count}");
         }
 
         var derivedSamples = 0;
         foreach (var league in plan.LeaguesToCreate)
         {
-            var stored = storedLeagues.FirstOrDefault(aggregate => aggregate.DocumentId == league.Id);
+            var stored = storedSeasons.FirstOrDefault(season => season.DocumentId == league.Id);
             if (stored is null)
             {
                 failures.Add($"league {league.Id} missing after import");
                 continue;
             }
 
-            var storedHash = MigrationPlanner.DocumentHash(stored.CanonicalDocument);
+            // The League document is reassembled from its Season row plus the Tournament rows beneath
+            // it, so the hash and the derived result still compare against exactly what the source said.
+            var rebuilt = RebuildLeagueDocument(stored.DocumentId, stored.Name, stored.Status, storedTournaments);
+            var storedHash = MigrationPlanner.DocumentHash(LeagueJson.Serialize(rebuilt));
             if (report.EntityHashes.Leagues.TryGetValue(league.Id, out var expectedHash) && !string.Equals(storedHash, expectedHash, StringComparison.Ordinal))
             {
                 failures.Add($"league {league.Id} canonical hash differs: expected {expectedHash} but stored {storedHash}");
@@ -273,7 +288,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             {
                 derivedSamples++;
                 var sourceResult = LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(league));
-                var storedResult = LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(stored.ReadDocument()));
+                var storedResult = LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(rebuilt));
                 if (!JsonNode.DeepEquals(sourceResult, storedResult))
                 {
                     failures.Add($"league {league.Id} derived result parity failed between source and stored documents");
@@ -281,16 +296,13 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             }
         }
 
-        if (plan.PlaceholderLeagueTarget == LeagueNormalizer.PlaceholderLeagueId && plan.TournamentsForPlaceholderTarget.Count > 0)
+        var standaloneIds = storedTournaments
+            .Where(tournament => tournament.SeasonId is null)
+            .Select(tournament => tournament.DocumentId)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var tournament in plan.StandaloneTournaments.Where(tournament => !standaloneIds.Contains(tournament.Id)))
         {
-            var placeholder = await database.LeagueArchiveAggregates
-                .AsNoTracking()
-                .SingleAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
-            var placeholderTournamentIds = placeholder.ReadDocument().Tournaments.Select(tournament => tournament.Id).ToHashSet(StringComparer.Ordinal);
-            foreach (var tournament in plan.TournamentsForPlaceholderTarget.Where(tournament => !placeholderTournamentIds.Contains(tournament.Id)))
-            {
-                failures.Add($"unassigned Tournament {tournament.Id} missing from the target placeholder League");
-            }
+            failures.Add($"unassigned Tournament {tournament.Id} missing as a standalone Archive Tournament");
         }
 
         var storedLiveCount = 0;
@@ -333,7 +345,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
 
         return new MigrationVerification(
             failures.Count == 0,
-            storedLeagues.Count,
+            storedSeasons.Count,
             storedScheduled,
             storedLiveCount,
             storedArchetypes,
@@ -341,22 +353,37 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             failures);
     }
 
+    /// <summary>The parent League minted for an imported bundle League. Deterministic, so a re-run collides instead of duplicating.</summary>
+    private static string LeagueTierId(string seasonId) => $"{seasonId}-league";
+
+    private static ArchiveTournamentDocument ArchiveDocument(TournamentDocument tournament, string? seasonId) =>
+        new(tournament.Id, tournament.Name, seasonId, tournament.TournamentDate, tournament.Status, tournament.Rounds, tournament.PlayerArchetypes);
+
+    /// <summary>The flat League document the bundle described, reassembled from the three tiers that now hold it.</summary>
+    private static LeagueDocument RebuildLeagueDocument(string seasonId, string name, string status, IReadOnlyList<ArchiveTournament> stored) =>
+        new(seasonId, name, status,
+            [.. stored
+                .Where(tournament => tournament.SeasonId == seasonId)
+                .Select(tournament => tournament.ReadDocument())
+                .Select(document => new TournamentDocument(document.Id, seasonId, document.Name, document.TournamentDate, document.Status, document.Rounds, document.PlayerArchetypes))
+                .OrderBy(document => document.Id, StringComparer.Ordinal)]);
+
     private async Task<MigrationTargetState> LoadTargetStateAsync(MigrationMappingFile mapping, CancellationToken cancellationToken)
     {
         var connection = database.Database.GetDbConnection();
         var databaseIdentity = $"{connection.DataSource}/{connection.Database}";
 
-        var leagueIds = await database.LeagueArchiveAggregates
+        var leagueIds = await database.ArchiveLeagueSeasons
             .AsNoTracking()
-            .Where(aggregate => aggregate.DeletedAt == null)
-            .Select(aggregate => aggregate.DocumentId)
+            .Where(season => season.DeletedAt == null)
+            .Select(season => season.DocumentId)
             .ToListAsync(cancellationToken);
-        var placeholder = await database.LeagueArchiveAggregates
+        var standaloneTournamentIds = (await database.ArchiveTournaments
             .AsNoTracking()
-            .SingleOrDefaultAsync(aggregate => aggregate.DocumentId == LeagueNormalizer.PlaceholderLeagueId && aggregate.DeletedAt == null, cancellationToken);
-        var placeholderTournamentIds = placeholder is null
-            ? []
-            : placeholder.ReadDocument().Tournaments.Select(tournament => tournament.Id).ToHashSet(StringComparer.Ordinal);
+            .Where(tournament => tournament.SeasonId == null && tournament.DeletedAt == null)
+            .Select(tournament => tournament.DocumentId)
+            .ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.Ordinal);
         var liveIds = await database.LiveAggregates
             .AsNoTracking()
             .Where(aggregate => aggregate.DeletedAt == null)
@@ -390,7 +417,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
         return new MigrationTargetState(
             databaseIdentity,
             leagueIds.ToHashSet(StringComparer.Ordinal),
-            placeholderTournamentIds,
+            standaloneTournamentIds,
             liveIds.ToHashSet(StringComparer.Ordinal),
             archetypeKeys.ToHashSet(StringComparer.Ordinal),
             slugs.ToHashSet(StringComparer.Ordinal),

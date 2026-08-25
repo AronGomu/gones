@@ -643,8 +643,8 @@ internal static class PublicArchiveEndpoints
         return true;
     }
 
-    // Copies rather than calls into PublicLeagueEndpoints: that file is deleted when the legacy
-    // /api/leagues-archive surface retires, and this one has to survive it.
+    // Its own copy rather than a call into the legacy archive endpoints: those were deleted with that
+    // surface, and this header contract had to survive them.
     private static void SetReadThroughCache(HttpResponse response, string etag)
     {
         response.Headers.ETag = etag;

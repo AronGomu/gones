@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { createTournament } from './models';
+import {  } from './models';
+import { createArchiveTournament } from './archive-models';
 import { buildTournamentSummary, formatSummaryPercentage } from './tournament-summary';
 
 describe('tournament summary', () => {
   it('builds a shareable standings summary with records and archetype percentages', () => {
-    const tournament = createTournament({
+    const tournament = createArchiveTournament({
       name: 'Store Championship',
       tournamentDate: '2026-06-10',
-      rounds: [{ entries: [
+      rounds: [{ id: 'r1', entries: [
         { kind: 'match', id: 'm1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Ice' },
         { kind: 'match', id: 'm2', table: '2', player1Name: 'Charlie', player2Name: 'Dana', player1Score: 1, player2Score: 2, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Earth' },
         { kind: 'bye', id: 'b1', table: '3', playerName: 'Eve', deckArchetype: 'Ice' }
@@ -45,13 +46,13 @@ describe('tournament summary', () => {
       playerName: `Player ${index + 1}`,
       deckArchetype: 'Deck'
     }));
-    const summary = buildTournamentSummary(createTournament({ rounds: [{ entries }] }));
+    const summary = buildTournamentSummary(createArchiveTournament({ rounds: [{ id: 'r0', entries }] }));
     expect(summary.topRows).toHaveLength(12);
   });
 
   it('bases metagame share percent and ratio on all players, including missing archetypes', () => {
-    const tournament = createTournament({
-      rounds: [{ entries: [
+    const tournament = createArchiveTournament({
+      rounds: [{ id: 'r2', entries: [
         { kind: 'match', id: 'm1', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Unknown' },
         { kind: 'match', id: 'm2', table: '2', player1Name: 'Charlie', player2Name: 'Dana', player1Score: 2, player2Score: 0, player1DeckArchetype: 'N/A', player2DeckArchetype: 'null' },
         { kind: 'match', id: 'm3', table: '3', player1Name: 'Eve', player2Name: 'Frank', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'no archetype' }

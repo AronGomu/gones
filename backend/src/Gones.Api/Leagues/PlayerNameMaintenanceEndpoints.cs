@@ -4,6 +4,7 @@ using Gones.Api.Errors;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Application.Concurrency;
+using Gones.Domain.Archive;
 using Gones.Domain.Leagues;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Persistence;
@@ -61,13 +62,13 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
     public async Task<PlayerNameListResponse> SearchAsync(string? search, CancellationToken cancellationToken)
     {
         var names = new Dictionary<string, (int Occurrences, HashSet<string> Leagues)>(StringComparer.Ordinal);
-        foreach (var aggregate in await ActiveAggregatesAsync(cancellationToken))
+        foreach (var row in await ActiveTournamentsAsync(cancellationToken))
         {
-            foreach (var slot in LeaguePlayerNameMaintenance.EnumeratePlayerNameSlots(aggregate.ReadDocument()))
+            foreach (var slot in LeaguePlayerNameMaintenance.EnumeratePlayerNameSlots(Carrier(row)))
             {
                 var entry = names.TryGetValue(slot, out var existing) ? existing : (0, new HashSet<string>(StringComparer.Ordinal));
                 entry.Item1 += 1;
-                entry.Item2.Add(aggregate.DocumentId);
+                entry.Item2.Add(row.DocumentId);
                 names[slot] = entry;
             }
         }
@@ -87,9 +88,9 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
         var (from, to) = RequireNames(fromName, toName);
         var impacts = new List<PlayerRenameLeagueImpact>();
         var mergesWithExisting = false;
-        foreach (var aggregate in await ActiveAggregatesAsync(cancellationToken))
+        foreach (var row in await ActiveTournamentsAsync(cancellationToken))
         {
-            var document = aggregate.ReadDocument();
+            var document = Carrier(row);
             var occurrences = LeaguePlayerNameMaintenance.CountExactOccurrences(document, from);
             if (!mergesWithExisting)
             {
@@ -97,7 +98,7 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
                     .Any(slot => !string.Equals(slot, from, StringComparison.Ordinal) && SameName(slot, to));
             }
             if (occurrences == 0) continue;
-            impacts.Add(new PlayerRenameLeagueImpact(aggregate.DocumentId, aggregate.Name, occurrences));
+            impacts.Add(new PlayerRenameLeagueImpact(row.DocumentId, row.Name, occurrences));
         }
 
         return new PlayerRenamePreviewResponse(
@@ -113,27 +114,28 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
     {
         var (from, to) = RequireNames(fromName, toName);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var aggregates = await database.LeagueArchiveAggregates
-            .FromSqlRaw("SELECT * FROM league_archive_aggregates WHERE deleted_at IS NULL ORDER BY document_id FOR UPDATE")
+        var rows = await database.ArchiveTournaments
+            .FromSqlRaw("SELECT * FROM archive_tournaments WHERE deleted_at IS NULL ORDER BY document_id FOR UPDATE")
             .ToListAsync(cancellationToken);
 
         var now = clock.GetCurrentInstant();
-        var affected = new List<LeagueArchiveAggregate>();
+        var affected = new List<ArchiveTournament>();
         var affectedOccurrences = 0;
-        foreach (var aggregate in aggregates)
+        foreach (var row in rows)
         {
-            var document = aggregate.ReadDocument();
+            var document = Carrier(row);
             var occurrences = LeaguePlayerNameMaintenance.CountExactOccurrences(document, from);
             if (occurrences == 0) continue;
-            aggregate.Apply(LeaguePlayerNameMaintenance.RenamePlayerExact(document, from, to), now);
+            var renamed = LeaguePlayerNameMaintenance.RenamePlayerExact(document, from, to).Tournaments[0];
+            row.Apply(row.ReadDocument() with { Rounds = renamed.Rounds, PlayerArchetypes = renamed.PlayerArchetypes }, now);
             affectedOccurrences += occurrences;
-            affected.Add(aggregate);
+            affected.Add(row);
             database.AuditRecords.Add(new AuditRecord
             {
                 ActorId = actorId,
                 Action = "maintenance.player_name.renamed",
-                EntityType = "league",
-                EntityId = aggregate.DocumentId,
+                EntityType = "archive-tournament",
+                EntityId = row.DocumentId,
                 RedactedDiff = JsonSerializer.Serialize(new { fields = new[] { "playerNames" }, occurrences }),
                 OccurredAt = now
             });
@@ -155,16 +157,26 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
 
         await transaction.CommitAsync(cancellationToken);
         var results = affected
-            .Select(aggregate => new PlayerRenameLeagueResult(aggregate.DocumentId, aggregate.Version, StrongETag.Encode(aggregate.Version)))
+            .Select(row => new PlayerRenameLeagueResult(row.DocumentId, row.Version, StrongETag.Encode(row.Version)))
             .ToArray();
         return new PlayerRenameCommitResponse(from, to, results.Length, affectedOccurrences, results);
     }
 
-    private async Task<IReadOnlyList<LeagueArchiveAggregate>> ActiveAggregatesAsync(CancellationToken cancellationToken) =>
-        await database.LeagueArchiveAggregates.AsNoTracking()
+    private async Task<IReadOnlyList<ArchiveTournament>> ActiveTournamentsAsync(CancellationToken cancellationToken) =>
+        await database.ArchiveTournaments.AsNoTracking()
             .Where(item => item.DeletedAt == null)
             .OrderBy(item => item.DocumentId)
             .ToListAsync(cancellationToken);
+
+    /// <summary>
+    /// One Tournament wrapped in the single-Tournament League the name-maintenance rules still take.
+    /// The carrier's id and name never leave this method — the response rows carry the Tournament's.
+    /// </summary>
+    private static LeagueDocument Carrier(ArchiveTournament row)
+    {
+        var document = row.ReadDocument();
+        return new LeagueDocument(row.DocumentId, row.Name, "active", [ArchiveDocumentAdapter.ToLegacyTournament(document, document.SeasonId ?? string.Empty)]);
+    }
 
     private static bool SameName(string left, string right) =>
         string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);

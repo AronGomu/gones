@@ -27,7 +27,7 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
-import { LeagueArchiveRepository } from './data/league-archive-repository.service';
+import { ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { I18nService } from './i18n/i18n.service';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
@@ -42,7 +42,7 @@ function setup(url = '/settings') {
       { provide: Router, useValue: { url, navigate: vi.fn().mockResolvedValue(true), events: NEVER } },
       { provide: AuthService, useValue: { enabled: false, profile: signal(null) } },
       { provide: LastVisitedUrlService, useValue: { record: vi.fn() } },
-      { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn().mockResolvedValue(null) } },
+      { provide: ArchiveRepository, useValue: { getTournament: vi.fn().mockResolvedValue(null) } },
       { provide: LiveTournamentRepository, useValue: { get: vi.fn().mockResolvedValue(null) } },
       { provide: PowerUserSettingsService, useValue: { enabled: signal(false) } },
       { provide: MatDialog, useValue: {} },

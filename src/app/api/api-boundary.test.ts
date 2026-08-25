@@ -96,8 +96,8 @@ describe('API boundary', () => {
   it('marks the archive reads the app governs, and nothing else', () => {
     expect(isAppGovernedRead('GET', 'http://api.test/api/archive/leagues/all')).toBe(true);
     expect(isAppGovernedRead('GET', '/api/archive/tournaments/2026')).toBe(true);
-    // A write is not a read, the legacy surface keeps its own behaviour until it is retired, and a
-    // path that merely contains the word is not the archive.
+    // A write is not a read, a retired path is not the archive however much it looks like one, and a
+    // path that merely contains the word is not the archive either.
     expect(isAppGovernedRead('POST', '/api/archive/tournaments')).toBe(false);
     expect(isAppGovernedRead('GET', '/api/leagues-archive/all')).toBe(false);
     expect(isAppGovernedRead('GET', '/api/events')).toBe(false);

@@ -1,4 +1,5 @@
-import { LeagueDocument, RoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { RoundEntry, trimPlayerName } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument } from './live-tournament';
 
 export function playerNameKey(name: string): string {
@@ -11,18 +12,8 @@ export function samePlayerName(left: string, right: string): boolean {
   return Boolean(a) && a === b;
 }
 
-/** Rename (or merge into) a player across league round entries + archetype rows. Rounds are source of truth. */
-export function renamePlayerInLeague(league: LeagueDocument, fromName: string, toName: string): LeagueDocument {
-  const from = trimPlayerName(fromName);
-  const to = trimPlayerName(toName);
-  if (!from || !to || samePlayerName(from, to) && from === to) return league;
-  return {
-    ...league,
-    tournaments: league.tournaments.map((tournament) => renamePlayerInTournament(tournament, from, to))
-  };
-}
-
-export function renamePlayerInTournament(tournament: TournamentDocument, fromName: string, toName: string): TournamentDocument {
+/** Rename (or merge into) a player across tournament round entries + archetype rows. Rounds are source of truth. */
+export function renamePlayerInTournament(tournament: ArchiveTournamentDocument, fromName: string, toName: string): ArchiveTournamentDocument {
   const from = trimPlayerName(fromName);
   const to = trimPlayerName(toName);
   if (!from || !to) return tournament;

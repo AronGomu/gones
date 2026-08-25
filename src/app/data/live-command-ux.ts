@@ -1,5 +1,5 @@
 import { ApiProblemError } from '../api/api-boundary';
-import type { GlobalRole } from './league-archive-command-ux';
+import type { GlobalRole } from './archive-command-ux';
 
 export type LiveCommandError = 'forbidden' | 'stale' | 'failed';
 

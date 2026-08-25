@@ -11,7 +11,6 @@ fixtures/dev-environments/<name>/
   formats.json          optional
   tournaments.json      optional
   registrations.json    optional
-  leagues.json          optional
   archive-leagues.json        optional
   archive-league-seasons.json optional
   archive-tournaments.json    optional
@@ -28,7 +27,6 @@ Every optional file is a JSON array. A missing file means an empty list.
 | `formats.json` | the tournament formats to create |
 | `tournaments.json` | the calendar tournaments to publish |
 | `registrations.json` | who is registered to which tournament |
-| `leagues.json` | the legacy League Archives to restore |
 | `archive-leagues.json` | the archive Leagues to restore (top tier) |
 | `archive-league-seasons.json` | the archive League Seasons to restore (middle tier) |
 | `archive-tournaments.json` | the archive Tournaments to restore (bottom tier, standalone ones included) |
@@ -47,18 +45,12 @@ sixteen single-format published Events spread over past / today / future, and se
 
 It also loads the two halves the Calendar does not cover: the archive and two **running (Live)
 tournaments** — one caught mid-round with an unscored Round open, one sitting at its standings. So
-`/leagues-archive`, a League Result, Player Statistics and `/live-tournaments` show content too.
+`/archive/league-seasons`, a Season Result, Player Statistics and `/live-tournaments` show content too.
 
-The archive comes in two shapes side by side, and both are loaded. The **legacy** one is
-`leagues.json`: two flat League Archives (`Gones League 6`, completed, three Archive Tournaments;
-`Gones League 7`, active, one) with real rounds and standings. It stays until the legacy surface is
-retired, because `POST /api/live-tournaments` still resolves a `leagueId` against the legacy table and
-`live-tournaments.json` points its `leagueKey` at a `leagues.json` `id`. The **three-tier** one is
-`archive-leagues.json` / `archive-league-seasons.json` / `archive-tournaments.json`: eight archive
-Leagues, twelve League Seasons and forty-eight Tournaments, five of them standalone. Both are dev-only
-and they overlap: the `global` player-statistics scope folds the legacy table in as well as the new
-one, so the four legacy Tournaments are counted twice in the global rankings until the legacy half
-goes.
+The archive is `archive-leagues.json` / `archive-league-seasons.json` / `archive-tournaments.json`:
+eight archive Leagues, twelve League Seasons and forty-eight Tournaments, five of them standalone.
+It is the only archive — the legacy flat one that used to sit beside it is retired (T19), and with it
+the double counting the `global` player-statistics scope did while both tables were live.
 
 Seeding drives the real HTTP API as those accounts, so the fixtures reference each other by
 human-readable **keys** — the GUIDs do not exist until the seed runs. `npm run test` checks every
@@ -92,26 +84,6 @@ is today, `+60` is in two months.
 API closes registration once a tournament has started, so keep these on tournaments with a positive
 offset.
 
-`leagues.json` — a JSON array of whole **`LeagueDocument`s**, the same shape a League Export carries,
-because the seeder restores each one with `POST /api/leagues-archive/restore`. Per League: `id` (a
-stable literal string, used as the fixture key and by `live-tournaments.json`), `name`, `status`
-(`active` \| `completed`) and `tournaments`. Per Archive Tournament: `id`, `leagueId` (must equal the
-parent League's `id` — the server refuses a Tournament claiming another League), `name`,
-`tournamentDate`, `status` (`active` \| `completed`; unlike the League field this one defaults to
-`completed` when absent, because an archive document that predates the field is finished history),
-`rounds` and `playerArchetypes` (`playerName` + `archetype`, best taken from
-`src/app/config/legacy-archetype-presets.ts` so the autocomplete recognises them). Per Round: `id`
-and `entries`. A `kind: "match"` entry carries `table`, `player1Name`, `player2Name`, `player1Score`,
-`player2Score`, `player1DeckArchetype`, `player2DeckArchetype`; a `kind: "bye"` entry carries
-`table`, `playerName`, `deckArchetype`.
-
-### Three-tier archive fixtures
-
-Three optional files, each a JSON array, each missing-means-empty. The seeder sends all three as one
-`POST /api/archive/restore-full` — restore rather than the interactive create route, because a fixture
-archive is history and the create route refuses a non-Admin a Tournament older than the 365-day lock
-window.
-
 `archive-leagues.json` — the top tier. Per League: `id` (a stable literal string, unique across the
 file, referenced by `archive-league-seasons.json`), `name`, `createdAt` (an ISO 8601 UTC instant) and
 `sourceSeriesId`.
@@ -134,7 +106,7 @@ from a Season name. The `demo` fixtures carry one of each style on purpose.
 `archive-tournaments.json` — the bottom tier, now top-level: every Tournament is its own record. Per
 Tournament: `id`, `name`, `seasonId` (a Season `id`, or `null`), `tournamentDate` (ISO `YYYY-MM-DD`),
 `status` (`active` \| `completed`), `rounds` and `playerArchetypes` — the same Round and entry shapes
-`leagues.json` uses, minus `leagueId`, which the tier does not have: a Tournament's League is derived
+a Round carries anywhere else, minus `leagueId`, which the tier does not have: a Tournament's League is derived
 by joining through its Season.
 
 **`"seasonId": null` is a standalone Tournament**, and most of a real public archive is standalone. The
@@ -175,7 +147,7 @@ each Round), so what lands is a tournament that was actually run.
 | `key` | fixture key; also the seeder's idempotency key |
 | `organizerEmail` | an `accounts.json` email with role `Organizer` or `Admin` |
 | `name` | the Live Tournament name; the seeder skips a name that already exists |
-| `leagueKey` | a `leagues.json` `id`, or `null` for an unassigned running tournament |
+| `leagueKey` | an `archive-league-seasons.json` `id`, or `null` for an unassigned running tournament |
 | `tournamentDate` | `{ "offsetDays": 0 }` — relative like the Calendar, rendered against today |
 | `roundCount` / `customRoundCount` | the Swiss Round count; `customRoundCount: true` keeps `roundCount` instead of deriving it from the roster |
 | `paidTrackingEnabled` | whether the paid column shows |
@@ -190,12 +162,6 @@ accounts, 200 clubs, 9 formats, ~3800 Events, ~2300 registrations**, a three-tie
 archive Leagues, ~186 League Seasons and ~2200 Tournaments** (120 of them standalone, about 276 000
 Round Entries over a bounded cast of 2400 player names, so rankings and player pages have depth),
 **10 running tournaments** and **10 000 audit rows**.
-
-`leagues.json` is no longer the archive here: it holds only the **legacy Live references**, one stub
-League with no Tournaments per `live-tournaments.json` `leagueKey`. The whole legacy archive beside a
-full three-tier one would be 44 MB of duplicate history and would double every `global`-scope ranking,
-because that scope folds both tables in until the legacy surface is retired. `demo` keeps its legacy
-archive in full because it is 22 KB and four Tournaments; the asymmetry is a size decision.
 
 The Season sizes come from what the public archives actually report — a World Championship is one
 event, a modern Pro Tour is three or four, a Spotlight Series is eight to eleven, a store league runs

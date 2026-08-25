@@ -36,16 +36,22 @@
       }
     },
     {
-      "name": "public-league-archive-reads",
-      "version": 1,
+      "name": "public-archive-reads",
+      "version": 2,
       "urls": [
-        "/api/leagues-archive$",
-        "/api/leagues-archive?**",
-        "/api/leagues-archive/*$",
-        "/api/leagues-archive/*/result$",
-        "/api/leagues-archive/*/tournaments-archive/*$",
-        "/api/leagues-archive/*/tournaments-archive/*/result$",
-        "/api/leagues-archive/*/players/*/statistics$"
+        "/api/archive/leagues/all$",
+        "/api/archive/league-seasons/all$",
+        "/api/archive/tournaments/all$",
+        "/api/archive/tournaments/all?**",
+        "/api/archive/years$",
+        "/api/archive/league-seasons/*/tournaments$",
+        "/api/archive/league-seasons/*/result$",
+        "/api/archive/tournaments/*$",
+        "/api/archive/tournaments/*/result$",
+        "/api/archive/global-player-statistics$",
+        "/api/archive/global-player-statistics?**",
+        "/api/archive/global-player-statistics/all$",
+        "/api/archive/global-player-statistics/all?**"
       ],
       "cacheConfig": {
         "strategy": "freshness",

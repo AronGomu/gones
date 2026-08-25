@@ -26,9 +26,9 @@ import { AuthService } from '../../auth/auth.service';
           <strong data-cy="menu-global-stats-card-title">{{ i18n.t('home.globalStats') }}</strong>
           <p data-cy="menu-global-stats-card-desc">{{ i18n.t('home.globalStatsDesc') }}</p>
         </a>
-        <a class="home-destination home-destination--leagues" routerLink="/leagues-archive" data-cy="menu-leagues-archive-card">
-          <strong data-cy="menu-leagues-archive-card-title">{{ i18n.t('home.leagues') }}</strong>
-          <p data-cy="menu-leagues-archive-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
+        <a class="home-destination home-destination--leagues" routerLink="/archive/league-seasons" data-cy="menu-archive-card">
+          <strong data-cy="menu-archive-card-title">{{ i18n.t('home.leagues') }}</strong>
+          <p data-cy="menu-archive-card-desc">{{ i18n.t('home.leaguesDesc') }}</p>
         </a>
         <a class="home-destination home-destination--leagues" [class.home-destination--running-active]="hasActiveRunningTournament()" routerLink="/live-tournaments" data-cy="menu-running-tournaments-card">
           <strong data-cy="menu-running-tournaments-card-title">{{ i18n.t('home.runningTournaments') }}</strong>

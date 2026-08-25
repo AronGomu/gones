@@ -18,18 +18,18 @@ await waitFor(frontendUrl, 'frontend');
 await waitFor('http://127.0.0.1:5080/health/live', 'API liveness');
 await waitFor('http://127.0.0.1:5080/health/ready', 'API readiness');
 
-// The paged list is retired (ADR 0042); the summary catalog is the archive's list surface.
-const leagueListResponse = await fetch('http://127.0.0.1:5080/api/leagues-archive/all');
-if (!leagueListResponse.ok) throw new Error(`Seeded League list failed: ${leagueListResponse.status}`);
+// The paged list is retired (ADR 0042); the summary catalog is the archive's list surface. The fixed
+// placeholder League this used to assert on is retired too (T19), so the check is that the catalog
+// answers at all and answers cacheably — there is no seeded row left to name.
+const leagueListResponse = await fetch('http://127.0.0.1:5080/api/archive/leagues/all');
+if (!leagueListResponse.ok) throw new Error(`Archive League catalog failed: ${leagueListResponse.status}`);
 const leagueList = await leagueListResponse.json();
-const placeholders = leagueList.items.filter(item => item.id === 'placeholder-league');
-if (placeholders.length !== 1 || placeholders[0].name !== 'Unassigned Tournaments') throw new Error('Fixed placeholder League missing or duplicated.');
-if (!leagueListResponse.headers.get('etag')) throw new Error('Seeded League list ETag missing.');
-const leagueDetailResponse = await fetch('http://127.0.0.1:5080/api/leagues-archive/placeholder-league');
-if (!leagueDetailResponse.ok) throw new Error(`Seeded League detail failed: ${leagueDetailResponse.status}`);
-const leagueDetail = await leagueDetailResponse.json();
-if (leagueDetail.id !== 'placeholder-league' || leagueDetail.tournaments.length !== 0) throw new Error('Seeded placeholder League detail differs.');
-if (!leagueDetailResponse.headers.get('etag')) throw new Error('Seeded League detail ETag missing.');
+if (!Array.isArray(leagueList.items)) throw new Error('Archive League catalog has no items array.');
+if (!leagueListResponse.headers.get('etag')) throw new Error('Archive League catalog ETag missing.');
+
+// The retired surface answers 404 with no alias and no redirect (ADR 0022's "no API path aliases").
+const retiredResponse = await fetch('http://127.0.0.1:5080/api/leagues-archive/all');
+if (retiredResponse.status !== 404) throw new Error(`Retired League catalog answered ${retiredResponse.status}, expected 404.`);
 
 const liveListResponse = await fetch('http://127.0.0.1:5080/api/live-tournaments?pageSize=100');
 if (!liveListResponse.ok) throw new Error(`Live Tournament list failed: ${liveListResponse.status}`);
@@ -54,7 +54,7 @@ const outputs = commands.map(args => spawnSync('docker', args, { encoding: 'utf8
 for (const result of outputs) if (result.status !== 0) throw new Error(`${result.stdout}\n${result.stderr}`);
 if (!outputs[0].stdout.includes('migrator')) throw new Error('Migrator completion missing.');
 if (!outputs[1].stdout.includes('Gones Worker heartbeat')) throw new Error('Worker heartbeat missing.');
-const expectedMigrations = ['20260822145459_InitialCreate', '20260822183905_RebuildArchiveThreeTier', '20260822220652_ScopePlayerStatistics'];
+const expectedMigrations = ['20260822145459_InitialCreate', '20260822183905_RebuildArchiveThreeTier', '20260822220652_ScopePlayerStatistics', '20260825185219_RetireLegacyLeagueArchive'];
 const actualMigrations = outputs[2].stdout.trim().split(/\r?\n/).filter(Boolean);
 if (JSON.stringify(actualMigrations) !== JSON.stringify(expectedMigrations)) {
   throw new Error(`PostgreSQL migrations differ. Expected ${expectedMigrations.join(', ')}; got ${actualMigrations.join(', ')}`);

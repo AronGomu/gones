@@ -15,15 +15,15 @@ import { of } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE, LiveFinalizeResult } from '../../backend/application-backend';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
-import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
+import { ArchiveRepository } from '../../data/archive-repository.service';
+import { GlobalStatsCatalogCacheService } from '../players/global-stats-catalog-cache.service';
+import type { ArchiveLeagueSeasonSummary } from '../../data/archive-summary';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { createLiveTournament, LiveTournamentDocument } from '../../domain/live-tournament';
-import { PersistedLeague } from '../../domain/models';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { OnlineStatusService } from '../../shared/online-status.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
-import { LEAGUE_CATALOG_CACHE_KEY } from '../leagues-archive/league-archive-catalog-cache.service';
 import { LiveTournamentRunnerComponent } from './live-tournament-runner.component';
 
 const LEAGUE_ID = '7f3a1d2c-0b44-4f9e-9a1e-2c8f0d6b5a11';
@@ -41,13 +41,17 @@ function finalizeResult(leagueId: string): LiveFinalizeResult {
   return { liveTournamentId: 'live-1', leagueId, finalizedTournamentId: 'archived-1', liveDocumentVersion: 2 };
 }
 
-function league(): PersistedLeague {
-  return { id: LEAGUE_ID, name: 'League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00.000Z' };
+function season(): ArchiveLeagueSeasonSummary {
+  return {
+    id: LEAGUE_ID, name: 'Season', leagueId: 'league-1', status: 'active', updatedAt: '2026-08-09T10:00:00.000Z',
+    documentVersion: 1, tournamentCount: 0, playerCount: 0, firstTournamentDate: null, lastTournamentDate: null
+  };
 }
 
 async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
   const live = createLiveTournament({ id: 'live-1', leagueId: LEAGUE_ID, paidTrackingEnabled: false, ...overrides });
-  const leagueRepo = { listLeagues: vi.fn(async () => [league()]) } as unknown as LeagueArchiveRepository;
+  const invalidateArchiveCaches = vi.fn(async () => undefined);
+  const archiveRepo = { listLeagueSeasons: vi.fn(async () => ({ items: [season()] })), invalidateArchiveCaches } as unknown as ArchiveRepository;
   const liveRepo = {
     get: vi.fn(async () => live),
     delete: vi.fn(async () => undefined),
@@ -64,13 +68,14 @@ async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
     { provide: OnlineStatusService, useValue: { isOnline: () => true } },
     { provide: LIVE_BACKEND_MODE, useValue: 'server' },
     { provide: ServerReadCacheService, useValue: cache },
+    { provide: GlobalStatsCatalogCacheService, useValue: { load: vi.fn(async () => ({ items: [], fetchedAt: '', fromCache: false, stale: false, truncated: false })) } },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
-  const component = runInInjectionContext(injector, () => new LiveTournamentRunnerComponent(liveRepo, leagueRepo, route, router, dialog));
+  const component = runInInjectionContext(injector, () => new LiveTournamentRunnerComponent(liveRepo, archiveRepo, route, router, dialog));
   await component.load();
-  return { component, cache, liveRepo, navigate };
+  return { component, cache, liveRepo, navigate, invalidateArchiveCaches };
 }
 
 /**
@@ -80,7 +85,7 @@ async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
  * listed at `/live-tournaments` for a day. Removing either `invalidate` fails one of these.
  */
 describe('Live Tournament runner cache invalidation', () => {
-  it('invalidates the list after finalizing into a League', async () => {
+  it('invalidates the list after finalizing into a Season', async () => {
     const { component, cache } = await setup();
 
     await component.finalize();
@@ -90,7 +95,7 @@ describe('Live Tournament runner cache invalidation', () => {
 
   it('invalidates the list after a local finalize', async () => {
     const { component, cache, liveRepo } = await setup();
-    // Browser-local authority produces no League to write into (ADR 0021).
+    // Browser-local authority produces no Season to write into (ADR 0021).
     vi.mocked(liveRepo.finalizeLiveTournament).mockResolvedValue(finalizeResult(''));
 
     await component.finalize();
@@ -115,13 +120,12 @@ describe('Live Tournament runner cache invalidation', () => {
     expect(cache.invalidate).not.toHaveBeenCalled();
   });
 
-  /** The finalize also writes an Archive Tournament, so the public League catalog is stale too. */
-  it('drops the public League catalog snapshot after finalizing into a League', async () => {
-    localStorage.setItem(LEAGUE_CATALOG_CACHE_KEY, JSON.stringify({ items: [], fetchedAt: new Date().toISOString(), truncated: false }));
-    const { component } = await setup();
+  /** The finalize also writes an Archive Tournament, so every public archive catalog is stale too. */
+  it('drops the public archive catalogs after finalizing into a Season', async () => {
+    const { component, invalidateArchiveCaches } = await setup();
 
     await component.finalize();
 
-    expect(localStorage.getItem(LEAGUE_CATALOG_CACHE_KEY)).toBeNull();
+    expect(invalidateArchiveCaches).toHaveBeenCalled();
   });
 });

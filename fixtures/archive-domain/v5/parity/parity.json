@@ -1,0 +1,1486 @@
+{
+  "fixtureVersion": 1,
+  "sourceDataVersion": 5,
+  "csvImports": [
+    {
+      "input": {
+        "text": "Table,Player,Result,Opponent,Player_Decklist,Opponent_Decklist\n7,\"Alice, Jr\",Won 2-1,Bob,\" Red, Aggro \",Ice\n8,Carol,Drawn 1-1,Dana,Earth,Air\n9,Eve,Won 0-2,Frank,Fire,Water\nmalformed,row",
+        "idPrefix": "csv"
+      },
+      "expected": {
+        "entries": [
+          {
+            "kind": "match",
+            "id": "csv-1",
+            "table": "7",
+            "player1Name": "Alice, Jr",
+            "player2Name": "Bob",
+            "player1Score": 2,
+            "player2Score": 1,
+            "player1DeckArchetype": "Red, Aggro",
+            "player2DeckArchetype": "Ice"
+          },
+          {
+            "kind": "match",
+            "id": "csv-2",
+            "table": "8",
+            "player1Name": "Carol",
+            "player2Name": "Dana",
+            "player1Score": 1,
+            "player2Score": 1,
+            "player1DeckArchetype": "Earth",
+            "player2DeckArchetype": "Air"
+          },
+          {
+            "kind": "invalid",
+            "id": "csv-3",
+            "rawText": "9,Eve,Won 0-2,Frank,Fire,Water",
+            "table": "9",
+            "player": "Eve",
+            "result": "Won 0-2",
+            "opponent": "Frank",
+            "playerDecklist": "Fire",
+            "opponentDecklist": "Water"
+          },
+          {
+            "kind": "invalid",
+            "id": "csv-4",
+            "rawText": "malformed,row",
+            "table": "",
+            "player": "",
+            "result": "",
+            "opponent": "",
+            "playerDecklist": "",
+            "opponentDecklist": ""
+          }
+        ]
+      }
+    },
+    {
+      "input": {
+        "text": "3;Élodie;Lost 0-2;Zoë;\"Blue \"\"Tempo\"\"\";Green",
+        "idPrefix": "semicolon"
+      },
+      "expected": {
+        "entries": [
+          {
+            "kind": "match",
+            "id": "semicolon-1",
+            "table": "3",
+            "player1Name": "Élodie",
+            "player2Name": "Zoë",
+            "player1Score": 0,
+            "player2Score": 2,
+            "player1DeckArchetype": "Blue \"Tempo\"",
+            "player2DeckArchetype": "Green"
+          }
+        ]
+      }
+    }
+  ],
+  "validations": [
+    {
+      "input": {
+        "kind": "invalid",
+        "id": "i1",
+        "rawText": "x",
+        "table": "",
+        "player": "",
+        "result": "",
+        "opponent": "",
+        "playerDecklist": "",
+        "opponentDecklist": ""
+      },
+      "expected": {
+        "valid": false,
+        "codes": [
+          "invalidRoundEntry"
+        ]
+      }
+    },
+    {
+      "input": {
+        "kind": "bye",
+        "id": "b1",
+        "table": "1",
+        "playerName": " bye ",
+        "deckArchetype": ""
+      },
+      "expected": {
+        "valid": false,
+        "codes": [
+          "byeReservedPlayerName"
+        ]
+      }
+    },
+    {
+      "input": {
+        "kind": "match",
+        "id": "m1",
+        "table": "2",
+        "player1Name": "Alice",
+        "player2Name": "Alice",
+        "player1Score": 3,
+        "player2Score": -1,
+        "player1DeckArchetype": "",
+        "player2DeckArchetype": ""
+      },
+      "expected": {
+        "valid": false,
+        "codes": [
+          "samePlayerName",
+          "resultInvalid",
+          "resultTooManyGameWins"
+        ]
+      }
+    },
+    {
+      "input": {
+        "kind": "match",
+        "id": "m2",
+        "table": "3",
+        "player1Name": "Alice",
+        "player2Name": "alice",
+        "player1Score": 1,
+        "player2Score": 1,
+        "player1DeckArchetype": "",
+        "player2DeckArchetype": ""
+      },
+      "expected": {
+        "valid": true,
+        "codes": []
+      }
+    }
+  ],
+  "warnings": [
+    {
+      "input": {
+        "id": "warning-tournament",
+        "name": "Warnings",
+        "seasonId": "warning-season",
+        "tournamentDate": "2026-03-01",
+        "status": "completed",
+        "rounds": [
+          {
+            "id": "wr1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "wm1",
+                "table": "1",
+                "player1Name": "Alice",
+                "player2Name": "Bob",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          },
+          {
+            "id": "wr2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "wm2",
+                "table": "1",
+                "player1Name": "Alice",
+                "player2Name": "Bob",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              },
+              {
+                "kind": "match",
+                "id": "wm3",
+                "table": "2",
+                "player1Name": "Alice",
+                "player2Name": "Carol",
+                "player1Score": 0,
+                "player2Score": 2,
+                "player1DeckArchetype": "",
+                "player2DeckArchetype": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Alice",
+            "archetype": "Fire"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "code": "missingBye",
+          "roundId": "wr1"
+        },
+        {
+          "code": "newPlayerAfterRoundOne",
+          "playerName": "Carol",
+          "entryIds": [
+            "wm3"
+          ],
+          "roundId": "wr2"
+        },
+        {
+          "code": "duplicateSameRoundPlayerName",
+          "playerName": "Alice",
+          "entryIds": [
+            "wm2",
+            "wm3"
+          ],
+          "roundId": "wr2"
+        },
+        {
+          "code": "repeatedPairing",
+          "entryIds": [
+            "wm1",
+            "wm2"
+          ]
+        },
+        {
+          "code": "missingDeckArchetype",
+          "playerNames": [
+            "Bob",
+            "Carol"
+          ],
+          "playerName": "Bob"
+        }
+      ]
+    }
+  ],
+  "tournamentResults": [
+    {
+      "input": {
+        "id": "result-tournament",
+        "name": "Results",
+        "seasonId": "result-season",
+        "tournamentDate": "2026-02-02",
+        "status": "completed",
+        "rounds": [
+          {
+            "id": "rr1",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "rm1",
+                "table": "1",
+                "player1Name": "Alice",
+                "player2Name": "Bob",
+                "player1Score": 2,
+                "player2Score": 0,
+                "player1DeckArchetype": "Fire",
+                "player2DeckArchetype": "Ice"
+              },
+              {
+                "kind": "bye",
+                "id": "rb1",
+                "table": "2",
+                "playerName": "Carol",
+                "deckArchetype": "Earth"
+              }
+            ]
+          },
+          {
+            "id": "rr2",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "rm2",
+                "table": "1",
+                "player1Name": "Alice",
+                "player2Name": "Carol",
+                "player1Score": 1,
+                "player2Score": 1,
+                "player1DeckArchetype": "Fire",
+                "player2DeckArchetype": "Earth"
+              },
+              {
+                "kind": "match",
+                "id": "rm3",
+                "table": "2",
+                "player1Name": "Bob",
+                "player2Name": "Dave",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "Ice",
+                "player2DeckArchetype": "Air"
+              }
+            ]
+          },
+          {
+            "id": "rr3",
+            "entries": [
+              {
+                "kind": "invalid",
+                "id": "ri1",
+                "rawText": "bad",
+                "table": "1",
+                "player": "",
+                "result": "",
+                "opponent": "",
+                "playerDecklist": "",
+                "opponentDecklist": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Alice",
+            "archetype": "Fire"
+          },
+          {
+            "playerName": "Bob",
+            "archetype": "Ice"
+          },
+          {
+            "playerName": "Carol",
+            "archetype": "Earth"
+          },
+          {
+            "playerName": "Dave",
+            "archetype": "Air"
+          }
+        ]
+      },
+      "expected": {
+        "scope": "tournament",
+        "incomplete": true,
+        "provisional": true,
+        "rows": [
+          {
+            "playerName": "Carol",
+            "points": 4,
+            "matchWins": 1,
+            "matchDraws": 1,
+            "matchLosses": 0,
+            "byes": 1,
+            "playedMatchCount": 1,
+            "matchAssignmentCount": 2,
+            "gameWins": 1,
+            "gameLosses": 1,
+            "rank": 1,
+            "gameWinPercentage": 0.5,
+            "opponentsMatchWinPercentage": 0.6666666666666666,
+            "opponentsGameWinPercentage": 0.75,
+            "archetype": "Earth"
+          },
+          {
+            "playerName": "Alice",
+            "points": 4,
+            "matchWins": 1,
+            "matchDraws": 1,
+            "matchLosses": 0,
+            "byes": 0,
+            "playedMatchCount": 2,
+            "matchAssignmentCount": 2,
+            "gameWins": 3,
+            "gameLosses": 1,
+            "rank": 2,
+            "gameWinPercentage": 0.75,
+            "opponentsMatchWinPercentage": 0.5833333333333333,
+            "opponentsGameWinPercentage": 0.45,
+            "archetype": "Fire"
+          },
+          {
+            "playerName": "Bob",
+            "points": 3,
+            "matchWins": 1,
+            "matchDraws": 0,
+            "matchLosses": 1,
+            "byes": 0,
+            "playedMatchCount": 2,
+            "matchAssignmentCount": 2,
+            "gameWins": 2,
+            "gameLosses": 3,
+            "rank": 3,
+            "gameWinPercentage": 0.4,
+            "opponentsMatchWinPercentage": 0.5,
+            "opponentsGameWinPercentage": 0.5416666666666666,
+            "archetype": "Ice"
+          },
+          {
+            "playerName": "Dave",
+            "points": 0,
+            "matchWins": 0,
+            "matchDraws": 0,
+            "matchLosses": 1,
+            "byes": 0,
+            "playedMatchCount": 1,
+            "matchAssignmentCount": 1,
+            "gameWins": 1,
+            "gameLosses": 2,
+            "rank": 4,
+            "gameWinPercentage": 0.3333333333333333,
+            "opponentsMatchWinPercentage": 0.5,
+            "opponentsGameWinPercentage": 0.4,
+            "archetype": "Air"
+          }
+        ]
+      }
+    }
+  ],
+  "leagueSeasonResults": [
+    {
+      "input": [
+        {
+          "id": "result-tournament",
+          "name": "Results",
+          "seasonId": "result-season",
+          "tournamentDate": "2026-02-02",
+          "status": "completed",
+          "rounds": [
+            {
+              "id": "rr1",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "rm1",
+                  "table": "1",
+                  "player1Name": "Alice",
+                  "player2Name": "Bob",
+                  "player1Score": 2,
+                  "player2Score": 0,
+                  "player1DeckArchetype": "Fire",
+                  "player2DeckArchetype": "Ice"
+                },
+                {
+                  "kind": "bye",
+                  "id": "rb1",
+                  "table": "2",
+                  "playerName": "Carol",
+                  "deckArchetype": "Earth"
+                }
+              ]
+            },
+            {
+              "id": "rr2",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "rm2",
+                  "table": "1",
+                  "player1Name": "Alice",
+                  "player2Name": "Carol",
+                  "player1Score": 1,
+                  "player2Score": 1,
+                  "player1DeckArchetype": "Fire",
+                  "player2DeckArchetype": "Earth"
+                },
+                {
+                  "kind": "match",
+                  "id": "rm3",
+                  "table": "2",
+                  "player1Name": "Bob",
+                  "player2Name": "Dave",
+                  "player1Score": 2,
+                  "player2Score": 1,
+                  "player1DeckArchetype": "Ice",
+                  "player2DeckArchetype": "Air"
+                }
+              ]
+            },
+            {
+              "id": "rr3",
+              "entries": [
+                {
+                  "kind": "invalid",
+                  "id": "ri1",
+                  "rawText": "bad",
+                  "table": "1",
+                  "player": "",
+                  "result": "",
+                  "opponent": "",
+                  "playerDecklist": "",
+                  "opponentDecklist": ""
+                }
+              ]
+            }
+          ],
+          "playerArchetypes": [
+            {
+              "playerName": "Alice",
+              "archetype": "Fire"
+            },
+            {
+              "playerName": "Bob",
+              "archetype": "Ice"
+            },
+            {
+              "playerName": "Carol",
+              "archetype": "Earth"
+            },
+            {
+              "playerName": "Dave",
+              "archetype": "Air"
+            }
+          ]
+        },
+        {
+          "id": "empty-tournament",
+          "name": "Empty",
+          "seasonId": "result-season",
+          "tournamentDate": "2026-03-03",
+          "status": "completed",
+          "rounds": [],
+          "playerArchetypes": []
+        }
+      ],
+      "expected": {
+        "scope": "league",
+        "startDate": "2026-02-02",
+        "endDate": "2026-03-03",
+        "incomplete": true,
+        "provisional": true,
+        "rows": [
+          {
+            "playerName": "Carol",
+            "points": 4,
+            "matchWins": 1,
+            "matchDraws": 1,
+            "matchLosses": 0,
+            "byes": 1,
+            "playedMatchCount": 1,
+            "matchAssignmentCount": 2,
+            "gameWins": 1,
+            "gameLosses": 1,
+            "rank": 1,
+            "gameWinPercentage": 0.5,
+            "opponentsMatchWinPercentage": 0.6666666666666666,
+            "opponentsGameWinPercentage": 0.75
+          },
+          {
+            "playerName": "Alice",
+            "points": 4,
+            "matchWins": 1,
+            "matchDraws": 1,
+            "matchLosses": 0,
+            "byes": 0,
+            "playedMatchCount": 2,
+            "matchAssignmentCount": 2,
+            "gameWins": 3,
+            "gameLosses": 1,
+            "rank": 2,
+            "gameWinPercentage": 0.75,
+            "opponentsMatchWinPercentage": 0.5833333333333333,
+            "opponentsGameWinPercentage": 0.45
+          },
+          {
+            "playerName": "Bob",
+            "points": 3,
+            "matchWins": 1,
+            "matchDraws": 0,
+            "matchLosses": 1,
+            "byes": 0,
+            "playedMatchCount": 2,
+            "matchAssignmentCount": 2,
+            "gameWins": 2,
+            "gameLosses": 3,
+            "rank": 3,
+            "gameWinPercentage": 0.4,
+            "opponentsMatchWinPercentage": 0.5,
+            "opponentsGameWinPercentage": 0.5416666666666666
+          },
+          {
+            "playerName": "Dave",
+            "points": 0,
+            "matchWins": 0,
+            "matchDraws": 0,
+            "matchLosses": 1,
+            "byes": 0,
+            "playedMatchCount": 1,
+            "matchAssignmentCount": 1,
+            "gameWins": 1,
+            "gameLosses": 2,
+            "rank": 4,
+            "gameWinPercentage": 0.3333333333333333,
+            "opponentsMatchWinPercentage": 0.5,
+            "opponentsGameWinPercentage": 0.4
+          }
+        ]
+      }
+    }
+  ],
+  "playerStatistics": [
+    {
+      "input": {
+        "tournaments": [
+          {
+            "id": "stats-tournament",
+            "name": "Stats Event",
+            "seasonId": "stats-season",
+            "tournamentDate": "2026-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "sr1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Bob",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Zoo",
+                    "player2DeckArchetype": "Ice"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm2",
+                    "table": "2",
+                    "player1Name": "Alice",
+                    "player2Name": "Carol",
+                    "player1Score": 1,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": "Earth"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm3",
+                    "table": "3",
+                    "player1Name": "Alice",
+                    "player2Name": "alice",
+                    "player1Score": 1,
+                    "player2Score": 1,
+                    "player1DeckArchetype": "Beta",
+                    "player2DeckArchetype": "beta"
+                  }
+                ]
+              },
+              {
+                "id": "sr2",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm4",
+                    "table": "1",
+                    "player1Name": "Bob",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Ice",
+                    "player2DeckArchetype": "Gamma"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm5",
+                    "table": "2",
+                    "player1Name": "Carol",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Earth",
+                    "player2DeckArchetype": "Delta"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb1",
+                    "table": "3",
+                    "playerName": "Alice",
+                    "deckArchetype": "Ignored"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb2",
+                    "table": "4",
+                    "playerName": "Bye Only",
+                    "deckArchetype": "Earth"
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": "Alpha"
+              },
+              {
+                "playerName": "Roster Only",
+                "archetype": "Air"
+              }
+            ]
+          },
+          {
+            "id": "other-tournament",
+            "name": "Other Event",
+            "seasonId": null,
+            "tournamentDate": "2025-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "or1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "om1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Zed",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": ""
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": ""
+              },
+              {
+                "playerName": "Zed",
+                "archetype": ""
+              }
+            ]
+          }
+        ],
+        "playerName": "Alice",
+        "filters": {}
+      },
+      "expected": {
+        "playerName": "Alice",
+        "playedMatchCount": 6,
+        "byeCount": 1,
+        "matchWins": 2,
+        "matchLosses": 3,
+        "matchDraws": 1,
+        "playedGameCount": 13,
+        "gameWins": 6,
+        "gameLosses": 7,
+        "matchWinrate": 0.3333333333333333,
+        "gameWinrate": 0.46153846153846156,
+        "nemesis": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "rival": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "mostPlayedArchetype": {
+          "name": "Alpha",
+          "matchCount": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "tournaments": [
+          {
+            "id": "stats-tournament",
+            "name": "Stats Event",
+            "seasonId": "stats-season",
+            "tournamentDate": "2026-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "sr1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Bob",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Zoo",
+                    "player2DeckArchetype": "Ice"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm2",
+                    "table": "2",
+                    "player1Name": "Alice",
+                    "player2Name": "Carol",
+                    "player1Score": 1,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": "Earth"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm3",
+                    "table": "3",
+                    "player1Name": "Alice",
+                    "player2Name": "alice",
+                    "player1Score": 1,
+                    "player2Score": 1,
+                    "player1DeckArchetype": "Beta",
+                    "player2DeckArchetype": "beta"
+                  }
+                ]
+              },
+              {
+                "id": "sr2",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm4",
+                    "table": "1",
+                    "player1Name": "Bob",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Ice",
+                    "player2DeckArchetype": "Gamma"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm5",
+                    "table": "2",
+                    "player1Name": "Carol",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Earth",
+                    "player2DeckArchetype": "Delta"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb1",
+                    "table": "3",
+                    "playerName": "Alice",
+                    "deckArchetype": "Ignored"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb2",
+                    "table": "4",
+                    "playerName": "Bye Only",
+                    "deckArchetype": "Earth"
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": "Alpha"
+              },
+              {
+                "playerName": "Roster Only",
+                "archetype": "Air"
+              }
+            ]
+          },
+          {
+            "id": "other-tournament",
+            "name": "Other Event",
+            "seasonId": null,
+            "tournamentDate": "2025-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "or1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "om1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Zed",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": ""
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": ""
+              },
+              {
+                "playerName": "Zed",
+                "archetype": ""
+              }
+            ]
+          }
+        ],
+        "playerName": "Alice",
+        "filters": {
+          "seasonId": "stats-season",
+          "opponentName": " BO "
+        }
+      },
+      "expected": {
+        "playerName": "Alice",
+        "playedMatchCount": 2,
+        "byeCount": 1,
+        "matchWins": 1,
+        "matchLosses": 1,
+        "matchDraws": 0,
+        "playedGameCount": 4,
+        "gameWins": 2,
+        "gameLosses": 2,
+        "matchWinrate": 0.5,
+        "gameWinrate": 0.5,
+        "nemesis": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "rival": {
+          "name": "Bob",
+          "wins": 1,
+          "losses": 1
+        },
+        "mostPlayedArchetype": {
+          "name": "Gamma",
+          "matchCount": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "tournaments": [
+          {
+            "id": "stats-tournament",
+            "name": "Stats Event",
+            "seasonId": "stats-season",
+            "tournamentDate": "2026-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "sr1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Bob",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Zoo",
+                    "player2DeckArchetype": "Ice"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm2",
+                    "table": "2",
+                    "player1Name": "Alice",
+                    "player2Name": "Carol",
+                    "player1Score": 1,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": "Earth"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm3",
+                    "table": "3",
+                    "player1Name": "Alice",
+                    "player2Name": "alice",
+                    "player1Score": 1,
+                    "player2Score": 1,
+                    "player1DeckArchetype": "Beta",
+                    "player2DeckArchetype": "beta"
+                  }
+                ]
+              },
+              {
+                "id": "sr2",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "sm4",
+                    "table": "1",
+                    "player1Name": "Bob",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Ice",
+                    "player2DeckArchetype": "Gamma"
+                  },
+                  {
+                    "kind": "match",
+                    "id": "sm5",
+                    "table": "2",
+                    "player1Name": "Carol",
+                    "player2Name": "Alice",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "Earth",
+                    "player2DeckArchetype": "Delta"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb1",
+                    "table": "3",
+                    "playerName": "Alice",
+                    "deckArchetype": "Ignored"
+                  },
+                  {
+                    "kind": "bye",
+                    "id": "sb2",
+                    "table": "4",
+                    "playerName": "Bye Only",
+                    "deckArchetype": "Earth"
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": "Alpha"
+              },
+              {
+                "playerName": "Roster Only",
+                "archetype": "Air"
+              }
+            ]
+          },
+          {
+            "id": "other-tournament",
+            "name": "Other Event",
+            "seasonId": null,
+            "tournamentDate": "2025-01-01",
+            "status": "completed",
+            "rounds": [
+              {
+                "id": "or1",
+                "entries": [
+                  {
+                    "kind": "match",
+                    "id": "om1",
+                    "table": "1",
+                    "player1Name": "Alice",
+                    "player2Name": "Zed",
+                    "player1Score": 0,
+                    "player2Score": 2,
+                    "player1DeckArchetype": "",
+                    "player2DeckArchetype": ""
+                  }
+                ]
+              }
+            ],
+            "playerArchetypes": [
+              {
+                "playerName": "Alice",
+                "archetype": ""
+              },
+              {
+                "playerName": "Zed",
+                "archetype": ""
+              }
+            ]
+          }
+        ],
+        "playerName": "Nobody",
+        "filters": {
+          "tournamentId": "missing"
+        }
+      },
+      "expected": {
+        "playerName": "Nobody",
+        "playedMatchCount": 0,
+        "byeCount": 0,
+        "matchWins": 0,
+        "matchLosses": 0,
+        "matchDraws": 0,
+        "playedGameCount": 0,
+        "gameWins": 0,
+        "gameLosses": 0,
+        "matchWinrate": null,
+        "gameWinrate": null,
+        "nemesis": null,
+        "rival": null,
+        "mostPlayedArchetype": null
+      }
+    }
+  ],
+  "globalPlayerStatistics": [
+    {
+      "input": [
+        {
+          "id": "stats-tournament",
+          "name": "Stats Event",
+          "seasonId": "stats-season",
+          "tournamentDate": "2026-01-01",
+          "status": "completed",
+          "rounds": [
+            {
+              "id": "sr1",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "sm1",
+                  "table": "1",
+                  "player1Name": "Alice",
+                  "player2Name": "Bob",
+                  "player1Score": 0,
+                  "player2Score": 2,
+                  "player1DeckArchetype": "Zoo",
+                  "player2DeckArchetype": "Ice"
+                },
+                {
+                  "kind": "match",
+                  "id": "sm2",
+                  "table": "2",
+                  "player1Name": "Alice",
+                  "player2Name": "Carol",
+                  "player1Score": 1,
+                  "player2Score": 2,
+                  "player1DeckArchetype": "",
+                  "player2DeckArchetype": "Earth"
+                },
+                {
+                  "kind": "match",
+                  "id": "sm3",
+                  "table": "3",
+                  "player1Name": "Alice",
+                  "player2Name": "alice",
+                  "player1Score": 1,
+                  "player2Score": 1,
+                  "player1DeckArchetype": "Beta",
+                  "player2DeckArchetype": "beta"
+                }
+              ]
+            },
+            {
+              "id": "sr2",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "sm4",
+                  "table": "1",
+                  "player1Name": "Bob",
+                  "player2Name": "Alice",
+                  "player1Score": 0,
+                  "player2Score": 2,
+                  "player1DeckArchetype": "Ice",
+                  "player2DeckArchetype": "Gamma"
+                },
+                {
+                  "kind": "match",
+                  "id": "sm5",
+                  "table": "2",
+                  "player1Name": "Carol",
+                  "player2Name": "Alice",
+                  "player1Score": 0,
+                  "player2Score": 2,
+                  "player1DeckArchetype": "Earth",
+                  "player2DeckArchetype": "Delta"
+                },
+                {
+                  "kind": "bye",
+                  "id": "sb1",
+                  "table": "3",
+                  "playerName": "Alice",
+                  "deckArchetype": "Ignored"
+                },
+                {
+                  "kind": "bye",
+                  "id": "sb2",
+                  "table": "4",
+                  "playerName": "Bye Only",
+                  "deckArchetype": "Earth"
+                }
+              ]
+            }
+          ],
+          "playerArchetypes": [
+            {
+              "playerName": "Alice",
+              "archetype": "Alpha"
+            },
+            {
+              "playerName": "Roster Only",
+              "archetype": "Air"
+            }
+          ]
+        },
+        {
+          "id": "other-tournament",
+          "name": "Other Event",
+          "seasonId": null,
+          "tournamentDate": "2025-01-01",
+          "status": "completed",
+          "rounds": [
+            {
+              "id": "or1",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "om1",
+                  "table": "1",
+                  "player1Name": "Alice",
+                  "player2Name": "Zed",
+                  "player1Score": 0,
+                  "player2Score": 2,
+                  "player1DeckArchetype": "",
+                  "player2DeckArchetype": ""
+                }
+              ]
+            }
+          ],
+          "playerArchetypes": [
+            {
+              "playerName": "Alice",
+              "archetype": ""
+            },
+            {
+              "playerName": "Zed",
+              "archetype": ""
+            }
+          ]
+        }
+      ],
+      "expected": [
+        {
+          "playerName": "Alice",
+          "playedMatchCount": 6,
+          "matchWins": 2,
+          "matchLosses": 3,
+          "matchDraws": 1,
+          "matchWinrate": 0.3333333333333333,
+          "playedGameCount": 13,
+          "gameWins": 6,
+          "gameLosses": 7,
+          "gameWinrate": 0.46153846153846156,
+          "nemesis": {
+            "name": "Bob",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Bob",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Alpha",
+            "matchCount": 1
+          }
+        },
+        {
+          "playerName": "Bob",
+          "playedMatchCount": 2,
+          "matchWins": 1,
+          "matchLosses": 1,
+          "matchDraws": 0,
+          "matchWinrate": 0.5,
+          "playedGameCount": 4,
+          "gameWins": 2,
+          "gameLosses": 2,
+          "gameWinrate": 0.5,
+          "nemesis": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Ice",
+            "matchCount": 2
+          }
+        },
+        {
+          "playerName": "Carol",
+          "playedMatchCount": 2,
+          "matchWins": 1,
+          "matchLosses": 1,
+          "matchDraws": 0,
+          "matchWinrate": 0.5,
+          "playedGameCount": 5,
+          "gameWins": 2,
+          "gameLosses": 3,
+          "gameWinrate": 0.4,
+          "nemesis": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 1
+          },
+          "mostPlayedArchetype": {
+            "name": "Earth",
+            "matchCount": 2
+          }
+        },
+        {
+          "playerName": "Zed",
+          "playedMatchCount": 1,
+          "matchWins": 1,
+          "matchLosses": 0,
+          "matchDraws": 0,
+          "matchWinrate": 1,
+          "playedGameCount": 2,
+          "gameWins": 2,
+          "gameLosses": 0,
+          "gameWinrate": 1,
+          "nemesis": null,
+          "rival": {
+            "name": "Alice",
+            "wins": 1,
+            "losses": 0
+          },
+          "mostPlayedArchetype": null
+        },
+        {
+          "playerName": "alice",
+          "playedMatchCount": 1,
+          "matchWins": 0,
+          "matchLosses": 0,
+          "matchDraws": 1,
+          "matchWinrate": 0,
+          "playedGameCount": 2,
+          "gameWins": 1,
+          "gameLosses": 1,
+          "gameWinrate": 0.5,
+          "nemesis": null,
+          "rival": {
+            "name": "Alice",
+            "wins": 0,
+            "losses": 0
+          },
+          "mostPlayedArchetype": {
+            "name": "beta",
+            "matchCount": 1
+          }
+        }
+      ]
+    }
+  ],
+  "renames": [
+    {
+      "input": {
+        "tournament": {
+          "id": "rename-tournament",
+          "name": "Rename Event",
+          "seasonId": "rename-season",
+          "tournamentDate": "2026-01-02",
+          "status": "completed",
+          "rounds": [
+            {
+              "id": "rename-round",
+              "entries": [
+                {
+                  "kind": "match",
+                  "id": "rename-match",
+                  "table": "1",
+                  "player1Name": "ALICE",
+                  "player2Name": "Bob",
+                  "player1Score": 2,
+                  "player2Score": 1,
+                  "player1DeckArchetype": "Fire",
+                  "player2DeckArchetype": "Ice"
+                },
+                {
+                  "kind": "bye",
+                  "id": "rename-bye",
+                  "table": "2",
+                  "playerName": "Alice",
+                  "deckArchetype": "Fire"
+                },
+                {
+                  "kind": "invalid",
+                  "id": "rename-invalid",
+                  "rawText": "x",
+                  "table": "3",
+                  "player": "alice",
+                  "result": "?",
+                  "opponent": "Carol",
+                  "playerDecklist": "",
+                  "opponentDecklist": ""
+                }
+              ]
+            }
+          ],
+          "playerArchetypes": [
+            {
+              "playerName": "Alice",
+              "archetype": "Fire"
+            },
+            {
+              "playerName": "Bob",
+              "archetype": "Ice"
+            },
+            {
+              "playerName": "Carol",
+              "archetype": ""
+            }
+          ]
+        },
+        "fromName": " alice ",
+        "toName": "Bob"
+      },
+      "expected": {
+        "id": "rename-tournament",
+        "name": "Rename Event",
+        "seasonId": "rename-season",
+        "tournamentDate": "2026-01-02",
+        "status": "completed",
+        "rounds": [
+          {
+            "id": "rename-round",
+            "entries": [
+              {
+                "kind": "match",
+                "id": "rename-match",
+                "table": "1",
+                "player1Name": "Bob",
+                "player2Name": "Bob",
+                "player1Score": 2,
+                "player2Score": 1,
+                "player1DeckArchetype": "Fire",
+                "player2DeckArchetype": "Ice"
+              },
+              {
+                "kind": "bye",
+                "id": "rename-bye",
+                "table": "2",
+                "playerName": "Bob",
+                "deckArchetype": "Fire"
+              },
+              {
+                "kind": "invalid",
+                "id": "rename-invalid",
+                "rawText": "x",
+                "table": "3",
+                "player": "Bob",
+                "result": "?",
+                "opponent": "Carol",
+                "playerDecklist": "",
+                "opponentDecklist": ""
+              }
+            ]
+          }
+        ],
+        "playerArchetypes": [
+          {
+            "playerName": "Bob",
+            "archetype": "Fire"
+          },
+          {
+            "playerName": "Carol",
+            "archetype": ""
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -3,18 +3,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { formatRatingDelta } from './rating-format';
-import { createLeague, createTournament, PersistedLeague } from '../../domain/models';
+import { createArchiveTournament } from '../../domain/archive-models';
+import type { PersistedArchiveTournament, PersistedLeagueSeason } from '../../domain/archive-models';
 import { PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-api';
 import { PlayerDetailResult } from './player-detail-cache.service';
 import { PlayerDetailComponent, paginateMatches } from './player-detail.component';
 
-function league(id: string, opponent: string, count = 1, status: 'active' | 'completed' = 'completed'): PersistedLeague {
-  return { ...createLeague({
-    id,
-    name: id,
-    tournaments: [createTournament({
+/** One Season's Tournament. The id is the Tournament's own — that is what the `local-` filter reads. */
+function league(id: string, opponent: string, count = 1, status: 'active' | 'completed' = 'completed'): PersistedArchiveTournament {
+  return {
+    ...createArchiveTournament({
       id: `${id}-event`,
-      leagueId: id,
+      seasonId: id,
       name: id,
       tournamentDate: '2026-01-01',
       status,
@@ -23,8 +23,14 @@ function league(id: string, opponent: string, count = 1, status: 'active' | 'com
         id: `${id}-round-${index}`,
         entries: [{ kind: 'match', id: `${id}-match-${index}`, table: '1', player1Name: 'Alice', player2Name: opponent, player1Score: 2, player2Score: 0, player1DeckArchetype: 'Tempo', player2DeckArchetype: '' }],
       })),
-    })],
-  }), documentVersion: 1 };
+    }),
+    documentVersion: 1,
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+function seasonRow(id: string): PersistedLeagueSeason {
+  return { id, name: id, leagueId: 'league-1', status: 'active', documentVersion: 1, updatedAt: '2026-01-01T00:00:00.000Z' };
 }
 
 function serverMatch(overrides: Partial<PlayerMatchRow> = {}): PlayerMatchRow {
@@ -60,9 +66,13 @@ function result(items: PlayerDetailResponse | null, extra: Partial<PlayerDetailR
   return { items, fetchedAt: new Date().toISOString(), fromCache: false, stale: false, truncated: false, ...extra };
 }
 
-function component(options: { payload?: PlayerDetailResponse | null; local?: PersistedLeague[]; truncated?: boolean } = {}) {
-  const listLocalLeagues = vi.fn().mockResolvedValue(options.local ?? []);
-  const repo = { listLocalLeagues, listLeagues: vi.fn().mockResolvedValue([]) };
+function component(options: { payload?: PlayerDetailResponse | null; local?: PersistedArchiveTournament[]; truncated?: boolean } = {}) {
+  const tournaments = options.local ?? [];
+  const listLocalLeagues = vi.fn().mockResolvedValue({ items: tournaments, totalCount: tournaments.length, truncated: false });
+  const repo = {
+    listArchiveTournaments: listLocalLeagues,
+    listLeagueSeasons: vi.fn().mockResolvedValue({ items: [...new Set(tournaments.map((item) => item.seasonId).filter(Boolean))].map((id) => seasonRow(String(id))), totalCount: 0, truncated: false })
+  };
   const route = { snapshot: { paramMap: { get: () => 'Alice' } } };
   const router = { navigate: vi.fn() };
   const i18n = { t: (key: string) => key, plural: (count: number) => String(count), formatDate: (value: string) => value };
@@ -151,7 +161,7 @@ describe('PlayerDetailComponent', () => {
     player.setOnlineOnly(false);
     await settle();
 
-    expect(player.localLeagues()).toEqual([]);
+    expect(player.localTournaments()).toEqual([]);
     expect(player.stats().playedMatchCount).toBe(1);
   });
 
@@ -176,14 +186,18 @@ describe('PlayerDetailComponent', () => {
     expect(player.allMatches().map((match) => match.opponentName)).toEqual(['Bob']);
   });
 
-  it('counts a completed browser-local tournament and skips an active one in the same league', async () => {
+  it('counts a completed browser-local tournament and skips an active one in the same Season', async () => {
     localStorage.clear();
-    const mixed = league('local-league', 'Carol');
-    mixed.tournaments.push(createTournament({
-      id: 'local-league-active', leagueId: 'local-league', name: 'Running', tournamentDate: '2026-02-01', status: 'active',
-      rounds: [{ id: 'local-league-active-round', entries: [{ kind: 'match', id: 'local-league-active-match', table: '1', player1Name: 'Alice', player2Name: 'Dave', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
-    }));
-    const { player } = component({ local: [mixed] });
+    const completed = league('local-league', 'Carol');
+    const active: PersistedArchiveTournament = {
+      ...createArchiveTournament({
+        id: 'local-league-active', seasonId: 'local-league', name: 'Running', tournamentDate: '2026-02-01', status: 'active',
+        rounds: [{ id: 'local-league-active-round', entries: [{ kind: 'match', id: 'local-league-active-match', table: '1', player1Name: 'Alice', player2Name: 'Dave', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
+      }),
+      documentVersion: 1,
+      updatedAt: '2026-02-01T00:00:00.000Z'
+    };
+    const { player } = component({ local: [completed, active] });
     await settle();
 
     player.setOnlineOnly(false);
@@ -301,8 +315,9 @@ describe('PlayerDetailComponent', () => {
 
     player.openMatchTournament(player.filteredMatches()[0]);
 
+    // A Tournament is a top-level record now, so the link needs no League in its path.
     expect(router.navigate).toHaveBeenCalledWith(
-      ['/leagues-archive', 'server-league', 'tournaments-archive', 'server-event'],
+      ['/archive', 'tournaments', 'server-event'],
       { queryParams: { round: 1 } },
     );
   });

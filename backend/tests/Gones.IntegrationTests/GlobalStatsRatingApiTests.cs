@@ -28,8 +28,8 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class GlobalStatsRatingApiTests : IAsyncLifetime
 {
-    private const string Path = "/api/leagues-archive/global-player-statistics";
-    private const string CatalogPath = "/api/leagues-archive/global-player-statistics/all";
+    private const string Path = "/api/archive/global-player-statistics";
+    private const string CatalogPath = "/api/archive/global-player-statistics/all";
 
     /// <summary>The frozen request clock. Twelve months back from this date is 2030-06-15.</summary>
     private static readonly Instant Today = Instant.FromUtc(2031, 6, 15, 12, 0);

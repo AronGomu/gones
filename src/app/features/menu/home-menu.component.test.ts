@@ -30,7 +30,7 @@ describe('HomeMenuComponent template', () => {
 
   it('the home menu carries every required destination', () => {
     expect(source).toContain('menu-running-tournaments-card');
-    expect(source).toContain('menu-leagues-archive-card');
+    expect(source).toContain('menu-archive-card');
     expect(source).toContain('menu-global-stats-card');
     expect(source).toContain('menu-calendar-card');
     expect(source).toContain('menu-settings-link');
@@ -52,7 +52,7 @@ describe('HomeMenuComponent template', () => {
       'menu-calendar-card',
       'menu-registrations-card',
       'menu-global-stats-card',
-      'menu-leagues-archive-card',
+      'menu-archive-card',
       'menu-running-tournaments-card',
       'menu-about-link',
       'menu-settings-link',

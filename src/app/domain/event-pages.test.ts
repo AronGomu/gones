@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CalendarEventDocument, createCalendarEvent, createLeague, createTournament, normalizeCalendarEvent, normalizeCalendarEvents } from './models';
-import { exportFullData, restoreFullDataBundle } from './export-restore';
+import { CalendarEventDocument, createCalendarEvent, normalizeCalendarEvent, normalizeCalendarEvents } from './models';
 
 describe('event pages', () => {
   it('normalizes event page fields with a slug and ignores legacy tournament links', () => {
@@ -43,19 +42,5 @@ describe('event pages', () => {
     ]);
 
     expect(events.map((event) => event.slug)).toEqual(['store-championship', 'store-championship-2']);
-  });
-
-  it('drops legacy linked tournaments when restoring full data with regenerated IDs', () => {
-    const tournament = createTournament({ id: 'old-tournament', leagueId: 'old-league', name: 'Main Event' });
-    const league = createLeague({ id: 'old-league', name: 'Old League', tournaments: [tournament] });
-    const event = createCalendarEvent({ title: 'Weekend', tournamentLinks: [{ leagueId: 'old-league', tournamentId: 'old-tournament' }] } as Partial<CalendarEventDocument> & { tournamentLinks: unknown });
-    const exported = exportFullData([league], { calendarEvents: [event] });
-    const ids = ['new-league', 'new-tournament', 'new-event'];
-
-    const restored = restoreFullDataBundle(exported, { idFactory: () => ids.shift() ?? 'extra-id' });
-
-    expect(restored.leagues[0].id).toBe('new-league');
-    expect(restored.leagues[0].tournaments[0].id).toBe('new-tournament');
-    expect('tournamentLinks' in restored.calendarEvents[0]).toBe(false);
   });
 });

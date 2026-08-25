@@ -1,5 +1,4 @@
 import { MessageKey, MessageParams, SettingsLanguage, translate } from './i18n/messages';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 
 export interface BreadcrumbItem {
   label: string;
@@ -20,14 +19,13 @@ function defaultTranslator(language: SettingsLanguage): Translator {
 
 /**
  * Pure(ish) breadcrumb builder, extracted from AppComponent so it can be exercised without the
- * component's router/repository DI wiring. `t` and the two lookups default to the app's French
- * locale and to no-op resolvers, so any branch not requiring a League/LiveTournament fetch can be
- * called with just a path.
+ * component's router/repository DI wiring. `t` and the lookup default to the app's French locale and
+ * to a no-op resolver, so any branch not requiring a LiveTournament fetch can be called with just a
+ * path. The archive branch resolves no name at all — see the comment on it.
  */
 export async function buildBreadcrumbs(
   path: string,
   t: Translator = defaultTranslator('fr'),
-  getLeague: (leagueId: string) => Promise<PersistedLeague | null> = async () => null,
   getLiveTournament: (liveTournamentId: string) => Promise<LiveTournamentNameLookup | null> = async () => null
 ): Promise<BreadcrumbItem[]> {
   const menu = t('nav.menu');
@@ -82,18 +80,5 @@ export async function buildBreadcrumbs(
     }
     return [root, archive, tab, { label: t('crumb.tournament') }];
   }
-  if (segments[0] !== 'leagues-archive') return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
-  if (!segments[1]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues') }];
-
-  const leagueId = decodeURIComponent(segments[1]);
-  const league = await getLeague(leagueId);
-  const leagueLabel = league
-    ? (league.id === PLACEHOLDER_LEAGUE_ID ? t('liveList.unassigned') : league.name)
-    : t('crumb.league');
-  if (segments[2] !== 'tournaments-archive' || !segments[3]) return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel }];
-
-  const tournamentId = decodeURIComponent(segments[3]);
-  const tournamentLabel = league?.tournaments.find((item: TournamentDocument) => item.id === tournamentId)?.name || t('crumb.tournament');
-  if (segments[4] === 'result') return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel, link: ['/leagues-archive', leagueId] }, { label: tournamentLabel, link: ['/leagues-archive', leagueId, 'tournaments-archive', tournamentId] }, { label: t('crumb.result') }];
-  return [{ label: menu, link: ['/'] }, { label: t('crumb.leagues'), link: ['/leagues-archive'] }, { label: leagueLabel, link: ['/leagues-archive', leagueId] }, { label: tournamentLabel }];
+  return [{ label: menu, link: ['/'] }, { label: t('nav.notFound') }];
 }

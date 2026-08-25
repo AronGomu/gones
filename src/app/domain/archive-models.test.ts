@@ -7,13 +7,10 @@ import {
   createArchiveTournament,
   createLeagueSeason,
   isArchiveTournamentLocked,
-  normalizeArchiveTournament,
-  toArchiveTournamentDocument,
-  toLeagueDocument,
-  toTournamentDocument
+  normalizeArchiveTournament
 } from './archive-models';
-import type { ArchiveTournamentInput, RoundDocument } from './archive-models';
-import { createMatchRoundEntry, createRound, createTournament } from './models';
+import type { ArchiveTournamentInput } from './archive-models';
+import { createMatchRoundEntry, createRound } from './models';
 
 /**
  * The lock rule is compared against fixed UTC instants on purpose: it mirrors the C# `ArchiveLockRule`
@@ -117,44 +114,5 @@ describe('three-tier factories', () => {
 
     expect(repaired).toMatchObject({ id: 'local-1', rounds: [], playerArchetypes: [], seasonId: null, status: 'completed' });
     expect(repaired.name).not.toBe('');
-  });
-});
-
-describe('legacy document bridges', () => {
-  it('toTournamentDocument drops seasonId and carries the given leagueId', () => {
-    const tournament = createArchiveTournament({ id: 'local-t1', name: 'Open', tournamentDate: '2026-08-17' });
-
-    const document = toTournamentDocument(tournament, 'season-1');
-
-    expect(document.leagueId).toBe('season-1');
-    expect('seasonId' in document).toBe(false);
-  });
-
-  it('toArchiveTournamentDocument drops leagueId and normalizes the season', () => {
-    const legacy = createTournament({ id: 't-1', leagueId: 'league-1', name: 'Open', tournamentDate: '2026-08-17' });
-
-    const archived = toArchiveTournamentDocument(legacy, '');
-
-    expect(archived.seasonId).toBeNull();
-    expect('leagueId' in archived).toBe(false);
-  });
-
-  it("toLeagueDocument nests the Season's Tournaments under the Season id", () => {
-    const season = createLeagueSeason({ id: 'season-1', name: 'Spring', leagueId: 'league-1' });
-    const tournaments = [
-      createArchiveTournament({ id: 'local-t1', name: 'Open', tournamentDate: '2026-08-17', seasonId: 'season-1' }),
-      createArchiveTournament({ id: 'local-t2', name: 'Cup', tournamentDate: '2026-08-24', seasonId: 'season-1' })
-    ];
-
-    const league = toLeagueDocument(season, tournaments);
-
-    expect(league).toMatchObject({ id: 'season-1', name: 'Spring', status: 'active' });
-    expect(league.tournaments.map((tournament) => tournament.leagueId)).toEqual(['season-1', 'season-1']);
-  });
-
-  it('the shared round shapes are the very types models.ts declares', () => {
-    const round: RoundDocument = createRound({ id: 'round-1', entries: [] });
-
-    expect(round).toEqual(createRound({ id: 'round-1', entries: [] }));
   });
 });

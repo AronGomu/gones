@@ -2,7 +2,7 @@ import '@angular/compiler';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { isLocalArchiveId } from '../data/archive-origin';
 import { isArchiveTournamentRowLocked } from '../data/archive-summary';
-import { ARCHIVE_DATA_VERSION, createArchiveLeague, createArchiveTournament, createLeagueSeason, toTournamentDocument } from '../domain/archive-models';
+import { ARCHIVE_DATA_VERSION, createArchiveLeague, createArchiveTournament, createLeagueSeason } from '../domain/archive-models';
 import type { ArchiveBundle, PersistedArchiveTournament, RoundEntry } from '../domain/archive-models';
 import { createCalendarEvent, createMatchRoundEntry, MatchRoundEntry } from '../domain/models';
 import { renamePlayerInTournament } from '../domain/rename-player';
@@ -481,7 +481,7 @@ describe('LocalArchiveBackend', () => {
 
   it('renames a player across every round', async () => {
     const { backend, roundId, tournament } = await archiveWithRound();
-    const expected = renamePlayerInTournament(toTournamentDocument(tournament), 'Alice', 'Alicia');
+    const expected = renamePlayerInTournament(tournament, 'Alice', 'Alicia');
 
     const renamed = await backend.renameArchiveTournamentPlayer(tournament.id, tournament.documentVersion, 'Alice', 'Alicia');
 

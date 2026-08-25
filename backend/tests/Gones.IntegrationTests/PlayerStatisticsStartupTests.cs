@@ -27,12 +27,10 @@ public sealed class PlayerStatisticsStartupTests : IAsyncLifetime
         await postgres.StartAsync();
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(
-            new LeagueDocument("startup-league", "Startup League", "active",
+        database.AddLegacyShapedLeague(new LeagueDocument("startup-league", "Startup League", "active",
                 [new TournamentDocument("startup-tournament", "startup-league", "Day 1", "2030-01-01", "completed",
                     [new RoundDocument("startup-round", [new MatchRoundEntry("startup-match", "1", "Alice", "Bob", 2, 1, string.Empty, string.Empty)])],
-                    [])]),
-            Seeded));
+                    [])]), Seeded);
         database.PlayerStatistics.Add(PlayerStatisticsRow.From(
             new GlobalPlayerStatistics("Ghost", 9, 9, 0, 0, 1, 18, 18, 0, 1, null, null, null,
                 Glicko2.DefaultRating, Glicko2.DefaultDeviation, Glicko2.DefaultVolatility,
@@ -104,11 +102,13 @@ public sealed class PlayerStatisticsStartupTests : IAsyncLifetime
         {
             await database.Database.ExecuteSqlRawAsync(
                 """
-                UPDATE league_archive_aggregates
+                UPDATE archive_tournaments
                 -- Doubled braces on purpose: ExecuteSqlRawAsync runs the SQL through string.Format,
                 -- which unescapes them into the single-brace text[] path Postgres wants.
-                SET canonical_document = jsonb_set(canonical_document, '{{tournaments,0,leagueId}}', '"somewhere-else"')
-                WHERE document_id = 'startup-league';
+                -- An unknown Round entry discriminator: the rounds array is still an array, so the
+                -- scope reader reaches the polymorphic converter, which refuses the document.
+                SET document = jsonb_set(document, '{{rounds,0,entries,0,kind}}', '"not-a-kind"')
+                WHERE season_id = 'startup-league';
                 """);
         }
 
@@ -164,7 +164,9 @@ public sealed class PlayerStatisticsStartupTests : IAsyncLifetime
     private async Task<IReadOnlyList<string>> PlayerNamesAsync()
     {
         await using var database = CreateContext();
-        var names = await database.PlayerStatistics.AsNoTracking().Select(row => row.PlayerName).ToListAsync();
+        // One row per player per scope since T8; these suites assert the global ranking, which is the
+        // scope the whole-archive numbers live in.
+        var names = await database.PlayerStatistics.AsNoTracking().Where(row => row.ScopeKind == PlayerStatisticsScope.Global).Select(row => row.PlayerName).ToListAsync();
         return names.Order(StringComparer.Ordinal).ToArray();
     }
 

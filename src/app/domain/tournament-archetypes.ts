@@ -1,5 +1,6 @@
 import { normalizeDeckArchetype, trimPlayerName } from './models';
-import type { PlayerArchetypeDocument, RoundEntry, TournamentDocument } from './models';
+import type { PlayerArchetypeDocument, RoundEntry } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { validateRoundEntry } from './validation';
 
 export interface ArchetypeConflict {
@@ -28,7 +29,7 @@ export function normalizePlayerArchetypes(archetypes: unknown): PlayerArchetypeD
   return rows.sort(compareByPlayerName);
 }
 
-export function derivePlayerArchetypesFromRounds(tournament: Pick<TournamentDocument, 'rounds'>): PlayerArchetypeDocument[] {
+export function derivePlayerArchetypesFromRounds(tournament: Pick<ArchiveTournamentDocument, 'rounds'>): PlayerArchetypeDocument[] {
   const map = new Map<string, string>();
   for (const round of tournament.rounds ?? []) {
     for (const entry of round.entries ?? []) {
@@ -41,7 +42,7 @@ export function derivePlayerArchetypesFromRounds(tournament: Pick<TournamentDocu
   return [...map.entries()].map(([playerName, archetype]) => ({ playerName, archetype })).sort(compareByPlayerName);
 }
 
-export function tournamentPlayerArchetypeRows(tournament: TournamentDocument): TournamentPlayerArchetypeRow[] {
+export function tournamentPlayerArchetypeRows(tournament: ArchiveTournamentDocument): TournamentPlayerArchetypeRow[] {
   const archetypes = new Map<string, string>();
   for (const item of tournament.playerArchetypes ?? []) {
     const playerName = trimPlayerName(item.playerName);
@@ -57,7 +58,7 @@ export function tournamentPlayerArchetypeRows(tournament: TournamentDocument): T
   return [...archetypes.entries()].map(([playerName, archetype]) => ({ playerName, archetype })).sort(compareByPlayerName);
 }
 
-export function setTournamentPlayerArchetype(tournament: TournamentDocument, playerName: string, archetype: string): TournamentDocument {
+export function setTournamentPlayerArchetype(tournament: ArchiveTournamentDocument, playerName: string, archetype: string): ArchiveTournamentDocument {
   const normalizedPlayerName = trimPlayerName(playerName);
   if (!normalizedPlayerName) return tournament;
   const next = new Map<string, string>();
@@ -69,7 +70,7 @@ export function setTournamentPlayerArchetype(tournament: TournamentDocument, pla
   return { ...tournament, playerArchetypes: [...next.entries()].map(([itemPlayerName, itemArchetype]) => ({ playerName: itemPlayerName, archetype: itemArchetype })).sort(compareByPlayerName) };
 }
 
-export function mergeImportedRoundArchetypes(tournament: TournamentDocument, entries: RoundEntry[]): { entries: RoundEntry[]; playerArchetypes: PlayerArchetypeDocument[]; conflicts: ArchetypeConflict[] } {
+export function mergeImportedRoundArchetypes(tournament: ArchiveTournamentDocument, entries: RoundEntry[]): { entries: RoundEntry[]; playerArchetypes: PlayerArchetypeDocument[]; conflicts: ArchetypeConflict[] } {
   const map = new Map<string, string>();
   for (const row of tournament.playerArchetypes ?? []) {
     const playerName = trimPlayerName(row.playerName);
@@ -85,7 +86,7 @@ export function mergeImportedRoundArchetypes(tournament: TournamentDocument, ent
   };
 }
 
-export function validateTournamentPlayerArchetypes(tournament: TournamentDocument): ArchetypeConflict[] {
+export function validateTournamentPlayerArchetypes(tournament: ArchiveTournamentDocument): ArchetypeConflict[] {
   const seen = new Map<string, string>();
   const conflicts: ArchetypeConflict[] = [];
   for (const row of tournament.playerArchetypes ?? []) {
@@ -99,7 +100,7 @@ export function validateTournamentPlayerArchetypes(tournament: TournamentDocumen
   return dedupeConflicts(conflicts);
 }
 
-export function archetypeForPlayer(tournament: TournamentDocument, playerName: string): string {
+export function archetypeForPlayer(tournament: ArchiveTournamentDocument, playerName: string): string {
   const normalizedPlayerName = trimPlayerName(playerName);
   const stored = tournament.playerArchetypes?.find((row) => trimPlayerName(row.playerName) === normalizedPlayerName)?.archetype;
   if (stored !== undefined) return stored;

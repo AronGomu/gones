@@ -14,7 +14,7 @@ import { ApproverSelectionDialogComponent } from './approver-selection-dialog.co
 import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
-import { canManageLeagues } from '../../data/league-archive-command-ux';
+import { canManageArchive } from '../../data/archive-command-ux';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 
@@ -234,7 +234,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly formPending = computed(() => this.previewing() || this.saving());
   readonly canMutateEvent = computed(() => canUsePowerMutation(
     this.power.enabled(),
-    canManageLeagues(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
+    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
   ));
   readonly canPublishDirectly = this.canMutateEvent;
   private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');

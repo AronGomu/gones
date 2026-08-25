@@ -6,6 +6,8 @@ using Gones.Api.Errors;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Application.Concurrency;
+using Gones.Api.Leagues;
+using Gones.Domain.Archive;
 using Gones.Domain.Leagues;
 using Gones.Domain.Live;
 using Gones.Domain.Persistence;
@@ -205,7 +207,7 @@ internal static class LiveCommandEndpoints
     private static string NewId() => Guid.NewGuid().ToString("D");
 }
 
-internal sealed class LiveCommandService(GonesDbContext database, IClock clock)
+internal sealed class LiveCommandService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
 {
     private static readonly JsonSerializerOptions StoredJsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
         .ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
@@ -303,38 +305,40 @@ internal sealed class LiveCommandService(GonesDbContext database, IClock clock)
                 var document = live.ReadDocument();
                 if (document.Stage != "standings")
                     throw new ResourceConflictException();
-                var targetLeagueId = document.LeagueId.Length > 0 ? document.LeagueId : LeagueNormalizer.PlaceholderLeagueId;
-                var league = await database.LeagueArchiveAggregates
-                    .SingleOrDefaultAsync(item => item.DocumentId == targetLeagueId && item.DeletedAt == null, cancellationToken)
-                    ?? throw Validation("leagueId", "Target League was not found.");
+                // A Live tournament naming no League finalizes to a standalone Archive Tournament
+                // (`season_id IS NULL`) — precisely the capability `seasonId: null` was introduced for,
+                // and what the fixed placeholder League used to absorb.
+                var seasonId = document.LeagueId.Length > 0 ? document.LeagueId : null;
+                if (seasonId is not null && !await database.ArchiveLeagueSeasons.AsNoTracking()
+                        .AnyAsync(item => item.DocumentId == seasonId && item.DeletedAt == null, cancellationToken))
+                    throw Validation("leagueId", "Target League was not found.");
 
                 var now = clock.GetCurrentInstant();
                 var nowIso = JsIsoPattern.Format(now);
                 var stable = document with
                 {
-                    LeagueId = targetLeagueId,
+                    LeagueId = document.LeagueId,
                     FinalizedTournamentId = document.FinalizedTournamentId ?? NewId()
                 };
-                var tournament = LiveRules.Finalize(stable, LiveRules.DefaultIdFactory, DefaultTournamentName(now)) with { LeagueId = league.DocumentId };
-                var leagueDocument = league.ReadDocument();
-                IReadOnlyList<TournamentDocument> tournaments = leagueDocument.Tournaments.Any(item => item.Id == tournament.Id)
-                    ? leagueDocument.Tournaments.Select(item => item.Id == tournament.Id ? tournament : item).ToArray()
-                    : [.. leagueDocument.Tournaments, tournament];
-                league.Apply(leagueDocument with { Tournaments = tournaments }, now);
+                var finalized = LiveRules.Finalize(stable, LiveRules.DefaultIdFactory, DefaultTournamentName(now));
+                var archived = await UpsertFinalizedTournamentAsync(finalized, seasonId, now, cancellationToken);
                 ApplyCommand(live, document, stable with { Stage = "completed" }, now, nowIso);
                 live.SoftDelete(now);
                 AddAudit(actorId, "live.finalized", "live-tournament", live.DocumentId, ["stage", "finalizedTournamentId", "leagueId", "deletedAt"]);
-                AddAudit(actorId, "league.tournament.finalized", "league", league.DocumentId, ["tournaments"]);
+                AddAudit(actorId, "league.tournament.finalized", "archive-tournament", archived.DocumentId, ["document"]);
+                await SaveAsync(documentId, cancellationToken);
+                await RefreshSeasonCountsAsync(seasonId, cancellationToken);
+                await playerStatistics.RebuildAsync(database, cancellationToken);
                 await SaveAsync(documentId, cancellationToken);
                 return new LiveFinalizeResponse(
                     live.DocumentId,
                     "completed",
-                    targetLeagueId,
+                    document.LeagueId,          // unchanged field name and value semantics (ADR 0022)
                     stable.FinalizedTournamentId!,
                     live.Version,
                     StrongETag.Encode(live.Version),
-                    league.Version,
-                    StrongETag.Encode(league.Version));
+                    archived.Version,
+                    StrongETag.Encode(archived.Version));
             },
             cancellationToken);
 
@@ -355,10 +359,51 @@ internal sealed class LiveCommandService(GonesDbContext database, IClock clock)
         return new LiveDeleteResponse(aggregate.DocumentId, true, aggregate.Version, StrongETag.Encode(aggregate.Version));
     }
 
+    /// <summary>
+    /// The finished Live Tournament as its own `archive_tournaments` row. It composes the same two
+    /// domain rules the archive command service composes — <see cref="ArchiveTournament"/> for the row
+    /// and <see cref="ArchiveCatalogCounts"/> for the Season counters — rather than growing a second
+    /// archive writer. Re-finalizing the same Live tournament rewrites its row instead of adding one.
+    /// </summary>
+    private async Task<ArchiveTournament> UpsertFinalizedTournamentAsync(TournamentDocument finalized, string? seasonId, Instant now, CancellationToken cancellationToken)
+    {
+        var document = new ArchiveTournamentDocument(
+            finalized.Id,
+            finalized.Name,
+            seasonId,
+            finalized.TournamentDate,
+            finalized.Status,
+            finalized.Rounds,
+            finalized.PlayerArchetypes);
+        var existing = await database.ArchiveTournaments
+            .SingleOrDefaultAsync(item => item.DocumentId == finalized.Id && item.DeletedAt == null, cancellationToken);
+        if (existing is null)
+        {
+            var created = ArchiveTournament.Create(document, now);
+            database.ArchiveTournaments.Add(created);
+            return created;
+        }
+        existing.Apply(document, now);
+        return existing;
+    }
+
+    /// <summary>The one Season-counter rule, shared with the archive commands. A standalone Tournament has no Season to refresh.</summary>
+    private async Task RefreshSeasonCountsAsync(string? seasonId, CancellationToken cancellationToken)
+    {
+        if (seasonId is null) return;
+        var season = await database.ArchiveLeagueSeasons
+            .SingleOrDefaultAsync(item => item.DocumentId == seasonId && item.DeletedAt == null, cancellationToken);
+        if (season is null) return;
+        var stored = await database.ArchiveTournaments.AsNoTracking()
+            .Where(item => item.SeasonId == seasonId && item.DeletedAt == null)
+            .ToListAsync(cancellationToken);
+        season.RefreshCatalogCounts(ArchiveCatalogCounts.ForSeason(seasonId, [.. stored.Select(item => item.ReadDocument())]));
+    }
+
     public async Task RequireLeagueReferenceAsync(string? leagueId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(leagueId)) return;
-        var exists = await database.LeagueArchiveAggregates.AsNoTracking()
+        var exists = await database.ArchiveLeagueSeasons.AsNoTracking()
             .AnyAsync(item => item.DocumentId == leagueId && item.DeletedAt == null, cancellationToken);
         if (!exists) throw Validation("leagueId", "League was not found.");
     }

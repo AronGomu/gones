@@ -22,14 +22,14 @@ import type { ArchiveLeagueSeasonRow, ArchiveStagedSave } from '../../data/archi
 import { PersistedArchiveTournament } from '../../domain/archive-models';
 import { ARCHIVE_STANDALONE_SEASON_VALUE } from '../../domain/archive-staged-edit';
 import { I18nService } from '../../i18n/i18n.service';
+import { calculateTournamentResult } from '../../domain/results';
 import { translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService, SettingsLanguage } from '../../shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import {
   ARCHIVE_TOURNAMENT_DETAIL_SOURCE,
   ArchiveTournamentDetailSource,
-  TournamentDetailComponent,
-  toResultInput
+  TournamentDetailComponent
 } from './tournament-detail.component';
 
 const source = readFileSync(join(__dirname, 'tournament-detail.component.ts'), 'utf8');
@@ -156,21 +156,18 @@ async function editing(options: EditorOptions = {}) {
   return harness;
 }
 
-describe('toResultInput', () => {
-  it('fills the legacy league slot without inventing a league', () => {
-    expect(toResultInput(detail()).leagueId).toBe('s-1');
-    expect(toResultInput(detail({ seasonId: null })).leagueId).toBe('');
-  });
-
-  it('keeps every other field identical', () => {
-    const input = toResultInput(detail());
+/**
+ * The `toResultInput` adapter is retired with the legacy `TournamentDocument`: the result calculators
+ * now take the three-tier document directly, so there is no shape to convert between and nothing to
+ * carry a legacy `leagueId` slot. The detail document reaching them unchanged is asserted here.
+ */
+describe('result input', () => {
+  it('hands the three-tier document to the calculators with no conversion', () => {
+    const input = detail();
     expect(input.id).toBe('t-1');
-    expect(input.name).toBe('Étape 1');
-    expect(input.tournamentDate).toBe('2026-02-14');
-    expect(input.status).toBe('completed');
-    expect(input.rounds.length).toBe(2);
-    expect(input.playerArchetypes).toEqual([{ playerName: 'Ana', archetype: 'Burn' }]);
-    expect('seasonId' in input).toBe(false);
+    expect(input.seasonId).toBe('s-1');
+    expect(calculateTournamentResult(input).rows.length).toBeGreaterThan(0);
+    expect(detail({ seasonId: null }).seasonId).toBeNull();
   });
 });
 

@@ -71,7 +71,7 @@
     Browser-wide, not user-scoped.</p>
   </div>
   <div class="card card--local">
-    <h3><span class="tag tag--local">authority</span> <code>gones-leagues</code></h3>
+    <h3><span class="tag tag--local">authority</span> <code>gones-archive-local</code></h3>
     <p>IndexedDB. The browser half of the dual-source League Archive (ADR 0028). Merged with the
     server list, routed by the <code>local-</code> id prefix. Never synchronises. Browser-wide.</p>
   </div>
@@ -151,7 +151,7 @@ for. Signing out does not.</p>
 
 <div class="note warn">
   <strong>Two properties, deliberately opposite.</strong> <code>gones-live</code>,
-  <code>gones-leagues</code> and <code>gones.settings</code> are browser-wide: anyone opening the site
+  <code>gones-archive-local</code> and <code>gones.settings</code> are browser-wide: anyone opening the site
   in that browser sees the same local data. <code>gones-cache</code> is the single user-scoped store.
   <code>browser-local-scope.test.ts</code> asserts both directions so the distinction cannot rot into
   an accident.

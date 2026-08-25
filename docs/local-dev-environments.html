@@ -78,7 +78,7 @@
   <tr>
     <td><code>demo</code></td>
     <td>yes</td>
-    <td>7 accounts · 2 organizations · 4 formats · 9 calendar tournaments · 12 registrations · 2 League Archives · 2 running tournaments</td>
+    <td>7 accounts · 2 organizations · 4 formats · 9 calendar tournaments · 12 registrations · a three-tier archive (8 Leagues · 12 League Seasons · 48 Tournaments) · 2 running tournaments</td>
     <td>Everything else. Layout review, role comparison, offline behaviour, pagination.</td>
   </tr>
 </table>
@@ -93,7 +93,9 @@
   formats.json            optional   [{ key, name, slug, sortOrder }]
   tournaments.json        optional   [{ key, organizationKey, organizerEmail, title, …, startsAtLocalOffsetDays, formatKeys }]
   registrations.json      optional   [{ tournamentKey, userEmail }]
-  leagues.json            optional   [ LeagueDocument ]
+  archive-leagues.json        optional   [{ id, name, createdAt }]
+  archive-league-seasons.json optional   [{ id, name, leagueId, status }]
+  archive-tournaments.json    optional   [{ id, name, seasonId, tournamentDate, status, rounds, playerArchetypes }]
   live-tournaments.json   optional   [{ key, organizerEmail, players, roundCount, scoredRounds, leaveRoundOpen, leagueKey }]</pre>
 
 <p>A missing optional file means an empty list. <code>environment.json.name</code> must equal the
@@ -117,7 +119,7 @@ GUID, because no GUID exists before the seed runs.</p>
   <div>6 · accounts: <code>POST /api/auth/register</code>, then SQL for <code>email_confirmed</code> + <code>global_role</code></div>
   <div>7 · <code>loginAll()</code> → one access token per verified fixture account</div>
   <div>8 · formats → organizations → tournaments (preview + publish) → registrations</div>
-  <div>9 · leagues (<code>POST /api/leagues-archive/restore</code>) → running tournaments (create · players · rounds · scores · validate)</div>
+  <div>9 · archive (<code>POST /api/archive/restore-full</code>) → running tournaments (create · players · rounds · scores · validate)</div>
   <div>10 · summary printed → <code>ng serve --host 127.0.0.1</code></div>
 </div>
 
@@ -182,7 +184,7 @@ tournament cannot score more rounds than it declares.</p>
 
 <ul>
   <li>Not shipped. <code>fixtures/</code> is in no image and no release path reads it.</li>
-  <li>Not a migration path. <code>leagues.json</code> is a trimmed derivative of a real export; ADR 0020's
+  <li>Not a migration path. the archive fixtures are a trimmed derivative of a real export; ADR 0020's
   one-way door on migration bundles is untouched.</li>
   <li>Not usable without Docker. <code>--env</code> with <code>--no-docker</code> is refused explicitly.</li>
 </ul>

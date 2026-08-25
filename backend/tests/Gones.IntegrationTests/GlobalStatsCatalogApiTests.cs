@@ -18,7 +18,7 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class GlobalStatsCatalogApiTests : IAsyncLifetime
 {
-    private const string Path = "/api/leagues-archive/global-player-statistics/all";
+    private const string Path = "/api/archive/global-player-statistics/all";
     private static readonly Instant Seeded = Instant.FromUtc(2031, 4, 1, 12, 0);
 
     private readonly PostgreSqlTestContainer postgres = new();
@@ -29,7 +29,7 @@ public sealed class GlobalStatsCatalogApiTests : IAsyncLifetime
         await postgres.StartAsync();
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(CatalogLeague(), Seeded));
+        database.AddLegacyShapedLeague(CatalogLeague(), Seeded);
         await database.SaveChangesAsync();
     }
 
@@ -122,13 +122,19 @@ public sealed class GlobalStatsCatalogApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>
+    /// The catalog's literal <c>all</c> segment must not swallow the sibling detail template. The
+    /// probe is the Tournament detail route, which is where that collision actually lives now:
+    /// <c>/api/archive/tournaments/all</c> and <c>/api/archive/tournaments/{tournamentId}</c> share a
+    /// prefix, while the rankings catalog sits under its own literal tier segment.
+    /// </summary>
     [Fact]
-    public async Task Does_not_shadow_a_league_route()
+    public async Task Does_not_shadow_a_sibling_archive_route()
     {
         using var client = CreateClient();
-        using var league = await client.GetAsync("/api/leagues-archive/catalog-league");
-        Assert.Equal(HttpStatusCode.OK, league.StatusCode);
-        Assert.Equal("catalog-league", (await league.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString());
+        using var tournament = await client.GetAsync("/api/archive/tournaments/catalog-tournament");
+        Assert.Equal(HttpStatusCode.OK, tournament.StatusCode);
+        Assert.Equal("catalog-tournament", (await tournament.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString());
     }
 
     private HttpClient CreateClient(params (string Key, string Value)[] settings)

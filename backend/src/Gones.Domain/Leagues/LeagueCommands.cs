@@ -1,20 +1,9 @@
+using Gones.Domain.Archive;
+
 namespace Gones.Domain.Leagues;
 
 public static class LeagueCommands
 {
-    public static LeagueDocument RenameLeague(LeagueDocument league, string name)
-    {
-        RequireLeagueName(name, nameof(name));
-        if (league.Id == LeagueNormalizer.PlaceholderLeagueId) throw new InvalidOperationException("Placeholder League cannot be renamed.");
-        return league with { Name = name.Trim() };
-    }
-
-    public static LeagueDocument ChangeStatus(LeagueDocument league, string status)
-    {
-        if (status is not ("active" or "completed")) throw new ArgumentException("League status must be active or completed.", nameof(status));
-        return league with { Status = status };
-    }
-
     public static LeagueDocument AddTournament(LeagueDocument league, string tournamentId, string name, string tournamentDate)
     {
         RequireActive(league);
@@ -81,28 +70,6 @@ public static class LeagueCommands
             updated = ReplaceTournament(updated, tournamentId, tournament => tournament with { Status = command.Status });
         }
         return updated;
-    }
-
-    public static LeagueDocument DeleteTournament(LeagueDocument league, string tournamentId)
-    {
-        RequireActive(league);
-        RequireTournament(league, tournamentId);
-        return league with { Tournaments = league.Tournaments.Where(item => item.Id != tournamentId).ToArray() };
-    }
-
-    public static (LeagueDocument Source, LeagueDocument Target) MoveTournament(
-        LeagueDocument source,
-        LeagueDocument target,
-        string tournamentId)
-    {
-        RequireActive(source);
-        RequireActive(target);
-        if (source.Id == target.Id) return (source, target);
-        var tournament = RequireTournament(source, tournamentId);
-        if (target.Tournaments.Any(item => item.Id == tournamentId)) throw new InvalidOperationException("Target League already contains Tournament ID.");
-        return (
-            source with { Tournaments = source.Tournaments.Where(item => item.Id != tournamentId).ToArray() },
-            target with { Tournaments = [.. target.Tournaments, tournament with { LeagueId = target.Id }] });
     }
 
     public static LeagueDocument AddRound(LeagueDocument league, string tournamentId, string roundId)
@@ -211,7 +178,7 @@ public static class LeagueCommands
     public static LeagueDocument Restore(LeagueDocument source, string newLeagueId, string newName, Func<string> idFactory)
     {
         RequireNewId([], newLeagueId, nameof(newLeagueId));
-        RequireLeagueName(newName, nameof(newName));
+        RequireMutableName(newName, nameof(newName));
         return new LeagueDocument(
             newLeagueId,
             newName,
@@ -264,13 +231,7 @@ public static class LeagueCommands
     private static void RequireMutableName(string? name, string field)
     {
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Name is required.", field);
-        if (name.Trim().Length > LeagueArchiveAggregate.MaximumNameLength) throw new ArgumentException($"Name cannot exceed {LeagueArchiveAggregate.MaximumNameLength} characters.", field);
-    }
-
-    private static void RequireLeagueName(string? name, string field)
-    {
-        RequireMutableName(name, field);
-        if (LeagueNormalizer.IsUnassignedLeagueName(name)) throw new ArgumentException("Reserved placeholder League name cannot be used.", field);
+        if (name.Trim().Length > ArchiveLeague.MaximumNameLength) throw new ArgumentException($"Name cannot exceed {ArchiveLeague.MaximumNameLength} characters.", field);
     }
 
     private static HashSet<string> UniqueIntentIds(IEnumerable<string> ids, string field)
@@ -283,7 +244,7 @@ public static class LeagueCommands
 
     private static void RequireNewId(IEnumerable<string> existing, string? id, string field)
     {
-        if (string.IsNullOrWhiteSpace(id) || id.Length > LeagueArchiveAggregate.MaximumDocumentIdLength) throw new ArgumentException("ID is invalid.", field);
+        if (string.IsNullOrWhiteSpace(id) || id.Length > ArchiveLeague.MaximumDocumentIdLength) throw new ArgumentException("ID is invalid.", field);
         if (existing.Contains(id, StringComparer.Ordinal)) throw new InvalidOperationException("ID already exists.");
     }
 

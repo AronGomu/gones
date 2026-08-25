@@ -1,4 +1,4 @@
-import { isArchiveTournamentLocked, toLeagueDocument, toTournamentDocument } from '../domain/archive-models';
+import { isArchiveTournamentLocked } from '../domain/archive-models';
 import type {
   ArchiveTournamentDocument, LeagueStatus, PersistedArchiveLeague, PersistedArchiveTournament, PersistedLeagueSeason
 } from '../domain/archive-models';
@@ -86,7 +86,7 @@ export function summarizeLeagueSeason(season: PersistedLeagueSeason, tournaments
     updatedAt: season.updatedAt,
     documentVersion: season.documentVersion,
     tournamentCount: tournaments.length,
-    playerCount: calculateLeagueResult(toLeagueDocument(season, tournaments)).rows.length,
+    playerCount: calculateLeagueResult(tournaments).rows.length,
     firstTournamentDate: dates[0] ?? null,
     lastTournamentDate: dates.at(-1) ?? null
   };
@@ -101,7 +101,7 @@ export function summarizeArchiveTournament(tournament: PersistedArchiveTournamen
     status: tournament.status,
     updatedAt: tournament.updatedAt,
     documentVersion: tournament.documentVersion,
-    playerCount: calculateTournamentResult(toTournamentDocument(tournament)).rows.length
+    playerCount: calculateTournamentResult(tournament).rows.length
   };
 }
 

@@ -34,6 +34,7 @@ internal static class ArchivePlayerStatisticsEndpoints
     private static readonly int[] AllowedPageSizes = [10, 25, 50, 100];
 
     /// <summary>Postgres collation that orders text byte by byte, the way <c>StringComparer.Ordinal</c> does.</summary>
+    internal const int MaximumPlayerNameLength = 200;
     private const string OrdinalCollation = "C";
 
     /// <summary>The rankings catalog ceiling, under the key the legacy catalog already uses.</summary>
@@ -288,7 +289,7 @@ internal static class ArchivePlayerStatisticsEndpoints
     /// and the delta is the difference of the two rounded numbers so a client can never derive a
     /// previous rating that disagrees with the one it was sent.
     /// </summary>
-    private static ArchiveGlobalPlayerStatisticsRow ToRow(int position, PlayerStatisticsRow row, LocalDate today, bool exposeDecayedRating)
+    internal static ArchiveGlobalPlayerStatisticsRow ToRow(int position, PlayerStatisticsRow row, LocalDate today, bool exposeDecayedRating)
     {
         var rating = RoundRating(row.Rating);
         var previousRating = RoundRating(row.PreviousRating);
@@ -321,7 +322,7 @@ internal static class ArchivePlayerStatisticsEndpoints
     private static int RoundRating(double value) => (int)Math.Round(value, MidpointRounding.AwayFromZero);
 
     /// <summary>When the read model last changed. Every rebuild moves it, inside its own transaction.</summary>
-    private static async Task<string> StampAsync(GonesDbContext database, CancellationToken cancellationToken)
+    internal static async Task<string> StampAsync(GonesDbContext database, CancellationToken cancellationToken)
     {
         var rebuiltAt = await database.PlayerStatisticsMeta.AsNoTracking()
             .Select(meta => (Instant?)meta.RebuiltAt)
@@ -329,7 +330,7 @@ internal static class ArchivePlayerStatisticsEndpoints
         return rebuiltAt?.ToUnixTimeTicks().ToString(CultureInfo.InvariantCulture) ?? "unbuilt";
     }
 
-    private static string EscapeLikePattern(string value) =>
+    internal static string EscapeLikePattern(string value) =>
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
@@ -340,10 +341,10 @@ internal static class ArchivePlayerStatisticsEndpoints
         response.Headers.CacheControl = CatalogCacheControl;
     }
 
-    private static bool IsNotModified(HttpRequest request, string etag) =>
+    internal static bool IsNotModified(HttpRequest request, string etag) =>
         request.Headers.IfNoneMatch.Any(value => string.Equals(value, etag, StringComparison.Ordinal));
 
-    private static string HashETag(string value) =>
+    internal static string HashETag(string value) =>
         $"\"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)))}\"";
 
     private static ApiValidationException Validation(string field, string message) =>

@@ -1,5 +1,5 @@
-const LOCAL_LEAGUE_DB_NAME = 'gones-leagues';
-const LOCAL_LEAGUE_STORE = 'leagues';
+const LOCAL_ARCHIVE_DB_NAME = 'gones-archive-local';
+const LOCAL_TOURNAMENT_STORE = 'tournaments';
 
 function seedSettings(win) {
   win.localStorage.setItem('gones.settings.language', 'en');
@@ -11,35 +11,34 @@ function visitSettings() {
   cy.visit('/settings', { onBeforeLoad: seedSettings });
 }
 
-function putLocalLeague(win) {
-  const league = {
-    id: 'local-settings-proof', name: 'Settings Local League', status: 'active', documentVersion: 1, updatedAt: '2026-08-10T00:00:00.000Z',
-    tournaments: [{
-      id: 'local-settings-tournament', leagueId: 'local-settings-proof', name: 'Local Day', tournamentDate: '2026-08-10', playerArchetypes: [],
-      rounds: [{ id: 'local-settings-round', entries: [{ id: 'local-settings-entry', kind: 'match', table: '1', player1Name: 'Local Alice', player2Name: 'Local Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
-    }]
+/** A browser-local Archive Tournament: the record that holds Rounds since the three-tier rebuild. */
+function putLocalTournament(win) {
+  const tournament = {
+    id: 'local-settings-proof', name: 'Local Day', seasonId: null, tournamentDate: '2026-08-10', status: 'active',
+    documentVersion: 1, updatedAt: '2026-08-10T00:00:00.000Z', playerArchetypes: [],
+    rounds: [{ id: 'local-settings-round', entries: [{ id: 'local-settings-entry', kind: 'match', table: '1', player1Name: 'Local Alice', player2Name: 'Local Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
   };
   return new Cypress.Promise((resolve, reject) => {
-    const open = win.indexedDB.open(LOCAL_LEAGUE_DB_NAME, 1);
+    const open = win.indexedDB.open(LOCAL_ARCHIVE_DB_NAME, 1);
     open.onupgradeneeded = () => {
-      if (!open.result.objectStoreNames.contains(LOCAL_LEAGUE_STORE)) open.result.createObjectStore(LOCAL_LEAGUE_STORE, { keyPath: 'id' });
+      if (!open.result.objectStoreNames.contains(LOCAL_TOURNAMENT_STORE)) open.result.createObjectStore(LOCAL_TOURNAMENT_STORE, { keyPath: 'id' });
     };
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
-      const transaction = open.result.transaction(LOCAL_LEAGUE_STORE, 'readwrite');
-      transaction.objectStore(LOCAL_LEAGUE_STORE).put(league);
+      const transaction = open.result.transaction(LOCAL_TOURNAMENT_STORE, 'readwrite');
+      transaction.objectStore(LOCAL_TOURNAMENT_STORE).put(tournament);
       transaction.oncomplete = () => { open.result.close(); resolve(); };
       transaction.onerror = () => { open.result.close(); reject(transaction.error); };
     };
   });
 }
 
-function readLocalLeague(win) {
+function readLocalTournament(win) {
   return new Cypress.Promise((resolve, reject) => {
-    const open = win.indexedDB.open(LOCAL_LEAGUE_DB_NAME);
+    const open = win.indexedDB.open(LOCAL_ARCHIVE_DB_NAME);
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
-      const request = open.result.transaction(LOCAL_LEAGUE_STORE, 'readonly').objectStore(LOCAL_LEAGUE_STORE).get('local-settings-proof');
+      const request = open.result.transaction(LOCAL_TOURNAMENT_STORE, 'readonly').objectStore(LOCAL_TOURNAMENT_STORE).get('local-settings-proof');
       request.onsuccess = () => { open.result.close(); resolve(request.result); };
       request.onerror = () => { open.result.close(); reject(request.error); };
     };
@@ -70,7 +69,7 @@ describe('signed-out local Settings', () => {
     cy.get('[data-cy="settings-local-archetype-panel-header"]').click();
     cy.get('[data-cy="settings-local-archetype-row"][data-archetype="Cypress Local"]').should('exist');
 
-    cy.window().then((win) => putLocalLeague(win));
+    cy.window().then((win) => putLocalTournament(win));
     cy.reload();
     cy.get('[data-cy="settings-local-players-panel-header"]').click();
     cy.get('[data-cy="settings-local-player-row"][data-player="Local Alice"]').within(() => {
@@ -79,8 +78,8 @@ describe('signed-out local Settings', () => {
       cy.get('[data-cy="settings-save-local-player-button"]').click();
     });
     cy.get('[data-cy="settings-local-player-row"][data-player="Local Alicia"]').should('exist');
-    cy.window().then((win) => readLocalLeague(win)).then((league) => {
-      expect(league.tournaments[0].rounds[0].entries[0].player1Name).to.equal('Local Alicia');
+    cy.window().then((win) => readLocalTournament(win)).then((tournament) => {
+      expect(tournament.rounds[0].entries[0].player1Name).to.equal('Local Alicia');
     });
     cy.then(() => expect(unexpectedApiCalls, 'unexpected signed-out API calls').to.deep.equal([]));
   });

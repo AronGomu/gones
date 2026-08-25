@@ -15,9 +15,8 @@ import { ApiProblemError } from '../../api/api-boundary';
 import { AdminDeckArchetypeResponse, Client, MyOrganizationResponse, OrganizationNotificationSettingsResponse, PlayerNameSummary } from '../../api/generated/gones-api';
 import { AuthService } from '../../auth/auth.service';
 import { ArchiveRepository } from '../../data/archive-repository.service';
-import { leagueCommandError } from '../../data/league-archive-command-ux';
-import { LocalLeagueArchiveBackend } from '../../backend/local-league-archive-backend.service';
-import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
+import { archiveCommandError } from '../../data/archive-command-ux';
+import { LocalArchiveBackend } from '../../backend/local-archive-backend.service';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { playerNameKey, samePlayerName } from '../../domain/rename-player';
 import { trimPlayerName } from '../../domain/models';
@@ -476,11 +475,10 @@ interface OwnedOrganizationSettings {
 export class SettingsComponent {
   readonly i18n = inject(I18nService);
   private readonly deckArchetypes = inject(DeckArchetypeSettingsService);
-  readonly leagueRepo = inject(LeagueArchiveRepository);
   readonly auth = inject(AuthService);
   readonly power = inject(PowerUserSettingsService);
   private readonly liveRepo = inject(LiveTournamentRepository);
-  private readonly localBackend = inject(LocalLeagueArchiveBackend);
+  private readonly localBackend = inject(LocalArchiveBackend);
   private readonly archiveRepo = inject(ArchiveRepository);
   private readonly client = inject(Client);
   private readonly cache = inject(ServerReadCacheService);
@@ -1023,16 +1021,16 @@ export class SettingsComponent {
         : this.i18n.t('settings.playerRenamed', { from: player.name, to: next }));
     } catch (error) {
       logBoundaryError('settings.renameServerPlayer', error, { from: player.name, to: next });
-      this.playerMessage.set(leagueCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('settings.playerRenameFailed'));
+      this.playerMessage.set(archiveCommandError(error) === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('settings.playerRenameFailed'));
     } finally {
       this.playerSaving.set(false);
     }
   }
 
-  /** Derived from the browser League store (ADR 0032) — there is no local player table to read. */
+  /** Derived from the browser archive store (ADR 0032) — there is no local player table to read. */
   async loadLocalPlayers(preserveMessage = false): Promise<void> {
     try {
-      this.localPlayers.set(localPlayerNames((await this.localBackend.listLeagueArchives()).leagues));
+      this.localPlayers.set(localPlayerNames((await this.localBackend.listArchiveTournaments()).items));
     } catch (error) {
       logBoundaryError('settings.loadLocalPlayers', error);
       if (!preserveMessage) this.playerMessage.set(this.i18n.t('settings.loadFailed'));
@@ -1040,8 +1038,8 @@ export class SettingsComponent {
   }
 
   /**
-   * Rename the player in every browser-local league that names them, one guarded command per
-   * league, carrying each returned `documentVersion` forward. Nothing leaves the browser.
+   * Rename the player in every browser-local Tournament that names them, one guarded command per
+   * Tournament, carrying each returned `documentVersion` forward. Nothing leaves the browser.
    */
   async saveLocalPlayerEdit(player: LocalPlayerSummary): Promise<void> {
     if (!this.power.enabled()) return;
@@ -1059,11 +1057,11 @@ export class SettingsComponent {
     this.playerSaving.set(true);
     let partialRename = false;
     try {
-      for (const league of (await this.localBackend.listLeagueArchives()).leagues) {
-        if (!localPlayerNames([league]).some((item) => samePlayerName(item.name, player.name))) continue;
-        // One guarded command per league. The returned document carries the next expected version,
-        // and each league is written exactly once, so no stale version can be replayed.
-        await this.localBackend.renameLeagueArchivePlayerName(league.id, league.documentVersion, player.name, next);
+      for (const tournament of (await this.localBackend.listArchiveTournaments()).items) {
+        if (!localPlayerNames([tournament]).some((item) => samePlayerName(item.name, player.name))) continue;
+        // One guarded command per Tournament. The returned document carries the next expected version,
+        // and each Tournament is written exactly once, so no stale version can be replayed.
+        await this.localBackend.renameArchiveTournamentPlayer(tournament.id, tournament.documentVersion, player.name, next);
       }
       this.clearPlayerEditState(player.name);
       this.playerMessage.set(this.i18n.t('settings.playerRenamed', { from: player.name, to: next }));

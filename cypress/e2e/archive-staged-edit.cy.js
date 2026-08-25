@@ -124,18 +124,24 @@ describe('Archive Tournament explicit staged editor', () => {
 
     cy.get('[data-cy="archive-tournament-edit"]').click();
     cy.get('[data-cy="archive-tournament-edit-name-input"]').clear().type('Committed Cup');
-    cy.then(() => { calls.detail = 0; });
     cy.get('[data-cy="archive-tournament-save-changes"]').click();
     cy.get('[data-cy="confirm-dialog-message"]').should('contain', 'Deleted rounds: 0').and('contain', 'Deleted entries: 0');
+    // From here the authoritative read is refused, so nothing rendered after the save may depend on
+    // it. Counting the GETs cannot prove that any more: the app shell rebuilds its header on the
+    // `gones-archive-updated` announcement and reads the same Tournament, and it is the same URL as
+    // the page's own read. Breaking the read tells the two apart — the header may lose its label,
+    // the editor may not lose the document it just saved.
+    cy.intercept('GET', /\/api\/archive\/tournaments\/t1$/, {
+      statusCode: 500,
+      body: { code: 'server_error', message: 'No read after the save.' },
+      headers: { 'content-type': 'application/problem+json' }
+    }).as('detailAfterSave');
     cy.get('[data-cy="confirm-dialog-confirm"]').click();
     cy.wait('@editBatch');
     cy.contains('h1', 'Committed Cup').should('be.visible');
     cy.get('[data-cy="archive-tournament-edit"]').should('exist');
     // One save is one request, and the response body is adopted instead of refetched.
-    cy.then(() => {
-      expect(calls.batch, 'edit-batch requests').to.eq(1);
-      expect(calls.detail, 'tournament GETs across the save').to.eq(0);
-    });
+    cy.then(() => expect(calls.batch, 'edit-batch requests').to.eq(1));
   });
 
   it('keeps the draft on 412, cancels Reload Latest without loss, then discards after confirmation', () => {

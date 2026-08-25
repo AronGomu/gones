@@ -1,4 +1,5 @@
-import { LeagueDocument, MatchRoundEntry, RoundEntry, TournamentDocument } from './models';
+import { MatchRoundEntry, RoundEntry } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { tournamentPlayerArchetypeRows } from './tournament-archetypes';
 import { validateRoundEntry } from './validation';
 
@@ -23,7 +24,7 @@ export interface RankingRow {
 
 interface MutableRankingRecord extends Omit<RankingRow, 'rank' | 'gameWinPercentage' | 'opponentsMatchWinPercentage' | 'opponentsGameWinPercentage'> {}
 
-export function calculateTournamentResult(tournament: TournamentDocument) {
+export function calculateTournamentResult(tournament: ArchiveTournamentDocument) {
   const entries = collectTournamentEntries(tournament);
   const archetypes = new Map(tournamentPlayerArchetypeRows(tournament).map((row) => [row.playerName, row.archetype]));
   const rows = calculateRows(entries.map((ref) => ref.entry)).map((row) => ({
@@ -35,26 +36,26 @@ export function calculateTournamentResult(tournament: TournamentDocument) {
   return { scope: 'tournament' as const, incomplete, provisional: incomplete && rows.length > 0, rows };
 }
 
-export function calculateLeagueResult(league: LeagueDocument) {
-  const entries = (league.tournaments ?? []).flatMap((tournament) => collectTournamentEntries(tournament));
-  const rows = calculateRows(entries.map((ref) => ref.entry));
-  const incomplete = (league.tournaments ?? []).some((tournament) => calculateTournamentResult(tournament).incomplete);
-  return { scope: 'league' as const, startDate: calculateLeagueStartDate(league), endDate: calculateLeagueEndDate(league), incomplete, provisional: incomplete && rows.length > 0, rows };
+/** The Season scope: every Tournament of one LeagueSeason, ranked as a single standings pass. */
+export function calculateLeagueResult(tournaments: readonly ArchiveTournamentDocument[]) {
+  const rows = calculateRows((tournaments ?? []).flatMap((tournament) => collectTournamentEntries(tournament)).map((ref) => ref.entry));
+  const incomplete = (tournaments ?? []).some((tournament) => calculateTournamentResult(tournament).incomplete);
+  return { scope: 'league' as const, startDate: calculateLeagueStartDate(tournaments), endDate: calculateLeagueEndDate(tournaments), incomplete, provisional: incomplete && rows.length > 0, rows };
 }
 
-export function calculateLeagueStartDate(league: LeagueDocument): string {
-  return getSortedTournamentDates(league)[0] ?? '';
+export function calculateLeagueStartDate(tournaments: readonly ArchiveTournamentDocument[]): string {
+  return getSortedTournamentDates(tournaments)[0] ?? '';
 }
 
-export function calculateLeagueEndDate(league: LeagueDocument): string {
-  return getSortedTournamentDates(league).at(-1) ?? '';
+export function calculateLeagueEndDate(tournaments: readonly ArchiveTournamentDocument[]): string {
+  return getSortedTournamentDates(tournaments).at(-1) ?? '';
 }
 
-function getSortedTournamentDates(league: LeagueDocument): string[] {
-  return (league.tournaments ?? []).map((tournament) => tournament.tournamentDate).filter(Boolean).sort((left, right) => left.localeCompare(right));
+function getSortedTournamentDates(tournaments: readonly ArchiveTournamentDocument[]): string[] {
+  return (tournaments ?? []).map((tournament) => tournament.tournamentDate).filter(Boolean).sort((left, right) => left.localeCompare(right));
 }
 
-function collectTournamentEntries(tournament: TournamentDocument): Array<{ tournament: TournamentDocument; entry: RoundEntry; roundIndex: number }> {
+function collectTournamentEntries(tournament: ArchiveTournamentDocument): Array<{ tournament: ArchiveTournamentDocument; entry: RoundEntry; roundIndex: number }> {
   return (tournament.rounds ?? []).flatMap((round, roundIndex) => (round.entries ?? []).map((entry) => ({ tournament, roundIndex, entry })));
 }
 

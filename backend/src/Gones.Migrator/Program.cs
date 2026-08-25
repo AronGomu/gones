@@ -211,7 +211,9 @@ static async Task SeedLocalLiveTournamentAsync(GonesDbContext database)
     var document = new LiveTournamentDocument(
         documentId,
         "Local Live Demo",
-        "placeholder-league",
+        // No Season: the demo finalizes to a standalone Archive Tournament, which is what the retired
+        // placeholder League used to absorb.
+        "",
         "2026-08-05",
         "swiss",
         1,

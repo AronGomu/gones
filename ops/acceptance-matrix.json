@@ -222,12 +222,12 @@
             "evidence": [
                 {
                     "gate": "vitest",
-                    "target": "src/app/backend/local-league-archive-backend.service.test.ts",
+                    "target": "src/app/backend/local-archive-backend.service.test.ts",
                     "detail": "all 21 port methods against a fake IndexedDB, with the version guard"
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/data/league-archive-repository.service.test.ts",
+                    "target": "src/app/data/archive-repository.service.test.ts",
                     "detail": "merged listing and per-id write routing"
                 },
                 {
@@ -237,7 +237,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/data/league-archive-import.service.test.ts",
+                    "target": "src/app/data/archive-import.service.test.ts",
                     "detail": "an imported bundle lands in the store the caller may write and never in the other one"
                 },
                 {
@@ -2443,13 +2443,13 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/domain/league-parity-fixtures.test.ts",
+                    "target": "src/app/domain/archive-parity-fixtures.test.ts",
                     "detail": "the TypeScript side of the same fixtures"
                 },
                 {
                     "gate": "cypress",
-                    "target": "cypress/e2e/league-server.cy.js",
-                    "detail": "League over the API"
+                    "target": "cypress/e2e/server-data-authority.cy.js",
+                    "detail": "the archive over the API, and every retired path answering 404"
                 },
                 {
                     "gate": "cypress",
@@ -2461,7 +2461,7 @@
         {
             "id": "doc09-archive-rename",
             "doc": "09-frontend-angular.md",
-            "capability": "The retired League feature is presented as an archive: routes, breadcrumbs and component names all read 'leagues-archive' / 'tournaments-archive' (ADR 0022).",
+            "capability": "The archive is presented on three tiers \u2014 League \u2192 LeagueSeason \u2192 Tournament \u2014 served from /archive/** with a Tournament as a first-class top-level record. The retired /leagues-archive and /tournaments-archive paths are gone with no redirect and render the 404 page (T19 reverses ADR 0022's redirect clause; its no-API-alias clause stands).",
             "status": "proved",
             "acceptance": [
                 "product-league-live-parity"
@@ -2470,34 +2470,34 @@
                 {
                     "gate": "vitest",
                     "target": "src/app/data-mode-routes.test.ts",
-                    "detail": "the renamed archive list and detail routes are served in every data mode"
+                    "detail": "the three-tier archive routes are served in every data mode and no retired one is registered"
                 },
                 {
                     "gate": "vitest",
                     "target": "src/app/app-breadcrumbs.test.ts",
-                    "detail": "every archive breadcrumb links into the renamed segments"
+                    "detail": "every archive breadcrumb links into /archive/**, and a retired path reads Not Found"
                 },
                 {
                     "gate": "cypress",
-                    "target": "cypress/e2e/league-server.cy.js",
+                    "target": "cypress/e2e/server-data-authority.cy.js",
                     "detail": "the archive surface still drives the server-backed League journey"
                 },
                 {
                     "gate": "dotnet",
-                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueCatalogApiTests.cs",
-                    "detail": "GET /api/leagues-archive/all is the archive's list surface and ships summary rows under 250 bytes each \u2014 the denormalized counts, no document, and the retired paged route (ADR 0042)"
+                    "target": "backend/tests/Gones.IntegrationTests/PublicArchiveCatalogApiTests.cs",
+                    "detail": "GET /api/archive/league-seasons/all is the archive's list surface and ships summary rows under 250 bytes each \u2014 the denormalized counts, no document (ADR 0042)"
                 },
                 {
                     "gate": "dotnet",
-                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueDocumentCatalogApiTests.cs",
-                    "detail": "GET /api/leagues-archive/all/documents serves the whole documents the Settings export needs, in its own ETag namespace so a summary ETag can never be answered 304"
+                    "target": "backend/tests/Gones.IntegrationTests/ArchiveTournamentDetailApiTests.cs",
+                    "detail": "GET /api/archive/tournaments/{tournamentId} serves the whole document, in its own ETag namespace so a catalog ETag can never be answered 304"
                 }
             ]
         },
         {
             "id": "doc09-global-player-stats-api",
             "doc": "09-frontend-angular.md",
-            "capability": "GET /api/leagues-archive/global-player-statistics returns searched, sorted, paged 12-column global stats from completed non-deleted server League aggregates with ETag caching.",
+            "capability": "GET /api/archive/global-player-statistics returns searched, sorted, paged 12-column global stats from completed non-deleted Archive Tournaments, scopable to a League or a Season, with ETag caching.",
             "section": "Product",
             "status": "proved",
             "acceptance": [
@@ -2506,8 +2506,8 @@
             "evidence": [
                 {
                     "gate": "dotnet",
-                    "target": "backend/tests/Gones.IntegrationTests/PublicLeagueApiTests.cs",
-                    "detail": "GlobalPlayerStatisticsApiTests: authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304, validation, 12-column shape"
+                    "target": "backend/tests/Gones.IntegrationTests/GlobalStatsApiTests.cs",
+                    "detail": "authority, eligibility, identity, default sort, explicit sort, search, paging, ETag 304 and revalidation after a rebuild, validation refusals, and the row shape"
                 }
             ]
         },
@@ -2556,7 +2556,7 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/domain/export-restore.test.ts",
+                    "target": "src/app/domain/archive-export-schemas.test.ts",
                     "detail": "bundle normalization and restore"
                 },
                 {

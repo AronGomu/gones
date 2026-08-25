@@ -29,7 +29,7 @@ public sealed class PlayerApiTests : IAsyncLifetime
         await postgres.StartAsync();
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(PlayerLeague(), Seeded));
+        database.AddLegacyShapedLeague(PlayerLeague(), Seeded);
         await database.SaveChangesAsync();
     }
 
@@ -69,7 +69,10 @@ public sealed class PlayerApiTests : IAsyncLifetime
         var statistics = body.GetProperty("statistics");
 
         await using var database = CreateContext();
-        var row = await database.PlayerStatistics.AsNoTracking().SingleAsync(candidate => candidate.PlayerName == "Ada");
+        // One row per player per scope since T8; the player page serves the global scope, so that is
+        // the row the response has to agree with.
+        var row = await database.PlayerStatistics.AsNoTracking()
+            .SingleAsync(candidate => candidate.ScopeKind == PlayerStatisticsScope.Global && candidate.PlayerName == "Ada");
 
         Assert.Equal(row.PlayedMatchCount, statistics.GetProperty("playedMatchCount").GetInt32());
         Assert.Equal(row.MatchWins, statistics.GetProperty("matchWins").GetInt32());
@@ -99,7 +102,8 @@ public sealed class PlayerApiTests : IAsyncLifetime
         var statistics = body.GetProperty("statistics");
 
         await using var database = CreateContext();
-        var row = await database.PlayerStatistics.AsNoTracking().SingleAsync(candidate => candidate.PlayerName == "Ada");
+        var row = await database.PlayerStatistics.AsNoTracking()
+            .SingleAsync(candidate => candidate.ScopeKind == PlayerStatisticsScope.Global && candidate.PlayerName == "Ada");
 
         Assert.Equal((int)Math.Round(row.Rating, MidpointRounding.AwayFromZero), statistics.GetProperty("rating").GetInt32());
         Assert.Equal(row.RatingDeviation, statistics.GetProperty("ratingDeviation").GetDouble());

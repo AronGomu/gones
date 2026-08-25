@@ -27,7 +27,7 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class GlobalStatsRatingRoundingTests : IAsyncLifetime
 {
-    private const string Path = "/api/leagues-archive/global-player-statistics";
+    private const string Path = "/api/archive/global-player-statistics";
 
     private readonly PostgreSqlTestContainer postgres = new();
     private WebApplicationFactory<Program>? factory;

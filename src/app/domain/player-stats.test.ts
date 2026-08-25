@@ -1,23 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { createGonesData, createLeague, createTournament, LeagueDocument, TournamentDocument } from './models';
+import { createArchiveTournament, ArchiveTournamentDocument } from './archive-models';
 import { calculateGlobalPlayerStatistics, calculatePlayerStatistics } from './player-stats';
 
 function tournament(
   id: string,
-  entries: TournamentDocument['rounds'][number]['entries'],
-  playerArchetypes: TournamentDocument['playerArchetypes'] = [],
-  status: TournamentDocument['status'] = 'completed',
-): TournamentDocument {
-  return createTournament({ id, leagueId: 'league', name: id, status, rounds: [{ id: `${id}-round`, entries }], playerArchetypes });
+  entries: ArchiveTournamentDocument['rounds'][number]['entries'],
+  playerArchetypes: ArchiveTournamentDocument['playerArchetypes'] = [],
+  status: ArchiveTournamentDocument['status'] = 'completed',
+): ArchiveTournamentDocument {
+  return createArchiveTournament({ id, seasonId: 'league', name: id, status, rounds: [{ id: `${id}-round`, entries }], playerArchetypes });
 }
 
-function data(leagues: LeagueDocument[]) {
-  return createGonesData({ leagues });
+/**
+ * A Season is no longer a document holding Tournaments — it is an id on each Tournament row, so the
+ * helper stamps `seasonId` instead of nesting. The `status` a Season used to carry never scoped the
+ * statistics (ADR 0040) and is dropped here for the same reason.
+ */
+function season({ id = 'league', tournaments = [] }: { id?: string; status?: string; tournaments?: ArchiveTournamentDocument[] }): ArchiveTournamentDocument[] {
+  return tournaments.map((item) => ({ ...item, seasonId: id }));
+}
+
+function data(seasons: ArchiveTournamentDocument[][]): ArchiveTournamentDocument[] {
+  return seasons.flat();
 }
 
 describe('calculatePlayerStatistics', () => {
   it('counts match wins, losses, draws, and games while keeping byes out of performance', () => {
-    const league = createLeague({
+    const league = season({
       id: 'league',
       tournaments: [tournament('event', [
         { kind: 'match', id: 'win', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 1, player1DeckArchetype: 'Fire', player2DeckArchetype: '' },
@@ -45,7 +54,7 @@ describe('calculatePlayerStatistics', () => {
   });
 
   it('reports selected-player opponent records and breaks tied Nemesis/Rival names alphabetically', () => {
-    const league = createLeague({
+    const league = season({
       id: 'league',
       tournaments: [tournament('event', [
         { kind: 'match', id: 'b-loss', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 0, player2Score: 2, player1DeckArchetype: '', player2DeckArchetype: '' },
@@ -62,7 +71,7 @@ describe('calculatePlayerStatistics', () => {
   });
 
   it('uses selected Match-side archetype, falls back to Tournament roster, omits blank, and breaks ties alphabetically', () => {
-    const league = createLeague({
+    const league = season({
       id: 'league',
       tournaments: [
         tournament('match-source', [
@@ -81,7 +90,7 @@ describe('calculatePlayerStatistics', () => {
   });
 
   it('keeps exact case-sensitive Player Names separate', () => {
-    const league = createLeague({
+    const league = season({
       id: 'league',
       tournaments: [tournament('event', [
         { kind: 'match', id: 'case', table: '1', player1Name: 'Alice', player2Name: 'alice', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' },
@@ -95,7 +104,7 @@ describe('calculatePlayerStatistics', () => {
 
 describe('calculateGlobalPlayerStatistics', () => {
   it('includes completed-Tournament Match players only, excludes active-Tournament/bye/roster-only names, and sorts exact names ordinally', () => {
-    const completed = createLeague({
+    const completed = season({
       id: 'league',
       status: 'completed',
       tournaments: [tournament('completed', [
@@ -103,7 +112,7 @@ describe('calculateGlobalPlayerStatistics', () => {
         { kind: 'bye', id: 'bye', table: '2', playerName: 'Bye Only', deckArchetype: 'Earth' },
       ], [{ playerName: 'Roster Only', archetype: 'Air' }])],
     });
-    const active = createLeague({
+    const active = season({
       id: 'active',
       status: 'active',
       tournaments: [tournament('active', [
@@ -133,14 +142,14 @@ describe('calculateGlobalPlayerStatistics', () => {
   });
 
   it('scopes on the Tournament, not the League: a completed Tournament of an active League counts, an active Tournament of a completed League does not', () => {
-    const activeLeague = createLeague({
+    const activeLeague = season({
       id: 'active-league',
       status: 'active',
       tournaments: [tournament('done', [
         { kind: 'match', id: 'done-match', table: '1', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' },
       ])],
     });
-    const completedLeague = createLeague({
+    const completedLeague = season({
       id: 'completed-league',
       status: 'completed',
       tournaments: [tournament('ongoing', [

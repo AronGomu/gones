@@ -4,10 +4,15 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
- * ADR 0028 — the full data export is fed the *merged* league list, so a bundle carries the
- * browser-local leagues next to the server ones. Same rationale as
- * `public-calendar.component.test.ts`: no TestBed in this repo, so the component is built with a
- * bare `Injector` and hand-written fakes, and `saveJsonFile` is mocked to capture the artifact.
+ * ADR 0028 — the header's Gones Export is the browser-local store's one bridge out. It carries the
+ * browser-local records and nothing else: the three-tier read surface serves slim catalogs and one
+ * detail per Tournament (ADR 0039/0042), so there is no whole-document server read to build a server
+ * half from, and a bundle that silently omitted every server record would be a backup that lies.
+ * A signed-in visitor is refused for exactly that reason.
+ *
+ * Same rationale as `public-calendar.component.test.ts`: no TestBed in this repo, so the component is
+ * built with a bare `Injector` and hand-written fakes, and `saveJsonFile` is mocked to capture the
+ * artifact.
  */
 const { saveJsonFileMock } = vi.hoisted(() => ({ saveJsonFileMock: vi.fn() }));
 vi.mock('./shared/save-json-file', () => ({ saveJsonFile: saveJsonFileMock }));
@@ -26,30 +31,33 @@ import { Subject } from 'rxjs';
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
-import { LeagueArchiveRepository } from './data/league-archive-repository.service';
-import { LOCAL_PLACEHOLDER_LEAGUE_ID } from './data/league-archive-origin';
+import { ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
+import { buildArchiveBundle } from './domain/archive-export-schemas';
+import { createArchiveLeague, createArchiveTournament, createLeagueSeason } from './domain/archive-models';
 import { verifyExportChecksum } from './domain/export-schemas';
-import { createTournament, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument } from './domain/models';
 import { I18nService } from './i18n/i18n.service';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from './shared/power-user-settings.service';
 
-const SERVER_ID = '7f3a1d2c-0b44-4f9e-9a1e-2c8f0d6b5a11';
 const LOCAL_ID = 'local-4d6f1f0e-2a11-4a1a-8f0c-8a7a2f6d9e33';
 
-function league(id: string, name = `League ${id}`, tournaments: TournamentDocument[] = []): PersistedLeague {
-  return { id, name, status: 'active', tournaments, documentVersion: 3, updatedAt: '2026-08-09T10:00:00.000Z' };
+function localBundle() {
+  return buildArchiveBundle({
+    leagues: [createArchiveLeague({ id: LOCAL_ID, name: 'Browser League', createdAt: '2026-08-09T10:00:00.000Z' })],
+    leagueSeasons: [createLeagueSeason({ id: `${LOCAL_ID}-s`, name: 'Browser Season', leagueId: LOCAL_ID })],
+    tournaments: [createArchiveTournament({ id: `${LOCAL_ID}-t`, name: 'Browser Tournament', seasonId: `${LOCAL_ID}-s`, tournamentDate: '2026-08-09' })]
+  });
 }
 
-function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn = false, catalogTruncated = false }: { serverUnavailable?: boolean; signedIn?: boolean; catalogTruncated?: boolean } = {}) {
+function setup({ signedIn = false }: { signedIn?: boolean } = {}) {
   saveJsonFileMock.mockClear();
-  const listLeagues = vi.fn(async () => leagues);
-  const repo = { listLeagues, getLeague: vi.fn(async () => null), serverUnavailable: signal(serverUnavailable), catalogTruncated: signal(catalogTruncated) } as unknown as LeagueArchiveRepository;
-  const router = { url: '/leagues-archive', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
+  const exportBundle = vi.fn(async () => localBundle());
+  const repo = { exportBundle, getTournament: vi.fn(async () => null) } as unknown as ArchiveRepository;
+  const router = { url: '/archive/league-seasons', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
   const auth = { enabled: true, profile: signal(signedIn ? { id: 'organizer', globalRole: 'Organizer' } : null) } as unknown as AuthService;
   const injector = Injector.create({ providers: [
-    { provide: LeagueArchiveRepository, useValue: repo },
+    { provide: ArchiveRepository, useValue: repo },
     { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
@@ -60,11 +68,11 @@ function setup(leagues: PersistedLeague[], { serverUnavailable = false, signedIn
     I18nService
   ] });
   const component = runInInjectionContext(injector, () => new AppComponent());
-  return { component, listLeagues };
+  return { component, exportBundle };
 }
 
 /** The single argument `saveJsonFile` was handed, as the file's JSON round trip would see it. */
-function savedBundle(): { leagues: { id: string }[]; checksum: string } {
+function savedBundle(): { version: number; leagues: { id: string }[]; leagueSeasons: { id: string }[]; tournaments: { id: string }[]; checksum: string } {
   expect(saveJsonFileMock).toHaveBeenCalledTimes(1);
   return saveJsonFileMock.mock.calls[0][0];
 }
@@ -73,116 +81,47 @@ function savedFilename(): string {
   return saveJsonFileMock.mock.calls[0][1];
 }
 
-describe('AppComponent full data export', () => {
-  it('the full export carries leagues from both stores', async () => {
-    const { component } = setup([league(SERVER_ID), league(LOCAL_ID)]);
+describe('AppComponent archive export', () => {
+  it('writes the browser-local records as a v5 bundle', async () => {
+    const { component, exportBundle } = setup();
 
     await component.downloadFullExport();
 
+    expect(exportBundle).toHaveBeenCalledTimes(1);
     const bundle = savedBundle();
-    expect(bundle.leagues).toHaveLength(2);
-    expect(bundle.leagues.map((item) => item.id)).toEqual([SERVER_ID, LOCAL_ID]);
+    expect(bundle.version).toBe(5);
+    expect(bundle.leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
+    expect(bundle.leagueSeasons.map((item) => item.id)).toEqual([`${LOCAL_ID}-s`]);
+    expect(bundle.tournaments.map((item) => item.id)).toEqual([`${LOCAL_ID}-t`]);
   });
 
-  it('the full export drops the server placeholder', async () => {
-    const { component } = setup([league(PLACEHOLDER_LEAGUE_ID), league(SERVER_ID)]);
+  it('keeps its filename and a verifiable checksum', async () => {
+    const { component } = setup();
 
     await component.downloadFullExport();
 
-    expect(savedBundle().leagues.map((item) => item.id)).toEqual([SERVER_ID]);
+    expect(savedFilename()).toMatch(/^\d{4}-\d{2}-\d{2} Gones Archive\.json$/);
+    expect(savedBundle().checksum).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(await verifyExportChecksum(savedBundle())).toBe(true);
   });
 
-  it('the full export drops the local placeholder', async () => {
-    const { component } = setup([league(LOCAL_PLACEHOLDER_LEAGUE_ID), league(LOCAL_ID)]);
-
-    await component.downloadFullExport();
-
-    expect(savedBundle().leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
-  });
-
-  it('a placeholder holding tournaments is still dropped', async () => {
-    const orphan = createTournament({ leagueId: LOCAL_PLACEHOLDER_LEAGUE_ID, name: 'Orphan' });
-    const { component } = setup([league(LOCAL_PLACEHOLDER_LEAGUE_ID, 'Unassigned Tournaments', [orphan]), league(LOCAL_ID)]);
-
-    await component.downloadFullExport();
-
-    expect(savedBundle().leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
-  });
-
-  it('the full export keeps its filename and checksum', async () => {
-    const { component } = setup([league(SERVER_ID), league(LOCAL_ID)]);
-
-    await component.downloadFullExport();
-
-    expect(savedFilename()).toBe('gones-full-data.gones.json');
-    await expect(verifyExportChecksum(savedBundle())).resolves.toBe(true);
-  });
-
-  /**
-   * `listLeagues()` degrades to the local list alone when the server read rejects (offline, expired
-   * token, 500) and raises `serverUnavailable`. Writing the file anyway would hand the user a
-   * `gones-full-data.gones.json` that silently omits every server league — and export is ADR 0028's
-   * only bridge against "clearing site data destroys local leagues".
-   */
-  it('a full export refuses to write when the server list failed', async () => {
-    const { component } = setup([league(LOCAL_ID)], { serverUnavailable: true, signedIn: true });
+  it('refuses to write for a signed-in visitor rather than omit their server records', async () => {
+    const { component, exportBundle } = setup({ signedIn: true });
 
     await component.downloadFullExport();
 
     expect(saveJsonFileMock).not.toHaveBeenCalled();
-    expect(component.importError()).toBe(component.i18n.t('msg.fullDataExportServerUnavailable'));
+    expect(exportBundle).not.toHaveBeenCalled();
+    expect(component.importError()).toBeTruthy();
   });
 
-  /**
-   * The other half of that guard, and the reason it is not a blanket refusal: a signed-out visitor
-   * has no server leagues, so their local list *is* the whole archive and the bundle is complete.
-   * Refusing here would take away ADR 0028's only backup from exactly the people who own
-   * browser-local leagues.
-   */
-  it('a signed-out visitor can still export while the server is unreachable', async () => {
-    const { component } = setup([league(LOCAL_ID)], { serverUnavailable: true });
+  it('a signed-out visitor exports: the browser store is the whole archive they can see', async () => {
+    const { component } = setup();
 
     await component.downloadFullExport();
 
-    expect(savedBundle().leagues.map((item) => item.id)).toEqual([LOCAL_ID]);
+    expect(saveJsonFileMock).toHaveBeenCalledTimes(1);
     expect(component.importError()).toBe('');
-  });
-
-  /**
-   * The second way a server list can be short of the whole archive: the catalog row cap (ADR 0039).
-   * The server answered, so `serverUnavailable` is false and the older guard says nothing — but the
-   * bundle would still be missing Leagues, which is the exact failure that guard exists to prevent.
-   * It applies signed out too: the cap is a property of the server answer, not of the session.
-   */
-  it('a full export refuses to write when the server capped the catalog', async () => {
-    const { component } = setup([league(SERVER_ID), league(LOCAL_ID)], { catalogTruncated: true, signedIn: true });
-
-    await component.downloadFullExport();
-
-    expect(saveJsonFileMock).not.toHaveBeenCalled();
-    expect(component.importError()).toBe(component.i18n.t('msg.fullDataExportTruncated'));
-  });
-
-  it('a full export still writes when the server list succeeded', async () => {
-    const { component } = setup([league(SERVER_ID), league(LOCAL_PLACEHOLDER_LEAGUE_ID), league(LOCAL_ID)]);
-
-    await component.downloadFullExport();
-
-    expect(savedBundle().leagues.map((item) => item.id)).toEqual([SERVER_ID, LOCAL_ID]);
-    expect(component.importError()).toBe('');
-  });
-
-  it('a local league exports on its own', async () => {
-    const local = league(LOCAL_ID, 'Browser League');
-    const { component } = setup([local]);
-
-    await component.downloadLeagueExport(local);
-
-    const bundle = saveJsonFileMock.mock.calls[0][0] as { kind: string; league: { id: string }; exportedAt: string };
-    expect(bundle.kind).toBe('league');
-    expect(bundle.league.id).toBe(LOCAL_ID);
-    expect(savedFilename()).toBe(`${bundle.exportedAt.slice(0, 10)} Browser League.json`);
-    await expect(verifyExportChecksum(bundle)).resolves.toBe(true);
   });
 });
 

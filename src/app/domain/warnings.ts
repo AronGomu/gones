@@ -1,4 +1,5 @@
-import { RoundEntry, TournamentDocument } from './models';
+import { RoundEntry } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { archetypeForPlayer } from './tournament-archetypes';
 import { validateRoundEntry } from './validation';
 
@@ -11,7 +12,7 @@ export interface TournamentWarning {
   entryIds?: string[];
 }
 
-export function getTournamentWarnings(tournament: TournamentDocument): TournamentWarning[] {
+export function getTournamentWarnings(tournament: ArchiveTournamentDocument): TournamentWarning[] {
   const warnings: TournamentWarning[] = [];
   const pairings = new Map<string, string[]>();
   const knownPlayers = new Set<string>();
@@ -52,11 +53,11 @@ export function getTournamentWarnings(tournament: TournamentDocument): Tournamen
   return warnings;
 }
 
-export function hasMissingByeWarning(tournament: TournamentDocument): boolean {
+export function hasMissingByeWarning(tournament: ArchiveTournamentDocument): boolean {
   return getTournamentWarnings(tournament).some((warning) => warning.code === 'missingBye');
 }
 
-function collectTournamentPlayers(tournament: TournamentDocument): Set<string> {
+function collectTournamentPlayers(tournament: ArchiveTournamentDocument): Set<string> {
   const players = new Set<string>();
   for (const round of tournament.rounds ?? []) {
     for (const entry of round.entries ?? []) {
@@ -77,6 +78,6 @@ function recordSeen(map: Map<string, string[]>, playerName: string, entryId: str
   map.set(playerName, [...(map.get(playerName) ?? []), entryId]);
 }
 
-function playerArchetype(tournament: TournamentDocument, playerName: string): string {
+function playerArchetype(tournament: ArchiveTournamentDocument, playerName: string): string {
   return archetypeForPlayer(tournament, playerName).trim();
 }

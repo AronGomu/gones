@@ -25,7 +25,7 @@ public sealed record MigrationReportCounts(
 public sealed record MigrationPlannedCounts(
     int LeaguesToCreate,
     int TournamentsToImport,
-    int TournamentsMergedIntoPlaceholderTarget,
+    int StandaloneTournaments,
     int ScheduledTournaments,
     int LiveTournamentsToCreate,
     int DeckArchetypesToAdd,
@@ -66,7 +66,6 @@ public sealed record MigrationReport(
     MigrationPlannedCounts PlannedCounts,
     string OrganizationId,
     string OwnerUserId,
-    string? PlaceholderLeagueTarget,
     IReadOnlyList<MigrationCalendarMappingSummary> CalendarEventMappings,
     IReadOnlyList<string> Deduplicates,
     IReadOnlyList<MigrationReportIssue> Conflicts,
@@ -110,7 +109,7 @@ public sealed record MigrationReport(
             lines.Add($"    - {bundle.FileName} [{bundle.Role}] source={bundle.SourceInstanceId} leagues={bundle.Counts.Leagues} tournaments={bundle.Counts.Tournaments} events={bundle.Counts.CalendarEvents} live={bundle.Counts.LiveTournaments} archetypes={bundle.Counts.DeckArchetypes}");
         }
 
-        lines.Add($"  Planned: {PlannedCounts.LeaguesToCreate} Leagues, {PlannedCounts.TournamentsToImport} Tournaments (+{PlannedCounts.TournamentsMergedIntoPlaceholderTarget} into '{PlaceholderLeagueTarget ?? "-"}'), {PlannedCounts.ScheduledTournaments} Scheduled Tournaments, {PlannedCounts.LiveTournamentsToCreate} Live drafts, {PlannedCounts.DeckArchetypesToAdd} new Deck Archetypes ({PlannedCounts.DeckArchetypesAlreadyPresent} already present), {PlannedCounts.SkippedEntities} skipped.");
+        lines.Add($"  Planned: {PlannedCounts.LeaguesToCreate} Leagues, {PlannedCounts.TournamentsToImport} Tournaments (+{PlannedCounts.StandaloneTournaments} standalone), {PlannedCounts.ScheduledTournaments} Scheduled Tournaments, {PlannedCounts.LiveTournamentsToCreate} Live drafts, {PlannedCounts.DeckArchetypesToAdd} new Deck Archetypes ({PlannedCounts.DeckArchetypesAlreadyPresent} already present), {PlannedCounts.SkippedEntities} skipped.");
         if (Deduplicates.Count > 0) lines.Add($"  Deduplicated identical entities: {string.Join(", ", Deduplicates)}");
         foreach (var conflict in Conflicts) lines.Add($"  Conflict {conflict.Code}: {conflict.Detail}");
         foreach (var collision in Collisions) lines.Add($"  Collision: {collision}");

@@ -31,16 +31,16 @@ describe('settings page local sections', () => {
   });
 
   it('reloads truthful local player state after a partial sequential rename failure', async () => {
-    const league = (id: string, player1Name: string) => ({
-      id, name: id, status: 'active', documentVersion: 1, updatedAt: '2026-08-10T00:00:00Z',
-      tournaments: [{ id: `${id}-t`, leagueId: id, name: 'Day', tournamentDate: '2026-08-10', playerArchetypes: [], rounds: [{ id: `${id}-r`, entries: [{ id: `${id}-e`, kind: 'match', table: '1', player1Name, player2Name: 'Other', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }] }]
+    const tournament = (id: string, player1Name: string) => ({
+      id, name: id, seasonId: null, tournamentDate: '2026-08-10', status: 'completed', documentVersion: 1, updatedAt: '2026-08-10T00:00:00Z',
+      playerArchetypes: [], rounds: [{ id: `${id}-r`, entries: [{ id: `${id}-e`, kind: 'match', table: '1', player1Name, player2Name: 'Other', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
     });
-    let stored = [league('local-1', 'Alice'), league('local-2', 'Alice')];
+    let stored = [tournament('local-1', 'Alice'), tournament('local-2', 'Alice')];
     const localBackend = {
-      listLeagueArchives: vi.fn(async () => ({ leagues: stored, truncated: false })),
-      renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
+      listArchiveTournaments: vi.fn(async () => ({ items: stored, totalCount: stored.length, truncated: false })),
+      renameArchiveTournamentPlayer: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');
-        stored = stored.map((item) => item.id === id ? league(id, 'Alicia') : item);
+        stored = stored.map((item) => item.id === id ? tournament(id, 'Alicia') : item);
         return stored.find((item) => item.id === id);
       })
     };
@@ -59,7 +59,7 @@ describe('settings page local sections', () => {
 
     await component.saveLocalPlayerEdit({ name: 'Alice', occurrenceCount: 2, leagueCount: 2 });
 
-    expect(localBackend.listLeagueArchives).toHaveBeenCalledTimes(2);
+    expect(localBackend.listArchiveTournaments).toHaveBeenCalledTimes(2);
     expect(component.localPlayers().map((player) => player.name)).toEqual(['Alice', 'Alicia', 'Other']);
     expect(component.playerMessage()).toBe('settings.localPlayerRenamePartial');
     expect(component.playerSaving()).toBe(false);
@@ -67,18 +67,18 @@ describe('settings page local sections', () => {
   });
 
   it('keeps partial-rename warning when final local player reload also fails', async () => {
-    const league = (id: string) => ({
-      id, name: id, status: 'active', documentVersion: 1, updatedAt: '2026-08-10T00:00:00Z',
-      tournaments: [{ id: `${id}-t`, leagueId: id, name: 'Day', tournamentDate: '2026-08-10', playerArchetypes: [], rounds: [{ id: `${id}-r`, entries: [{ id: `${id}-e`, kind: 'match', table: '1', player1Name: 'Alice', player2Name: 'Other', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }] }]
+    const tournament = (id: string) => ({
+      id, name: id, seasonId: null, tournamentDate: '2026-08-10', status: 'completed', documentVersion: 1, updatedAt: '2026-08-10T00:00:00Z',
+      playerArchetypes: [], rounds: [{ id: `${id}-r`, entries: [{ id: `${id}-e`, kind: 'match', table: '1', player1Name: 'Alice', player2Name: 'Other', player1Score: 2, player2Score: 0, player1DeckArchetype: '', player2DeckArchetype: '' }] }]
     });
-    const stored = [league('local-1'), league('local-2')];
+    const stored = [tournament('local-1'), tournament('local-2')];
     const localBackend = {
-      listLeagueArchives: vi.fn()
-        .mockResolvedValueOnce({ leagues: stored, truncated: false })
+      listArchiveTournaments: vi.fn()
+        .mockResolvedValueOnce({ items: stored, totalCount: stored.length, truncated: false })
         .mockRejectedValueOnce(new Error('reload failed')),
-      renameLeagueArchivePlayerName: vi.fn(async (id: string) => {
+      renameArchiveTournamentPlayer: vi.fn(async (id: string) => {
         if (id === 'local-2') throw new Error('write failed');
-        return league(id);
+        return tournament(id);
       })
     };
     const component = Object.create(SettingsComponent.prototype) as SettingsComponent;
@@ -96,8 +96,8 @@ describe('settings page local sections', () => {
 
     await component.saveLocalPlayerEdit({ name: 'Alice', occurrenceCount: 2, leagueCount: 2 });
 
-    expect(localBackend.renameLeagueArchivePlayerName).toHaveBeenCalledTimes(2);
-    expect(localBackend.listLeagueArchives).toHaveBeenCalledTimes(2);
+    expect(localBackend.renameArchiveTournamentPlayer).toHaveBeenCalledTimes(2);
+    expect(localBackend.listArchiveTournaments).toHaveBeenCalledTimes(2);
     expect(component.playerMessage()).toBe('settings.localPlayerRenamePartial');
     expect(component.playerSaving()).toBe(false);
     logged.mockRestore();
@@ -106,7 +106,7 @@ describe('settings page local sections', () => {
   it('keeps generic load-failed copy for standalone local player reload failure', async () => {
     const component = Object.create(SettingsComponent.prototype) as SettingsComponent;
     Object.assign(component, {
-      localBackend: { listLeagueArchives: vi.fn(async () => { throw new Error('reload failed'); }) },
+      localBackend: { listArchiveTournaments: vi.fn(async () => { throw new Error('reload failed'); }) },
       i18n: { t: (key: string) => key },
       playerMessage: signal('')
     });

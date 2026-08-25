@@ -37,15 +37,19 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
             var now = Instant.FromUtc(2030, 1, 1, 12, 0);
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(LeagueWith("league-a", "League A", "active",
+            database.AddLegacyShapedLeague(LeagueWith("league-a", "League A", "active",
                 Match("entry-1", "Alice", "Bob"),
-                new ByeRoundEntry("entry-2", "2", "alice", string.Empty)), now));
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(LeagueWith("league-b", "League B", "completed",
-                Match("entry-3", "Alice", "Cara")), now));
-            var deleted = LeagueArchiveAggregate.Create(LeagueWith("league-deleted", "Deleted League", "active",
+                new ByeRoundEntry("entry-2", "2", "alice", string.Empty)), now);
+            database.AddLegacyShapedLeague(LeagueWith("league-b", "League B", "completed",
+                Match("entry-3", "Alice", "Cara")), now);
+            database.AddLegacyShapedLeague(LeagueWith("league-deleted", "Deleted League", "active",
                 Match("entry-4", "Alice", "Dana")), now);
+            await database.SaveChangesAsync();
+            // The maintenance scan reads Tournament rows, so it is the Tournament that must be invisible.
+            // Deleting it after its insert leaves it at version 2, because ArchiveTournament.SoftDelete
+            // bumps the version explicitly. That is its untouched baseline from here on.
+            var deleted = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "league-deleted-t1");
             deleted.SoftDelete(now);
-            database.LeagueArchiveAggregates.Add(deleted);
             await database.SaveChangesAsync();
         }
 
@@ -113,14 +117,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.False(noMerge.GetProperty("mergesWithExistingPlayer").GetBoolean());
 
         await using var database = CreateContext();
-        // The placeholder is excluded: it is inserted by a migration rather than by the domain, so the
-        // ADR 0042 startup backfill stamps its catalog counts once. The seeded Leagues are what a
-        // preview must leave alone.
-        Assert.True(
-            await database.LeagueArchiveAggregates
-                .Where(item => item.DocumentId != LeagueNormalizer.PlaceholderLeagueId)
-                .AllAsync(item => item.Version == 1),
-            "preview must not mutate League documents");
+        Assert.True(await NothingMutatedAsync(database), "preview must not mutate Tournament documents");
     }
 
     [Fact]
@@ -130,11 +127,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
         await using (var database = CreateContext())
         {
-            Assert.True(
-                await database.LeagueArchiveAggregates
-                    .Where(item => item.DocumentId != LeagueNormalizer.PlaceholderLeagueId)
-                    .AllAsync(item => item.Version == 1),
-                "failed rename must not mutate any League");
+            Assert.True(await NothingMutatedAsync(database), "failed rename must not mutate any Tournament");
         }
 
         using var missing = await SendAsync(HttpMethod.Post, "/api/maintenance/player-names/rename", new { fromName = "Nobody Here", toName = "Someone" }, "Organizer");
@@ -151,17 +144,18 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
 
         await using (var database = CreateContext())
         {
-            var leagueA = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-a");
-            var leagueB = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-b");
-            var deleted = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "league-deleted");
+            var leagueA = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "league-a-t1");
+            var leagueB = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "league-b-t1");
+            var deleted = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "league-deleted-t1");
             Assert.Equal(2, leagueA.Version);
             Assert.Equal(2, leagueB.Version);
-            Assert.Equal(1, deleted.Version);
+            // Still the seed's post-delete baseline: the rename skipped it, so nothing bumped it again.
+            Assert.Equal(2, deleted.Version);
 
             var documentA = leagueA.ReadDocument();
-            var match = Assert.IsType<MatchRoundEntry>(documentA.Tournaments[0].Rounds[0].Entries[0]);
+            var match = Assert.IsType<MatchRoundEntry>(documentA.Rounds[0].Entries[0]);
             Assert.Equal("Alicia", match.Player1Name);
-            var bye = Assert.IsType<ByeRoundEntry>(documentA.Tournaments[0].Rounds[0].Entries[1]);
+            var bye = Assert.IsType<ByeRoundEntry>(documentA.Rounds[0].Entries[1]);
             Assert.Equal("alice", bye.PlayerName);
 
             var audits = await database.AuditRecords
@@ -171,6 +165,14 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
             Assert.All(audits, audit => Assert.Equal(Actor, audit.ActorId));
         }
     }
+
+    /// <summary>
+    /// Every Tournament still at the version the seed left it at: 1 for the two live rows, 2 for the
+    /// soft-deleted one. Asserting the per-row baseline rather than a flat <c>Version == 1</c> keeps the
+    /// deleted Tournament inside the no-mutation guarantee instead of excluding it from the scan.
+    /// </summary>
+    private static Task<bool> NothingMutatedAsync(GonesDbContext database) =>
+        database.ArchiveTournaments.AllAsync(item => item.Version == (item.DeletedAt == null ? 1 : 2));
 
     private static LeagueDocument LeagueWith(string id, string name, string status, params RoundEntry[] entries) => new(
         id,

@@ -1,10 +1,10 @@
-import { GonesData, LeagueDocument, MatchRoundEntry, TournamentDocument, trimPlayerName } from './models';
+import { MatchRoundEntry, trimPlayerName } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { validateRoundEntry } from './validation';
 
 export interface PlayerMatch {
   kind: 'match' | 'bye';
-  league: LeagueDocument;
-  tournament: TournamentDocument;
+  tournament: ArchiveTournamentDocument;
   roundIndex: number;
   opponentName: string;
   ownScore: number;
@@ -66,25 +66,23 @@ interface StatisticsAccumulator {
   archetypes: Map<string, number>;
 }
 
-export function calculatePlayerStatistics(data: GonesData, playerName: string, filters: { leagueId?: string; tournamentId?: string; opponentName?: string } = {}): PlayerStatistics {
+export function calculatePlayerStatistics(tournaments: readonly ArchiveTournamentDocument[], playerName: string, filters: { seasonId?: string; tournamentId?: string; opponentName?: string } = {}): PlayerStatistics {
   const accumulator = createStatisticsAccumulator(trimPlayerName(playerName));
-  for (const league of data.leagues ?? []) collectLeagueStatistics(accumulator, league, filters);
+  for (const tournament of tournaments ?? []) collectTournamentStatistics(accumulator, tournament, filters);
   return finalizeStatistics(accumulator);
 }
 
-export function calculateGlobalPlayerStatistics(data: GonesData): GlobalPlayerStatistics[] {
+export function calculateGlobalPlayerStatistics(tournaments: readonly ArchiveTournamentDocument[]): GlobalPlayerStatistics[] {
   const accumulators = new Map<string, StatisticsAccumulator>();
-  for (const league of data.leagues ?? []) {
-    for (const tournament of league.tournaments ?? []) {
-      // ADR 0040: scope is the Tournament, not the League. A played Match is history, and an archive is
-      // complete per Tournament, not per season. Mirrors LeagueRules.CalculateGlobalPlayerStatistics.
-      if (tournament.status !== 'completed') continue;
-      for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
-        for (const entry of round.entries ?? []) {
-          if (entry.kind !== 'match' || !validateRoundEntry(entry).valid) continue;
-          collectMatchStats(ensureAccumulator(entry.player1Name), entry, 'player1', { league, tournament, roundIndex });
-          collectMatchStats(ensureAccumulator(entry.player2Name), entry, 'player2', { league, tournament, roundIndex });
-        }
+  for (const tournament of tournaments ?? []) {
+    // ADR 0040: scope is the Tournament, not the League. A played Match is history, and an archive is
+    // complete per Tournament, not per season. Mirrors LeagueRules.CalculateGlobalPlayerStatistics.
+    if (tournament.status !== 'completed') continue;
+    for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
+      for (const entry of round.entries ?? []) {
+        if (entry.kind !== 'match' || !validateRoundEntry(entry).valid) continue;
+        collectMatchStats(ensureAccumulator(entry.player1Name), entry, 'player1', { tournament, roundIndex });
+        collectMatchStats(ensureAccumulator(entry.player2Name), entry, 'player2', { tournament, roundIndex });
       }
     }
   }
@@ -144,30 +142,28 @@ function createStatisticsAccumulator(playerName: string): StatisticsAccumulator 
   };
 }
 
-function collectLeagueStatistics(accumulator: StatisticsAccumulator, league: LeagueDocument, filters: { leagueId?: string; tournamentId?: string; opponentName?: string }): void {
-  if (filters.leagueId && league.id !== filters.leagueId) return;
-  for (const tournament of league.tournaments ?? []) {
-    if (filters.tournamentId && tournament.id !== filters.tournamentId) continue;
-    for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
-      for (const entry of round.entries ?? []) {
-        if (!validateRoundEntry(entry).valid) continue;
-        if (entry.kind === 'bye' && trimPlayerName(entry.playerName) === accumulator.stats.playerName) {
-          accumulator.stats.byeCount += 1;
-          accumulator.stats.matches.push({ kind: 'bye', league, tournament, roundIndex, opponentName: 'Bye', ownScore: 2, opponentScore: 0 });
-          continue;
-        }
-        if (entry.kind !== 'match') continue;
-        const side = trimPlayerName(entry.player1Name) === accumulator.stats.playerName ? 'player1' : trimPlayerName(entry.player2Name) === accumulator.stats.playerName ? 'player2' : null;
-        if (!side) continue;
-        const opponentName = trimPlayerName(side === 'player1' ? entry.player2Name : entry.player1Name);
-        if (filters.opponentName && !includesNormalized(opponentName, filters.opponentName)) continue;
-        collectMatchStats(accumulator, entry, side, { league, tournament, roundIndex });
+function collectTournamentStatistics(accumulator: StatisticsAccumulator, tournament: ArchiveTournamentDocument, filters: { seasonId?: string; tournamentId?: string; opponentName?: string }): void {
+  if (filters.seasonId && tournament.seasonId !== filters.seasonId) return;
+  if (filters.tournamentId && tournament.id !== filters.tournamentId) return;
+  for (const [roundIndex, round] of (tournament.rounds ?? []).entries()) {
+    for (const entry of round.entries ?? []) {
+      if (!validateRoundEntry(entry).valid) continue;
+      if (entry.kind === 'bye' && trimPlayerName(entry.playerName) === accumulator.stats.playerName) {
+        accumulator.stats.byeCount += 1;
+        accumulator.stats.matches.push({ kind: 'bye', tournament, roundIndex, opponentName: 'Bye', ownScore: 2, opponentScore: 0 });
+        continue;
       }
+      if (entry.kind !== 'match') continue;
+      const side = trimPlayerName(entry.player1Name) === accumulator.stats.playerName ? 'player1' : trimPlayerName(entry.player2Name) === accumulator.stats.playerName ? 'player2' : null;
+      if (!side) continue;
+      const opponentName = trimPlayerName(side === 'player1' ? entry.player2Name : entry.player1Name);
+      if (filters.opponentName && !includesNormalized(opponentName, filters.opponentName)) continue;
+      collectMatchStats(accumulator, entry, side, { tournament, roundIndex });
     }
   }
 }
 
-function collectMatchStats(accumulator: StatisticsAccumulator, entry: MatchRoundEntry, side: 'player1' | 'player2', context: { league: LeagueDocument; tournament: TournamentDocument; roundIndex: number }): void {
+function collectMatchStats(accumulator: StatisticsAccumulator, entry: MatchRoundEntry, side: 'player1' | 'player2', context: { tournament: ArchiveTournamentDocument; roundIndex: number }): void {
   const stats = accumulator.stats;
   const opponentName = trimPlayerName(side === 'player1' ? entry.player2Name : entry.player1Name);
   const ownScore = side === 'player1' ? entry.player1Score : entry.player2Score;
@@ -215,7 +211,7 @@ function topArchetype(map: Map<string, number>): PlayerArchetypeUsage | null {
   return top ? { name: top[0], matchCount: top[1] } : null;
 }
 
-function selectedArchetype(entry: MatchRoundEntry, side: 'player1' | 'player2', tournament: TournamentDocument, playerName: string): string {
+function selectedArchetype(entry: MatchRoundEntry, side: 'player1' | 'player2', tournament: ArchiveTournamentDocument, playerName: string): string {
   const matchArchetype = (side === 'player1' ? entry.player1DeckArchetype : entry.player2DeckArchetype).trim();
   if (matchArchetype) return matchArchetype;
   return tournament.playerArchetypes.find((row) => trimPlayerName(row.playerName) === playerName)?.archetype.trim() ?? '';
@@ -227,33 +223,6 @@ function compareOrdinal(left: string, right: string): number {
 
 function includesNormalized(value: string, search: string): boolean {
   return value.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase());
-}
-
-/** Unique player names seen across league tournament rounds + archetype rosters. */
-export function collectKnownPlayerNames(leagues: readonly LeagueDocument[]): string[] {
-  const names = new Set<string>();
-  for (const league of leagues ?? []) {
-    for (const tournament of league.tournaments ?? []) {
-      for (const row of tournament.playerArchetypes ?? []) {
-        const name = trimPlayerName(row.playerName);
-        if (name) names.add(name);
-      }
-      for (const round of tournament.rounds ?? []) {
-        for (const entry of round.entries ?? []) {
-          if (entry.kind === 'match') {
-            const player1 = trimPlayerName(entry.player1Name);
-            const player2 = trimPlayerName(entry.player2Name);
-            if (player1) names.add(player1);
-            if (player2) names.add(player2);
-          } else if (entry.kind === 'bye') {
-            const player = trimPlayerName(entry.playerName);
-            if (player) names.add(player);
-          }
-        }
-      }
-    }
-  }
-  return [...names].sort((left, right) => left.localeCompare(right));
 }
 
 /** Fuzzy-ish player name suggestions (prefix / includes / subsequence), excluding reserved names. Empty query → full list. */

@@ -60,8 +60,8 @@ builder.Services.AddProblemDetails();
 //
 // Measured against the 100x stress dataset (freshly built image, curl, brotli first in negotiation):
 //   route                              raw         br-Fast   br-Optimal  br-Smallest  gz-Fast   gz-Optimal
-//   /api/leagues-archive/all         34 115       3 612      1 504       1 256       2 873      1 657
-//   /api/leagues-archive/all/docs 1 442 929     348 868    123 021      82 610     198 768    109 404
+//   the archive League catalog       34 115       3 612      1 504       1 256       2 873      1 657
+//   its retired document twin    1 442 929     348 868    123 021      82 610     198 768    109 404
 //   /api/events/all                 842 128     289 319     97 026      71 010     215 757    134 475
 //
 //   Latency added on /all/docs (5-run median over baseline ~34 ms):
@@ -118,17 +118,13 @@ else
     builder.Services.AddScoped<EventRegistrationService>();
     builder.Services.AddScoped<EventRegistrationNotificationService>();
     builder.Services.AddScoped<OrganizerParticipantService>();
-    builder.Services.AddScoped<LeagueCommandService>();
     builder.Services.AddScoped<ArchiveCommandService>();
     builder.Services.AddScoped<ArchiveTournamentCommandService>();
     builder.Services.AddScoped<PlayerNameMaintenanceService>();
     builder.Services.AddSingleton<PlayerStatisticsRebuildService>();
-    // Both startup repairs are inserted first on purpose: the web host registers its own hosted service
-    // while the builder is constructed, so appending would start Kestrel before they had run. ADR 0040
-    // wants the read model filled before the API serves traffic, and /api/leagues-archive/all now reads
-    // the denormalized catalog counts, so a request served before that repair would ship zeroed counts
-    // (ADR 0042). Written back to front because each insert goes in front of the previous one.
-    builder.Services.Insert(0, ServiceDescriptor.Singleton<IHostedService, LeagueArchiveCatalogCountsBackfill>());
+    // The startup repair is inserted first on purpose: the web host registers its own hosted service
+    // while the builder is constructed, so appending would start Kestrel before it had run. ADR 0040
+    // wants the read model filled before the API serves traffic.
     builder.Services.Insert(0, ServiceDescriptor.Singleton<IHostedService, PlayerStatisticsStartupRebuild>());
     builder.Services.AddScoped<LiveCommandService>();
     builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
@@ -169,7 +165,7 @@ else
 var app = builder.Build();
 // BREACH: compressing a response that carries a session secret next to attacker-influenced input leaks
 // the secret through the compressed length. Credentialed requests are answered uncompressed; every
-// public read — the League catalog, the Event catalog, the rankings — is anonymous and is compressed
+// public read — the archive catalogs, the Event catalog, the rankings — is anonymous and is compressed
 // (ADR 0042). Outermost so it wraps every endpoint and every error body; it reads no forwarded value,
 // because EnableForHttps makes the request scheme irrelevant to the decision.
 //
@@ -240,9 +236,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
 {
     app.MapPublicCatalogEndpoints();
     app.MapPublicArchiveEndpoints();
-    app.MapPublicLeagueEndpoints();
     app.MapArchivePlayerStatisticsEndpoints();
-    app.MapLeagueCommandEndpoints();
     app.MapArchiveCommandEndpoints();
     app.MapArchiveTournamentCommandEndpoints();
     app.MapPlayerNameMaintenanceEndpoints();

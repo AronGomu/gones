@@ -17,12 +17,14 @@ namespace Gones.IntegrationTests;
 /// response that carries a session secret next to attacker-influenced input is the BREACH side
 /// channel — the compressed length leaks the secret byte by byte — so a request carrying an
 /// <c>Authorization</c> header or the refresh cookie is answered uncompressed. Every payload this was
-/// built for, the League catalog first among them, is an anonymous public read.
+/// built for, the archive catalogs first among them, is an anonymous public read.
 /// </summary>
 public sealed class ResponseCompressionTests : IAsyncLifetime
 {
-    private const string Path = "/api/leagues-archive/all";
-    private const string DocumentsPath = "/api/leagues-archive/all/documents";
+    private const string Path = "/api/archive/league-seasons/all";
+    // The biggest anonymous public read the archive serves: a whole year of Tournament rows. The year
+    // is required — the partition is the unit of transfer — and every seeded Tournament is dated 2031.
+    private const string DocumentsPath = "/api/archive/tournaments/all?year=2031";
     private static readonly Instant Seeded = Instant.FromUtc(2031, 5, 1, 12, 0);
 
     private readonly PostgreSqlTestContainer postgres = new();
@@ -33,8 +35,8 @@ public sealed class ResponseCompressionTests : IAsyncLifetime
         await postgres.StartAsync();
         await using var database = CreateContext();
         await database.Database.MigrateAsync();
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(CompressibleLeague("compression-one"), Seeded));
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(CompressibleLeague("compression-two"), Seeded.Plus(Duration.FromHours(1))));
+        database.AddLegacyShapedLeague(CompressibleLeague("compression-one"), Seeded);
+        database.AddLegacyShapedLeague(CompressibleLeague("compression-two"), Seeded.Plus(Duration.FromHours(1)));
         await database.SaveChangesAsync();
     }
 
@@ -152,10 +154,7 @@ public sealed class ResponseCompressionTests : IAsyncLifetime
     {
         await using var database = CreateContext();
         for (int i = 0; i < 200; i++)
-            database.LeagueArchiveAggregates.Add(
-                LeagueArchiveAggregate.Create(
-                    CompressibleLeague($"ratio-{i}"),
-                    Seeded.Plus(Duration.FromHours(i + 100))));
+            database.AddLegacyShapedLeague(CompressibleLeague($"ratio-{i}"), Seeded.Plus(Duration.FromHours(i + 100)));
         await database.SaveChangesAsync();
 
         using var client = CreateClient();

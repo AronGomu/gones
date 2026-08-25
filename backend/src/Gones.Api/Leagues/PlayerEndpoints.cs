@@ -1,5 +1,7 @@
+using Gones.Api.Archive;
 using Gones.Api.Errors;
 using Gones.Api.Security;
+using Gones.Domain.Archive;
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +25,7 @@ internal static class PlayerEndpoints
 {
     public const int MaximumHistorySize = 5000;
     public const string MaximumHistorySizeKey = "Gones:PlayerHistory:MaximumSize";
+    private const string OrdinalCollation = "C";
     private const string PlayerCacheControl = "public, max-age=3600";
 
     public static void MapPlayerEndpoints(this WebApplication app)
@@ -51,10 +54,10 @@ internal static class PlayerEndpoints
         CancellationToken cancellationToken)
     {
         var requested = LeagueNormalizer.TrimPlayerName(playerName);
-        if (requested.Length == 0 || requested.Length > PublicLeagueEndpoints.MaximumPlayerNameLength)
+        if (requested.Length == 0 || requested.Length > ArchivePlayerStatisticsEndpoints.MaximumPlayerNameLength)
             throw new ApiValidationException(new Dictionary<string, string[]>
             {
-                [nameof(playerName)] = [$"Value must contain 1 to {PublicLeagueEndpoints.MaximumPlayerNameLength} characters."]
+                [nameof(playerName)] = [$"Value must contain 1 to {ArchivePlayerStatisticsEndpoints.MaximumPlayerNameLength} characters."]
             });
 
         // A missing row is the whole 404: the read model only holds players with a played Match in a
@@ -67,11 +70,11 @@ internal static class PlayerEndpoints
         // The statistics half carries the inactive flag, which turns over on a date rather than on a
         // rebuild, so the day belongs in the ETag here for the same reason it does on the rankings.
         var today = clock.GetCurrentInstant().InUtc().Date;
-        var etag = PublicLeagueEndpoints.HashETag(
-            $"{await PublicLeagueEndpoints.ReadModelStampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:player:{row.PlayerName}:{ceiling}:{exposeDecayedRating}");
+        var etag = ArchivePlayerStatisticsEndpoints.HashETag(
+            $"{await ArchivePlayerStatisticsEndpoints.StampAsync(database, cancellationToken)}:{PlayerRankingRules.Iso(today)}:player:{row.PlayerName}:{ceiling}:{exposeDecayedRating}");
         response.Headers.ETag = etag;
         response.Headers.CacheControl = PlayerCacheControl;
-        if (PublicLeagueEndpoints.IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
+        if (ArchivePlayerStatisticsEndpoints.IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
 
         var matches = await BuildHistoryAsync(database, row.PlayerName, cancellationToken);
         var truncated = matches.Count > ceiling;
@@ -81,7 +84,7 @@ internal static class PlayerEndpoints
         // field the rankings gained; `position` is 1 because a response holding one player has one row,
         // and it is not a rank.
         return Results.Ok(new PlayerDetailResponse(
-            PublicLeagueEndpoints.ToGlobalStatsRow(1, row, today, exposeDecayedRating),
+            ArchivePlayerStatisticsEndpoints.ToRow(1, row, today, exposeDecayedRating),
             capped,
             matches.Count,
             truncated));
@@ -101,39 +104,41 @@ internal static class PlayerEndpoints
             .SingleOrDefaultAsync(row => row.ScopeKind == PlayerStatisticsScope.Global && row.PlayerName == playerName, cancellationToken);
         if (exact is not null) return exact;
 
-        var pattern = PublicLeagueEndpoints.EscapeLikePattern(playerName);
+        var pattern = ArchivePlayerStatisticsEndpoints.EscapeLikePattern(playerName);
         return await database.PlayerStatistics.AsNoTracking()
             .Where(row => row.ScopeKind == PlayerStatisticsScope.Global && EF.Functions.ILike(row.PlayerName, pattern, "\\"))
-            .OrderBy(row => EF.Functions.Collate(row.PlayerName, PublicLeagueEndpoints.OrdinalCollation))
+            .OrderBy(row => EF.Functions.Collate(row.PlayerName, OrdinalCollation))
             .FirstOrDefaultAsync(cancellationToken);
     }
 
     /// <summary>
-    /// Every entry this player appears in, across every non-deleted League, newest first. The scope is
-    /// the same one the statistics are accumulated over — completed Archive Tournaments, whatever the
-    /// League's own status — so the history cannot disagree with the numbers above it.
+    /// Every entry this player appears in, across every non-deleted Archive Tournament, newest first.
+    /// The scope is the same one the statistics are accumulated over — completed Tournaments, whatever
+    /// their Season's status — so the history cannot disagree with the numbers above it.
     /// </summary>
     private static async Task<List<PlayerMatchRow>> BuildHistoryAsync(GonesDbContext database, string playerName, CancellationToken cancellationToken)
     {
         var matches = new List<PlayerMatchRow>();
-        var aggregates = database.LeagueArchiveAggregates.AsNoTracking()
-            .Where(aggregate => aggregate.DeletedAt == null)
-            .OrderBy(aggregate => aggregate.Id)
+        // A standalone Tournament belongs to no Season, and its rows carry an empty League name.
+        var seasonNames = await database.ArchiveLeagueSeasons.AsNoTracking()
+            .Where(season => season.DeletedAt == null)
+            .ToDictionaryAsync(season => season.DocumentId, season => season.Name, StringComparer.Ordinal, cancellationToken);
+        var tournaments = database.ArchiveTournaments.AsNoTracking()
+            .Where(row => row.DeletedAt == null && row.Status == "completed")
+            .OrderBy(row => row.DocumentId)
             .AsAsyncEnumerable();
 
-        await foreach (var aggregate in aggregates.WithCancellation(cancellationToken))
+        await foreach (var row in tournaments.WithCancellation(cancellationToken))
         {
-            var league = aggregate.ReadDocument();
-            foreach (var tournament in league.Tournaments)
+            var tournament = row.ReadDocument();
+            var seasonId = tournament.SeasonId ?? string.Empty;
+            var seasonName = tournament.SeasonId is not null && seasonNames.TryGetValue(tournament.SeasonId, out var name) ? name : string.Empty;
+            for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
             {
-                if (tournament.Status != "completed") continue;
-                for (var roundIndex = 0; roundIndex < tournament.Rounds.Count; roundIndex++)
+                foreach (var entry in tournament.Rounds[roundIndex].Entries)
                 {
-                    foreach (var entry in tournament.Rounds[roundIndex].Entries)
-                    {
-                        var row = ToRow(entry, league, tournament, roundIndex, playerName);
-                        if (row is not null) matches.Add(row);
-                    }
+                    var match = ToRow(entry, seasonId, seasonName, tournament, roundIndex, playerName);
+                    if (match is not null) matches.Add(match);
                 }
             }
         }
@@ -157,8 +162,10 @@ internal static class PlayerEndpoints
     /// what the page renders for one today: the reserved opponent name and a 2-0 that is never counted
     /// as a played Match.
     /// </summary>
-    private static PlayerMatchRow? ToRow(RoundEntry entry, LeagueDocument league, TournamentDocument tournament, int roundIndex, string playerName)
+    private static PlayerMatchRow? ToRow(RoundEntry entry, string seasonId, string seasonName, ArchiveTournamentDocument archived, int roundIndex, string playerName)
     {
+        // The standings helpers still speak the legacy record; one conversion, in one place.
+        var tournament = ArchiveDocumentAdapter.ToLegacyTournament(archived, seasonId);
         if (!LeagueRules.Validate(entry).Valid) return null;
         if (entry is ByeRoundEntry bye)
         {
@@ -185,8 +192,8 @@ internal static class PlayerEndpoints
 
         PlayerMatchRow Row(string kind, string opponent, int ownScore, int opponentScore, string ownArchetype, string opponentArchetype) => new(
             kind,
-            league.Id,
-            league.Name,
+            seasonId,
+            seasonName,
             tournament.Id,
             tournament.Name,
             tournament.TournamentDate,
@@ -200,8 +207,9 @@ internal static class PlayerEndpoints
 }
 
 /// <summary>
-/// One entry of the history, flattened. The League and the Tournament are ids and names rather than the
-/// documents they came from, because embedding those documents is the cost this endpoint removes. An
+/// One entry of the history, flattened. The Season and the Tournament are ids and names rather than the
+/// documents they came from, because embedding those documents is the cost this endpoint removes. A
+/// standalone Tournament belongs to no Season, so both League fields are <c>""</c> for its rows. An
 /// archetype nobody recorded is <c>""</c>, never null: the page renders a placeholder for the empty
 /// string and would render "null" for a null.
 /// </summary>
@@ -220,7 +228,7 @@ internal sealed record PlayerMatchRow(
     string OpponentArchetype);
 
 internal sealed record PlayerDetailResponse(
-    GlobalPlayerStatisticsRow Statistics,
+    ArchiveGlobalPlayerStatisticsRow Statistics,
     IReadOnlyList<PlayerMatchRow> Matches,
     int TotalMatchCount,
     bool Truncated);

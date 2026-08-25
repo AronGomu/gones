@@ -34,25 +34,7 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
         var started = Stopwatch.GetTimestamp();
         await LockAsync(database, cancellationToken);
 
-        // Tracked, not AsNoTracking: the caller is mid-write, so the archive change that triggered this
-        // rebuild lives in the change tracker and not yet in the table. A tracked query returns the
-        // in-memory instance for a row that is already loaded, and pending inserts are added below.
-        var stored = await database.LeagueArchiveAggregates.ToListAsync(cancellationToken);
-        var pending = database.ChangeTracker.Entries<LeagueArchiveAggregate>()
-            .Where(entry => entry.State == EntityState.Added)
-            .Select(entry => entry.Entity);
-        var deleted = database.ChangeTracker.Entries<LeagueArchiveAggregate>()
-            .Where(entry => entry.State == EntityState.Deleted)
-            .Select(entry => entry.Entity)
-            .ToHashSet();
-        var live = stored.Concat(pending)
-            .Where(aggregate => aggregate.DeletedAt is null && !deleted.Contains(aggregate))
-            .ToList();
-
-        var scopes = await ArchiveScopeSource.LoadAsync(
-            database,
-            live.Select(aggregate => aggregate.ReadDocument()).ToList(),
-            cancellationToken);
+        var scopes = await ArchiveScopeSource.LoadAsync(database, cancellationToken);
         var rows = new List<PlayerStatisticsRow>();
         foreach (var scope in scopes)
         {

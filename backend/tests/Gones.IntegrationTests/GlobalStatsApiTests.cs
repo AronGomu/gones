@@ -26,7 +26,7 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class GlobalStatsApiTests : IAsyncLifetime
 {
-    private const string Path = "/api/leagues-archive/global-player-statistics";
+    private const string Path = "/api/archive/global-player-statistics";
     private static readonly Guid Actor = Guid.Parse("10000000-0000-0000-0000-000000000023");
     private static readonly Instant Seeded = Instant.FromUtc(2031, 1, 1, 12, 0);
     private static readonly string[] SortColumns =
@@ -55,12 +55,16 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(CompletedLeague(), Seeded));
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(ActiveLeague(), Seeded));
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(DeletedLeague(), Seeded));
+            database.AddLegacyShapedLeague(CompletedLeague(), Seeded);
+            database.AddLegacyShapedLeague(ActiveLeague(), Seeded);
+            database.AddLegacyShapedLeague(DeletedLeague(), Seeded);
             await database.SaveChangesAsync();
-            var deleted = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "gs-deleted");
-            deleted.SoftDelete(Seeded);
+            var deletedSeason = await database.ArchiveLeagueSeasons.SingleAsync(item => item.DocumentId == "gs-deleted");
+            deletedSeason.SoftDelete(Seeded);
+            foreach (var tournament in await database.ArchiveTournaments.Where(item => item.SeasonId == "gs-deleted").ToListAsync())
+            {
+                tournament.SoftDelete(Seeded);
+            }
             await database.SaveChangesAsync();
         }
 
@@ -246,9 +250,9 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
         using var before = await Client.GetAsync($"{Path}?pageSize=10");
         var etag = before.Headers.ETag!.ToString();
 
-        // The edit goes to the running League: a completed one has to be reopened before its source
-        // data can change, and reopening is not what this test is about.
-        using var league = await Client.GetAsync("/api/leagues-archive/gs-active");
+        // The edit goes to a Tournament of the running Season: a locked one refuses source-data changes,
+        // and the lock is not what this test is about.
+        using var league = await Client.GetAsync("/api/archive/tournaments/gs-a1");
         var version = (await league.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("documentVersion").GetInt64();
 
         // An archive edit that leaves the player count alone: only the read model's own stamp can tell
@@ -283,7 +287,7 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
             replaceRounds = Array.Empty<object>(),
             updateArchetypes = Array.Empty<object>()
         };
-        using var edit = new HttpRequestMessage(HttpMethod.Post, "/api/leagues-archive/gs-active/tournaments-archive/gs-a1/edit-batch")
+        using var edit = new HttpRequestMessage(HttpMethod.Post, "/api/archive/tournaments/gs-a1/edit-batch")
         {
             Content = new StringContent(JsonSerializer.Serialize(command), Encoding.UTF8, "application/json")
         };
@@ -372,10 +376,17 @@ public sealed class GlobalStatsApiTests : IAsyncLifetime
     private async Task<IReadOnlyList<GlobalPlayerStatistics>> ExpectedAsync()
     {
         await using var database = CreateContext();
-        var aggregates = await database.LeagueArchiveAggregates.AsNoTracking()
+        var tournaments = await database.ArchiveTournaments.AsNoTracking()
             .Where(item => item.DeletedAt == null)
+            .OrderBy(item => item.DocumentId)
             .ToListAsync();
-        var data = new GonesData(LeagueNormalizer.GonesDataVersion, aggregates.Select(item => item.ReadDocument()).ToList(), []);
+        // One carrier League, because the domain walks data.Leagues[].Tournaments[]. ADR 0040 scopes the
+        // global statistics on the Tournament, so the container around them never reaches the maths.
+        var documents = tournaments
+            .Select(item => item.ReadDocument())
+            .Select(document => new TournamentDocument(document.Id, "global", document.Name, document.TournamentDate, document.Status, document.Rounds, document.PlayerArchetypes))
+            .ToList();
+        var data = new GonesData(LeagueNormalizer.GonesDataVersion, [new LeagueDocument("global", "global", "completed", documents)], []);
         return LeagueRules.CalculateGlobalPlayerStatistics(data);
     }
 

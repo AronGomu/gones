@@ -34,7 +34,10 @@ const FUNNEL = 'invalidateArchiveCaches';
  * is presumed to mutate — that presumption is the whole point, and widening this list is the one way
  * to weaken this file, so widen it only for a member that genuinely reads.
  */
-const READ_PREFIXES = ['list', 'get', 'load', 'read', 'find', 'count', 'has', 'is'];
+// `export` joins the read verbs for `exportBundle`, which assembles a bundle out of the browser-local
+// store and writes nothing. `restoreBundle`, its mutating twin, deliberately does not match any of
+// these and so is still held to the funnel.
+const READ_PREFIXES = ['list', 'get', 'load', 'read', 'find', 'count', 'has', 'is', 'export'];
 
 interface Member {
   name: string;
@@ -170,9 +173,9 @@ describe('archive cache invalidation', () => {
     expect(shellSource).toContain('window.addEventListener(ARCHIVE_UPDATED_EVENT');
   });
 
-  it('keeps the legacy League listener alive', () => {
-    // The legacy League pages still dispatch this and are still routed. Removing it here would break
-    // them; retiring it is the legacy-surface ticket's job, not this one's.
-    expect(shellSource).toContain("window.addEventListener('gones-league-updated'");
+  it('listens for no retired League announcement', () => {
+    // T19 retired the legacy pages that dispatched this, so the shell must not still be listening:
+    // a surviving listener would be a second, silent invalidation path with nothing feeding it.
+    expect(shellSource).not.toContain('gones-league-updated');
   });
 });

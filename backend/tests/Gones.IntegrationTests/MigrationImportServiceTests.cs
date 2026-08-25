@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Gones.Api.Archive;
 using Gones.Api.Leagues;
 using Gones.Application.Migration;
 using Gones.Domain.Catalog;
@@ -106,7 +107,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         Assert.True(outcome.Verification.DerivedResultSamples > 0);
 
         await using var verify = CreateContext();
-        Assert.Equal(1, await verify.LeagueArchiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.Equal(1, await verify.ArchiveLeagueSeasons.CountAsync(season => season.DocumentId == "league-1"));
         Assert.Equal(1, await verify.LiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "live-1"));
         var scheduled = await verify.Events.Include(item => item.Formats).SingleAsync(item => item.Slug == "summer-cup");
         Assert.Equal(seed.Organization.Id, scheduled.OrganizationId);
@@ -145,7 +146,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         Assert.Equal(imported.ResultJson, rerun.ResultJson);
 
         await using var verify = CreateContext();
-        Assert.Equal(1, await verify.LeagueArchiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.Equal(1, await verify.ArchiveLeagueSeasons.CountAsync(season => season.DocumentId == "league-1"));
         Assert.Equal(1, await verify.LiveAggregates.CountAsync(aggregate => aggregate.DocumentId == "live-1"));
         Assert.Equal(1, await verify.Events.CountAsync(item => item.Slug == "summer-cup"));
         Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(record => record.Scope == MigrationImportService.IdempotencyScope));
@@ -226,13 +227,15 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         await using (var invalidated = CreateContext())
         {
             Assert.False(await invalidated.PlayerStatisticsMeta.AnyAsync());
-            Assert.Equal("unbuilt", await PublicLeagueEndpoints.ReadModelStampAsync(invalidated, CancellationToken.None));
+            Assert.Equal("unbuilt", await ArchivePlayerStatisticsEndpoints.StampAsync(invalidated, CancellationToken.None));
         }
 
         // What the next API start does with that stale table: the imported Match is in the numbers.
         await RebuildAsync();
         await using var repaired = CreateContext();
-        var alice = await repaired.PlayerStatistics.AsNoTracking().SingleAsync(row => row.PlayerName == "Alice");
+        // One row per player per scope since T8; the imported Match lands in the global scope.
+        var alice = await repaired.PlayerStatistics.AsNoTracking()
+            .SingleAsync(row => row.ScopeKind == PlayerStatisticsScope.Global && row.PlayerName == "Alice");
         Assert.Equal(1, alice.PlayedMatchCount);
         Assert.Equal(1, alice.MatchWins);
         Assert.True(await repaired.PlayerStatisticsMeta.AnyAsync());
@@ -256,7 +259,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
     {
         await using var db = CreateContext();
         return new RowCensus(
-            await db.LeagueArchiveAggregates.CountAsync(),
+            await db.ArchiveLeagueSeasons.CountAsync(),
             await db.LiveAggregates.CountAsync(),
             await db.Events.CountAsync(),
             await db.DeckArchetypes.CountAsync(),
@@ -269,7 +272,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
     {
         Assert.Equal(baseline, await CensusAsync());
         await using var db = CreateContext();
-        Assert.False(await db.LeagueArchiveAggregates.AnyAsync(aggregate => aggregate.DocumentId == "league-1"));
+        Assert.False(await db.ArchiveLeagueSeasons.AnyAsync(season => season.DocumentId == "league-1"));
         Assert.False(await db.LiveAggregates.AnyAsync(aggregate => aggregate.DocumentId == "live-1"));
         Assert.False(await db.Events.AnyAsync(item => item.Slug == "summer-cup"));
         Assert.False(await db.DeckArchetypes.AnyAsync(archetype => archetype.NormalizedName == "tempo"));

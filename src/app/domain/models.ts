@@ -1,40 +1,4 @@
-// Export bundle shape — frozen by ADR 0022. The archive rename does not touch these names.
-export const GONES_DATA_VERSION = 4;
-export const SUPPORTED_IMPORT_DATA_VERSIONS = [1, 2, 3, 4] as const;
-export const PLACEHOLDER_LEAGUE_ID = 'placeholder-league';
-/** Canonical stored name only. UI must display via i18n (`live.unassigned` / `liveList.unassigned`), never this string by language. */
-export const PLACEHOLDER_LEAGUE_NAME = 'Unassigned Tournaments';
-/** Known UI labels for the unassigned league across languages — never create a separate league for these. */
-const UNASSIGNED_LEAGUE_DISPLAY_NAMES = [
-  PLACEHOLDER_LEAGUE_NAME,
-  'Tournois non assignés'
-] as const;
-
-export function isPlaceholderLeagueId(id: string | null | undefined): boolean {
-  return id === PLACEHOLDER_LEAGUE_ID;
-}
-
-export function normalizeLeagueNameKey(name: string): string {
-  return String(name ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '');
-}
-
-/** True when name is any language label for the single unassigned/placeholder league. */
-export function isUnassignedLeagueName(name: string): boolean {
-  const key = normalizeLeagueNameKey(name);
-  if (!key) return false;
-  return UNASSIGNED_LEAGUE_DISPLAY_NAMES.some((label) => normalizeLeagueNameKey(label) === key);
-}
 export type LeagueStatus = 'active' | 'completed';
-export interface GonesData {
-  version: typeof GONES_DATA_VERSION;
-  leagues: LeagueDocument[];
-  calendarEvents: CalendarEventDocument[];
-}
-
 export interface CalendarEventDocument {
   id: string;
   slug: string;
@@ -49,29 +13,6 @@ export interface CalendarEventDocument {
   description: string;
   richDescriptionHtml: string;
   externalLink: string;
-}
-
-export interface LeagueDocument {
-  id: string;
-  name: string;
-  status: LeagueStatus;
-  tournaments: TournamentDocument[];
-}
-
-export interface PersistedLeague extends LeagueDocument {
-  documentVersion: number;
-  updatedAt?: string;
-  eTag?: string;
-}
-
-export interface TournamentDocument {
-  id: string;
-  leagueId: string;
-  name: string;
-  tournamentDate: string;
-  status: LeagueStatus;
-  rounds: RoundDocument[];
-  playerArchetypes: PlayerArchetypeDocument[];
 }
 
 export interface PlayerArchetypeDocument {
@@ -121,8 +62,6 @@ export interface InvalidRoundEntry {
 export type IdFactory = () => string;
 type RoundEntryInput = Partial<MatchRoundEntry> | Partial<ByeRoundEntry> | Partial<InvalidRoundEntry>;
 type RoundInput = Partial<Omit<RoundDocument, 'entries'>> & { entries?: RoundEntryInput[] };
-type TournamentInput = Partial<Omit<TournamentDocument, 'rounds'>> & { rounds?: RoundInput[] };
-type LeagueInput = Partial<Omit<LeagueDocument, 'tournaments'>> & { tournaments?: TournamentInput[] };
 
 export function createIdFactory(prefix = 'id'): IdFactory {
   let next = 1;
@@ -149,10 +88,6 @@ export function normalizeLeagueStatus(status: unknown): LeagueStatus {
  */
 export function normalizeTournamentStatus(status: unknown): LeagueStatus {
   return status === 'active' ? 'active' : 'completed';
-}
-
-export function createGonesData({ leagues = [], calendarEvents = [] }: { leagues?: Partial<LeagueDocument>[]; calendarEvents?: Partial<CalendarEventDocument>[] } = {}): GonesData {
-  return { version: GONES_DATA_VERSION, leagues: leagues.map((league) => normalizeLeague(league)), calendarEvents: normalizeCalendarEvents(calendarEvents) };
 }
 
 export function createCalendarEvent(
@@ -193,52 +128,6 @@ export function normalizeCalendarEvents(events: unknown, options: { idFactory?: 
     .map((event) => normalizeCalendarEvent(event as Partial<CalendarEventDocument>, options))
     .map((event) => ({ ...event, slug: uniqueCalendarEventSlug(event.slug, slugCounts) }))
     .sort((left, right) => compareCalendarEvents(left, right));
-}
-
-export function createLeague(
-  { id, name = 'New League', status = 'active', tournaments = [] }: LeagueInput = {},
-  { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
-): LeagueDocument {
-  const leagueId = id ?? idFactory();
-  // Placeholder league is a single fixed id; stored name stays canonical English and never follows UI language.
-  if (leagueId === PLACEHOLDER_LEAGUE_ID) {
-    return {
-      id: PLACEHOLDER_LEAGUE_ID,
-      name: PLACEHOLDER_LEAGUE_NAME,
-      status: normalizeLeagueStatus(status),
-      tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: PLACEHOLDER_LEAGUE_ID }, { idFactory }))
-    };
-  }
-  return {
-    id: leagueId,
-    name: String(name || 'New League').trim() || 'New League',
-    status: normalizeLeagueStatus(status),
-    tournaments: tournaments.map((tournament) => createTournament({ ...tournament, leagueId: tournament.leagueId || leagueId }, { idFactory }))
-  };
-}
-
-export function createPlaceholderLeague(): LeagueDocument {
-  return createLeague({ id: PLACEHOLDER_LEAGUE_ID, name: PLACEHOLDER_LEAGUE_NAME, status: 'active', tournaments: [] });
-}
-
-export function normalizeLeague(league: LeagueInput = {}, options: { idFactory?: IdFactory } = {}): LeagueDocument {
-  return createLeague(league, options);
-}
-
-export function createTournament(
-  { id, leagueId = '', name = getDefaultTournamentName(), tournamentDate = '', status, rounds = [], playerArchetypes }: TournamentInput = {},
-  { idFactory = defaultIdFactory }: { idFactory?: IdFactory } = {}
-): TournamentDocument {
-  const normalizedRounds = rounds.map((round) => createRound(round, { idFactory }));
-  return {
-    id: id ?? idFactory(),
-    leagueId,
-    name: String(name || getDefaultTournamentName()).trim() || getDefaultTournamentName(),
-    tournamentDate: String(tournamentDate ?? ''),
-    status: normalizeTournamentStatus(status),
-    rounds: normalizedRounds,
-    playerArchetypes: normalizePlayerArchetypeDocuments(playerArchetypes ?? derivePlayerArchetypesFromRoundDocuments(normalizedRounds))
-  };
 }
 
 export function getDefaultTournamentName(date = new Date()): string {
@@ -303,42 +192,6 @@ function withDefaultTable(entry: RoundEntryInput, fallbackTable: string): RoundE
   if (entry.kind === 'bye') return { ...entry, table: entry.table || fallbackTable };
   if (entry.kind === 'invalid') return { ...entry, table: entry.table || fallbackTable };
   return { ...entry, table: entry.table || fallbackTable };
-}
-
-function normalizePlayerArchetypeDocuments(archetypes: unknown): PlayerArchetypeDocument[] {
-  if (!Array.isArray(archetypes)) return [];
-  const normalized: PlayerArchetypeDocument[] = [];
-  const seen = new Set<string>();
-  for (const item of archetypes) {
-    if (!item || typeof item !== 'object') continue;
-    const value = item as Partial<PlayerArchetypeDocument>;
-    const playerName = trimPlayerName(value.playerName);
-    if (!playerName || seen.has(playerName)) continue;
-    seen.add(playerName);
-    normalized.push({ playerName, archetype: normalizeDeckArchetype(value.archetype) });
-  }
-  return normalized.sort((left, right) => left.playerName.localeCompare(right.playerName));
-}
-
-function derivePlayerArchetypesFromRoundDocuments(rounds: RoundDocument[]): PlayerArchetypeDocument[] {
-  const archetypes = new Map<string, string>();
-  for (const round of rounds) {
-    for (const entry of round.entries) {
-      if (entry.kind === 'match') {
-        addDerivedArchetype(archetypes, entry.player1Name, entry.player1DeckArchetype);
-        addDerivedArchetype(archetypes, entry.player2Name, entry.player2DeckArchetype);
-      } else if (entry.kind === 'bye') {
-        addDerivedArchetype(archetypes, entry.playerName, entry.deckArchetype);
-      }
-    }
-  }
-  return [...archetypes.entries()].map(([playerName, archetype]) => ({ playerName, archetype }));
-}
-
-function addDerivedArchetype(archetypes: Map<string, string>, playerName: string, archetype: string): void {
-  const normalizedPlayerName = trimPlayerName(playerName);
-  if (!normalizedPlayerName || archetypes.has(normalizedPlayerName)) return;
-  archetypes.set(normalizedPlayerName, normalizeDeckArchetype(archetype));
 }
 
 /** Empty string for missing labels. "No archetype" is not a real archetype. */

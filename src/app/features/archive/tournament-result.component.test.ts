@@ -19,10 +19,6 @@ import { ARCHIVE_TOURNAMENT_DETAIL_SOURCE, ArchiveTournamentDetailSource } from 
 import { TournamentResultComponent } from './tournament-result.component';
 
 const source = readFileSync(join(__dirname, 'tournament-result.component.ts'), 'utf8');
-const legacySource = readFileSync(
-  join(__dirname, '..', 'tournaments-archive', 'tournament-archive-result.component.ts'),
-  'utf8'
-);
 
 function match(id: string, player1: string, player2: string, archetype1: string, archetype2: string) {
   return {
@@ -134,8 +130,26 @@ describe('archived tournament result page', () => {
     expect(source).toContain('position="bottom"');
   });
 
-  it('carries the pure export helpers verbatim, because the file they came from is deleted at the end of the plan', () => {
-    const block = legacySource.slice(legacySource.indexOf('interface MetagameBar {'));
-    expect(source).toContain(block.trimEnd());
+  /**
+   * These helpers were carried over verbatim from the retired `tournament-archive-result.component.ts`
+   * and were guarded by a byte comparison against it until T19 deleted it. This file is now their only
+   * home, so the guard becomes a presence check: losing one silently would break the PNG/ZIP export
+   * with nothing else failing.
+   */
+  it('still owns every pure export helper the retired result page handed over', () => {
+    for (const helper of [
+      'interface MetagameBar {',
+      'function buildMetagameBars(',
+      'function splitMetagameBars(',
+      'function collectDocumentCss(',
+      'function downloadBlob(',
+      'function sanitizeFilename(',
+      'function nextFrame(',
+      'interface ZipFile {',
+      'function createZip(',
+      'function copyUint8ArrayBuffer('
+    ]) {
+      expect(source, helper).toContain(helper);
+    }
   });
 });

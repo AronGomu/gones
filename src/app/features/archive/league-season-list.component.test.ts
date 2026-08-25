@@ -938,7 +938,9 @@ describe('archive routes', () => {
     expect(typeof routeFor('archive/league-seasons/:seasonId')?.loadComponent).toBe('function');
   });
 
-  it('leaves every legacy archive route in place', () => {
+  // T13 asserted the legacy routes were left in place beside the new ones. T19 retired them, so the
+  // same two cases now assert their absence — the expand step's guarantee inverted by the contract step.
+  it('registers no legacy archive route', () => {
     for (const path of [
       'leagues-archive',
       'leagues-archive/:leagueId',
@@ -946,13 +948,13 @@ describe('archive routes', () => {
       'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result',
       'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result/metagames'
     ]) {
-      expect(routeFor(path), path).toBeDefined();
+      expect(routeFor(path), path).toBeUndefined();
     }
   });
 
-  it('leaves the legacy redirects in place', () => {
-    expect(routeFor('leagues')).toBeDefined();
-    expect(routeFor('leagues/:leagueId')).toBeDefined();
+  it('registers no legacy redirect', () => {
+    expect(routeFor('leagues')).toBeUndefined();
+    expect(routeFor('leagues/:leagueId')).toBeUndefined();
   });
 
   it('archive routes are registered whatever the capability flags', () => {
@@ -989,8 +991,8 @@ describe('archive breadcrumbs', () => {
     expect(await labels('/archive')).not.toContain('Introuvable');
   });
 
-  it('leaves the legacy archive breadcrumb intact', async () => {
-    expect(await labels('/leagues-archive', en)).toEqual(['Menu', 'Leagues Archive']);
+  it('reads the retired archive path as Not Found', async () => {
+    expect(await labels('/leagues-archive', en)).toEqual(['Menu', 'Not Found']);
   });
 });
 

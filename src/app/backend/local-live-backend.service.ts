@@ -156,8 +156,8 @@ export class LocalLiveBackend implements LiveBackendPort {
   }
 
   /**
-   * Local finalization cannot write a League — that is what `Organizer` buys (ADR 0021). It builds
-   * the same `TournamentDocument` the server would have archived and completes the live document;
+   * Local finalization cannot write a Season — that is what `Organizer` buys (ADR 0021). It builds
+   * the same finalized Tournament the server would have archived and completes the live document;
    * the empty `leagueId` is the caller's signal to offer the JSON download instead of navigating.
    */
   async finalizeLiveTournament(id: string, expectedVersion: number): Promise<LiveFinalizeResult> {

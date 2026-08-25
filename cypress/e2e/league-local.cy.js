@@ -11,7 +11,7 @@
  */
 const LOCAL_ARCHIVE_DB_NAME = 'gones-archive-local';
 const ARCHIVE_CACHE_DB_NAME = 'gones-archive-cache';
-const LOCAL_LEAGUE_DB_NAME = 'gones-leagues';
+const SEED_MARKER = 'gones.e2e.storage-seeded';
 
 function seedSettings(win) {
   win.localStorage.setItem('gones.settings.language', 'en');
@@ -25,7 +25,7 @@ function visit(path, { clearLocalStore = false } = {}) {
       seedSettings(win);
       // Deterministic start: a previous run in the same browser may have left a local league.
       // Never on a re-visit — that is the store whose survival this spec asserts.
-      if (clearLocalStore) win.indexedDB.deleteDatabase(LOCAL_LEAGUE_DB_NAME);
+      if (clearLocalStore) win.indexedDB.deleteDatabase(LOCAL_ARCHIVE_DB_NAME);
     }
   });
   // Test-isolation cleanup can race the previous page's settings self-heal (French default);
@@ -91,15 +91,56 @@ function readArchiveCacheRows(win) {
   });
 }
 
-/** A deterministic start: both archive databases dropped, then the browser-local authority seeded. */
+/**
+ * Every store of both archive databases emptied in place, for the branch below where the page has
+ * already booted: `deleteDatabase` blocks against a connection the running app holds open, while a
+ * `clear()` per store does not. A database that does not exist yet is skipped rather than opened, so
+ * no empty placeholder is left for the app to find instead of its own stores.
+ */
+function clearArchiveDatabases(win) {
+  return Cypress.Promise.resolve(win.indexedDB.databases()).then((entries) => Cypress.Promise.all(
+    entries
+      .filter((entry) => entry.name === LOCAL_ARCHIVE_DB_NAME || entry.name === ARCHIVE_CACHE_DB_NAME)
+      .map((entry) => new Cypress.Promise((resolve, reject) => {
+        const open = win.indexedDB.open(entry.name);
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const database = open.result;
+          const stores = [...database.objectStoreNames];
+          if (!stores.length) { database.close(); resolve(); return; }
+          const transaction = database.transaction(stores, 'readwrite');
+          for (const store of stores) transaction.objectStore(store).clear();
+          transaction.oncomplete = () => { database.close(); resolve(); };
+          transaction.onerror = () => { database.close(); reject(transaction.error); };
+        };
+      }))
+  ));
+}
+
+/**
+ * A deterministic start: both archive databases emptied, then the browser-local authority seeded.
+ *
+ * `onBeforeLoad` is not dependable on the release topology: once `ngsw-worker.js` controls the page
+ * it answers the navigation out of Cache Storage, that response never passes through the Cypress
+ * proxy, and Cypress cannot inject the script that calls the hook — no error, no seed. The archive
+ * reads are a service-worker data group since T19, so without the fallback below a later test reads
+ * the previous one's rows out of `gones-archive-cache` and makes no request at all. The marker is
+ * how the skip is detected; the reload afterwards is what boots the app against the emptied cache.
+ */
 function visitArchive(path, { seed = {} } = {}) {
   cy.visit(path, {
     onBeforeLoad: (win) => {
       seedSettings(win);
+      win.localStorage.setItem(SEED_MARKER, 'true');
       return dropArchiveDatabases(win).then(() => seedLocalArchive(win, seed));
     }
   });
-  cy.window().then((win) => seedSettings(win));
+  cy.window().then((win) => {
+    seedSettings(win);
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return undefined;
+    win.localStorage.setItem(SEED_MARKER, 'true');
+    return clearArchiveDatabases(win).then(() => seedLocalArchive(win, seed));
+  });
   cy.reload();
 }
 
@@ -297,122 +338,6 @@ describe('Archive browser-local union (ADR 0028)', () => {
     cy.then(() => {
       const asked = recorded.filter((url) => /\/api\/archive\/league-seasons\/local-[^/]+\/tournaments/.test(url));
       expect(asked, 'read-through requests for a browser-local Season').to.have.length(0);
-    });
-  });
-});
-
-/**
- * The legacy browser-local League Archive — retires with the legacy pages.
- *
- * This one exercises `gones-leagues` and the `/leagues-archive` pages, not `gones-archive-local` and
- * `/archive/**`. No ticket in this plan has re-pointed the player page at the new store, so deleting
- * this coverage now would drop a proved capability with nothing replacing it.
- */
-const serverPlayerPayload = {
-  statistics: {
-    position: 1, playerName: 'Alice', playedMatchCount: 1, matchWins: 1, matchLosses: 0, matchDraws: 0,
-    matchWinrate: 1, playedGameCount: 2, gameWins: 2, gameLosses: 0, gameWinrate: 1,
-    nemesis: null, rival: { name: 'Server Opponent', wins: 1, losses: 0 }, mostPlayedArchetype: null
-  },
-  matches: [{
-    kind: 'match', leagueId: 'server-league-1', leagueName: 'Server League',
-    tournamentId: 'server-tournament-1', tournamentName: 'Server Day 1', tournamentDate: '2026-03-05',
-    roundIndex: 0, opponentName: 'Server Opponent', ownScore: 2, opponentScore: 0,
-    ownArchetype: '', opponentArchetype: ''
-  }],
-  totalMatchCount: 1,
-  truncated: false
-};
-
-function stubSignedOut(leagueApiCalls) {
-  cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } }).as('refresh');
-  cy.intercept(/\/api\/leagues-archive/, (req) => {
-    leagueApiCalls.push(req.url);
-    req.reply({ statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } });
-  }).as('leagueApi');
-}
-
-/**
- * Create one browser-local league, signed out — the only way one can be born (ADR 0028). Dialog
- * contents are asserted with `exist`, not `be.visible`: Material's open animation leaves the
- * container at opacity 0 under headless Electron, which Cypress reads as hidden while still allowing
- * the click.
- */
-function createLocalLeague(name) {
-  cy.get('[data-cy="leagues-archive-list-create-button"]').click();
-  cy.contains('mat-dialog-container', 'New League').should('exist').within(() => {
-    cy.get('input').type(name);
-    cy.contains('button', 'Create League').click();
-  });
-  cy.location('pathname').should('match', /^\/leagues-archive\/local-.+$/);
-}
-
-describe('Legacy browser-local League Archive — retires with the legacy pages', () => {
-  it('folds this browser\u2019s matches into the player page only while Online-only is off', () => {
-    cy.viewport(1280, 800);
-
-    const leagueApiCalls = [];
-    stubSignedOut(leagueApiCalls);
-    cy.intercept('GET', /\/api\/players\//, serverPlayerPayload).as('playerDetail');
-
-    visit('/leagues-archive', { clearLocalStore: true });
-    createLocalLeague('Badge League');
-
-    cy.get('[data-cy="leagues-archive-detail-create-tournament-card"]').click();
-    cy.get('[data-cy="tournament-archive-detail-edit"]').click();
-    cy.get('[data-cy="tournament-archive-detail-add-round"]').click();
-    cy.contains('mat-expansion-panel', 'Round 1').find('mat-expansion-panel-header').click();
-    cy.get('[data-cy="tournament-archive-detail-add-match"]').click();
-    cy.get('[data-cy="tournament-archive-detail-match-player1-input"]').clear().type('Alice');
-    cy.get('[data-cy="tournament-archive-detail-match-player1-score-input"]').clear().type('2');
-    cy.get('[data-cy="tournament-archive-detail-match-player2-input"]').clear().type('Browser Opponent');
-    cy.get('[data-cy="tournament-archive-detail-match-player2-score-input"]').clear().type('1');
-    cy.document().trigger('keydown', { key: 's', code: 'KeyS', ctrlKey: true, force: true });
-    cy.get('[data-cy="confirm-dialog-confirm"]').click();
-    cy.get('[data-cy="tournament-archive-detail-edit"]').should('exist');
-
-    // Statistics count completed Archive Tournaments only — the server read model excludes an active
-    // one, and the browser half now obeys the same rule — so this browser-local Tournament is marked
-    // complete before it may fold into the player page.
-    cy.get('[data-cy="archive-tournament-complete-toggle"]').click();
-    cy.get('[data-cy="confirm-dialog-confirm"]').should('have.length', 1).click();
-    cy.get('[data-cy="archive-tournament-status-badge"]').should('have.class', 'completed');
-
-    // Everything the League Archive pages asked for is history; what matters is what the player
-    // page asks for, so the count is snapshotted here and re-read at the end.
-    cy.then(() => cy.wrap(leagueApiCalls.length).as('leagueCallsBeforePlayerPage'));
-    visit('/players/Alice');
-
-    // Online-only is the default: exactly the server's row, and no League download at all.
-    cy.wait('@playerDetail');
-    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '1');
-    cy.get('[data-cy="match-card"]').should('have.length', 1);
-    cy.get('[data-cy="player-match-local"]').should('not.exist');
-    cy.contains('[data-cy="match-card"]', 'Browser Opponent').should('not.exist');
-    cy.get('[data-cy="player-sync-button"]').should('exist');
-    cy.get('[data-cy="match-own-archetype"]').should('exist');
-    cy.get('[data-cy="match-own-archetype"]').click();
-    cy.get('[data-cy="match-filter-input"]').should('not.have.value', '');
-    cy.get('[data-cy="match-card"]').should('have.length', 1);
-    cy.get('[data-cy="match-filter-clear"]').click();
-
-    // Off: this browser's league is added to the totals and to the history, and marked.
-    cy.get('[data-cy="player-online-only-toggle"]').click();
-    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '2');
-    cy.get('[data-cy="match-card"]').should('have.length', 2);
-    cy.get('[data-cy="player-match-local"]').should('have.length', 1);
-    cy.contains('[data-cy="match-card"]', 'Browser Opponent').find('[data-cy="player-match-local"]').should('exist');
-    cy.contains('[data-cy="match-card"]', 'Server Opponent').find('[data-cy="player-match-local"]').should('not.exist');
-
-    // Back on: the local half disappears and the totals are the server's again — never doubled.
-    cy.get('[data-cy="player-online-only-toggle"]').click();
-    cy.get('[data-cy="player-stat-value-played-matches"]').should('have.text', '1');
-    cy.get('[data-cy="match-card"]').should('have.length', 1);
-    cy.get('[data-cy="player-match-local"]').should('not.exist');
-
-    // The page never asked for a League document; the whole server half came from one player call.
-    cy.get('@leagueCallsBeforePlayerPage').then((before) => {
-      expect(leagueApiCalls.length, 'League Archive requests made from the player page').to.eq(before);
     });
   });
 });

@@ -61,7 +61,6 @@ const specs = [
   'cypress/e2e/auth-profile.cy.js',
   'cypress/e2e/auth-session-persistence.cy.js',
   'cypress/e2e/auth-route-guards.cy.js',
-  'cypress/e2e/league-server.cy.js',
   'cypress/e2e/league-local.cy.js',
   'cypress/e2e/settings-server.cy.js',
   'cypress/e2e/settings-local.cy.js',

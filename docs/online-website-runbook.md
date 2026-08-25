@@ -13,18 +13,19 @@ GitHub Pages is the active production host. A push to `main` triggers `.github/w
 | Build output directory | `dist/gones/browser` |
 | Production URL | `https://arongomu.github.io/gones/` |
 
-The Pages artifact includes a `404.html` SPA fallback for direct route refreshes. The historical `/pages/leagues.html` URL redirects to `/leagues`, which in turn redirects to `/leagues-archive` (ADR 0022). No backend environment variables are required while the app uses the local frontend backend bridge.
+The Pages artifact includes a `404.html` SPA fallback for direct route refreshes. The archive is served at `/archive/league-seasons` and `/archive/tournaments`; the retired `/leagues` and `/leagues-archive/**` URLs are not aliased and render the 404 page. No backend environment variables are required while the app uses the local frontend backend bridge.
 
 ## 2. Smoke test
 
 After deployment:
 
-1. Open `https://arongomu.github.io/gones/leagues-archive`.
-2. Confirm the Leagues page and header Import control load.
-3. Open the demo League.
+1. Open `https://arongomu.github.io/gones/archive/league-seasons`.
+2. Confirm the League Season table and the header Import control load.
+3. Open a Season, then open one of its Tournaments.
 4. Confirm no login/account/role-management controls are visible.
-5. Create a League, edit it, export it, refresh the page, and confirm the data remains in browser storage.
+5. Import a v5 archive bundle, edit a Tournament, export it, refresh the page, and confirm the data remains in browser storage.
 6. Refresh a nested route and confirm the static-host SPA fallback works.
+7. Open `https://arongomu.github.io/gones/leagues-archive` and confirm it renders the 404 page with the address bar unchanged.
 
 ## 3. Operational notes
 

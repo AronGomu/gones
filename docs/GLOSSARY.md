@@ -14,17 +14,18 @@
 | adapter | ASP.NET implementation of those ports, intent commands only | `src/app/backend/aspnet-api-backend.service.ts` |
 | boundary | HTTP headers, ETag, idempotency, problem-details errors | `src/app/api/api-boundary.ts` |
 | client | Generated typed client from the committed OpenAPI contract | `src/app/api/generated/gones-api.ts` |
-| repository | Angular signal store fronting one backend port | `src/app/data/league-archive-repository.service.ts` |
+| repository | Angular signal store fronting one backend port | `src/app/data/archive-repository.service.ts` |
 | runner | Live tournament pairing and result-entry screen | `src/app/features/live-tournaments/live-tournament-runner.component.ts` |
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
 | calendar | Public Event calendar feature and its detail page; browse route `/events` (ADR 0038) | `src/app/features/events/public-event-list.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
 | power user | Browser-only opt-in (`gones.settings.power-user`) for advanced Event, League and Live mutation UI; never grants server authority, never hides home cards or browse destinations (ADR 0037) | `src/app/shared/power-user-settings.service.ts` |
-| global stats | Public server-derived ranking over all completed League Archives; 12 columns, search/sort/page; browsable at `/global-stats`; local League records excluded | `src/app/features/players/global-stats.component.ts` |
+| global stats | Public server-derived ranking over every completed Archive Tournament; 12 columns, search/sort/page, scopable to one League or one Season (`?league=`/`?season=`); browsable at `/global-stats`, where the URL sort direction is `dir` and the wire parameter is `direction`; browser-local records excluded | `src/app/features/players/global-stats.component.ts` |
 | event link | Optional `liveTournamentUrl` or `archiveTournamentUrl` on an Event; navigation string only, no data-authority coupling, broken links are valid (ADR 0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
-| staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/tournaments-archive/tournament-archive-detail.component.ts` |
+| staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/archive/tournament-detail.component.ts` |
 | sync bar | Per-page "last synced" label + Synchronize button implementing the ADR 0039 cache contract | `src/app/shared/sync-bar.component.ts` |
 | catalog cache | Public `localStorage` store with 24h TTL for anonymous read-only catalogs | `src/app/shared/catalog-cache.ts` |
+| archive cache | The archive's own public catalog cache, on IndexedDB rather than the shared key-value budget because one year partition may hold 25 000 rows (ADR 0039) | `src/app/backend/archive-cache.service.ts` |
 | session | Access-token scope and cache purge on sign-out | `src/app/auth/session-scope.service.ts` |
 | i18n | French/English message catalogue and language signal | `src/app/i18n/i18n.service.ts` |
 | ics | Calendar export to an .ics subscription file | `src/app/domain/calendar-ics.ts` |
@@ -51,10 +52,11 @@
 | draft organization | An organization with zero members: derived `isDraft`, cannot publish an event | `backend/src/Gones.Api/Organizations/OrganizationEndpoints.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
 | registration | Participant sign-up and unregistration on an event | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
-| league archive | Archived Leagues and their result Tournaments, `/api/leagues-archive` (formerly `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Leagues/PublicLeagueEndpoints.cs` |
-| archive tournament | A result Tournament inside the League Archive; carries `status: active \| completed`; statistics count completed ones only (ADR 0040) | `backend/src/Gones.Api/Leagues/LeagueCommandEndpoints.cs` |
+| archive | Past results on three tiers — League → LeagueSeason → Tournament — served from `/api/archive` (formerly `/api/leagues-archive`, and before that `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Archive/PublicArchiveEndpoints.cs` |
+| league season | One run of a League: the middle archive tier, with a mandatory parent League. What used to be called a League | `backend/src/Gones.Domain/Archive/ArchiveLeagueSeason.cs` |
+| archive tournament | A first-class top-level result Tournament; `seasonId: null` means standalone; carries `status: active \| completed`; statistics count completed ones only (ADR 0040); locks to non-Admin writes 365 days after `tournamentDate` | `backend/src/Gones.Domain/Archive/ArchiveTournament.cs` |
 | read model | Materialized `player_statistics` table rebuilt transactionally on every archive write; read by both rankings and the player page (ADR 0040) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
-| rating | The Glicko-2 number stored on `player_statistics`, replayed from every completed Archive Tournament in date order on each rebuild; server data only, never exported (ADR 0043) | `backend/src/Gones.Domain/Leagues/Glicko2.cs` |
+| rating | The Glicko-2 number stored on `player_statistics`, replayed from every completed Archive Tournament in date order on each rebuild, once per scope — global, per League and per Season; server data only, never exported (ADR 0043) | `backend/src/Gones.Domain/Leagues/Glicko2.cs` |
 | provisional | A player with fewer than 5 Tournaments played: rating shown but not rankable, sorted to the bottom. Derived at read time from `tournamentsPlayed`, never stored (ADR 0043) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
 | inactive | A player with no completed Tournament in 12 months: rating frozen, deviation still growing, badged and listed below active ranked players. Derived at read time from `lastPlayedDate`, never stored (ADR 0043) | `backend/src/Gones.Domain/Leagues/LeagueRules.cs` |
 

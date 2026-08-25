@@ -538,31 +538,6 @@ public sealed class ArchiveTournamentCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Archive_writes_never_touch_the_legacy_league_aggregates()
-    {
-        List<(string DocumentId, long Version)> before;
-        await using (var database = CreateContext())
-        {
-            before = await database.LeagueArchiveAggregates.AsNoTracking()
-                .OrderBy(item => item.DocumentId)
-                .Select(item => new ValueTuple<string, long>(item.DocumentId, item.Version))
-                .ToListAsync();
-        }
-
-        using var created = await SendAsync(HttpMethod.Post, "/api/archive/tournaments", new { name = "Isolé", tournamentDate = Iso(Today), seasonId = "season-1" }, "Organizer", key: "isolation");
-        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        using var round = await SendAsync(HttpMethod.Post, "/api/archive/tournaments/tournament-1/rounds", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
-        Assert.Equal(HttpStatusCode.OK, round.StatusCode);
-
-        await using var after = CreateContext();
-        var stored = await after.LeagueArchiveAggregates.AsNoTracking()
-            .OrderBy(item => item.DocumentId)
-            .Select(item => new ValueTuple<string, long>(item.DocumentId, item.Version))
-            .ToListAsync();
-        Assert.Equal(before, stored);
-    }
-
-    [Fact]
     public async Task Tournament_write_rebuilds_player_statistics_in_every_scope_it_touches()
     {
         // The seeded Tournament is active, so the startup rebuild found nothing to count.

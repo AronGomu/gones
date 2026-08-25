@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { LOCAL_LEAGUE_DB_NAME } from './local-league-archive-backend.service';
+import { LOCAL_ARCHIVE_DB_NAME } from './local-archive-backend.service';
 import { LOCAL_LIVE_DB_NAME } from './local-live-backend.service';
 import { SERVER_READ_CACHE_DB_NAME } from './server-read-cache.service';
 
 /**
- * ADR 0032 — the browser-local stores are deliberately browser-wide: `gones-leagues` (ADR 0028),
+ * ADR 0032 — the browser-local stores are deliberately browser-wide: `gones-archive-local` (ADR 0028),
  * `gones-live` (ADR 0021) and `gones.settings` are origin-scoped, so anyone opening the site in this
  * browser sees the same local data. That is a property, not an accident, so it is asserted: those
  * sources name no profile, no user id and do not import `AuthService`.
@@ -25,7 +25,7 @@ const sharedDirectory = join(backendDirectory, '..', 'shared');
 const USER_SCOPE_MARKERS = [/profile\(\)/, /userId/, /auth\.service/];
 
 const BROWSER_WIDE_SOURCES = [
-  ['local-league-archive-backend.service.ts', join(backendDirectory, 'local-league-archive-backend.service.ts')],
+  ['local-archive-backend.service.ts', join(backendDirectory, 'local-archive-backend.service.ts')],
   ['local-live-backend.service.ts', join(backendDirectory, 'local-live-backend.service.ts')],
   ['deck-archetype-settings.service.ts', join(sharedDirectory, 'deck-archetype-settings.service.ts')]
 ] as const;
@@ -36,7 +36,7 @@ function source(path: string): string {
 
 describe('browser-local store scope', () => {
   it('names the browser-wide databases as constants, not per-user template strings', () => {
-    expect(LOCAL_LEAGUE_DB_NAME).toBe('gones-leagues');
+    expect(LOCAL_ARCHIVE_DB_NAME).toBe('gones-archive-local');
     expect(LOCAL_LIVE_DB_NAME).toBe('gones-live');
   });
 

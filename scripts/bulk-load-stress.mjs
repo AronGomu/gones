@@ -34,12 +34,10 @@ import { countArchiveSeasonPlayers, countArchiveTournamentPlayers, expectedEvent
 /** One statement per chunk of rows: a single multi-megabyte INSERT is slower to parse than ten. */
 const CHUNK_SIZE = 500;
 /**
- * League rows are whole archive documents — hundreds of kilobytes each, where every other row here is a
+ * A Tournament row is a whole archive document — hundreds of kilobytes, where every other row here is a
  * few hundred bytes — so they chunk on their own count. Five hundred of them in one statement would be
  * the entire archive in a single INSERT.
  */
-const LEAGUE_CHUNK_SIZE = 20;
-/** A Tournament row carries a whole document; twenty per statement, like the legacy League rows. */
 const TOURNAMENT_CHUNK_SIZE = 20;
 
 function fail(message) {
@@ -231,17 +229,6 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     ];
   });
 
-  const leagueRows = environment.leagues.map((league) => [
-    literal(randomUUID()),
-    literal(league.id),
-    literal(league.name),
-    literal(league.status),
-    literal(nowIso),
-    'NULL',
-    json(league),
-    '1'
-  ]);
-
   // The catalog reads order by `updated_at DESC, document_id ASC`, and a bulk load that stamped one
   // identical instant on two thousand rows would collapse that ordering onto the ID and hide every
   // ordering bug this environment exists to surface. 61 seconds per row is a synthetic,
@@ -324,9 +311,6 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
       'id', 'event_id', 'user_id', 'status', 'registered_by_user_id', 'registered_at',
       'status_changed_by_user_id', 'status_changed_at', 'version'
     ], registrationRows),
-    ...insertStatements('league_archive_aggregates', [
-      'id', 'document_id', 'name', 'status', 'updated_at', 'deleted_at', 'canonical_document', 'version'
-    ], leagueRows, LEAGUE_CHUNK_SIZE),
     // Leagues, then Seasons, then Tournaments: the foreign keys are checked immediately, not deferred.
     ...insertStatements('archive_leagues', [
       'document_id', 'name', 'created_at', 'updated_at', 'version', 'deleted_at'
@@ -349,7 +333,6 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
 
   return {
     eventIds,
-    leagueIds: new Map(environment.leagues.map((league) => [league.id, league.id])),
     archiveIds: {
       leagues: new Map(environment.archiveLeagues.map((league) => [league.id, league.id])),
       leagueSeasons: new Map(environment.archiveLeagueSeasons.map((season) => [season.id, season.id])),
@@ -358,7 +341,6 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     counts: {
       events: eventRows.length,
       registrations: registrationRows.length,
-      leagues: leagueRows.length,
       archiveLeagues: archiveLeagueRows.length,
       archiveLeagueSeasons: archiveSeasonRows.length,
       archiveTournaments: archiveTournamentRows.length,

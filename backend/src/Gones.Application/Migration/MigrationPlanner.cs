@@ -50,7 +50,7 @@ public static partial class MigrationPlanner
         var selectedLive = SelectEntities(bundles, manifest, bundle => bundle.LiveTournaments, "live", errors, warnings, deduplicates, conflicts, usedResolutionKeys, ref skippedEntities);
         var selectedEvents = SelectEntities(bundles, manifest, bundle => bundle.CalendarEvents, "calendarEvent", errors, warnings, deduplicates, conflicts, usedResolutionKeys, ref skippedEntities);
 
-        var (leaguesToCreate, placeholderTournaments, mergedTournamentCount) = PlanLeagues(
+        var (leaguesToCreate, standaloneTournaments) = PlanLeagues(
             selectedLeagues, mapping, manifest, target, errors, warnings, collisions, usedResolutionKeys, ref skippedEntities);
         var liveToCreate = PlanLiveTournaments(selectedLive, manifest, target, errors, warnings, collisions, usedResolutionKeys, ref skippedEntities);
         var (scheduled, mappingSummaries) = PlanScheduledTournaments(selectedEvents, mapping, target, errors, warnings, collisions, sanitation);
@@ -69,15 +69,14 @@ public static partial class MigrationPlanner
         var batchHash = ComputeBatchHash(bundles, manifest, mapping);
         var report = BuildReport(
             bundles, manifest, mapping, target, mode, generatedAt, batchHash,
-            leaguesToCreate, placeholderTournaments, mergedTournamentCount, scheduled, liveToCreate,
+            leaguesToCreate, standaloneTournaments, scheduled, liveToCreate,
             archetypesToAdd, archetypesPresent, skippedEntities, mappingSummaries,
             deduplicates, conflicts, collisions, sanitation, warnings, errors);
 
         var plan = new MigrationPlan(
             batchHash,
             leaguesToCreate,
-            mapping.PlaceholderLeagueTarget,
-            placeholderTournaments,
+            standaloneTournaments,
             scheduled,
             liveToCreate,
             archetypesToAdd);
@@ -203,7 +202,9 @@ public static partial class MigrationPlanner
         return selected;
     }
 
-    private static (List<LeagueDocument> LeaguesToCreate, List<TournamentDocument> PlaceholderTournaments, int MergedCount) PlanLeagues(
+    private const string UnassignedBundleLeagueId = "placeholder-league";
+
+    private static (List<LeagueDocument> LeaguesToCreate, List<TournamentDocument> StandaloneTournaments) PlanLeagues(
         List<SelectedEntity> selectedLeagues,
         MigrationMappingFile mapping,
         MigrationManifestFile manifest,
@@ -229,7 +230,9 @@ public static partial class MigrationPlanner
                 continue;
             }
 
-            if (document.Id == LeagueNormalizer.PlaceholderLeagueId)
+            // The id a *legacy browser bundle* gave its unassigned League. It is the source format's
+            // word, not a row this database has any more: those Tournaments import standalone.
+            if (document.Id == UnassignedBundleLeagueId)
             {
                 placeholderSourceTournaments = [.. document.Tournaments];
                 continue;
@@ -254,75 +257,32 @@ public static partial class MigrationPlanner
             normalized.Add(document);
         }
 
-        var mergedCount = 0;
-        var placeholderTournaments = new List<TournamentDocument>();
-        if (placeholderSourceTournaments.Count > 0)
+        // The fixed `placeholder-league` row is retired: a bundle Tournament that belonged to no League
+        // imports as a standalone Archive Tournament instead of merging into a chosen host, so the
+        // mapping no longer carries `placeholderLeagueTarget` and neither target error can arise.
+        var standaloneTournaments = new List<TournamentDocument>();
+        foreach (var tournament in placeholderSourceTournaments)
         {
-            var placeholderTarget = mapping.PlaceholderLeagueTarget;
-            if (string.IsNullOrWhiteSpace(placeholderTarget))
+            if (target.StandaloneTournamentIds.Contains(tournament.Id))
             {
-                errors.Add(new MigrationReportIssue("missingPlaceholderTarget", "bundle contains unassigned Tournaments; mapping must set placeholderLeagueTarget ('placeholder-league' or an imported League id)"));
-            }
-            else if (placeholderTarget == LeagueNormalizer.PlaceholderLeagueId)
-            {
-                foreach (var tournament in placeholderSourceTournaments)
+                var resolutionKey = $"tournament:{tournament.Id}";
+                if (manifest.Resolutions.TryGetValue(resolutionKey, out var resolution) && resolution == "skip")
                 {
-                    if (target.PlaceholderTournamentIds.Contains(tournament.Id))
-                    {
-                        var resolutionKey = $"tournament:{tournament.Id}";
-                        if (manifest.Resolutions.TryGetValue(resolutionKey, out var resolution) && resolution == "skip")
-                        {
-                            usedResolutionKeys.Add(resolutionKey);
-                            warnings.Add(new MigrationReportIssue("skippedEntity", $"{resolutionKey} already exists in the target placeholder League and is skipped"));
-                            skippedEntities++;
-                            continue;
-                        }
-
-                        collisions.Add($"tournament:{tournament.Id} already exists in the target placeholder League");
-                        errors.Add(new MigrationReportIssue("targetCollision", $"unassigned Tournament {tournament.Id} already exists in the target placeholder League; resolve with 'tournament:{tournament.Id}': 'skip'"));
-                        continue;
-                    }
-
-                    placeholderTournaments.Add(tournament);
-                    mergedCount++;
+                    usedResolutionKeys.Add(resolutionKey);
+                    warnings.Add(new MigrationReportIssue("skippedEntity", $"{resolutionKey} already exists in the target database and is skipped"));
+                    skippedEntities++;
+                    continue;
                 }
+
+                collisions.Add($"tournament:{tournament.Id} already exists in the target database");
+                errors.Add(new MigrationReportIssue("targetCollision", $"unassigned Tournament {tournament.Id} already exists in the target database; resolve with 'tournament:{tournament.Id}': 'skip'"));
+                continue;
             }
-            else
-            {
-                var host = normalized.FirstOrDefault(league => league.Id == placeholderTarget);
-                if (host is null)
-                {
-                    errors.Add(new MigrationReportIssue("invalidPlaceholderTarget", $"placeholderLeagueTarget '{placeholderTarget}' is neither 'placeholder-league' nor an imported League id"));
-                }
-                else
-                {
-                    var hostTournamentIds = host.Tournaments.Select(tournament => tournament.Id).ToHashSet(StringComparer.Ordinal);
-                    var retargeted = new List<TournamentDocument>(host.Tournaments);
-                    foreach (var tournament in placeholderSourceTournaments)
-                    {
-                        if (hostTournamentIds.Contains(tournament.Id))
-                        {
-                            collisions.Add($"tournament:{tournament.Id} duplicates a Tournament in League {placeholderTarget}");
-                            errors.Add(new MigrationReportIssue("targetCollision", $"unassigned Tournament {tournament.Id} duplicates a Tournament in League {placeholderTarget}"));
-                            continue;
-                        }
 
-                        retargeted.Add(tournament with { LeagueId = placeholderTarget });
-                        mergedCount++;
-                    }
-
-                    normalized[normalized.IndexOf(host)] = host with { Tournaments = retargeted };
-                }
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(mapping.PlaceholderLeagueTarget)
-                 && mapping.PlaceholderLeagueTarget != LeagueNormalizer.PlaceholderLeagueId
-                 && normalized.All(league => league.Id != mapping.PlaceholderLeagueTarget))
-        {
-            errors.Add(new MigrationReportIssue("invalidPlaceholderTarget", $"placeholderLeagueTarget '{mapping.PlaceholderLeagueTarget}' is neither 'placeholder-league' nor an imported League id"));
+            standaloneTournaments.Add(tournament);
         }
 
-        return (normalized, placeholderTournaments, mergedCount);
+        return (normalized, standaloneTournaments);
     }
 
     private static List<LiveTournamentDocument> PlanLiveTournaments(
@@ -651,8 +611,7 @@ public static partial class MigrationPlanner
         string generatedAt,
         string batchHash,
         List<LeagueDocument> leaguesToCreate,
-        List<TournamentDocument> placeholderTournaments,
-        int mergedTournamentCount,
+        List<TournamentDocument> standaloneTournaments,
         List<PlannedScheduledTournament> scheduled,
         List<LiveTournamentDocument> liveToCreate,
         List<string> archetypesToAdd,
@@ -699,8 +658,8 @@ public static partial class MigrationPlanner
                 bundles.Sum(bundle => bundle.Counts.DeckArchetypes)),
             new MigrationPlannedCounts(
                 leaguesToCreate.Count,
-                leaguesToCreate.Sum(league => league.Tournaments.Count) + placeholderTournaments.Count,
-                mergedTournamentCount,
+                leaguesToCreate.Sum(league => league.Tournaments.Count) + standaloneTournaments.Count,
+                standaloneTournaments.Count,
                 scheduled.Count,
                 liveToCreate.Count,
                 archetypesToAdd.Count,
@@ -708,7 +667,6 @@ public static partial class MigrationPlanner
                 skippedEntities),
             mapping.OrganizationId.ToString("D"),
             mapping.OwnerUserId.ToString("D"),
-            mapping.PlaceholderLeagueTarget,
             mappingSummaries,
             deduplicates,
             conflicts,

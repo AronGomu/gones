@@ -199,36 +199,28 @@ public sealed class MigrationPlannerTests
         Assert.Equal("completed", Assert.Single(league.Tournaments).Status);
     }
 
+    /// <summary>
+    /// A bundle's unassigned Tournaments used to need a `placeholderLeagueTarget` naming the row to merge
+    /// them into. T19 retired that row, so they import standalone with nothing to choose and no way to
+    /// get the choice wrong — the two target errors have no way to arise any more.
+    /// </summary>
     [Fact]
-    public void Placeholder_league_tournaments_need_an_explicit_target()
+    public void Unassigned_bundle_tournaments_import_standalone_without_a_target()
     {
-        var placeholderJson = $"{{\"id\":\"{LeagueNormalizer.PlaceholderLeagueId}\",\"name\":\"Unassigned Tournaments\",\"status\":\"active\",\"tournaments\":[{TournamentJsonText("orphan-1", LeagueNormalizer.PlaceholderLeagueId)}]}}";
+        var placeholderJson = $"{{\"id\":\"placeholder-league\",\"name\":\"Unassigned Tournaments\",\"status\":\"active\",\"tournaments\":[{TournamentJsonText("orphan-1", "placeholder-league")}]}}";
         var bundle = Bundle(InstanceA, "sha256:aa", leaguesJson: $"[{placeholderJson},{LeagueJsonText("league-1")}]");
         var manifest = Manifest(("sha256:aa", InstanceA, "authoritative"));
 
-        var unmapped = MigrationPlanner.Evaluate([bundle], manifest, Mapping(), Target(), "dry-run", "now");
-        Assert.Contains(unmapped.Report.Errors, error => error.Code == "missingPlaceholderTarget");
+        var planned = MigrationPlanner.Evaluate([bundle], manifest, Mapping(), Target(), "dry-run", "now");
+        Assert.Empty(planned.Report.Errors);
+        Assert.Equal("orphan-1", Assert.Single(planned.Plan.StandaloneTournaments).Id);
+        Assert.Equal(1, planned.Report.PlannedCounts.StandaloneTournaments);
+        // The unassigned League is not itself imported: it was a container, never a record.
+        Assert.DoesNotContain(planned.Plan.LeaguesToCreate, league => league.Id == "placeholder-league");
 
-        var toPlaceholder = MigrationPlanner.Evaluate(
-            [bundle], manifest, Mapping(placeholderTarget: LeagueNormalizer.PlaceholderLeagueId), Target(), "dry-run", "now");
-        Assert.Empty(toPlaceholder.Report.Errors);
-        Assert.Equal("orphan-1", Assert.Single(toPlaceholder.Plan.TournamentsForPlaceholderTarget).Id);
-
-        var toLeague = MigrationPlanner.Evaluate(
-            [bundle], manifest, Mapping(placeholderTarget: "league-1"), Target(), "dry-run", "now");
-        Assert.Empty(toLeague.Report.Errors);
-        var hostLeague = Assert.Single(toLeague.Plan.LeaguesToCreate, league => league.Id == "league-1");
-        var moved = Assert.Single(hostLeague.Tournaments, tournament => tournament.Id == "orphan-1");
-        Assert.Equal("league-1", moved.LeagueId);
-
-        var bogus = MigrationPlanner.Evaluate(
-            [bundle], manifest, Mapping(placeholderTarget: "missing-league"), Target(), "dry-run", "now");
-        Assert.Contains(bogus.Report.Errors, error => error.Code == "invalidPlaceholderTarget");
-
-        var placeholderCollision = MigrationPlanner.Evaluate(
-            [bundle], manifest, Mapping(placeholderTarget: LeagueNormalizer.PlaceholderLeagueId),
-            Target(placeholderTournamentIds: ["orphan-1"]), "dry-run", "now");
-        Assert.Contains(placeholderCollision.Report.Errors, error => error.Code == "targetCollision");
+        var collision = MigrationPlanner.Evaluate(
+            [bundle], manifest, Mapping(), Target(standaloneTournamentIds: ["orphan-1"]), "dry-run", "now");
+        Assert.Contains(collision.Report.Errors, error => error.Code == "targetCollision");
     }
 
     [Fact]
@@ -363,16 +355,13 @@ public sealed class MigrationPlannerTests
             "sha256:manifest-hash");
 
     private static MigrationMappingFile Mapping(params (string EventId, CalendarEventMapping Mapping)[] events) =>
-        Mapping(null, events);
-
-    private static MigrationMappingFile Mapping(string? placeholderTarget, params (string EventId, CalendarEventMapping Mapping)[] events) =>
-        new("mapping.json", OrganizationId, OwnerUserId, placeholderTarget,
+        new("mapping.json", OrganizationId, OwnerUserId,
             events.ToDictionary(entry => entry.EventId, entry => entry.Mapping, StringComparer.Ordinal),
             "sha256:mapping-hash");
 
     private static MigrationTargetState Target(
         string[]? existingLeagueIds = null,
-        string[]? placeholderTournamentIds = null,
+        string[]? standaloneTournamentIds = null,
         string[]? existingLiveIds = null,
         string[]? existingSlugs = null,
         bool organizationExists = true,
@@ -380,8 +369,8 @@ public sealed class MigrationPlannerTests
     {
         return new MigrationTargetState(
             "db-host/gones-test",
-            (existingLeagueIds ?? []).Append(LeagueNormalizer.PlaceholderLeagueId).ToHashSet(StringComparer.Ordinal),
-            (placeholderTournamentIds ?? []).ToHashSet(StringComparer.Ordinal),
+            (existingLeagueIds ?? []).ToHashSet(StringComparer.Ordinal),
+            (standaloneTournamentIds ?? []).ToHashSet(StringComparer.Ordinal),
             (existingLiveIds ?? []).ToHashSet(StringComparer.Ordinal),
             new HashSet<string>(StringComparer.Ordinal),
             (existingSlugs ?? []).ToHashSet(StringComparer.Ordinal),

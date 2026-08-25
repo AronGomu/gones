@@ -229,17 +229,16 @@ describe('shipped development environments', () => {
     expect(validateEnvironment(read('demo'))).toEqual([]);
   });
 
-  it('the demo archive carries two leagues, one completed and one active', () => {
-    const leagues = read('demo').leagues;
+  it('the demo archive carries Seasons in both statuses', () => {
+    const seasons = read('demo').archiveLeagueSeasons;
 
-    expect(leagues).toHaveLength(2);
-    expect(new Set(leagues.map((league) => league.status))).toEqual(new Set(['completed', 'active']));
-    expect(leagues.find((league) => league.status === 'completed')?.tournaments).toHaveLength(3);
+    expect(seasons.length).toBeGreaterThan(1);
+    expect(new Set(seasons.map((season) => season.status))).toEqual(new Set(['completed', 'active']));
   });
 
   it('every archive round entry is a match or a bye', () => {
-    const entries = read('demo').leagues.flatMap((league) =>
-      league.tournaments.flatMap((tournament) => tournament.rounds.flatMap((round) => round.entries))
+    const entries = read('demo').archiveTournaments.flatMap((tournament) =>
+      tournament.rounds.flatMap((round) => round.entries)
     );
 
     expect(entries.length).toBeGreaterThan(0);
@@ -512,7 +511,6 @@ describe('environment validation', () => {
       formats: [],
       tournaments: [],
       registrations: [],
-      leagues: [],
       liveTournaments: [{
         key: 'l1',
         organizerEmail: 'organizer@gones.test',
@@ -523,7 +521,7 @@ describe('environment validation', () => {
       }]
     }) as string[];
 
-    expect(problems).toContain('demo-broken: running tournament l1 references unknown league nope');
+    expect(problems).toContain('demo-broken: running tournament l1 references unknown League Season nope');
   });
 
   it('a running tournament cannot score more rounds than it has', () => {
@@ -884,13 +882,13 @@ describe('three-tier archive fixtures', () => {
     expect(seedArchive).not.toContain("/api/archive/tournaments'");
   });
 
-  it('the seeder keeps the legacy League path for running tournaments', () => {
+  it('the seeder resolves a running tournament League against the three-tier Seasons', () => {
     const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
 
-    // `POST /api/live-tournaments` still resolves its leagueId against the legacy table, so dropping
-    // the legacy restore would break every fixture running tournament that names a League.
-    expect(source).toContain("'/api/leagues-archive/restore'");
-    expect(source).toContain('seedLiveTournaments(environment, tokens, leagueIds)');
+    // `POST /api/live-tournaments` resolves its leagueId against `archive_league_seasons` now (T19),
+    // so the retired legacy restore must not come back as a second seeding path.
+    expect(source).not.toContain('leagues-archive');
+    expect(source).toContain('seedLiveTournaments(environment, tokens, archiveIds.leagueSeasons)');
   });
 
   it('buildArchiveBundle strips the fixture-only provenance marker', () => {

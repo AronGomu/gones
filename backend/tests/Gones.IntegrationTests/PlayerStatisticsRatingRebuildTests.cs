@@ -53,7 +53,7 @@ public sealed class PlayerStatisticsRatingRebuildTests : IAsyncLifetime
             SecurityStamp = Guid.NewGuid().ToString("N"),
             ConcurrencyStamp = Guid.NewGuid().ToString("N")
         });
-        database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(RatingLeague(), Seeded));
+        database.AddLegacyShapedLeague(RatingLeague(), Seeded);
         // A row no League can produce, seeded at the previous formula version: a rebuild has to replace
         // it, a skipped rebuild has to leave it.
         database.PlayerStatistics.Add(PlayerStatisticsRow.From(new GlobalPlayerStatistics(
@@ -132,7 +132,7 @@ public sealed class PlayerStatisticsRatingRebuildTests : IAsyncLifetime
         using var response = await SendJsonAsync(
             client,
             HttpMethod.Post,
-            "/api/leagues-archive/rating-league/tournaments-archive/rating-t1/edit-batch",
+            "/api/archive/tournaments/rating-t1/edit-batch",
             command,
             ifMatch: StrongETag.Encode(1));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -154,26 +154,12 @@ public sealed class PlayerStatisticsRatingRebuildTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await using var transaction = await database.Database.BeginTransactionAsync();
-            var aggregate = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "rating-league");
-            var document = aggregate.ReadDocument();
-            var round = document.Tournaments[0].Rounds[0];
-            aggregate.Apply(
+            var row = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "rating-t1");
+            var document = row.ReadDocument();
+            row.Apply(
                 document with
                 {
-                    Tournaments =
-                    [
-                        document.Tournaments[0] with
-                        {
-                            Rounds =
-                            [
-                                round with
-                                {
-                                    Entries = [new MatchRoundEntry("rating-m1", "1", "Alice", "Bob", 0, 2, string.Empty, string.Empty)]
-                                }
-                            ]
-                        },
-                        document.Tournaments[1]
-                    ]
+                    Rounds = [document.Rounds[0] with { Entries = [new MatchRoundEntry("rating-m1", "1", "Alice", "Bob", 0, 2, string.Empty, string.Empty)] }]
                 },
                 Seeded);
             await new PlayerStatisticsRebuildService(NullLogger<PlayerStatisticsRebuildService>.Instance)
@@ -223,7 +209,9 @@ public sealed class PlayerStatisticsRatingRebuildTests : IAsyncLifetime
     private async Task<IReadOnlyList<PlayerStatisticsRow>> RowsAsync()
     {
         await using var database = CreateContext();
-        var rows = await database.PlayerStatistics.AsNoTracking().ToListAsync();
+        // One row per player per scope since T8; these suites assert the global ranking, which is the
+        // scope the whole-archive numbers live in.
+        var rows = await database.PlayerStatistics.AsNoTracking().Where(row => row.ScopeKind == PlayerStatisticsScope.Global).ToListAsync();
         return rows.OrderBy(row => row.PlayerName, StringComparer.Ordinal).ToList();
     }
 
@@ -237,8 +225,17 @@ public sealed class PlayerStatisticsRatingRebuildTests : IAsyncLifetime
     private async Task<IReadOnlyList<GlobalPlayerStatistics>> ExpectedAsync()
     {
         await using var database = CreateContext();
-        var aggregates = await database.LeagueArchiveAggregates.AsNoTracking().Where(item => item.DeletedAt == null).ToListAsync();
-        var data = new GonesData(LeagueNormalizer.GonesDataVersion, aggregates.Select(item => item.ReadDocument()).ToList(), []);
+        var tournaments = await database.ArchiveTournaments.AsNoTracking()
+            .Where(item => item.DeletedAt == null)
+            .OrderBy(item => item.DocumentId)
+            .ToListAsync();
+        // One carrier League, because the domain walks data.Leagues[].Tournaments[]. ADR 0040 scopes the
+        // global statistics on the Tournament, so the container around them never reaches the maths.
+        var documents = tournaments
+            .Select(item => item.ReadDocument())
+            .Select(document => new TournamentDocument(document.Id, "global", document.Name, document.TournamentDate, document.Status, document.Rounds, document.PlayerArchetypes))
+            .ToList();
+        var data = new GonesData(LeagueNormalizer.GonesDataVersion, [new LeagueDocument("global", "global", "completed", documents)], []);
         return LeagueRules.CalculateGlobalPlayerStatistics(data);
     }
 

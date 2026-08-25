@@ -3,17 +3,11 @@ import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router
 import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatIconModule } from '@angular/material/icon';
-import { MatMenuModule } from '@angular/material/menu';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { ARCHIVE_UPDATED_EVENT } from './data/archive-repository.service';
-import { canManageLeague, leagueCommandError } from './data/league-archive-command-ux';
-import { isAnyPlaceholderLeagueId } from './data/league-archive-origin';
-import { LeagueArchiveRepository } from './data/league-archive-repository.service';
+import { ARCHIVE_UPDATED_EVENT, ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
-import { exportFullData, exportLeague, leagueExportFilename } from './domain/export-restore';
-import { attachExportChecksum } from './domain/export-schemas';
-import { PersistedLeague, TournamentDocument } from './domain/models';
+import { archiveBundleFilename, attachArchiveChecksum } from './domain/archive-export-schemas';
+import type { PersistedArchiveTournament, PersistedLeagueSeason } from './domain/archive-models';
 import { logBoundaryError, logBoundaryInfo } from './shared/app-logger';
 import { DeckArchetypeSettingsService, parseAppSettings } from './shared/deck-archetype-settings.service';
 import { I18nService } from './i18n/i18n.service';
@@ -23,20 +17,20 @@ import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
 import { ApiProblemError } from './api/api-boundary';
 import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
-import { clearLeagueCatalogCache } from './features/leagues-archive/league-archive-catalog-cache.service';
-import { canUsePowerMutation, PowerUserSettingsService } from './shared/power-user-settings.service';
+import { PowerUserSettingsService } from './shared/power-user-settings.service';
+import { purgeRetiredLeagueDatabase } from './backend/local-archive-backend.service';
 
 const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password'];
 
 interface HeaderTournament {
-  league: PersistedLeague;
-  tournament: TournamentDocument;
+  season: PersistedLeagueSeason | null;
+  tournament: PersistedArchiveTournament;
 }
 
 @Component({
   selector: 'gones-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatToolbarModule],
+  imports: [RouterOutlet, RouterLink, MatButtonModule, MatToolbarModule],
   template: `
     @if (!isResultPage()) {
       <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
@@ -56,23 +50,7 @@ interface HeaderTournament {
           </div>
         } @else if (headerTournament(); as item) {
           <div class="header-actions tournament-header-actions" data-cy="app-tournament-header-actions">
-            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/leagues-archive', item.league.id, 'tournaments-archive', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
-            @if (canManageHeaderLeague()) {
-              <button mat-icon-button class="league-actions-trigger" data-cy="app-tournament-actions-trigger" [matMenuTriggerFor]="tournamentActionsMenu" [attr.aria-label]="i18n.t('header.tournamentActions')" [disabled]="deletingTournament()">⋮</button>
-              <mat-menu #tournamentActionsMenu="matMenu" data-cy="app-tournament-actions-menu">
-                <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-tournament-button" [disabled]="deletingTournament()" (click)="deleteTournament(item)">{{ deletingTournament() ? i18n.t('header.deletingTournament') : i18n.t('header.deleteTournament') }}</button>
-              </mat-menu>
-            }
-          </div>
-        } @else if (headerLeague(); as league) {
-          <div class="header-actions league-header-actions" data-cy="app-league-header-actions">
-            <button mat-stroked-button class="secondary-action" type="button" data-cy="app-export-league-button" (click)="downloadLeagueExport(league)">{{ i18n.t('header.exportLeague') }}</button>
-            @if (canManageHeaderLeague()) {
-              <button mat-icon-button class="league-actions-trigger" data-cy="app-league-actions-trigger" [matMenuTriggerFor]="leagueActionsMenu" [attr.aria-label]="i18n.t('header.leagueActions')">⋮</button>
-              <mat-menu #leagueActionsMenu="matMenu" data-cy="app-league-actions-menu">
-                <button mat-menu-item class="destructive-menu-item" data-cy="app-delete-league-button" [disabled]="isPlaceholderLeague(league)" (click)="deleteLeague(league)">{{ isPlaceholderLeague(league) ? i18n.t('header.placeholderLeagueLocked') : i18n.t('header.deleteLeague') }}</button>
-              </mat-menu>
-            }
+            <a mat-stroked-button class="secondary-action" data-cy="tournament-result-link" [routerLink]="['/archive', 'tournaments', item.tournament.id, 'result']" [attr.aria-label]="i18n.t('header.viewResultAria', { name: item.tournament.name })">{{ i18n.t('header.viewResult') }}</a>
           </div>
         } @else if (showSettingsActions()) {
           <div class="header-actions settings-header-actions" data-cy="app-settings-header-actions" [attr.aria-label]="i18n.t('header.settingsActionsAria')">
@@ -126,7 +104,7 @@ export class AppComponent {
   private readonly router = inject(Router);
   readonly auth = inject(AuthService);
   private readonly lastVisited = inject(LastVisitedUrlService);
-  private readonly repo = inject(LeagueArchiveRepository);
+  private readonly repo = inject(ArchiveRepository);
   private readonly liveRepo = inject(LiveTournamentRepository);
   private readonly settings = inject(DeckArchetypeSettingsService);
   readonly power = inject(PowerUserSettingsService);
@@ -136,41 +114,28 @@ export class AppComponent {
   readonly showSignInLink = computed(() => !AUTH_PATHS.includes(this.pathOnly(this.currentUrl())));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);
-  readonly deletingTournament = signal(false);
   readonly importError = signal('');
   readonly settingsMessage = signal('');
   readonly resendPending = signal(false);
   readonly resendStatus = signal('');
-  // No role gate on `/leagues-archive` import: every Power User can write some store, and the
-  // repository routes the restore to the one `createLeagueTarget(role)` names (ADR 0028).
-  /** Power mode never replaces per-league role/origin authority. */
-  readonly canManageHeaderLeague = computed(() => canUsePowerMutation(
-    this.power.enabled(),
-    canManageLeague(this.headerLeague()?.id ?? this.headerTournament()?.league.id, this.auth.profile()?.globalRole)
-  ));
-  readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/leagues-archive');
+  // No role gate on the `/archive` import: every Power User can write some store, and the repository
+  // routes the restore to the one `createArchiveTarget(role)` names (ADR 0028). The header carries no
+  // per-record mutation any more — the Tournament delete menu retired with the legacy surface — so the
+  // per-record gate lives with the one surface that still writes, the staged editor.
+  readonly showHeaderImport = signal(this.pathOnly(this.router.url) === '/archive/league-seasons');
   readonly showLiveTournamentActions = signal(this.isLiveTournamentRunnerPath(this.pathOnly(this.router.url)));
   readonly showSettingsActions = signal(this.pathOnly(this.router.url) === '/settings');
-  readonly headerLeague = signal<PersistedLeague | null>(null);
   readonly headerTournament = signal<HeaderTournament | null>(null);
   readonly breadcrumbs = signal<BreadcrumbItem[]>([]);
   private routeStateRequest = 0;
 
   constructor() {
+    purgeRetiredLeagueDatabase();
     void this.updateRouteState(this.router.url);
     window.addEventListener('gones-live-tournament-updated', (event) => this.handleLiveTournamentUpdated(event));
-    // Every League/Tournament mutation that stays on a League page announces itself here, so this is
-    // the one place the public catalog snapshot is dropped for all of them (ADR 0039). The two header
-    // deletions below clear it directly instead: they navigate away, and re-entering this handler
-    // would rebuild the header from the League that was just deleted.
-    window.addEventListener('gones-league-updated', () => {
-      clearLeagueCatalogCache();
-      void this.updateRouteState(this.router.url);
-    });
-    // The archive rebuild's own announcement. It sits beside the legacy `gones-league-updated`
-    // listener rather than replacing it: the legacy League pages still dispatch that one and are
-    // still routed, so both have to work at once. This handler clears no cache —
-    // `invalidateArchiveCaches()` already did, before it dispatched.
+    // Every archive mutation announces itself here, so this is the one place the header rebuilds for
+    // all of them. This handler clears no cache — `invalidateArchiveCaches()` already did, before it
+    // dispatched (ADR 0039).
     window.addEventListener(ARCHIVE_UPDATED_EVENT, () => {
       void this.updateRouteState(this.router.url);
     });
@@ -195,11 +160,10 @@ export class AppComponent {
     const request = ++this.routeStateRequest;
     this.currentUrl.set(url);
     const path = this.pathOnly(url);
-    this.showHeaderImport.set(path === '/leagues-archive');
+    this.showHeaderImport.set(path === '/archive/league-seasons');
     this.showLiveTournamentActions.set(this.isLiveTournamentRunnerPath(path));
     this.showSettingsActions.set(path === '/settings');
     if (path !== '/settings') this.settingsMessage.set('');
-    this.headerLeague.set(await this.buildHeaderLeague(path));
     this.headerTournament.set(await this.buildHeaderTournament(path));
     const breadcrumbs = await this.buildBreadcrumbs(path);
     if (request === this.routeStateRequest) this.breadcrumbs.set(breadcrumbs);
@@ -245,32 +209,25 @@ export class AppComponent {
     return segments[0] === 'live-tournaments' && Boolean(segments[1]);
   }
 
-  private async buildHeaderLeague(path: string): Promise<PersistedLeague | null> {
-    const segments = path.split('/').filter(Boolean);
-    if (segments[0] !== 'leagues-archive' || !segments[1] || segments.length !== 2) return null;
-    return this.safeGetLeague(decodeURIComponent(segments[1]));
-  }
-
+  /** Only the Tournament detail page. Its Season is looked up for the label, never for the link. */
   private async buildHeaderTournament(path: string): Promise<HeaderTournament | null> {
     const segments = path.split('/').filter(Boolean);
-    if (segments[0] !== 'leagues-archive' || !segments[1] || segments[2] !== 'tournaments-archive' || !segments[3]) return null;
-    const league = await this.safeGetLeague(decodeURIComponent(segments[1]));
-    const tournament = league?.tournaments.find((item) => item.id === decodeURIComponent(segments[3]));
-    return league && tournament ? { league, tournament } : null;
+    if (segments[0] !== 'archive' || segments[1] !== 'tournaments' || !segments[2] || segments.length !== 3) return null;
+    const tournament = await this.safeGetArchiveTournament(decodeURIComponent(segments[2]));
+    return tournament ? { season: null, tournament } : null;
   }
 
   private async buildBreadcrumbs(path: string): Promise<BreadcrumbItem[]> {
     return buildBreadcrumbs(
       path,
       (key, params) => this.i18n.t(key, params),
-      (leagueId) => this.safeGetLeague(leagueId),
       (liveTournamentId) => this.safeGetLiveTournament(liveTournamentId)
     );
   }
 
-  private async safeGetLeague(leagueId: string): Promise<PersistedLeague | null> {
-    try { return await this.repo.getLeague(leagueId); }
-    catch (error) { logBoundaryError('app-breadcrumb.loadLeague', error, { leagueId }); return null; }
+  private async safeGetArchiveTournament(tournamentId: string): Promise<PersistedArchiveTournament | null> {
+    try { return await this.repo.getTournament(tournamentId); }
+    catch (error) { logBoundaryError('app-header.loadArchiveTournament', error, { tournamentId }); return null; }
   }
 
   private async safeGetLiveTournament(liveTournamentId: string) {
@@ -347,73 +304,21 @@ export class AppComponent {
     }
   }
 
+  /**
+   * ADR 0028's export bridge. Browser-local records only: the three-tier read surface serves slim
+   * catalogs and one detail per Tournament (ADR 0039/0042), so there is no whole-document server read
+   * to build a server half from. A signed-in visitor's archive lives on the server, so writing this
+   * bundle for them would hand over a backup missing everything it claims to hold — the same "a
+   * partial export fails loudly" rule the League export already applied, for a different reason.
+   */
   async downloadFullExport(): Promise<void> {
-    // The list is merged now, so the bundle carries the browser's leagues too — minus *both*
-    // placeholders, since neither is user data (ADR 0028).
-    const merged = await this.repo.listLeagues();
-    // `listLeagues()` degrades to the local list alone when the server read rejects, so writing the
-    // file here would present a bundle missing every server league as a complete backup. Export is
-    // ADR 0028's only bridge, so a partial one fails loudly instead. Only a signed-in visitor has
-    // server leagues to be missing: for a signed-out one the local list *is* the whole archive, and
-    // refusing there would take away the only backup they have. An expired session whose `profile()`
-    // has already been cleared reads as signed out and still exports browser-only; the UI shows that
-    // visitor as signed out, so the bundle matches what they can see.
-    if (this.repo.serverUnavailable() && this.auth.profile()) {
+    if (this.auth.profile()) {
       this.importError.set(this.i18n.t('msg.fullDataExportServerUnavailable'));
       return;
     }
-    // Same rule for the other way a server list can be short of the whole archive: the catalog row cap
-    // (ADR 0039). A capped list is fine to render, never fine to write as a complete backup.
-    if (this.repo.catalogTruncated()) {
-      this.importError.set(this.i18n.t('msg.fullDataExportTruncated'));
-      return;
-    }
-    const leagues = merged.filter((league) => !isAnyPlaceholderLeagueId(league.id));
     this.importError.set('');
-    saveJsonFile(await attachExportChecksum(exportFullData(leagues, { calendarEvents: [] })), 'gones-full-data.gones.json');
-  }
-
-  async downloadLeagueExport(league: PersistedLeague): Promise<void> { const exported = exportLeague(league); saveJsonFile(await attachExportChecksum(exported), leagueExportFilename(league, new Date(exported.exportedAt))); }
-  // Both stores seed their own placeholder row and the repository refuses to delete either one, so
-  // the menu item is locked for both (ADR 0028).
-  isPlaceholderLeague(league: PersistedLeague): boolean { return isAnyPlaceholderLeagueId(league.id); }
-
-  async deleteLeague(league: PersistedLeague): Promise<void> {
-    if (!this.power.enabled()) return;
-    if (this.isPlaceholderLeague(league)) return;
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteLeagueTitle'), message: this.i18n.t('dialog.deleteLeagueMessage', { name: league.name }), confirmLabel: this.i18n.t('dialog.deleteLeagueTitle'), destructive: true } }).afterClosed());
-    if (!confirmed) return;
-    try {
-      await this.repo.deleteLeague(league.id);
-      clearLeagueCatalogCache();
-      this.headerLeague.set(null);
-      await this.router.navigate(['/leagues-archive']);
-    } catch (error) {
-      logBoundaryError('app-header.deleteLeague', error, { leagueId: league.id });
-      const kind = leagueCommandError(error);
-      this.importError.set(kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : kind === 'stale' ? this.i18n.t('leagues.staleDelete') : this.i18n.t('leagues.deleteFailed'));
-    }
-  }
-
-  async deleteTournament({ league, tournament }: HeaderTournament): Promise<void> {
-    if (!this.power.enabled()) return;
-    if (this.deletingTournament()) return;
-    const confirmed = await firstValueFrom(this.dialog.open(ConfirmDialogComponent, { data: { title: this.i18n.t('dialog.deleteTournamentTitle'), message: this.i18n.t('dialog.deleteTournamentMessage', { name: tournament.name }), confirmLabel: this.i18n.t('dialog.deleteTournamentTitle'), destructive: true } }).afterClosed());
-    if (!confirmed) return;
-    this.deletingTournament.set(true);
-    this.importError.set('');
-    try {
-      await this.repo.deleteResultTournament(league, tournament.id);
-      clearLeagueCatalogCache();
-      this.headerTournament.set(null);
-      await this.router.navigate(['/leagues-archive', league.id]);
-    } catch (error) {
-      logBoundaryError('app-header.deleteTournament', error, { leagueId: league.id, tournamentId: tournament.id });
-      const kind = leagueCommandError(error);
-      this.importError.set(kind === 'stale' ? this.i18n.t('msg.staleLeagueDeleteTournament') : kind === 'forbidden' ? this.i18n.t('leagues.forbidden') : this.i18n.t('msg.deleteTournamentFailed'));
-    } finally {
-      this.deletingTournament.set(false);
-    }
+    const bundle = await this.repo.exportBundle();
+    saveJsonFile(await attachArchiveChecksum(bundle), archiveBundleFilename());
   }
 
   async importLeague(event: Event): Promise<void> {
@@ -423,14 +328,17 @@ export class AppComponent {
     if (!file || this.importing()) return;
     this.importing.set(true);
     try {
-      const { LeagueArchiveImportService } = await import('./data/league-archive-import.service');
-      const result = await this.injector.get(LeagueArchiveImportService).importFile(file);
+      const { ArchiveImportService } = await import('./data/archive-import.service');
+      const parsed = await this.injector.get(ArchiveImportService).readBundle(file);
+      const restored = await this.repo.restoreBundle(parsed.bundle);
       this.importError.set('');
-      const firstImportedLeagueId = result.importedLeagueIds[0];
-      logBoundaryInfo('app-header.importLeague.success', { kind: result.kind, importedLeagueCount: result.importedLeagueIds.length, destinationLeagueId: firstImportedLeagueId ?? null });
-      await this.router.navigate(firstImportedLeagueId ? ['/leagues-archive', firstImportedLeagueId] : ['/leagues-archive']);
+      logBoundaryInfo('app-header.importArchive.success', {
+        leagueCount: restored.leagueIds.length,
+        leagueSeasonCount: restored.leagueSeasonIds.length,
+        tournamentCount: restored.tournamentIds.length
+      });
     } catch (error) {
-      logBoundaryError('app-header.importLeague', error, { fileName: file.name });
+      logBoundaryError('app-header.importArchive', error, { fileName: file.name });
       this.importError.set(importErrorMessage(error, this.i18n));
     } finally {
       this.importing.set(false);

@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
-import { LeagueArchiveRepository } from './data/league-archive-repository.service';
+import { ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { I18nService } from './i18n/i18n.service';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
@@ -56,11 +56,12 @@ describe('AppComponent toolbar auth entry', () => {
   it('the auth block is the last thing in the toolbar', () => {
     const authIndex = source.indexOf('data-cy="auth-toolbar-actions"');
     expect(authIndex).toBeGreaterThan(-1);
+    // `app-league-header-actions` was the retired League detail page's block; T19 removed it with the
+    // route that rendered it, so only the four surviving blocks are ordered against the auth block.
     for (const marker of [
       'app-live-tournament-header-actions',
       'app-leagues-header-actions',
       'app-tournament-header-actions',
-      'app-league-header-actions',
       'app-settings-header-actions'
     ]) {
       const markerIndex = source.indexOf(`data-cy="${marker}"`);
@@ -87,7 +88,7 @@ function setupApp(initialUrl = '/') {
     { provide: Router, useValue: { url: initialUrl, navigate, events: NEVER } },
     { provide: AuthService, useValue: { logout, profile: signal(null), enabled: false } },
     { provide: LastVisitedUrlService, useValue: { record: vi.fn(), last: () => '' } },
-    { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn().mockResolvedValue(null) } },
+    { provide: ArchiveRepository, useValue: { getTournament: vi.fn().mockResolvedValue(null) } },
     { provide: LiveTournamentRepository, useValue: { get: vi.fn().mockResolvedValue(null) } },
     { provide: DeckArchetypeSettingsService, useValue: {} },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(false) } },

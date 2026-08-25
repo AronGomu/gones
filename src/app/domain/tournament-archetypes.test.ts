@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { createMatchRoundEntry, createTournament } from './models';
+import { createMatchRoundEntry } from './models';
+import { createArchiveTournament } from './archive-models';
 import { mergeImportedRoundArchetypes, setTournamentPlayerArchetype, tournamentPlayerArchetypeRows, validateTournamentPlayerArchetypes } from './tournament-archetypes';
 
 describe('tournament player archetypes', () => {
   it('derives legacy tournament archetypes from existing round entry deck fields', () => {
-    const tournament = createTournament({
-      rounds: [{ entries: [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'Fire', player2Name: 'Bob', player2DeckArchetype: 'Ice' })] }]
+    const tournament = createArchiveTournament({
+      rounds: [{ id: 'r1', entries: [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'Fire', player2Name: 'Bob', player2DeckArchetype: 'Ice' })] }]
     });
 
     expect(tournament.playerArchetypes).toEqual([
@@ -15,7 +16,7 @@ describe('tournament player archetypes', () => {
   });
 
   it('keeps a single tournament archetype per player while merging imported round entries', () => {
-    const tournament = createTournament({ playerArchetypes: [{ playerName: 'Alice', archetype: 'Fire' }] });
+    const tournament = createArchiveTournament({ playerArchetypes: [{ playerName: 'Alice', archetype: 'Fire' }] });
     const importedEntries = [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'Water', player2Name: 'Bob', player2DeckArchetype: 'Ice' })];
 
     const merged = mergeImportedRoundArchetypes(tournament, importedEntries);
@@ -29,15 +30,15 @@ describe('tournament player archetypes', () => {
   });
 
   it('reports conflicting persisted rows without changing the current archetype', () => {
-    const tournament = createTournament({ playerArchetypes: [{ playerName: 'Alice', archetype: 'Fire' }] });
+    const tournament = createArchiveTournament({ playerArchetypes: [{ playerName: 'Alice', archetype: 'Fire' }] });
     const edited = { ...tournament, playerArchetypes: [...tournament.playerArchetypes, { playerName: 'Alice', archetype: 'Water' }] };
 
     expect(validateTournamentPlayerArchetypes(edited)).toEqual([{ playerName: 'Alice', existingArchetype: 'Fire', importedArchetype: 'Water' }]);
   });
 
   it('lists round players plus saved archetypes for the bottom tournament container', () => {
-    const tournament = setTournamentPlayerArchetype(createTournament({
-      rounds: [{ entries: [createMatchRoundEntry({ player1Name: 'Alice', player2Name: 'Bob' })] }]
+    const tournament = setTournamentPlayerArchetype(createArchiveTournament({
+      rounds: [{ id: 'r2', entries: [createMatchRoundEntry({ player1Name: 'Alice', player2Name: 'Bob' })] }]
     }), 'Alice', 'Fire');
 
     expect(tournamentPlayerArchetypeRows(tournament)).toEqual([
@@ -47,14 +48,14 @@ describe('tournament player archetypes', () => {
   });
 
   it('stores empty string when saving No archetype placeholder', () => {
-    const tournament = setTournamentPlayerArchetype(createTournament(), 'Alice', 'No archetype');
+    const tournament = setTournamentPlayerArchetype(createArchiveTournament(), 'Alice', 'No archetype');
     expect(tournament.playerArchetypes).toEqual([{ playerName: 'Alice', archetype: '' }]);
   });
 
   it('clears No Archetype labels on tournament load/import normalization', () => {
-    const tournament = createTournament({
+    const tournament = createArchiveTournament({
       playerArchetypes: [{ playerName: 'Alice', archetype: 'No Archetype' }, { playerName: 'Bob', archetype: 'Fire' }],
-      rounds: [{ entries: [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'No archetype', player2Name: 'Bob', player2DeckArchetype: 'Fire' })] }]
+      rounds: [{ id: 'r3', entries: [createMatchRoundEntry({ player1Name: 'Alice', player1DeckArchetype: 'No archetype', player2Name: 'Bob', player2DeckArchetype: 'Fire' })] }]
     });
     expect(tournament.playerArchetypes).toEqual([
       { playerName: 'Alice', archetype: '' },

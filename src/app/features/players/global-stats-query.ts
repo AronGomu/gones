@@ -1,5 +1,5 @@
 import { Params } from '@angular/router';
-import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
+import { ArchiveGlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 
 export const GLOBAL_STATS_PAGE_SIZES = [10, 25, 50, 100] as const;
 export type GlobalStatsPageSize = (typeof GLOBAL_STATS_PAGE_SIZES)[number];
@@ -210,7 +210,7 @@ const GLOBAL_STATS_RATING_COLS: readonly GlobalStatsSortCol[] = ['rating', 'deca
  * bucket 0 (active ranked) → bucket 1 (inactive) → bucket 2 (provisional); within 0 and 1 rating
  * DESC; within 2 tournamentsPlayed DESC then playedMatchCount DESC; every tie broken by name ASC.
  */
-export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
+export function sortGlobalStatsRows<T extends ArchiveGlobalPlayerStatisticsRow>(
   rows: readonly T[],
   sort?: GlobalStatsSortCol,
   direction: 'asc' | 'desc' = 'desc'
@@ -248,7 +248,7 @@ export function sortGlobalStatsRows<T extends GlobalPlayerStatisticsRow>(
   });
 }
 
-function rankingBucket(row: GlobalPlayerStatisticsRow): 0 | 1 | 2 {
+function rankingBucket(row: ArchiveGlobalPlayerStatisticsRow): 0 | 1 | 2 {
   if (row.provisional ?? false) return 2;
   if (row.inactive ?? false) return 1;
   return 0;

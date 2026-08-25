@@ -24,15 +24,28 @@ _Avoid_: Running league
 A League whose tournament source data is preserved for review and no longer receives normal tournament source-data edits.
 _Avoid_: Finished league
 
-**League Archive**:
-The stored archive of Leagues and their past Tournament results, kept for standings and Player Statistics. It is served under `/api/leagues-archive` and persisted in `league_archive_aggregates` (ADR 0022). **League** stays the word for a single collection inside it.
-_Formerly_: the Leagues feature, `/api/leagues`
+**Archive**:
+The stored archive of past results on three tiers — League → LeagueSeason → Tournament. It is served under `/api/archive` and persisted in `archive_leagues`, `archive_league_seasons` and `archive_tournaments`. Browsed at `/archive/league-seasons` and `/archive/tournaments`.
+_Formerly_: League Archive, `/api/leagues-archive`, `league_archive_aggregates` (ADR 0022); before that, the Leagues feature and `/api/leagues`
 _Avoid_: Calendar, Live Tournament
 
+**League** (archive tier):
+The top archive tier. Groups LeagueSeasons. It has no page of its own — it is a column and a filter.
+_Avoid_: Season when a single run is meant
+
+**LeagueSeason**:
+The middle archive tier: one run of a League, with a mandatory parent League. This is what used to be called a League.
+_Formerly_: League (the flat archive record)
+_Avoid_: League on its own
+
 **Archive Tournament**:
-A historical result Tournament stored inside the League Archive, served under the `/tournaments-archive` path segment (ADR 0022). Distinct from the Event people register for and from a Live Tournament being run.
-_Formerly_: Result Tournament
+A historical result Tournament, and a first-class top-level record: it is its own row, served under `/archive/tournaments/:tournamentId`, and `seasonId: null` means it stands alone in no LeagueSeason. It locks to non-Admin writes 365 days after its `tournamentDate`. Distinct from the Event people register for and from a Live Tournament being run.
+_Formerly_: Result Tournament, the `/tournaments-archive` path segment (ADR 0022)
 _Avoid_: Scheduled Tournament
+
+**Unassigned Tournaments**:
+Retired. The fixed `placeholder-league` row that used to hold Tournaments belonging to no League. Replaced by `seasonId: null` on a standalone Tournament; the row, its id and its name are gone.
+_Avoid_: as a name for anything new
 
 **Event**:
 The Calendar V1 record an organizer publishes and a User registers for: base title, venue, venue-local dates, exactly one active Tournament Format, capacity, and optional Live/Archive Tournament links. It is served under `/api/events`, browsed at `/events`, read at `/events/:slug` and persisted in `events` (ADRs 0035–0036, 0038). An Event is tied to one single-format tournament conceptually, and that tournament has no row of its own. Public responses derive the display title from format plus base title.
@@ -124,7 +137,7 @@ The Deck Archetype used by a selected Player Name in the most Matches, with alph
 _Avoid_: Favorite deck
 
 **Global Player Statistics**:
-Derived Player Statistics rows from valid Matches in **completed Archive Tournaments** (across all non-deleted Leagues regardless of League status). Materialized in the `player_statistics` table and rebuilt transactionally on every archive write (ADR 0040). Position is assigned by the API or UI later.
+Derived Player Statistics rows from valid Matches in **completed Archive Tournaments** (across every non-deleted LeagueSeason plus standalone Tournaments, whatever a Season's own status). Materialized in the `player_statistics` table and rebuilt transactionally on every archive write (ADR 0040). Position is assigned by the API or UI later.
 _Avoid_: Stored global ranking
 
 **Nemesis**:
@@ -298,6 +311,10 @@ _Avoid_: Migration, deployment
 - An empty **League** has no **League Result**
 - A **Tournament** belongs to exactly one **League**
 - A Tournament counts toward a **League Result** when it belongs to that League
+- A **LeagueSeason** belongs to exactly one **League**
+- An **Archive Tournament** belongs to at most one **LeagueSeason**; with none it is standalone
+- A standalone **Archive Tournament** contributes to the global Player Statistics scope only
+- Retired archive URLs are not redirected: `/leagues-archive/**` renders the 404 page. ADR 0022 kept redirects for bookmarks; Gones is unreleased with zero users, so that rationale is void. ADR 0022's "no API path aliases" rule still stands and `/api/leagues-archive/**` returns 404
 - League dates are descriptive and do not filter which Tournaments count
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
 - An **Event** belongs to exactly one **Organization**
@@ -459,7 +476,7 @@ _Avoid_: Migration, deployment
 - **Global Player Statistics** include valid Match participants from completed Archive Tournaments only (league status does not filter; ADR 0040)
 - Byes and roster-only Player Names do not create **Global Player Statistics** rows or affect Global performance
 - Archive Tournaments whose status is `active` do not contribute to **Global Player Statistics**
-- Browser-local League Archive records never contribute to **Global Player Statistics**; the source is always the server
+- Browser-local archive records never contribute to **Global Player Statistics**; the source is always the server
 - **Global Player Statistics** expose 11 columns in fixed order, labelled: `#`, Player, Rating, Tournaments, Matches, Wins, Losses, Draw, M%, Rival, Archetype (matches) — plus a 12th `Decayed` column shown only when `Gones:PlayerStatistics:ExposeDecayedRating` is on. Nemesis stays on the wire and on the Player Statistics page, but has no Global Rankings column
 - Position in **Global Player Statistics** is dynamic: it reflects the current sort and search result, not a stored rank
 - **Global Player Statistics** identity is case-sensitive exact Player Name; `Alice` and `alice` are different rows
@@ -512,7 +529,7 @@ _Avoid_: Migration, deployment
 - MVP includes a **Player Statistics** page
 - **Player Statistics** page can be opened from **Ranking Table** rows
 - **Player Statistics** page identifies the selected player by encoded Player Name, not a player ID
-- **Player Statistics** page defaults to server-origin League Archive data and can include browser-local Leagues with a persisted display toggle
+- **Player Statistics** page defaults to server-origin archive data and can include browser-local Tournaments with a persisted display toggle
 - **Player Statistics** page lays its metrics out in three rows: Match Winrate, Matches Played, Match Wins, Match Losses, Match Draws; then Game Winrate, Games Played, Game Wins, Game Losses, Match Draw Percentage; then Most Played Archetype, Nemesis, Rival
 - **Player Statistics** Match history is filtered and sorted before client-side paging; page size persists, page index resets after data or view changes
 - **Player Statistics** filters are represented in the page URL

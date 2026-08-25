@@ -1,98 +1,9 @@
 import { InjectionToken, inject } from '@angular/core';
 import { AuthService } from '../auth/auth.service';
 import { DataAuthority, dataAuthority } from '../config/data-authority';
-import { LeagueArchiveSummary } from '../data/league-archive-summary';
 import { LiveTournamentDocument } from '../domain/live-tournament';
-import { LeagueDocument, LeagueStatus, PersistedLeague, RoundEntry } from '../domain/models';
 import { AspNetApiBackend } from './aspnet-api-backend.service';
 import { LocalLiveBackend } from './local-live-backend.service';
-
-export interface LeagueRestoreCommand {
-  kind: 'league';
-  gonesDataVersion: number;
-  league: LeagueDocument;
-}
-
-export interface FullLeagueRestoreCommand {
-  kind: 'fullData';
-  gonesDataVersion: number;
-  leagues: LeagueDocument[];
-}
-
-export interface MoveResultTournamentResult {
-  fromLeague: PersistedLeague;
-  toLeague: PersistedLeague;
-}
-
-export interface AddArchiveRoundIntent {
-  roundId: string;
-  entries: RoundEntry[];
-}
-
-export interface ReplaceArchiveRoundIntent {
-  roundId: string;
-  entries: RoundEntry[];
-}
-
-export interface ArchiveTournamentEditBatchCommand {
-  editTournament?: { name: string; tournamentDate: string };
-  status?: LeagueStatus;
-  addRounds: AddArchiveRoundIntent[];
-  deleteRoundIds: string[];
-  replaceRounds: ReplaceArchiveRoundIntent[];
-  updateArchetypes: { playerName: string; archetype: string }[];
-}
-
-export interface ArchiveTournamentEditBatchResult {
-  sourceLeague: PersistedLeague;
-  destinationLeague: PersistedLeague | null;
-}
-
-/**
- * A whole store read in one answer. `truncated` is the store admitting it returned less than it holds
- * — the server catalog has a row cap (ADR 0039), so a caller that may not present a partial archive
- * as a complete one has something to check.
- */
-export interface LeagueArchiveCatalog {
-  leagues: PersistedLeague[];
-  truncated: boolean;
-}
-
-/**
- * The same store read as `LeagueArchiveCatalog`, one row per League instead of one document (ADR
- * 0042). The list page needs a name, a status and two numbers; only the Settings export needs the
- * documents, so the two answers are separate calls rather than one body serving both.
- */
-export interface LeagueArchiveSummaryCatalog {
-  items: LeagueArchiveSummary[];
-  truncated: boolean;
-}
-
-export interface LeagueArchiveBackendPort {
-  listLeagueArchives(): Promise<LeagueArchiveCatalog>;
-  listLeagueArchiveSummaries(): Promise<LeagueArchiveSummaryCatalog>;
-  getLeagueArchive(id: string): Promise<PersistedLeague | null>;
-  createLeagueArchive(name: string, idempotencyKey?: string): Promise<PersistedLeague>;
-  renameLeagueArchive(id: string, expectedVersion: number, name: string): Promise<PersistedLeague>;
-  changeLeagueArchiveStatus(id: string, expectedVersion: number, status: LeagueStatus): Promise<PersistedLeague>;
-  deleteLeagueArchive(id: string, expectedVersion: number): Promise<void>;
-  createArchiveTournament(id: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
-  editArchiveTournament(id: string, tournamentId: string, expectedVersion: number, name: string, tournamentDate: string): Promise<PersistedLeague>;
-  deleteArchiveTournament(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
-  moveArchiveTournament(id: string, tournamentId: string, expectedVersion: number, targetLeagueId: string, targetExpectedVersion: number): Promise<MoveResultTournamentResult>;
-  applyArchiveTournamentEditBatch(sourceLeagueId: string, tournamentId: string, sourceExpectedVersion: number, command: ArchiveTournamentEditBatchCommand, target?: { leagueId: string; expectedVersion: number }): Promise<ArchiveTournamentEditBatchResult>;
-  addArchiveRound(id: string, tournamentId: string, expectedVersion: number): Promise<PersistedLeague>;
-  deleteArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number): Promise<PersistedLeague>;
-  importArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, text: string): Promise<PersistedLeague>;
-  replaceArchiveRound(id: string, tournamentId: string, roundId: string, expectedVersion: number, entries: RoundEntry[]): Promise<PersistedLeague>;
-  addArchiveEntry(id: string, tournamentId: string, roundId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
-  editArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number, entry: RoundEntry): Promise<PersistedLeague>;
-  deleteArchiveEntry(id: string, tournamentId: string, roundId: string, entryId: string, expectedVersion: number): Promise<PersistedLeague>;
-  updateArchivePlayerArchetype(id: string, tournamentId: string, playerName: string, expectedVersion: number, archetype: string): Promise<PersistedLeague>;
-  renameLeagueArchivePlayerName(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedLeague>;
-  restoreLeagueArchive(command: LeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague>;
-  restoreFullLeagueArchiveData(command: FullLeagueRestoreCommand, idempotencyKey?: string): Promise<PersistedLeague[]>;
-}
 
 export interface LiveSettingsCommand {
   name: string;
@@ -169,14 +80,6 @@ export function resolveLiveBackendMode(authority: DataAuthority, globalRole: str
   if (!authority.serverAuthority) throw new Error('serverAuthorityRequired');
   return globalRole === 'Organizer' || globalRole === 'Admin' ? 'aspnet-api' : 'browser-local';
 }
-
-export const LEAGUE_ARCHIVE_BACKEND = new InjectionToken<LeagueArchiveBackendPort>('Gones League Archive backend bridge', {
-  providedIn: 'root',
-  factory: () => {
-    resolveBackendMode(dataAuthority());
-    return inject(AspNetApiBackend);
-  }
-});
 
 /**
  * The Live authority is decided once, here, from the profile `AuthService.bootstrap()` loaded before

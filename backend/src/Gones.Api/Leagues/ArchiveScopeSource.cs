@@ -51,7 +51,6 @@ internal static class ArchiveScopeSource
 
     public static async Task<IReadOnlyList<ArchiveStatisticsScope>> LoadAsync(
         GonesDbContext database,
-        IReadOnlyList<LeagueDocument> legacyLeagues,
         CancellationToken cancellationToken)
     {
         var seasons = await LoadSeasonsAsync(database, cancellationToken);
@@ -59,9 +58,9 @@ internal static class ArchiveScopeSource
 
         var scopes = new List<ArchiveStatisticsScope>
         {
-            // The global scope carries every live Tournament, standalone ones included, plus the
-            // legacy aggregates that have not been retired yet. Delete the legacy half at T17.
-            Scope(PlayerStatisticsScope.Global, PlayerStatisticsScope.GlobalScopeId, tournaments, legacyLeagues)
+            // The global scope carries every live Tournament, standalone ones included. The legacy
+            // aggregates it also carried are retired (T19), so this is the whole archive.
+            Scope(PlayerStatisticsScope.Global, PlayerStatisticsScope.GlobalScopeId, tournaments)
         };
 
         var attached = tournaments
@@ -72,14 +71,14 @@ internal static class ArchiveScopeSource
             .GroupBy(tournament => seasons[tournament.SeasonId!], StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            scopes.Add(Scope(PlayerStatisticsScope.League, group.Key, group.ToList(), []));
+            scopes.Add(Scope(PlayerStatisticsScope.League, group.Key, group.ToList()));
         }
 
         foreach (var group in attached
             .GroupBy(tournament => tournament.SeasonId!, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            scopes.Add(Scope(PlayerStatisticsScope.Season, group.Key, group.ToList(), []));
+            scopes.Add(Scope(PlayerStatisticsScope.Season, group.Key, group.ToList()));
         }
 
         return scopes;
@@ -88,8 +87,7 @@ internal static class ArchiveScopeSource
     private static ArchiveStatisticsScope Scope(
         string scopeKind,
         string scopeId,
-        IReadOnlyList<ArchiveTournamentSource> tournaments,
-        IReadOnlyList<LeagueDocument> extraLeagues)
+        IReadOnlyList<ArchiveTournamentSource> tournaments)
     {
         // The synthetic League exists because the domain walks data.Leagues[].Tournaments[]. It is a
         // container, never a scope: the statistics maths reads a Tournament's status and date and
@@ -110,10 +108,7 @@ internal static class ArchiveScopeSource
                     ReadArray<PlayerArchetypeDocument>(parsed.RootElement, "playerArchetypes"));
             })
             .ToList();
-        var leagues = new List<LeagueDocument>(extraLeagues)
-        {
-            new(containerId, containerId, "completed", documents)
-        };
+        var leagues = new List<LeagueDocument> { new(containerId, containerId, "completed", documents) };
         return new ArchiveStatisticsScope(
             scopeKind,
             scopeId,

@@ -1,10 +1,11 @@
 {
-  "fixtureSet": "gones-league-domain-parity",
+  "fixtureSet": "gones-archive-domain-parity",
   "fixtureVersion": 1,
   "source": {
     "language": "TypeScript",
-    "exporter": "src/app/domain/league-parity-fixtures.test.ts",
+    "exporter": "src/app/domain/archive-parity-fixtures.test.ts",
     "sourceFiles": [
+      "src/app/domain/archive-models.ts",
       "src/app/domain/models.ts",
       "src/app/domain/player-stats.ts",
       "src/app/domain/results.ts",
@@ -14,27 +15,18 @@
       "src/app/domain/validation.ts",
       "src/app/domain/warnings.ts"
     ],
-    "sourceRevision": "e930c8399ae3720049bc6e0169964c3d5c75c025",
-    "runtime": {
-      "node": "v24.18.0",
-      "icu": "78.3",
-      "typescript": "5.9.3",
-      "vitest": "4.1.7"
-    },
-    "sourceDataVersion": 4
+    "sourceDataVersion": 5
   },
   "serialization": "JSON.stringify(value, null, 2) + LF",
-  "paritySha256": "0b2dcfb0e08fc0babe38a46326211851d3a87a140ae44935a913492a7bf959aa",
+  "paritySha256": "0d951768010b9c31f19fff017ee4fa724aa17702864d42af3670a0b08bf16c5e",
   "caseCounts": {
-    "normalization": 1,
     "csvImports": 2,
     "validations": 4,
     "warnings": 1,
     "tournamentResults": 1,
-    "leagueResults": 1,
+    "leagueSeasonResults": 1,
     "playerStatistics": 3,
     "globalPlayerStatistics": 1,
-    "renames": 1,
-    "placeholders": 1
+    "renames": 1
   }
 }

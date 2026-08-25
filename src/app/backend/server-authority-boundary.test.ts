@@ -9,13 +9,13 @@ import { AspNetApiBackend } from './aspnet-api-backend.service';
 
 /**
  * Authority boundary (C42, narrowed to server-only by ADR 0020, then narrowed again for the Live
- * Tournament capability by ADR 0021 and for the League Archive by ADR 0028).
+ * Tournament capability by ADR 0021 and for the Archive by ADR 0028).
  *
  * The API database is still the authority for Calendar, auth, organizer, admin and every server
- * League. These assertions fail if a canonical browser store, a whole-document mutation path, or the
- * retired CalendarEvent store comes back — or if the two sanctioned browser stores, the Live local
- * adapter (ADR 0021) and the League local adapter (ADR 0028), spread beyond the three files those
- * ADRs confine them to.
+ * archive record. These assertions fail if a canonical browser store, a whole-document mutation path,
+ * or the retired CalendarEvent store comes back — or if the two sanctioned browser stores, the Live
+ * local adapter (ADR 0021, `gones-live`) and the archive local adapter (ADR 0028,
+ * `gones-archive-local`), spread beyond the files those ADRs confine them to.
  */
 
 const sourceRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -98,8 +98,8 @@ describe('canonical browser store containment', () => {
   });
 
   it('confines IndexedDB to the sanctioned local adapters', () => {
-    // ADR 0021 reopened a browser store for Live Tournaments, ADR 0028 for the League Archive, and
-    // for nothing else. The pattern covers the whole IndexedDB surface, not just the `indexedDB`
+    // ADR 0021 reopened a browser store for Live Tournaments, ADR 0028 for the Archive, and for
+    // nothing else. The pattern covers the whole IndexedDB surface, not just the `indexedDB`
     // global, so a leaked `IDBDatabase` parameter in a repository or component is caught too. Adding
     // a file here is an ADR decision.
     expect(filesMatching(/\bindexedDB\b|\bIDB[A-Z]\w*/)).toEqual([
@@ -113,8 +113,6 @@ describe('canonical browser store containment', () => {
       'src/app/backend/indexed-db.ts',
       // The three-tier archive browser-local authority (ADR 0028), composing the pure domain.
       'src/app/backend/local-archive-backend.service.ts',
-      // The League browser-local adapter (ADR 0028), composing the pure domain.
-      'src/app/backend/local-league-archive-backend.service.ts',
       // The Live browser-local adapter itself (anonymous + `User`), composing the pure domain.
       'src/app/backend/local-live-backend.service.ts',
       // Per-user offline read cache for server responses (ADR 0031). Reads only; purged on logout.
@@ -182,8 +180,6 @@ describe('canonical browser store containment', () => {
       'src/app/backend/archive-cache.service.ts',
       // Public Event catalog — anonymous GET responses.
       'src/app/features/events/event-catalog-cache.service.ts',
-      // Public League Archive catalog — anonymous GET responses.
-      'src/app/features/leagues-archive/league-archive-catalog-cache.service.ts',
       // Public global Player Statistics catalog — anonymous GET responses.
       'src/app/features/players/global-stats-catalog-cache.service.ts',
       // Public per-player statistics — anonymous GET responses.

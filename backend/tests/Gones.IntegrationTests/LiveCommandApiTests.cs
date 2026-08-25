@@ -36,9 +36,9 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
-            database.LeagueArchiveAggregates.Add(Gones.Domain.Leagues.LeagueArchiveAggregate.Create(
+            database.AddLegacyShapedLeague(
                 new Gones.Domain.Leagues.LeagueDocument("target-league", "Target League", "active", []),
-                NodaTime.Instant.FromUtc(2030, 1, 1, 12, 0)));
+                NodaTime.Instant.FromUtc(2030, 1, 1, 12, 0));
             await database.SaveChangesAsync();
         }
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
@@ -301,8 +301,11 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
         Assert.Equal("target-league", finalizedBody.GetProperty("leagueId").GetString());
         var tournamentId = finalizedBody.GetProperty("finalizedTournamentId").GetString()!;
         Assert.False(string.IsNullOrWhiteSpace(tournamentId));
-        Assert.Equal(2, finalizedBody.GetProperty("leagueDocumentVersion").GetInt64());
-        Assert.Equal(StrongETag.Encode(2), finalizedBody.GetProperty("leagueETag").GetString());
+        // The archived half of the response now carries the new Archive Tournament's own version. A
+        // finalize creates that row, so it is 1; it used to be the target League document's second
+        // version, because the Tournament was appended to an existing League.
+        Assert.Equal(1, finalizedBody.GetProperty("leagueDocumentVersion").GetInt64());
+        Assert.Equal(StrongETag.Encode(1), finalizedBody.GetProperty("leagueETag").GetString());
 
         using var replay = await SendJsonAsync(HttpMethod.Post, $"/api/live-tournaments/{id}/finalize", new { }, "Organizer", key: "finalize-live", ifMatch: etag);
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
@@ -310,16 +313,16 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
         Assert.Equal(tournamentId, replayBody.GetProperty("finalizedTournamentId").GetString());
         Assert.Equal(finalizedBody.GetProperty("liveDocumentVersion").GetInt64(), replayBody.GetProperty("liveDocumentVersion").GetInt64());
 
-        // Tombstoned from the active Live view but the Result Tournament lives in the target League.
+        // Tombstoned from the active Live view but the Archive Tournament lives under the target Season.
         Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync($"/api/live-tournaments/{id}")).StatusCode);
         await using (var database = CreateContext())
         {
             var live = await database.LiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == id);
             Assert.NotNull(live.DeletedAt);
             Assert.Equal("completed", live.Stage);
-            var target = await database.LeagueArchiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "target-league");
-            var tournament = target.ReadDocument().Tournaments.Single(item => item.Id == tournamentId);
-            Assert.Equal("target-league", tournament.LeagueId);
+            var stored = await database.ArchiveTournaments.AsNoTracking().SingleAsync(item => item.DocumentId == tournamentId);
+            var tournament = stored.ReadDocument();
+            Assert.Equal("target-league", tournament.SeasonId);
             Assert.Single(tournament.Rounds);
             Assert.Contains(tournament.PlayerArchetypes, item => item.PlayerName == "Alice");
 
@@ -339,7 +342,7 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Live_finalize_defaults_to_placeholder_league_and_registration_finalize_conflicts()
+    public async Task Finalize_without_a_league_creates_a_standalone_archive_tournament()
     {
         var (id, etag) = await CreateLiveAsync("placeholder-live", "Alice", "Bob");
         using var blocked = await SendJsonAsync(HttpMethod.Post, $"/api/live-tournaments/{id}/finalize", new { }, "Organizer", key: "finalize-registration", ifMatch: etag);
@@ -354,10 +357,14 @@ public sealed class LiveCommandApiTests : IAsyncLifetime
         using var finalized = await SendJsonAsync(HttpMethod.Post, $"/api/live-tournaments/{id}/finalize", new { }, "Organizer", key: "finalize-placeholder", ifMatch: validated.Headers.ETag!.Tag);
         Assert.Equal(HttpStatusCode.OK, finalized.StatusCode);
         var body = await Body(finalized);
-        Assert.Equal("placeholder-league", body.GetProperty("leagueId").GetString());
+        // The response field keeps its name and its value semantics (ADR 0022): a Live tournament that
+        // named no League still reports none, and the Tournament it archived stands alone.
+        Assert.Equal(string.Empty, body.GetProperty("leagueId").GetString());
         await using var database = CreateContext();
-        var placeholder = await database.LeagueArchiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "placeholder-league");
-        Assert.Contains(placeholder.ReadDocument().Tournaments, item => item.Id == body.GetProperty("finalizedTournamentId").GetString());
+        var archived = await database.ArchiveTournaments.AsNoTracking()
+            .SingleAsync(item => item.DocumentId == body.GetProperty("finalizedTournamentId").GetString());
+        Assert.Null(archived.SeasonId);
+        Assert.Single(archived.ReadDocument().Rounds);
     }
 
     [Fact]

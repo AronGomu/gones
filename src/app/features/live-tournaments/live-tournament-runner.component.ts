@@ -18,15 +18,16 @@ import { MatSelectModule } from '@angular/material/select';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
-import { isAnyPlaceholderLeagueId, isLocalLeagueId } from '../../data/league-archive-origin';
-import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
+import { isLocalArchiveId } from '../../data/archive-origin';
+import { ArchiveRepository } from '../../data/archive-repository.service';
 import { canManageLive, liveCommandError, liveDeleteOutcome } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
-import { clearLeagueCatalogCache } from '../leagues-archive/league-archive-catalog-cache.service';
 import { activeLivePlayers, autoLiveSwissRoundCount, canStartLiveTournament, calculateLiveStandings, calculateLiveStandingsThroughRound, currentLiveRound, currentRoundComplete, finalizeLiveTournament as finalizeLiveTournamentDocument, liveMatchScoreIssue, liveTournamentFinished, LiveStandingRow, LiveTournamentCheckpointDocument, LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument, unpaidActivePlayers } from '../../domain/live-tournament';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID, RoundEntry, trimPlayerName } from '../../domain/models';
-import { collectKnownPlayerNames, suggestPlayerNames } from '../../domain/player-stats';
-import { logBoundaryError } from '../../shared/app-logger';
+import { RoundEntry, trimPlayerName } from '../../domain/models';
+import type { ArchiveLeagueSeasonSummary } from '../../data/archive-summary';
+import { GlobalStatsCatalogCacheService } from '../players/global-stats-catalog-cache.service';
+import { suggestPlayerNames } from '../../domain/player-stats';
+import { logBoundaryError, logBoundaryInfo } from '../../shared/app-logger';
 import { OnlineStatusService } from '../../shared/online-status.service';
 import { saveJsonFile } from '../../shared/save-json-file';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -254,16 +255,22 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   readonly loading = signal(true);
   readonly error = signal('');
   readonly tournament = signal<LiveTournamentDocument | null>(null);
-  readonly leagues = signal<PersistedLeague[]>([]);
+  readonly leagues = signal<ArchiveLeagueSeasonSummary[]>([]);
   /**
-   * Server leagues only — unassigned is the empty option tied to PLACEHOLDER_LEAGUE_ID on finalize,
-   * and both placeholders are dropped with it. The League list is the union of both stores (ADR
-   * 0028) but these settings are a server document: assigning a `local-` league would be a
-   * cross-authority reference the server rejects with "League was not found.".
+   * Server Seasons only — unassigned is the empty option, which finalizes to a standalone Archive
+   * Tournament. The Season list is the union of both stores (ADR 0028) but these settings are a
+   * server document: assigning a `local-` Season would be a cross-authority reference the server
+   * rejects with "League was not found.".
    */
-  readonly assignableLeagues = computed(() => this.leagues().filter((league) => !isLocalLeagueId(league.id) && !isAnyPlaceholderLeagueId(league.id)));
-  /** Player names already present in saved leagues — source for registration autocomplete. */
-  readonly knownPlayerNames = computed(() => collectKnownPlayerNames(this.leagues()));
+  readonly assignableLeagues = computed(() => this.leagues().filter((season) => !isLocalArchiveId(season.id)));
+  /**
+   * Player names already in the archive — source for registration autocomplete. The whole-document
+   * League catalog that used to feed this is retired with the legacy surface, and the three-tier read
+   * surface serves slim catalogs only (ADR 0042), so the names come from the public global player
+   * statistics catalog instead. That catalog counts completed Tournaments only (ADR 0040), so a name
+   * seen exclusively in an in-progress Tournament no longer suggests.
+   */
+  readonly knownPlayerNames = signal<string[]>([]);
   newPlayerName = '';
   tournamentNameDraft = '';
   readonly registrationExpanded = signal(true);
@@ -278,6 +285,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
   private readonly onlineStatus = inject(OnlineStatusService);
   /** Finalize and delete both remove this tournament from the list this page came from (ADR 0039). */
   private readonly cache = inject(ServerReadCacheService);
+  private readonly globalStats = inject(GlobalStatsCatalogCacheService);
   /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
   readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
   /** In the browser-local store the visitor owns everything they can see, so they have Live authority. */
@@ -302,10 +310,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   /** Map stored placeholder id to empty select value so one unassigned option covers all languages. */
   leagueSelectValue(leagueId: string): string {
-    return !leagueId || leagueId === PLACEHOLDER_LEAGUE_ID ? '' : leagueId;
+    return leagueId || '';
   }
 
-  constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
+  constructor(readonly liveRepo: LiveTournamentRepository, private readonly archiveRepo: ArchiveRepository, private readonly route: ActivatedRoute, private readonly router: Router, private readonly dialog: MatDialog) {
     window.addEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
     void this.load();
   }
@@ -317,13 +325,25 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
     this.queuedIntents.clear();
   }
 
+  /** Best-effort: an unreachable catalog only costs the autocomplete its suggestions. */
+  private async loadKnownPlayerNames(): Promise<void> {
+    if (this.localMode) return;
+    try {
+      const catalog = await this.globalStats.load();
+      this.knownPlayerNames.set(catalog.items.map((row) => row.playerName).filter(Boolean).sort((left, right) => left.localeCompare(right)));
+    } catch (error) {
+      logBoundaryInfo('live-tournament.knownPlayerNames.unavailable', { reason: error instanceof Error ? error.message : 'unknown' });
+    }
+  }
+
   async load(): Promise<void> {
     this.loading.set(true);
     let editTitleAfterLoad = false;
     try {
-      // Local mode finalizes to a JSON download, never into a League, and the anonymous visitor is
-      // not entitled to the server League list either — so it is not requested at all.
-      this.leagues.set(this.localMode ? [] : await this.leagueRepo.listLeagues());
+      // Local mode finalizes to a JSON download, never into a Season, and the anonymous visitor is
+      // not entitled to the server Season list either — so it is not requested at all.
+      this.leagues.set(this.localMode ? [] : (await this.archiveRepo.listLeagueSeasons()).items);
+      void this.loadKnownPlayerNames();
       const id = this.route.snapshot.paramMap.get('liveTournamentId') ?? 'new';
       editTitleAfterLoad = id === 'new' || this.shouldEditTitleFromNavigationState();
       if (id === 'new') {
@@ -658,9 +678,9 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
         await this.load();
         return;
       }
-      // The finalize wrote an Archive Tournament into its League, so the public catalog is stale too.
-      clearLeagueCatalogCache();
-      await this.router.navigate(['/leagues-archive', result.leagueId, 'tournaments-archive', result.finalizedTournamentId]);
+      // The finalize wrote an Archive Tournament into its Season, so the public catalog is stale too.
+      await this.archiveRepo.invalidateArchiveCaches();
+      await this.router.navigate(['/archive', 'tournaments', result.finalizedTournamentId]);
     } catch (error) {
       logBoundaryError('live-tournament.finalize', error, { liveTournamentId: live.id, leagueId: live.leagueId });
       if (liveCommandError(error) === 'stale') {
@@ -1037,7 +1057,7 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
 interface LiveTournamentAdvancedSettingsDialogData {
   live: LiveTournamentDocument;
-  leagues: PersistedLeague[];
+  leagues: ArchiveLeagueSeasonSummary[];
   canManage: boolean;
 }
 

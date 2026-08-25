@@ -18,13 +18,13 @@ import { archiveCommandError, canManageArchiveRecord } from '../../data/archive-
 import { isLocalArchiveId } from '../../data/archive-origin';
 import { isArchiveTournamentRowLocked } from '../../data/archive-summary';
 import {
-  ArchiveTournamentDocument, PersistedArchiveTournament, toArchiveTournamentDocument, toTournamentDocument
+  ArchiveTournamentDocument, PersistedArchiveTournament
 } from '../../domain/archive-models';
 import {
   ARCHIVE_STANDALONE_SEASON_VALUE, archiveStagedDeletionSummary, archiveStagedEditBatchIsEmpty, buildArchiveStagedEditBatch
 } from '../../domain/archive-staged-edit';
 import {
-  LeagueStatus, RoundDocument, RoundEntry, TournamentDocument, createByeRoundEntry, createMatchRoundEntry, createRound,
+  LeagueStatus, RoundDocument, RoundEntry, createByeRoundEntry, createMatchRoundEntry, createRound,
   formatPlayerWithArchetype
 } from '../../domain/models';
 import { calculateTournamentResult } from '../../domain/results';
@@ -131,15 +131,6 @@ export const ARCHIVE_TOURNAMENT_DETAIL_SOURCE = new InjectionToken<ArchiveTourna
   'ARCHIVE_TOURNAMENT_DETAIL_SOURCE',
   { providedIn: 'root', factory: archiveTournamentDetailSourceFactory }
 );
-
-/**
- * Adapts the three-tier document to the shape the two result calculators take. The legacy `leagueId`
- * slot is filled with `seasonId ?? ''` and is never read: `calculateTournamentResult` and
- * `buildTournamentSummary` reach only `rounds` and `playerArchetypes`.
- */
-export function toResultInput(detail: ArchiveTournamentDetail): TournamentDocument {
-  return toTournamentDocument(detail, detail.seasonId ?? '');
-}
 
 /** One round, numbered for display. The document stores order, not numbers. */
 interface RoundView {
@@ -452,15 +443,15 @@ export class TournamentDetailComponent {
   readonly toggleLabel = computed(() => this.i18n.t(this.current()?.status === 'completed' ? 'archive.reopen' : 'archive.markComplete'));
   readonly warnings = computed<readonly TournamentWarning[]>(() => {
     const tournament = this.current();
-    return tournament ? getTournamentWarnings(toTournamentDocument(tournament)) : [];
+    return tournament ? getTournamentWarnings(tournament) : [];
   });
   readonly warningMessages = computed<readonly string[]>(() => {
     const tournament = this.current();
-    return tournament ? this.warnings().map((warning) => tournamentWarningMessage(warning, toTournamentDocument(tournament), this.i18n)) : [];
+    return tournament ? this.warnings().map((warning) => tournamentWarningMessage(warning, tournament, this.i18n)) : [];
   });
   readonly completionIssues = computed<readonly string[]>(() => {
     const tournament = this.current();
-    return tournament ? tournamentCompletionIssues(toTournamentDocument(tournament), this.i18n) : [];
+    return tournament ? tournamentCompletionIssues(tournament, this.i18n) : [];
   });
 
   readonly result: Signal<ReturnType<typeof calculateTournamentResult> | { rows: []; incomplete: true; provisional: false }>;
@@ -470,7 +461,7 @@ export class TournamentDetailComponent {
   constructor() {
     this.result = computed(() => {
       const detail = this.current();
-      return detail ? calculateTournamentResult(toTournamentDocument(detail, detail.seasonId ?? '')) : { rows: [], incomplete: true, provisional: false };
+      return detail ? calculateTournamentResult(detail) : { rows: [], incomplete: true, provisional: false };
     });
     this.locked = computed(() => {
       const detail = this.tournament();
@@ -593,7 +584,7 @@ export class TournamentDetailComponent {
     const draft = this.draft();
     if (!draft) return;
     const imported = importRoundEntries(text);
-    const merged = mergeImportedRoundArchetypes(toTournamentDocument(draft), imported.entries);
+    const merged = mergeImportedRoundArchetypes(draft, imported.entries);
     this.importErrors.set(merged.conflicts.map((conflict) => this.i18n.t('tournament.importConflictRow', {
       player: conflict.playerName,
       imported: conflict.importedArchetype || this.i18n.t('tournament.noArchetype'),
@@ -614,15 +605,14 @@ export class TournamentDetailComponent {
   setArchetype(playerName: string, archetype: string): void {
     if (!this.canManage()) return;
     this.importErrors.set([]);
-    this.updateDraft((tournament) => toArchiveTournamentDocument(
-      setTournamentPlayerArchetype(toTournamentDocument(tournament), playerName, archetype), tournament.seasonId));
+    this.updateDraft((tournament) => setTournamentPlayerArchetype(tournament, playerName, archetype));
   }
 
   syncPlayerArchetypesFromRoundEntries(): void {
     if (!this.canManage()) return;
     const draft = this.draft();
     if (!draft) return;
-    const rows = tournamentPlayerArchetypeRows(toTournamentDocument(draft));
+    const rows = tournamentPlayerArchetypeRows(draft);
     const sameRows = rows.length === (draft.playerArchetypes ?? []).length
       && rows.every((row, index) => row.playerName === draft.playerArchetypes[index]?.playerName && row.archetype === draft.playerArchetypes[index]?.archetype);
     if (sameRows) {
@@ -661,11 +651,11 @@ export class TournamentDetailComponent {
   }
 
   playerArchetypeRows(tournament: ArchiveTournamentDocument): { playerName: string; archetype: string }[] {
-    return tournamentPlayerArchetypeRows(toTournamentDocument(tournament));
+    return tournamentPlayerArchetypeRows(tournament);
   }
 
   archetypeFor(tournament: ArchiveTournamentDocument, playerName: string): string {
-    return archetypeForPlayer(toTournamentDocument(tournament), playerName);
+    return archetypeForPlayer(tournament, playerName);
   }
 
   entryInvalid(entry: RoundEntry): boolean { return !validateRoundEntry(entry).valid; }
@@ -702,7 +692,7 @@ export class TournamentDetailComponent {
       return;
     }
 
-    const issues = tournamentCompletionIssues(toTournamentDocument(draft), this.i18n, { includeMissingRound: false });
+    const issues = tournamentCompletionIssues(draft, this.i18n, { includeMissingRound: false });
     if (issues.length) {
       this.error.set(this.i18n.t('archiveEdit.invalidDraft', { count: issues.length }));
       return;
@@ -878,7 +868,7 @@ export class TournamentDetailComponent {
 
 // Copied, not imported: the file these live in is deleted when the legacy archive surface is
 // retired, so a reference into it would break at deletion time.
-function tournamentCompletionIssues(tournament: TournamentDocument, i18n: I18nService, { includeMissingRound = true }: { includeMissingRound?: boolean } = {}): string[] {
+function tournamentCompletionIssues(tournament: ArchiveTournamentDocument, i18n: I18nService, { includeMissingRound = true }: { includeMissingRound?: boolean } = {}): string[] {
   const issues: string[] = [];
   if (includeMissingRound && !tournament.rounds?.length) issues.push(i18n.t('tournament.needOneRound'));
   tournament.rounds?.forEach((round, roundIndex) => {
@@ -915,7 +905,7 @@ function validationMessage(code: string, i18n: I18nService): string {
   return keys[code] ? i18n.t(keys[code]) : i18n.t('validation.fixCode', { code });
 }
 
-function tournamentWarningMessage(warning: TournamentWarning, tournament: TournamentDocument, i18n: I18nService): string {
+function tournamentWarningMessage(warning: TournamentWarning, tournament: ArchiveTournamentDocument, i18n: I18nService): string {
   const roundNumber = warning.roundId ? tournament.rounds.findIndex((round) => round.id === warning.roundId) + 1 : 0;
   const player = warning.playerName ?? i18n.t('tournament.aPlayer');
   if (warning.code === 'missingBye') return i18n.t('tournament.warnMissingBye', { round: roundNumber });

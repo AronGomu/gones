@@ -20,20 +20,24 @@ describe('Power User mutation perimeter', () => {
 
     expect(shell).toMatch(/openImportPicker\(\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
     expect(shell).toMatch(/async importLeague\([^)]*\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
-    expect(shell).toMatch(/async deleteLeague\([^)]*\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
-    expect(shell).toMatch(/async deleteTournament\([^)]*\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
+    // T19 retired the shell's two destructive handlers with the legacy pages: the three-tier archive
+    // exposes no delete, so the gates that used to guard them have nothing left to guard.
+    expect(shell).not.toContain('async deleteLeague(');
+    expect(shell).not.toContain('async deleteTournament(');
   });
 
   it('keeps Archive reads and exports outside Power gates', () => {
-    const repository = read('data/league-archive-repository.service.ts');
+    const repository = read('data/archive-repository.service.ts');
     const shell = read('app.component.ts');
 
-    expect(repository.match(/power\.requireEnabled\(\)/g)).toHaveLength(1);
-    expect(repository).toMatch(/private async freshMutation[\s\S]*?this\.power\.requireEnabled\(\)/);
-    expect(repository).not.toMatch(/async listLeagues\(\)[\s\S]{0,120}requireEnabled/);
-    expect(repository).not.toMatch(/async getLeague\([^)]*\)[\s\S]{0,120}requireEnabled/);
+    // Both writes carry the gate; every catalog read is ungated so an anonymous visitor can browse.
+    expect(repository.match(/power\.requireEnabled\(\)/g)).toHaveLength(2);
+    expect(repository).toMatch(/saveTournamentEdits[\s\S]*?this\.power\.requireEnabled\(\)/);
+    expect(repository).toMatch(/restoreBundle[\s\S]*?this\.power\.requireEnabled\(\)/);
+    expect(repository).not.toMatch(/listLeagues\([^)]*\)[\s\S]{0,120}requireEnabled/);
+    expect(repository).not.toMatch(/async getTournament\([^)]*\)[\s\S]{0,120}requireEnabled/);
+    expect(repository).not.toMatch(/async exportBundle\(\)[\s\S]{0,120}requireEnabled/);
     expect(shell).not.toMatch(/downloadFullExport\(\)[\s\S]{0,120}power\.enabled/);
-    expect(shell).not.toMatch(/downloadLeagueExport\([^)]*\)[\s\S]{0,120}power\.enabled/);
   });
 
   it('keeps Calendar registration handlers independent from Power mode', () => {

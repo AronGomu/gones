@@ -46,8 +46,8 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
             });
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(ActiveLeague(), Seeded));
-            database.LeagueArchiveAggregates.Add(LeagueArchiveAggregate.Create(CompletedLeague(), Seeded));
+            database.AddLegacyShapedLeague(ActiveLeague(), Seeded);
+            database.AddLegacyShapedLeague(CompletedLeague(), Seeded);
             await database.SaveChangesAsync();
         }
 
@@ -164,7 +164,7 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await database.Database.ExecuteSqlRawAsync(
-                "UPDATE league_archive_aggregates SET deleted_at = now() WHERE document_id = 'statistics-active-league'");
+                "UPDATE archive_tournaments SET deleted_at = now() WHERE season_id = 'statistics-active-league'");
         }
         await RebuildAsync();
 
@@ -195,7 +195,7 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
 
         using var response = await SendJsonAsync(
             HttpMethod.Post,
-            "/api/leagues-archive/statistics-active-league/tournaments-archive/statistics-a1/edit-batch",
+            "/api/archive/tournaments/statistics-a1/edit-batch",
             command,
             ifMatch: StrongETag.Encode(1));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -217,14 +217,8 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
         await using (var database = CreateContext())
         {
             await using var transaction = await database.Database.BeginTransactionAsync();
-            var aggregate = await database.LeagueArchiveAggregates.SingleAsync(item => item.DocumentId == "statistics-completed-league");
-            var document = aggregate.ReadDocument();
-            aggregate.Apply(
-                document with
-                {
-                    Tournaments = [document.Tournaments[0] with { Status = "completed" }, document.Tournaments[1]]
-                },
-                Seeded);
+            var row = await database.ArchiveTournaments.SingleAsync(item => item.DocumentId == "statistics-b1");
+            row.Apply(row.ReadDocument() with { Status = "completed" }, Seeded);
             await new PlayerStatisticsRebuildService(NullLogger<PlayerStatisticsRebuildService>.Instance)
                 .RebuildAsync(database, CancellationToken.None);
             // An audit row pointing at an account that does not exist violates the actor foreign key, so
@@ -244,8 +238,8 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
 
         Assert.Equal(before, (await RowsAsync()).Select(row => row.ToGlobalPlayerStatistics()));
         await using var reread = CreateContext();
-        var stored = await reread.LeagueArchiveAggregates.AsNoTracking().SingleAsync(item => item.DocumentId == "statistics-completed-league");
-        Assert.Equal("active", stored.ReadDocument().Tournaments[0].Status);
+        var stored = await reread.ArchiveTournaments.AsNoTracking().SingleAsync(item => item.DocumentId == "statistics-b1");
+        Assert.Equal("active", stored.ReadDocument().Status);
     }
 
     [Fact]
@@ -253,33 +247,32 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
     {
         var restore = new
         {
-            kind = "league",
-            gonesDataVersion = LeagueNormalizer.GonesDataVersion,
-            league = new
+            kind = "archive",
+            version = 5,
+            leagues = new[] { new { id = "restored-league", name = "Restored League", createdAt = "2030-03-03" } },
+            leagueSeasons = new[]
             {
-                id = "restored-league",
-                name = "Restored League",
-                status = "active",
-                tournaments = new[]
+                new { id = "restored-season", name = "Restored Season", leagueId = "restored-league", status = "active" }
+            },
+            tournaments = new[]
+            {
+                new
                 {
-                    new
+                    id = "restored-tournament",
+                    name = "Restored Day",
+                    seasonId = "restored-season",
+                    tournamentDate = "2030-03-03",
+                    status = "completed",
+                    rounds = new[]
                     {
-                        id = "restored-tournament",
-                        leagueId = "restored-league",
-                        name = "Restored Day",
-                        tournamentDate = "2030-03-03",
-                        status = "completed",
-                        rounds = new[]
-                        {
-                            new { id = "restored-round", entries = new[] { MatchJson("restored-match", "Zed", "Yuri", 2, 1) } }
-                        },
-                        playerArchetypes = Array.Empty<object>()
-                    }
+                        new { id = "restored-round", entries = new[] { MatchJson("restored-match", "Zed", "Yuri", 2, 1) } }
+                    },
+                    playerArchetypes = Array.Empty<object>()
                 }
             }
         };
 
-        using var response = await SendJsonAsync(HttpMethod.Post, "/api/leagues-archive/restore", restore, key: "restore-statistics");
+        using var response = await SendJsonAsync(HttpMethod.Post, "/api/archive/restore", restore, key: "restore-statistics");
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
         var rows = await RowsAsync();
@@ -294,7 +287,7 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
 
         using var response = await SendJsonAsync(
             HttpMethod.Delete,
-            "/api/leagues-archive/statistics-active-league",
+            "/api/archive/tournaments/statistics-a1",
             body: null,
             ifMatch: StrongETag.Encode(1));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -320,7 +313,7 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
         };
         using var response = await SendJsonAsync(
             HttpMethod.Post,
-            "/api/leagues-archive/statistics-active-league/tournaments-archive/statistics-a2/edit-batch",
+            "/api/archive/tournaments/statistics-a2/edit-batch",
             command,
             ifMatch: StrongETag.Encode(1));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -343,7 +336,9 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
     private async Task<IReadOnlyList<PlayerStatisticsRow>> RowsAsync()
     {
         await using var database = CreateContext();
-        var rows = await database.PlayerStatistics.AsNoTracking().ToListAsync();
+        // One row per player per scope since T8; these suites assert the global ranking, which is the
+        // scope the whole-archive numbers live in.
+        var rows = await database.PlayerStatistics.AsNoTracking().Where(row => row.ScopeKind == PlayerStatisticsScope.Global).ToListAsync();
         // Ordered in memory, ordinally: that is the order the domain emits, and a database collation
         // would sort 'alice' and 'Alice' the other way round.
         return rows.OrderBy(row => row.PlayerName, StringComparer.Ordinal).ToList();
@@ -353,8 +348,17 @@ public sealed class PlayerStatisticsRebuildTests : IAsyncLifetime
     private async Task<IReadOnlyList<GlobalPlayerStatistics>> ExpectedAsync()
     {
         await using var database = CreateContext();
-        var aggregates = await database.LeagueArchiveAggregates.AsNoTracking().Where(item => item.DeletedAt == null).ToListAsync();
-        var data = new GonesData(LeagueNormalizer.GonesDataVersion, aggregates.Select(item => item.ReadDocument()).ToList(), []);
+        var tournaments = await database.ArchiveTournaments.AsNoTracking()
+            .Where(item => item.DeletedAt == null)
+            .OrderBy(item => item.DocumentId)
+            .ToListAsync();
+        // One carrier League, because the domain walks data.Leagues[].Tournaments[]. ADR 0040 scopes the
+        // global statistics on the Tournament, so the container around them never reaches the maths.
+        var documents = tournaments
+            .Select(item => item.ReadDocument())
+            .Select(document => new TournamentDocument(document.Id, "global", document.Name, document.TournamentDate, document.Status, document.Rounds, document.PlayerArchetypes))
+            .ToList();
+        var data = new GonesData(LeagueNormalizer.GonesDataVersion, [new LeagueDocument("global", "global", "completed", documents)], []);
         return LeagueRules.CalculateGlobalPlayerStatistics(data);
     }
 

@@ -10,8 +10,6 @@ import {
   normalizeArchiveTournament,
   normalizeLeagueSeason,
   normalizeSeasonId,
-  toArchiveTournamentDocument,
-  toTournamentDocument,
   SUPPORTED_ARCHIVE_IMPORT_VERSIONS
 } from '../domain/archive-models';
 import type {
@@ -49,6 +47,21 @@ export const LOCAL_TOURNAMENT_STORE = 'tournaments';
 
 const EPOCH_ISO = '1970-01-01T00:00:00.000Z';
 const STABLE_ROUND_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Deletes the retired `gones-leagues` database (ADR 0028's first browser-local store) once per page
+ * load. Gones is unreleased, so this exists only so a developer's browser does not keep a dead store
+ * forever. Best-effort and non-blocking: a browser that blocks the delete (another tab still has the
+ * database open) is left alone and retried on the next load.
+ */
+export function purgeRetiredLeagueDatabase(): void {
+  if (typeof indexedDB === 'undefined') return;
+  try {
+    indexedDB.deleteDatabase('gones-leagues');
+  } catch {
+    /* a blocked delete is retried next load */
+  }
+}
 
 /**
  * Stale-write rejection with the shape `archive-command-ux.ts` classifies as `stale`: it keys on
@@ -364,7 +377,7 @@ export class LocalArchiveBackend implements ArchiveBackendPort {
 
   renameArchiveTournamentPlayer(id: string, expectedVersion: number, fromName: string, toName: string): Promise<PersistedArchiveTournament> {
     return this.mutateTournament(id, expectedVersion, (tournament) =>
-      toArchiveTournamentDocument(renamePlayerInTournament(toTournamentDocument(tournament), fromName, toName), tournament.seasonId));
+      renamePlayerInTournament(tournament, fromName, toName));
   }
 
   applyArchiveTournamentEditBatch(id: string, expectedVersion: number, batch: ArchiveTournamentEditBatch): Promise<PersistedArchiveTournament> {
@@ -560,7 +573,7 @@ function byTournamentDate(left: PersistedArchiveTournament, right: PersistedArch
 }
 
 function withArchetype(tournament: ArchiveTournamentDocument, playerName: string, archetype: string): ArchiveTournamentDocument {
-  return toArchiveTournamentDocument(setTournamentPlayerArchetype(toTournamentDocument(tournament), playerName, archetype), tournament.seasonId);
+  return setTournamentPlayerArchetype(tournament, playerName, archetype);
 }
 
 /**

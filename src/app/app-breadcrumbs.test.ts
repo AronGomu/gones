@@ -17,7 +17,7 @@ import { buildBreadcrumbs, Translator } from './app-breadcrumbs';
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
-import { LeagueArchiveRepository } from './data/league-archive-repository.service';
+import { ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { I18nService } from './i18n/i18n.service';
 import { translate } from './i18n/messages';
@@ -52,17 +52,11 @@ describe('buildBreadcrumbs', () => {
     expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Paramètres']);
   });
 
-  it('labels the archive list breadcrumb "Archives des ligues"', async () => {
-    const crumbs = await buildBreadcrumbs('/leagues-archive');
-    expect(crumbs.map((item) => item.label)).toEqual(['Menu', 'Archives des ligues']);
-  });
-
-  it('links every archive crumb into the renamed segments', async () => {
-    const crumbs = await buildBreadcrumbs('/leagues-archive/abc/tournaments-archive/def/result');
-    expect(crumbs[1].label).toBe('Archives des ligues');
-    expect(crumbs[1].link).toEqual(['/leagues-archive']);
-    expect(crumbs[2].link).toEqual(['/leagues-archive', 'abc']);
-    expect(crumbs[3].link).toEqual(['/leagues-archive', 'abc', 'tournaments-archive', 'def']);
+  it('reads every retired archive path as Introuvable, with no crumb of its own', async () => {
+    for (const path of ['/leagues', '/leagues/abc', '/leagues-archive', '/leagues-archive/abc', '/leagues-archive/abc/tournaments-archive/def/result']) {
+      const crumbs = await buildBreadcrumbs(path);
+      expect(crumbs.map((item) => item.label), path).toEqual(['Menu', 'Introuvable']);
+    }
   });
 
   it('no longer reads the retired /leagues segment as the archive', async () => {
@@ -214,10 +208,10 @@ describe('event breadcrumbs', () => {
  * `path==='/leagues'` branch slipped straight through. Both were confirmed in T27 before the
  * rewrite.
  *
- * The old comment also claimed `cypress/e2e/league-server.cy.js` covered this end to end. It does
- * not: `league-server.cy.js:199` asserts the button *exists* on `/leagues-archive` and never asserts
- * its absence anywhere else, so nothing there fails if the button leaks onto other routes. The
- * negative half of the claim lives here and only here.
+ * The old comment also claimed a Cypress spec covered this end to end. It never did: the spec that
+ * made the claim only asserted the button *exists* on the archive list page and never asserted its
+ * absence anywhere else, so nothing there failed if the button leaked onto other routes. That spec
+ * was retired with the legacy archive surface; the negative half lives here and only here.
  */
 describe('header import visibility', () => {
   async function showHeaderImportAt(url: string): Promise<boolean> {
@@ -225,7 +219,7 @@ describe('header import visibility', () => {
       { provide: Router, useValue: { url: '/', events: new Subject<never>(), navigate: vi.fn(async () => true) } },
       { provide: AuthService, useValue: { enabled: false, profile: signal(null) } },
       { provide: LastVisitedUrlService, useValue: { record: vi.fn() } },
-      { provide: LeagueArchiveRepository, useValue: { getLeague: vi.fn(async () => null) } },
+      { provide: ArchiveRepository, useValue: { getTournament: vi.fn(async () => null) } },
       { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
       { provide: MatDialog, useValue: { open: vi.fn() } },
       { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
@@ -239,12 +233,12 @@ describe('header import visibility', () => {
   }
 
   it('shows the header import on the archive list route', async () => {
-    expect(await showHeaderImportAt('/leagues-archive')).toBe(true);
-    expect(await showHeaderImportAt('/leagues-archive?imported=1')).toBe(true);
+    expect(await showHeaderImportAt('/archive/league-seasons')).toBe(true);
+    expect(await showHeaderImportAt('/archive/league-seasons?imported=1')).toBe(true);
   });
 
-  it('hides the header import on every other route, the retired /leagues included', async () => {
-    for (const url of ['/', '/leagues', '/leagues/abc', '/leagues-archive/abc', '/leagues-archive/abc/tournaments-archive/def', '/settings', '/calendar']) {
+  it('hides the header import on every other route, every retired one included', async () => {
+    for (const url of ['/', '/leagues', '/leagues/abc', '/leagues-archive', '/leagues-archive/abc', '/archive/tournaments', '/archive/league-seasons/abc', '/settings', '/calendar']) {
       expect(await showHeaderImportAt(url), url).toBe(false);
     }
   });
@@ -269,7 +263,7 @@ describe('breadcrumb-root detection', () => {
       '/registrations',
       '/global-stats',
       '/players/x',
-      '/leagues-archive',
+      '/archive/league-seasons',
       '/live-tournaments',
       '/admin/users',
       '/admin/organizations',

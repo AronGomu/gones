@@ -2,10 +2,23 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Gones.Domain.Archive;
 using Gones.Domain.Leagues;
 
 namespace Gones.UnitTests;
 
+/// <summary>
+/// The C# half of the cross-stack domain parity corpus. `src/app/domain/archive-parity-fixtures.test.ts`
+/// emits language-neutral fixtures from the three-tier TypeScript shapes; this replays every one of
+/// them through the C# domain, so a rule that drifts on one side fails here instead of quietly
+/// disagreeing in production.
+///
+/// The corpus moved from `fixtures/league-domain/v1` to `fixtures/archive-domain/v5/parity` with the
+/// archive rebuild (T19): the flat `LeagueDocument`/`GonesData` inputs it used are retired on the
+/// TypeScript side. The standings engine here still speaks those records, so each archive-shaped
+/// input is bridged through <see cref="ArchiveDocumentAdapter"/> — the same one conversion the API
+/// uses, never a second implementation.
+/// </summary>
 public sealed class LeagueParityTests
 {
     private static readonly string FixtureDirectory = FindFixtureDirectory();
@@ -19,17 +32,12 @@ public sealed class LeagueParityTests
 
         Assert.Equal(1, manifest.RootElement.GetProperty("fixtureVersion").GetInt32());
         Assert.Equal("TypeScript", manifest.RootElement.GetProperty("source").GetProperty("language").GetString());
+        Assert.Equal(5, manifest.RootElement.GetProperty("source").GetProperty("sourceDataVersion").GetInt32());
         Assert.Equal(
             manifest.RootElement.GetProperty("paritySha256").GetString(),
             Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(parityText))));
 
         var processed = new Dictionary<string, int>(StringComparer.Ordinal);
-        Process("normalization", testCase =>
-        {
-            var next = 1;
-            var actual = LeagueNormalizer.Normalize(testCase.GetProperty("input"), () => $"normalized-{next++}");
-            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(actual));
-        });
         Process("csvImports", testCase =>
         {
             var input = testCase.GetProperty("input");
@@ -45,49 +53,41 @@ public sealed class LeagueParityTests
         });
         Process("warnings", testCase =>
         {
-            var input = LeagueJson.Deserialize<TournamentDocument>(testCase.GetProperty("input"));
+            var input = LegacyTournament(testCase.GetProperty("input"));
             AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.GetWarnings(input)));
         });
         Process("tournamentResults", testCase =>
         {
-            var input = LeagueJson.Deserialize<TournamentDocument>(testCase.GetProperty("input"));
+            var input = LegacyTournament(testCase.GetProperty("input"));
             AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.CalculateTournamentResult(input)));
         });
-        Process("leagueResults", testCase =>
+        Process("leagueSeasonResults", testCase =>
         {
-            var input = LeagueJson.Deserialize<LeagueDocument>(testCase.GetProperty("input"));
-            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(input)));
+            // A Season's standings are one pass over its Tournaments, which is what the carrier League is.
+            var league = CarrierLeague(testCase.GetProperty("input"));
+            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(league)));
         });
         Process("playerStatistics", testCase =>
         {
             var input = testCase.GetProperty("input");
-            var data = LeagueJson.Deserialize<GonesData>(input.GetProperty("data"));
-            var filters = LeagueJson.Deserialize<PlayerStatisticsFilters>(input.GetProperty("filters"));
+            var data = CarrierData(input.GetProperty("tournaments"));
+            var filters = ParityFilters(input.GetProperty("filters"));
             var actual = LeagueRules.CalculatePlayerStatistics(data, input.GetProperty("playerName").GetString()!, filters);
-            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(actual));
+            AssertJson(testCase.GetProperty("expected"), CountsOnly(LeagueJson.ToNode(actual)));
         });
         Process("globalPlayerStatistics", testCase =>
         {
-            var data = LeagueJson.Deserialize<GonesData>(testCase.GetProperty("input"));
+            var data = CarrierData(testCase.GetProperty("input"));
             AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(LeagueRules.CalculateGlobalPlayerStatistics(data)));
         });
         Process("renames", testCase =>
         {
             var input = testCase.GetProperty("input");
-            var league = LeagueJson.Deserialize<LeagueDocument>(input.GetProperty("league"));
-            var actual = LeagueRules.RenamePlayer(league, input.GetProperty("fromName").GetString()!, input.GetProperty("toName").GetString()!);
-            AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(actual));
-        });
-        Process("placeholders", testCase =>
-        {
-            var input = testCase.GetProperty("input");
-            var names = new[] { "  Été League  ", "ÉTÉ LEAGUE", " Tournois non assignés " };
-            var labels = new[] { "Unassigned Tournaments", " Tournois non assignés ", "Other" };
-            var actual = new PlaceholderFixtureOutput(
-                LeagueNormalizer.Normalize(input, () => "unused"),
-                LeagueNormalizer.CreatePlaceholderLeague(),
-                names.Select(LeagueNormalizer.NormalizeLeagueNameKey).ToArray(),
-                labels.Select(LeagueNormalizer.IsUnassignedLeagueName).ToArray());
+            var tournament = ArchiveTournament(input.GetProperty("tournament"));
+            var actual = ArchiveTournamentCommands.RenamePlayer(
+                tournament,
+                input.GetProperty("fromName").GetString()!,
+                input.GetProperty("toName").GetString()!);
             AssertJson(testCase.GetProperty("expected"), LeagueJson.ToNode(actual));
         });
 
@@ -95,7 +95,7 @@ public sealed class LeagueParityTests
         Assert.Equal(expectedCounts.EnumerateObject().Count(), processed.Count);
         foreach (var count in expectedCounts.EnumerateObject())
         {
-            Assert.True(processed.TryGetValue(count.Name, out var actualCount));
+            Assert.True(processed.TryGetValue(count.Name, out var actualCount), $"Fixture class '{count.Name}' was not replayed.");
             Assert.Equal(count.Value.GetInt32(), actualCount);
         }
 
@@ -132,7 +132,7 @@ public sealed class LeagueParityTests
     }
 
     [Fact]
-    public void Serializer_round_trips_generated_leagues_without_json_drift()
+    public void Serializer_round_trips_generated_archive_tournaments_without_json_drift()
     {
         var random = new Random(2902);
         for (var index = 0; index < 100; index++)
@@ -143,16 +143,57 @@ public sealed class LeagueParityTests
                 1 => new ByeRoundEntry($"b-{index}", (index + 1).ToString(), $"Player {index}", "Earth"),
                 _ => new InvalidRoundEntry($"i-{index}", "raw,row", (index + 1).ToString(), $"Player {index}", "?", $"Opponent {index}", "Raw A", "Raw B")
             };
-            var league = new LeagueDocument(
-                $"league-{index}",
-                $"League {index}",
+            // Every third Tournament stands alone, so the null Season crosses the serializer too.
+            var tournament = new ArchiveTournamentDocument(
+                $"tournament-{index}",
+                $"Tournament {index}",
+                index % 3 == 0 ? null : $"season-{index}",
+                "2026-01-01",
                 index % 2 == 0 ? "active" : "completed",
-                [new TournamentDocument($"tournament-{index}", $"league-{index}", $"Tournament {index}", "2026-01-01", index % 2 == 0 ? "active" : "completed", [new RoundDocument($"round-{index}", [entry])], [new PlayerArchetypeDocument($"Player {index}", "Red Aggro")])]);
+                [new RoundDocument($"round-{index}", [entry])],
+                [new PlayerArchetypeDocument($"Player {index}", "Red Aggro")]);
 
-            var json = LeagueJson.Serialize(league);
-            var restored = LeagueJson.Deserialize<LeagueDocument>(json);
+            var json = LeagueJson.Serialize(tournament);
+            var restored = LeagueJson.Deserialize<ArchiveTournamentDocument>(json);
             Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), LeagueJson.ToNode(restored)));
         }
+    }
+
+    private static ArchiveTournamentDocument ArchiveTournament(JsonElement element) =>
+        LeagueJson.Deserialize<ArchiveTournamentDocument>(element);
+
+    private static TournamentDocument LegacyTournament(JsonElement element) =>
+        ArchiveDocumentAdapter.ToLegacyTournament(ArchiveTournament(element), string.Empty);
+
+    /// <summary>
+    /// The carrier the standings engine still takes. `CalculateLeagueResult` reads only the Tournament
+    /// list, so the carrier's own id, name and status never reach an assertion.
+    /// </summary>
+    private static LeagueDocument CarrierLeague(JsonElement tournaments) =>
+        new("parity-season", "Parity Season", "active", [.. tournaments.EnumerateArray().Select(LegacyTournament)]);
+
+    private static GonesData CarrierData(JsonElement tournaments) =>
+        new(5, [CarrierLeague(tournaments)], []);
+
+    /// <summary>
+    /// The TypeScript filter names the Season; `PlayerStatisticsFilters.LeagueId` is the same slot on
+    /// this side, because the carrier League *is* the Season.
+    /// </summary>
+    private static PlayerStatisticsFilters ParityFilters(JsonElement filters) =>
+        new(
+            filters.TryGetProperty("seasonId", out var seasonId) ? "parity-season" : null,
+            filters.TryGetProperty("tournamentId", out var tournamentId) ? tournamentId.GetString() : null,
+            filters.TryGetProperty("opponentName", out var opponentName) ? opponentName.GetString() : null);
+
+    /// <summary>
+    /// Drops `matches`: a match carries its context object, and the two stacks disagree on that shape
+    /// by design — this record still names a carrier League, TypeScript names the Archive Tournament.
+    /// The numbers the rule exists to produce are what this class asserts.
+    /// </summary>
+    private static JsonNode? CountsOnly(JsonNode? statistics)
+    {
+        if (statistics is JsonObject json) json.Remove("matches");
+        return statistics;
     }
 
     private static TournamentDocument Tournament(string leftName, int leftScore, string rightName, int rightScore) =>
@@ -169,15 +210,9 @@ public sealed class LeagueParityTests
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var candidate = Path.Combine(directory.FullName, "fixtures", "league-domain", "v1");
+            var candidate = Path.Combine(directory.FullName, "fixtures", "archive-domain", "v5", "parity");
             if (Directory.Exists(candidate)) return candidate;
         }
-        throw new DirectoryNotFoundException("fixtures/league-domain/v1");
+        throw new DirectoryNotFoundException("fixtures/archive-domain/v5/parity");
     }
-
-    private sealed record PlaceholderFixtureOutput(
-        LeagueDocument League,
-        LeagueDocument Created,
-        string[] NameKeys,
-        bool[] Unassigned);
 }

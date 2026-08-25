@@ -142,7 +142,7 @@ describe('the stress environment generator', () => {
     const second = writeInto(generate(1, REDUCED_SCALE));
 
     expect(readAll(first)).toEqual(readAll(second));
-    expect(Object.keys(readAll(first))).toContain('leagues.json');
+    expect(Object.keys(readAll(first))).toContain('archive-tournaments.json');
   });
 
   it('differs by seed', () => {
@@ -439,14 +439,16 @@ describe('the stress environment generator', () => {
     }
   });
 
-  it('keeps the legacy League fixtures to Live references only', () => {
+  it('points every running tournament at a LeagueSeason of this archive, or at none', () => {
     const data = archiveData();
-    const referenced = new Set(data.liveTournaments.map((live) => live.leagueKey).filter((key) => key !== null));
+    const referenced = data.liveTournaments.map((live) => live.leagueKey).filter((key) => key !== null);
+    const seasons = new Set(data.archiveLeagueSeasons.map(({ id }) => id));
 
-    // The whole legacy archive here would be 44 MB beside a full three-tier one, and would double every
-    // global-scope ranking. What Live actually needs is a row to point its `leagueId` at.
-    for (const league of data.leagues) expect(league.tournaments, league.id).toEqual([]);
-    expect(new Set(data.leagues.map(({ id }) => id))).toEqual(referenced);
+    // T19 retired the legacy stub Leagues these used to point at; `leagueKey` now names a Season the
+    // same environment restores, which is what `POST /api/live-tournaments` resolves it against.
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const key of referenced) expect(seasons, key).toContain(key);
+    expect(data.liveTournaments.some((live) => live.leagueKey === null)).toBe(true);
   });
 
   it('still validates as a whole environment', () => {

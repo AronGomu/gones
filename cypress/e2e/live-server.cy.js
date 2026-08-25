@@ -56,11 +56,24 @@ function mockLiveServer() {
     if (!live.customRoundCount && live.stage === 'registration') live.roundCount = autoRoundCount(live.players);
   };
 
-  cy.intercept('GET', /\/api\/leagues-archive\?.*/, (req) => req.reply({
-    items: [{ id: state.league.id, name: state.league.name, status: state.league.status, documentVersion: state.league.documentVersion, updatedAt: '2026-08-05T00:00:00Z' }],
-    page: 1, pageSize: 100, totalCount: 1
+  // The Live settings League picker reads the Season catalog now (T19): `leagueId` names a Season.
+  cy.intercept('GET', /\/api\/archive\/league-seasons\/all.*/, (req) => req.reply({
+    items: [{ id: state.league.id, name: state.league.name, leagueId: 'league-tier-1', status: state.league.status, documentVersion: state.league.documentVersion, updatedAt: '2026-08-05T00:00:00Z', tournamentCount: 0, playerCount: 0, firstTournamentDate: null, lastTournamentDate: null }],
+    totalCount: 1, truncated: false
   })).as('leagueList');
-  cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, (req) => req.reply({ ...clone(state.league), updatedAt: '2026-08-05T00:00:00Z', eTag: etag(state.league.documentVersion) })).as('leagueDetail');
+  cy.intercept('GET', /\/api\/archive\/league-seasons\/[^/?]+$/, (req) => req.reply({ ...clone(state.league), updatedAt: '2026-08-05T00:00:00Z', eTag: etag(state.league.documentVersion) })).as('leagueDetail');
+  // Finalizing lands on the Archive Tournament page, which reads its own row: a finalized Tournament
+  // is a first-class `archive_tournaments` record now, not a member of the League document (T19).
+  cy.intercept('GET', /\/api\/archive\/tournaments\/[^/?]+$/, (req) => {
+    const id = decodeURIComponent(req.url.split('/').pop());
+    const tournament = state.league.tournaments.find((item) => item.id === id);
+    if (!tournament) return req.reply({ statusCode: 404, body: { code: 'not_found', message: 'Missing.' }, headers: { 'content-type': 'application/problem+json' } });
+    return req.reply({
+      id: tournament.id, name: tournament.name, seasonId: state.league.id, tournamentDate: tournament.tournamentDate,
+      status: 'completed', rounds: tournament.rounds, playerArchetypes: tournament.playerArchetypes,
+      documentVersion: 1, updatedAt: '2026-08-05T01:00:00Z', eTag: etag(1)
+    });
+  }).as('archiveTournamentDetail');
 
   cy.intercept('GET', /\/api\/live-tournaments\?.*/, (req) => req.reply({
     items: state.lives.filter((live) => live.stage !== 'completed').map((live) => ({ id: live.id, name: live.name, tournamentDate: live.tournamentDate, stage: live.stage, updatedAt: live.updatedAt, documentVersion: live.documentVersion })),
@@ -219,7 +232,8 @@ function mockLiveServer() {
     const live = find(new URL(req.url).pathname.split('/')[3]);
     expectIfMatch(req, live);
     expect(req.headers['idempotency-key'], 'finalize Idempotency-Key').to.be.a('string').and.not.be.empty;
-    const leagueId = live.leagueId || 'placeholder-league';
+    // No League named means a standalone Archive Tournament now; the retired placeholder is gone.
+    const leagueId = live.leagueId || null;
     const finalizedTournamentId = `final-${live.id}`;
     live.stage = 'completed';
     live.documentVersion += 1;
@@ -374,8 +388,8 @@ function runServerLifecycle({ label, width, height }) {
     cy.get('[data-cy="live-archive-tournament-button"]').should('be.enabled').click();
     cy.contains('mat-dialog-container button', 'Archive Tournament').click();
     cy.wait('@finalizeLive');
-    cy.location('pathname').should('eq', `/leagues-archive/league-1/tournaments-archive/final-live-1`);
-    cy.get('[data-cy="tournament-archive-detail-page"]').should('contain', 'Server Live Cup');
+    cy.location('pathname').should('eq', '/archive/tournaments/final-live-1');
+    cy.get('[data-cy="archive-tournament-title"]').should('contain', 'Server Live Cup');
     cy.then(() => expect(state.finalized).to.not.eq(null));
   });
 }

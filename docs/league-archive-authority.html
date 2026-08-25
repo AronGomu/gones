@@ -67,7 +67,7 @@
   <tr><th>Operation</th><th>Anonymous / <code>User</code></th><th><code>Organizer</code> / <code>Admin</code></th></tr>
   <tr><td>List leagues</td><td colspan="2">Union of both stores. A failing server read degrades to local only, and says so.</td></tr>
   <tr><td>Read one league</td><td colspan="2">Routed by <code>isLocalLeagueId(id)</code>. Same rule for everyone.</td></tr>
-  <tr><td>Create a league</td><td><span class="tag tag--local">local</span> <code>gones-leagues</code></td><td><span class="tag tag--server">server</span> API</td></tr>
+  <tr><td>Create a league</td><td><span class="tag tag--local">local</span> <code>gones-archive-local</code></td><td><span class="tag tag--server">server</span> API</td></tr>
   <tr><td>Edit a <code>local-…</code> league</td><td>Allowed</td><td>Allowed</td></tr>
   <tr><td>Edit a server league</td><td>Refused, read-only</td><td>Allowed</td></tr>
   <tr><td>Move a tournament across stores</td><td colspan="2"><span class="tag tag--danger">refused</span> <code>crossAuthorityMoveNotSupported</code></td></tr>
@@ -107,8 +107,8 @@ export function isLocalLeagueId(id) { return id?.startsWith('local-') ?? false; 
     command guarded by an <code>If-Match</code> ETag. Audited, shareable, survives the browser.</p>
   </div>
   <div class="card card--local">
-    <h3><span class="tag tag--local">local</span> LocalLeagueArchiveBackend</h3>
-    <p>IndexedDB <code>gones-leagues</code> / <code>leagues</code>, key path <code>id</code>. Strictly
+    <h3><span class="tag tag--local">local</span> LocalArchiveBackend</h3>
+    <p>IndexedDB <code>gones-archive-local</code> / <code>leagues</code>, key path <code>id</code>. Strictly
     offline — no HTTP dependency exists to inject. Every write passes one <code>mutate()</code> helper
     that guards <code>documentVersion</code> and stamps <code>updatedAt</code>.</p>
   </div>
@@ -131,7 +131,7 @@ are two:</p>
 
 <h2>Parity is a compiler check, not a promise</h2>
 
-<pre>export class LocalLeagueArchiveBackend implements LeagueArchiveBackendPort { … }</pre>
+<pre>export class LocalArchiveBackend implements ArchiveBackendPort { … }</pre>
 
 <p>All 21 methods, no <code>Partial</code>. If someone adds a capability to the port and implements it
 only on the server, <code>npm run typecheck</code> fails. A feature cannot quietly become

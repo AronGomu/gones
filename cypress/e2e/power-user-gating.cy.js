@@ -23,9 +23,9 @@ const publicEvent = {
 const serverLeague = { id: 'server-league-1', name: 'Server League', status: 'active', tournaments: [], documentVersion: 1, updatedAt: '2026-08-09T10:00:00Z' };
 /** The list page reads slim summary rows, not documents (ADR 0042). */
 const serverLeagueSummary = {
-  id: serverLeague.id, name: serverLeague.name, status: serverLeague.status,
+  id: serverLeague.id, name: serverLeague.name, leagueId: 'league-tier-1', status: serverLeague.status,
   updatedAt: serverLeague.updatedAt, documentVersion: serverLeague.documentVersion,
-  tournamentCount: 0, playerCount: 0
+  tournamentCount: 0, playerCount: 0, firstTournamentDate: null, lastTournamentDate: null
 };
 const serverLive = {
   id: 'live-power', name: 'Server Power Cup', leagueId: '', tournamentDate: '2026-08-13', type: 'swiss',
@@ -84,11 +84,12 @@ describe('Power User Event, League and Live gates', () => {
 
   it('persists signed-out opt-in, keeps Archive reads/exports visible, and gates local mutations', () => {
     signedOut();
-    cy.intercept(/\/api\/leagues-archive/, { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } });
-    visit('/leagues-archive', false);
+    cy.intercept(/\/api\/archive\//, { statusCode: 401, body: { code: 'unauthorized', message: 'No session.' } });
+    visit('/archive/league-seasons', false);
 
-    cy.get('[data-cy="leagues-archive-list-grid"]').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('not.exist');
+    // The archive has no create affordance at all now (T19); the Power gate is what still hides the
+    // header import, and the export stays visible to everyone.
+    cy.get('[data-cy="archive-seasons-table"]').should('exist');
     cy.get('[data-cy="app-leagues-import-button"]').should('not.exist');
     cy.get('[data-cy="app-full-data-export-button"]').should('be.visible');
 
@@ -97,8 +98,7 @@ describe('Power User Event, League and Live gates', () => {
     cy.get('[data-cy="settings-power-user-checkbox"]').click();
     cy.window().then((win) => expect(win.localStorage.getItem(POWER_KEY)).to.eq('true'));
 
-    cy.visit('/leagues-archive');
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
+    cy.visit('/archive/league-seasons');
     cy.get('[data-cy="app-leagues-import-button"]').should('exist');
     cy.get('[data-cy="app-full-data-export-button"]').should('exist');
   });
@@ -107,9 +107,8 @@ describe('Power User Event, League and Live gates', () => {
     organizer();
     stubPublicEvents();
     cy.intercept('GET', '**/api/organizer/events?*', { items: [managedEvent], page: 1, pageSize: 20, totalCount: 1 }).as('managedEvents');
-    cy.intercept('GET', /\/api\/leagues-archive\/[^/?]+$/, serverLeague);
-    cy.intercept('GET', /\/api\/leagues-archive\/all\/documents$/, { items: [serverLeague], totalCount: 1, truncated: false });
-    cy.intercept('GET', /\/api\/leagues-archive\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/archive\/league-seasons\/all$/, { items: [serverLeagueSummary], totalCount: 1, truncated: false });
+    cy.intercept('GET', /\/api\/archive\/leagues\/all$/, { items: [], totalCount: 0, truncated: false });
 
     visit('/organizer/events', false);
     cy.wait('@managedEvents');
@@ -124,12 +123,12 @@ describe('Power User Event, League and Live gates', () => {
     cy.visit(`/organizer/events/${eventId}/edit`);
     cy.location('pathname').should('eq', '/organizer/events');
 
-    cy.visit('/leagues-archive');
-    cy.contains('[data-cy="leagues-archive-list-item"]', 'Server League').should('exist');
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('not.exist');
+    cy.visit('/archive/league-seasons');
+    cy.contains('[data-cy="archive-seasons-table"]', 'Server League').should('exist');
+    cy.get('[data-cy="app-leagues-import-button"]').should('not.exist');
     cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'true'));
     cy.reload();
-    cy.get('[data-cy="leagues-archive-list-create-button"]').should('exist');
+    cy.get('[data-cy="app-leagues-import-button"]').should('exist');
 
     cy.visit('/organizer/events');
     cy.wait('@managedEvents');
@@ -179,7 +178,7 @@ describe('Power User Event, League and Live gates', () => {
   it('keeps Organizer server Live reads available without allowing a mutation', () => {
     organizer();
     const mutationCalls = [];
-    cy.intercept('GET', /\/api\/leagues-archive\?.*/, { items: [], page: 1, pageSize: 100, totalCount: 0 });
+    cy.intercept('GET', /\/api\/archive\/league-seasons\/all$/, { items: [], totalCount: 0, truncated: false });
     cy.intercept('GET', /\/api\/live-tournaments\?.*/, {
       items: [{ id: serverLive.id, name: serverLive.name, tournamentDate: serverLive.tournamentDate, stage: serverLive.stage, updatedAt: serverLive.updatedAt, documentVersion: serverLive.documentVersion }],
       page: 1, pageSize: 100, totalCount: 1

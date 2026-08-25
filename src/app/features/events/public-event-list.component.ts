@@ -45,7 +45,7 @@ import { MessageKey } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { EventRegistrationService, registrationErrorKey } from './event-registration.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
-import { canManageLeagues } from '../../data/league-archive-command-ux';
+import { canManageArchive } from '../../data/archive-command-ux';
 import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 const VIEW_KEY = 'gones.events.view';
@@ -196,7 +196,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   readonly dayEventIndex = computed(() => eventsByDate(this.items()));
   readonly canCreateEvent = computed(() => canUsePowerMutation(
     this.power.enabled(),
-    canManageLeagues(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
+    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
   ));
   readonly registrationCapabilities = signal<Record<string, EventRegistrationCapabilityResponse>>({});
   readonly pendingEventId = signal<string | null>(null);

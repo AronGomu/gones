@@ -1,3 +1,29 @@
+<!-- Retirement notice: keep at the top; it governs every section below. -->
+> ## ⚠ The legacy archive surface is retired (T19 retire-legacy-surface)
+>
+> Every section below that was written before **T19 retire-legacy-surface** — the last section in
+> this file — is a record of what was true when that slice shipped. The surface many of them use as
+> their "nothing else moved" control no longer exists, so those bullets are **not re-runnable**.
+> Nothing has been deleted from them: a year-old commit message still has to resolve against this
+> file.
+>
+> What changed, and what to read instead:
+>
+> | Retired | Now |
+> | --- | --- |
+> | `/leagues`, `/leagues-archive`, `/leagues-archive/:id`, `/leagues-archive/:id/tournaments-archive/:tid[/result[/metagames]]` | the 404 page, with no redirect and the address bar unchanged |
+> | `GET/POST/PATCH/DELETE /api/leagues-archive/**` | `404`; the archive is `/api/archive/**` |
+> | `/leagues-archive` list page | `/archive/league-seasons` |
+> | a legacy Tournament page | `/archive/tournaments/:tournamentId` |
+> | `GET /api/leagues-archive/all` | `GET /api/archive/leagues/all`, `GET /api/archive/league-seasons/all`, `GET /api/archive/tournaments/all?year=` |
+> | `GET /api/leagues-archive/global-player-statistics[/all]` | `GET /api/archive/global-player-statistics[/all]?scopeKind=&scopeId=` |
+> | table `league_archive_aggregates` | `archive_leagues`, `archive_league_seasons`, `archive_tournaments` |
+> | the fixed `placeholder-league` row / `Unassigned Tournaments` | a standalone Tournament, `season_id IS NULL` |
+> | IndexedDB `gones-leagues` | `gones-archive-local` (browser-local authority) and `gones-archive-cache` (public read cache) |
+> | legacy create button on `/leagues-archive` | nothing — import a v5 bundle is the only door (see T19's open gaps) |
+>
+> A section marked **T19 update** below has the same correction inlined at its head.
+
 ## T1 fix-hard-reload-session
 
 - [ ] Open app at `http://localhost:4200`, sign in, press Ctrl-F5, confirm same profile remains visible with no reconnect.
@@ -1037,6 +1063,13 @@ enough.
 
 ## T1 reset-and-squash
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 The 35 accumulated EF migrations were collapsed into a single `InitialCreate` that produces the same
 schema, and every local store holding archive data was emptied. Nothing about the product changed —
 no route, no response shape, no domain rule — so this pass is looking for the *absence* of breakage,
@@ -1063,6 +1096,13 @@ reload (Ctrl+Shift+R). Clearing `localStorage` signs you out; that is expected.
 
 ## T2 three-tier-schema
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 The backend foundation for the three-tier archive — League → LeagueSeason → Tournament. This slice adds
 domain aggregates, the EF mapping and one migration creating three empty tables. **Nothing reads or
 writes them yet**, and no route, response shape or screen changed. So this pass is looking for the
@@ -1087,6 +1127,13 @@ Start from a freshly reset stack (`npm run db:reset`).
 - [ ] Load `/events` and confirm the calendar renders with existing events.
 
 ## T3 league-season-commands
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 Eight organizer-gated write routes under `/api/archive` — create/rename/delete a League, and
 create/rename/restatus/re-parent/delete a LeagueSeason. **There is still no UI for any of this**: T13
@@ -1132,6 +1179,13 @@ TOKEN=$(curl -s -X POST http://127.0.0.1:5080/api/auth/login \
 - [ ] Load `/global-stats`, open a Live tournament, and load `/events`. All three render normally — none of them is touched by this slice.
 
 ## T4 tournament-commands-locking
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 Run against a `npm run db:reset` stack with the API on `http://127.0.0.1:5080`. Reuse the `$TOKEN`
 (Admin) helper from the T3 section, and get a second token for a plain Organizer where a step says
@@ -1180,6 +1234,13 @@ Run against a `npm run db:reset` stack with the API on `http://127.0.0.1:5080`. 
 
 ## T5 whole-catalog-reads
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 Both routes are anonymous public GETs, so no token is needed to read them. Creating the rows to read
 does need an Organizer token — reuse `$TOKEN` and the T3/T4 command routes from the sections above.
 Use `curl -sS -D - -o /dev/null <url>` to see headers: `curl -I` sends `HEAD`, which this app leaves
@@ -1202,6 +1263,13 @@ unmapped and answers `405` on every route, so a `-I` check is vacuously green.
 - [ ] Confirm the legacy surface is untouched: `curl -sS -D - -o /dev/null http://127.0.0.1:5080/api/leagues-archive/all` still answers `200` with its own `etag:` and `cache-control: public, max-age=3600` and its own rows. Then open `/leagues-archive` in the browser, open a Tournament detail page, and load `/global-stats`, `/events` and a Live tournament. Everything renders as before with no error toast and no red DevTools console error — this slice only adds two routes beside the old ones.
 
 ## T6 year-partitioned-tournaments
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 Both routes are anonymous public GETs, so no token is needed to read them. Creating the Tournaments to
 read needs an Organizer token — reuse `$TOKEN` and the T3/T4 command routes from the sections above.
@@ -1233,6 +1301,13 @@ unmapped and answers `405` on every route, so a `-I` check is vacuously green.
 - [ ] Confirm the legacy and sibling surfaces are untouched: `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5080/api/leagues-archive/all`, `.../api/archive/leagues/all` and `.../api/archive/league-seasons/all` all print `200`. Then open `/leagues-archive` in the browser, open a Tournament detail page, and load `/global-stats`, `/events` and a Live tournament. Everything renders as before with no error toast and no red DevTools console error — this slice only adds two routes beside the old ones and changes no component.
 
 ## T7 read-through-and-detail
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 All four routes are anonymous public GETs, so no token is needed to read them. Creating the Season and
 the Tournaments to read needs an Organizer token — reuse `$TOKEN` and the T3/T4 command routes from the
@@ -1274,6 +1349,13 @@ to compute.
 
 ## T8 scoped-player-statistics
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 Both new routes are anonymous public GETs, so no token is needed to read them. Creating the Leagues,
 Seasons and Tournaments whose numbers you are checking needs an Organizer token — reuse `$TOKEN` and
 the T3/T4 command routes from the sections above. Use `curl -sS -D - -o /dev/null <url>` to see
@@ -1310,6 +1392,13 @@ number, and it gives the standalone rule a witness.
 
 ## T9 dev-fixtures
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 This slice is data only — no route changed, no component changed, no i18n key moved. What it buys is
 that `npm run dev:env -- --env=demo` populates the three-tier archive through
 `POST /api/archive/restore-full`, and that `npm run dev:stress:generate` emits three-tier data instead
@@ -1343,6 +1432,13 @@ unmapped and answers `405` on every route, so a `-I` check is vacuously green. T
 - [ ] Confirm nothing else moved: open `/events`, `/leagues-archive`, `/global-stats`, a player page and a Live tournament in the browser. Everything renders as before, with no error toast and no red DevTools console error. This slice touches no file under `src/app/`, `backend/`, `cypress/` or `docs/`.
 
 ## T9b archive-write-statistics-rebuild
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice is backend only — no route added, no request or response shape changed, no component and no
 i18n key touched. What it buys is that a write through `/api/archive/**` leaves `player_statistics`
@@ -1382,6 +1478,13 @@ etag() { python3 -c "import base64,struct;print('\"'+base64.b64encode(struct.pac
 
 ## T10 frontend-domain-and-local
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 This slice is pure domain + browser-local persistence. **Nothing renders it and nothing in the running
 application imports it yet** — that is the design, not an omission. So the manual pass has two jobs:
 prove the legacy archive is untouched, and prove the new code is genuinely inert in the browser.
@@ -1403,6 +1506,13 @@ local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind fails, `pkill -f "ng
 - [ ] **Known, accepted — `LOCAL_LEAGUE_STORE` now exists twice.** `local-league-archive-backend.service.ts` exports it for `gones-leagues` and `local-archive-backend.service.ts` exports it for `gones-archive-local`. Two modules, two bindings, no global collision; the legacy one is retired in a later ticket. Do not report it as a duplicate.
 
 ## T11 export-v5
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice is the **serialization boundary** and nothing else: a pure schema module, a pure
 parse/validate service, a golden fixture set and one bilingual message key. **No component, no route,
@@ -1432,6 +1542,13 @@ local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind fails, `pkill -f "ng
 
 ## T12 indexeddb-catalog-cache
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 This slice is the **browser storage half** of the archive rebuild and nothing else: two backend
 services, one repository, three test suites and two allowlist entries. **No component, no route, no
 `data-cy`, no i18n key, and nothing in the running application imports the three new modules yet** —
@@ -1456,6 +1573,13 @@ local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind fails, `pkill -f "ng
 - [ ] **Known, accepted — the ticket's own counts were stale and the tree won.** T12's `Validation` predicted the IndexedDB allowlist would name six files; it names seven, because T10 added `local-archive-backend.service.ts` after the ticket was written. Its `From Depends (T10)` table also named three `LocalArchiveBackend` methods that do not exist under those names. Both were reconciled against the code, not the text. Do not report the ticket/tree mismatch as an implementation defect.
 
 ## T13 archive-shell-league-seasons
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice is the **first user-visible page** of the archive rebuild: the shell (title, sync bar, two-tab
 strip) and **Tab 1 — League Seasons**, a Variant B two-line table that is sortable, searchable,
@@ -1491,6 +1615,13 @@ local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind fails, `pkill -f "ng
 - [ ] **Fixed by T16 — the Synchronize button on this page now makes a real request.** T13 measured it at **0** network requests: the archive catalog endpoints send `Cache-Control: public, max-age=3600`, so a forced refetch inside that hour was answered from the browser's own HTTP cache and never reached the network tab — which also swallowed the refetch that follows a cache invalidation. T16 marks every `/api/archive/**` GET `Cache-Control: no-cache`, so the request reaches the server (as a conditional revalidation the server answers `304` when nothing changed). Pressing Synchronize here must now show **2** archive requests in the Network tab, every time, with no hard reload and no "Disable cache". The legacy `/leagues-archive` Synchronize is deliberately **not** fixed and still makes 0 — see the T16 section.
 
 ## T14 tournaments-tab-expansion
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice adds **Tab 2 — Tournaments** to the archive shell T13 built, plus the four pages the rows
 link to: the Season page, the Tournament page and its two result views. It also makes a Tab 1 Season
@@ -1535,6 +1666,13 @@ of the 2026 Tournaments are standalone.
 - [ ] **Known, accepted — the tab strip is the shell's, not Tab 2's own.** T14's ticket text predates T13 shipping `gones-archive-shell` and assumed the tab strip had to be rendered locally. It is not: Tab 2 joins the shell, which is why it also gets the ADR 0039 sync bar. Two tab strips on one surface would have been the bug.
 
 ## T15 rankings-scope-filter
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice puts a **scope filter** on Global Rankings. Two single-select fields — League and Season —
 plus a badge that names the scope on screen. The point of the slice is that a scoped rating is
@@ -1584,6 +1722,13 @@ season over 11 Seasons.
 
 ## T16 cache-invalidation-resync
 
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
+
 This slice makes archive cache invalidation **provable** rather than merely working, gives the user a
 manual escape hatch for the one staleness the caching design accepts, and fixes a defect that made
 both of those pointless: every archive Synchronize was making **zero** network requests, because
@@ -1619,6 +1764,13 @@ fails, `pkill -f "ng serve"` and re-run.
 - [ ] **Known, accepted — there is no archive mutation to watch invalidate yet.** `ArchiveRepository` is read-only, so no page on `/archive/**` can create, rename or delete anything, and the invalidation funnel currently has no production caller other than this button. The structural test `src/app/data/archive-cache-invalidation.test.ts` is what holds the guarantee: add a mutating method to that class without routing it through `invalidateArchiveCaches()` and `every mutating method reaches the invalidation funnel` names it and fails the build.
 
 ## T17 archive-staged-edit
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice puts ADR 0037's **power-user staged editor** on the new archive surface. It is the first and
 only mutation on `/archive/**`: `/archive/tournaments/:tournamentId` still loads read-only for everyone,
@@ -1668,6 +1820,13 @@ exist at all; `npm run dev:env` sets it, a bare `docker compose up` does not.
 - [ ] **Known, accepted — restoring a row after a test still bumps its version.** Every write bumps `documentVersion`, including the one that puts a name back. A demo row you edited and restored will read the original name at a higher version; that is correct optimistic-concurrency behaviour, not drift.
 
 ## T18 browser-local-union
+
+> **T19 update.** Every "the legacy surface is untouched" control in this section is retired:
+> `/leagues-archive/**` and `/tournaments-archive/**` render the 404 page, `/api/leagues-archive/**`
+> returns `404`, `league_archive_aggregates` is dropped and the fixed `placeholder-league` row is
+> gone. Read those bullets as a record of what was true when this slice shipped; the live
+> equivalents are in **T19 retire-legacy-surface** at the end of this file.
+
 
 This slice makes the Archive honour ADR 0028 on the read side: the list is the **union** of the
 server's records and the ones this browser authored in `gones-archive-local`, and every read routes on
@@ -1725,3 +1884,48 @@ await new Promise((resolve) => {
 - [ ] **The console is clean.** With DevTools open, walk the whole flow above: both tabs, the year filter, the expansion, the Season page, the detail page, the staged edit, the cache purge and the offline reload. Zero console errors.
 - [ ] **Known, accepted — `/archive/**` still has no create affordance.** A browser-local record can only be authored through the console seed above or through the legacy `/leagues-archive` create button, which writes the other store. This slice is a read-path union plus the detail route; the create affordance is not in it.
 - [ ] **Known, accepted — the rankings scope picker still offers browser-local scopes that read empty.** On `/global-stats`, a browser-local League or Season can be selected and returns an empty scope, because the server holds no rating for a record it has never seen. That is the empty-scope path behaving as designed. Narrowing the picker is a rankings change and this slice is explicitly forbidden from touching `/global-stats`.
+
+## T19 retire-legacy-surface
+
+The contract step of expand → migrate → contract, and the only slice in this plan allowed to delete.
+The `/leagues-archive/**` and `/tournaments-archive/**` pages, the `/api/leagues-archive/**` endpoints,
+the `LeagueArchiveAggregate` and its `league_archive_aggregates` table, the fixed `placeholder-league`
+row and the browser database `gones-leagues` are all gone. Nothing is aliased and nothing redirects:
+ADR 0022's "no API path aliases" clause is reaffirmed, its "frontend redirects, yes" clause is
+reversed, because Gones is unreleased with zero users and there is no bookmark to protect.
+
+Two ADR 0022 exclusions still hold. `/api/maintenance/player-names*` keeps every route, request shape,
+response shape, status code and audit action string — only the table it reads moved to
+`archive_tournaments`. `LiveFinalizeResponse` keeps every field name it has, `leagueId` included; a
+Live tournament that names no League now finalizes to a **standalone** Archive Tournament
+(`season_id IS NULL`) instead of being absorbed by the placeholder League.
+
+Start from a running stack on the demo data: `npm run dev:env -- --env=demo`, then
+`docker compose up -d --wait frontend-development` (or `npm run dev`). The dev server is
+`127.0.0.1:4200` and the local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind fails,
+`pkill -f "ng serve"` and re-run. `HEAD` is unmapped app-wide, so probe with `curl -sS -D- <url>`.
+
+- [ ] **The six gates are green.** `npm run api:check` exits `0`; `npm run lint` prints `All files pass linting.`; `npm run typecheck` exits `0`; `npm run test` prints `Test Files 160 passed (160)` / `Tests 2025 passed (2025)`; `npm run backend:test` passes 329 unit, 20 architecture and 621 integration tests with `Failed: 0`; `npm run e2e:ci` exits `0` and its tail prints `=== e2e specs: 26/26 passed ===` with no `FAIL` line.
+- [ ] **Every retired API path answers 404.** `for p in /api/leagues-archive /api/leagues-archive/all /api/leagues-archive/placeholder-league /api/leagues-archive/global-player-statistics/all /api/leagues; do curl -sS -o /dev/null -w "$p %{http_code}\n" "http://127.0.0.1:5080$p"; done` prints `404` for all five. No problem-details body, no `code`, no deprecation header.
+- [ ] **The new API surface answers 200 with its caching contract.** `curl -sS -D- -o /dev/null http://127.0.0.1:5080/api/archive/leagues/all` prints `HTTP/1.1 200 OK`, a `Cache-Control: public, max-age=3600` and an `ETag`. The same holds for `/api/archive/league-seasons/all`, `/api/archive/tournaments/all?year=2026`, `/api/archive/years` and `/api/archive/global-player-statistics/all`.
+- [ ] **`?year=` is required, not optional.** `curl -sS -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5080/api/archive/tournaments/all` prints `400` and the body names `Query parameter 'year' is required.` A year partition is the unit of transfer.
+- [ ] **Every retired page renders the 404 page with no redirect.** Visit `/leagues`, `/leagues-archive`, `/leagues-archive/x`, `/leagues-archive/x/tournaments-archive/y`, `…/result` and `…/result/metagames`. Each shows the not-found page **and the address bar still shows the path you typed** — a redirect would rewrite it, so an unchanged path is the proof that no alias fired.
+- [ ] **The new surface renders from the real API.** `/archive/league-seasons` lists the demo Seasons, `/archive/tournaments` lists a year of Tournaments, `/global-stats` lists the rankings. No error banner, no red console error.
+- [ ] **The retired browser database is deleted on sight.** In the DevTools console run `indexedDB.open('gones-leagues', 1)` to recreate it, then reload any page. `indexedDB.databases().then(d => console.log(d.map(x => x.name)))` now lists `gones-archive-local` and `gones-archive-cache` and **not** `gones-leagues`. Reload again: still absent, and no console error — the purge is idempotent and never throws.
+- [ ] **The table is dropped, and by exactly one migration.** `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select to_regclass('league_archive_aggregates');"` prints an empty line. `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select tablename from pg_tables where schemaname='public' and tablename like 'archive%' order by 1;"` prints `archive_league_seasons`, `archive_leagues`, `archive_tournaments`. `grep -c CreateTable backend/src/Gones.Infrastructure/Persistence/Migrations/*_RetireLegacyLeagueArchive.cs` counts one, and it is inside `Down`.
+- [ ] **It applies on an empty database.** `docker compose down --volumes --remove-orphans && docker compose up -d --wait postgres && docker compose build migrator && docker compose run --rm migrator database update` exits `0` and applies exactly four migrations, ending `20260825185219_RetireLegacyLeagueArchive`. (The `Cannot load library libgssapi_krb5.so.2` line is a pre-existing Npgsql GSSAPI probe, not a failure.)
+- [ ] **The seed scripts no longer need the placeholder.** `npm run db:reset` prints `Deterministic V1 seed complete.` and `Local stack reset to deterministic seeded state.`; `npm run db:seed` prints `Deterministic V1 seed complete.` Neither mentions a placeholder League.
+- [ ] **The legacy-browser import door still works without one.** `npm run migration:smoke` exits `0` and prints `C38 migration smoke passed over 2 browser origins…`. Its census now counts `archive_league_seasons`; a bundle's Tournaments that used to merge into `placeholder-league` are imported standalone with `season_id = NULL`.
+- [ ] **Live keeps its wire contract.** In the app, run a Live tournament to standings and archive it. The finalize response still carries `leagueId`, `finalizedTournamentId`, `liveDocumentVersion`, `liveETag`, `leagueDocumentVersion` and `leagueETag`; the browser lands on `/archive/tournaments/<finalizedTournamentId>` and the page renders. `POST /api/live-tournaments` with an unknown `leagueId` still answers `400` / `validation_failed` / field `leagueId` / `League was not found.`
+- [ ] **A Live tournament with no League finalizes standalone.** Archive a Live tournament whose League field is empty. `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select season_id is null from archive_tournaments order by updated_at desc limit 1;"` prints `t`. It appears on `/archive/tournaments` under its own year with an empty League column, and it contributes to the **global** rankings scope only.
+- [ ] **Player-name maintenance is byte-identical.** Signed in as an Organizer, open `/settings`, search a player name, run a rename preview and then a rename. The preview counts match the commit counts, the rename applies to every Tournament that names the player, a soft-deleted Tournament is untouched, and the audit rows still carry the action `maintenance.player_name.renamed`.
+- [ ] **The player page still lists a history.** Open a player from `/global-stats`. Their Matches list, and a Match played in a **standalone** Tournament shows an empty League name rather than a placeholder one.
+- [ ] **The cross-stack domain parity corpus survived the deletion.** `fixtures/archive-domain/v5/parity/parity.json` and `manifest.json` exist, `UPDATE_ARCHIVE_PARITY_FIXTURES=1 npx vitest run src/app/domain/archive-parity-fixtures.test.ts` is green, and `dotnet test backend/Gones.sln --configuration Release --filter FullyQualifiedName~LeagueParityTests` passes 3 facts. `fixtures/league-domain/` is gone.
+- [ ] **The guards are armed.** `npx vitest run src/app/shared/retired-archive-surface.test.ts` passes 6 cases and `dotnet test backend/Gones.sln --configuration Release --filter FullyQualifiedName~RetiredLeagueArchiveSurfaceTests` passes 2. Re-add the string `leagues-archive` to any non-test file under `src/app/` and the first suite goes red; remove it again.
+- [ ] **The invalidation funnel still bites.** In `src/app/data/archive-repository.service.ts`, temporarily move `restoreBundle` out of `mutating()`. `npx vitest run src/app/data/archive-cache-invalidation.test.ts` fails with `expected [ 'restoreBundle' ] to deeply equal []`. Put it back and the suite is green again.
+- [ ] **The docs carry the three-tier vocabulary and link to no working file.** `docs/CONTEXT.md` has entries for **Archive**, **League** (archive tier), **LeagueSeason**, **Archive Tournament** and the retired **Unassigned Tournaments**, each with its `_Formerly_` note. `grep -c "artifacts/\|\.tmp/" docs/CONTEXT.md docs/GLOSSARY.md` prints `0` for both. `docs/local-dev-environments.html` lists the three `archive-*.json` fixture files and `POST /api/archive/restore-full`, and names no `leagues.json`.
+- [ ] **The console is clean.** With DevTools open, walk the whole flow: both archive tabs, a Season, a Tournament, its result page, `/global-stats`, a player page, `/settings`, a Live tournament and one retired URL. Zero console errors.
+- [ ] **Known, accepted — no create-from-scratch affordance survives anywhere.** The archive had exactly one create button and it lived on the retired `/leagues-archive` page. `/archive/**` never grew one (T13–T18 were read-path slices and T19 is forbidden to add behaviour), so **importing a v5 bundle through the header Import control on `/archive/league-seasons` is now the only way to put a record into the archive from the browser**, alongside the server-side commands and Live finalize. This is a real capability gap, not an oversight of this checklist: it needs its own follow-up slice.
+- [ ] **Known, accepted — the header Gones Export writes browser-local records only.** `downloadFullExport` builds its v5 bundle from `gones-archive-local` and refuses for a signed-in visitor whose archive lives on the server, because the three-tier read surface serves slim catalogs and one document per Tournament and has no whole-archive server read to build the other half from. A signed-in Admin who wants a full backup must use the server-side path. Also a follow-up slice.
+- [ ] **Known, accepted — the Tournament detail route costs two identical reads per load.** `/archive/tournaments/:id` is read once by the page and once by the app shell, which needs the Tournament for its header label, and the shell reads it again after every archive mutation so the header follows a rename. Sharing one read between them is new behaviour and this slice is forbidden from adding any.
+- [ ] **Known, accepted — some dated records still name the retired surface.** `docs/RUNTIME_CONTRACT.md`'s compression table, `docs/league-archive-catalog-summary.html`, `docs/ttl-cache-contract.html`, `docs/archive-three-tier.html`, `docs/event-vocabulary-rename.html` and `docs/RELEASE_NOTES_V1.md` record measurements and decisions taken against routes that existed at the time. Relabelling them would misattribute measurements that were never taken on the new routes, so they are left as written, exactly like an ADR.

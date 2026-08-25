@@ -1,5 +1,5 @@
 import { createRound, defaultIdFactory, getDefaultTournamentName, normalizeLeagueStatus, normalizeTournamentStatus } from './models';
-import type { CalendarEventDocument, IdFactory, LeagueDocument, LeagueStatus, PlayerArchetypeDocument, RoundDocument, TournamentDocument } from './models';
+import type { CalendarEventDocument, IdFactory, LeagueStatus, PlayerArchetypeDocument, RoundDocument } from './models';
 import { derivePlayerArchetypesFromRounds, normalizePlayerArchetypes } from './tournament-archetypes';
 
 /**
@@ -143,26 +143,6 @@ export function normalizeLeagueSeason(season: LeagueSeasonInput = {}, options: {
 
 export function normalizeArchiveTournament(tournament: ArchiveTournamentInput = {}, options: { idFactory?: IdFactory } = {}): ArchiveTournamentDocument {
   return createArchiveTournament(tournament, options);
-}
-
-/** Bridges to the shared standings/rename/archetype functions, which still speak the legacy shape. */
-export function toTournamentDocument(tournament: ArchiveTournamentDocument, leagueId = ''): TournamentDocument {
-  const { seasonId: _seasonId, ...rest } = tournament;
-  return { ...rest, leagueId };
-}
-
-export function toArchiveTournamentDocument(tournament: TournamentDocument, seasonId: string | null = null): ArchiveTournamentDocument {
-  const { leagueId: _leagueId, ...rest } = tournament;
-  return { ...rest, seasonId: normalizeSeasonId(seasonId) };
-}
-
-export function toLeagueDocument(season: LeagueSeasonDocument, tournaments: readonly ArchiveTournamentDocument[]): LeagueDocument {
-  return {
-    id: season.id,
-    name: season.name,
-    status: season.status,
-    tournaments: tournaments.map((tournament) => toTournamentDocument(tournament, season.id))
-  };
 }
 
 /**

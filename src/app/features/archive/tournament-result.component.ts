@@ -7,14 +7,14 @@ import { ArchetypeShare, TournamentSummary, buildTournamentSummary } from '../..
 import { I18nService } from '../../i18n/i18n.service';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
-import { ARCHIVE_TOURNAMENT_DETAIL_SOURCE, ArchiveTournamentDetail, toResultInput } from './tournament-detail.component';
+import { ARCHIVE_TOURNAMENT_DETAIL_SOURCE, ArchiveTournamentDetail } from './tournament-detail.component';
 
 /**
  * `/archive/tournaments/:tournamentId/result[/metagames]` — the standings and the archetype share of
  * one archived Tournament, with the two download controls the legacy result page has.
  *
  * The pure export helpers below (`MetagameBar` through `crc32`) are a verbatim copy of
- * `src/app/features/tournaments-archive/tournament-archive-result.component.ts:178-351`, not a
+ * the retired result page it was carried over from, not a
  * reference into it: that file is deleted at the end of the archive rebuild, and a reference would
  * break at deletion time. The backend slice of this plan set the same precedent with its three
  * HTTP-caching helpers.
@@ -137,7 +137,7 @@ export class TournamentResultComponent {
   constructor() {
     this.summary = computed(() => {
       const detail = this.tournament();
-      return detail ? buildTournamentSummary(toResultInput(detail)) : null;
+      return detail ? buildTournamentSummary(detail) : null;
     });
     this.pageLabel = computed(() => this.i18n.t(this.page() === 'metagames' ? 'result.metagame' : 'result.standings'));
     this.topStandingRows = computed(() => this.summary()?.topRows.slice(0, 8) ?? []);

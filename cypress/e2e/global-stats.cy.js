@@ -5,6 +5,7 @@
  */
 
 const ARCHIVE_CACHE_DB = 'gones-archive-cache';
+const SEED_MARKER = 'gones.e2e.storage-seeded';
 const LYON_LEAGUE = { id: 'lyon', name: 'Ligue Lyon', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', documentVersion: 1 };
 const LYON_SEASON = {
   id: 'lyon-2026', name: 'Ligue Lyon 2026', leagueId: 'lyon', status: 'completed',
@@ -74,13 +75,56 @@ function mockScopeCatalogs(leagues = [LYON_LEAGUE], seasons = [LYON_SEASON]) {
   cy.intercept('GET', '**/api/archive/league-seasons/all', { items: seasons, totalCount: seasons.length, truncated: false }).as('seasonCatalog');
 }
 
-/** The two select catalogs are cached in IndexedDB for 24h, so drop the store before each visit. */
+function seedRankingsStorage(win) {
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
+/** Every store of the catalog cache emptied in place: a delete blocks against the connection the
+ *  running app already holds open, a `clear()` per store does not. */
+function clearArchiveCache(win) {
+  return Cypress.Promise.resolve(win.indexedDB.databases()).then((entries) => {
+    if (!entries.some((entry) => entry.name === ARCHIVE_CACHE_DB)) return undefined;
+    return new Cypress.Promise((resolve, reject) => {
+      const open = win.indexedDB.open(ARCHIVE_CACHE_DB);
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const database = open.result;
+        const stores = [...database.objectStoreNames];
+        if (!stores.length) { database.close(); resolve(); return; }
+        const transaction = database.transaction(stores, 'readwrite');
+        for (const store of stores) transaction.objectStore(store).clear();
+        transaction.oncomplete = () => { database.close(); resolve(); };
+        transaction.onerror = () => { database.close(); reject(transaction.error); };
+      };
+    });
+  });
+}
+
+/**
+ * The two select catalogs are cached in IndexedDB for 24h, so drop the store before each visit.
+ *
+ * `onBeforeLoad` is not dependable on the release topology: once `ngsw-worker.js` controls the page
+ * it answers the navigation out of Cache Storage, that response never passes through the Cypress
+ * proxy, and Cypress cannot inject the script that calls the hook — no error, no seed, and the page
+ * boots on the French default instead of the seeded English. No `storage` listener carries the
+ * language into a running app, so the fallback branch re-seeds and reloads; the reload is skipped
+ * entirely when the hook did fire, which keeps the `@rankings` waits below aligned one to one.
+ */
 function visitRankings(url = '/global-stats') {
+  let reseeded = false;
   cy.visit(url, { onBeforeLoad(win) {
     win.indexedDB.deleteDatabase(ARCHIVE_CACHE_DB);
-    win.localStorage.setItem('gones.settings.language', 'en');
-    win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+    seedRankingsStorage(win);
   } });
+  cy.window({ log: false }).then((win) => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true') return undefined;
+    reseeded = true;
+    seedRankingsStorage(win);
+    return clearArchiveCache(win);
+  });
+  cy.then(() => { if (reseeded) cy.reload(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -441,8 +485,6 @@ describe('Global Stats — scope filter', () => {
 // ---------------------------------------------------------------------------
 // Home navigation
 // ---------------------------------------------------------------------------
-const SEED_MARKER = 'gones.e2e.storage-seeded';
-
 function seedVisited(win) {
   win.localStorage.setItem('gones.first-visit.completed', 'true');
   win.localStorage.setItem(SEED_MARKER, 'true');

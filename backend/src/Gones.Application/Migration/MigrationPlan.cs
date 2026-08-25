@@ -8,7 +8,7 @@ namespace Gones.Application.Migration;
 public sealed record MigrationTargetState(
     string DatabaseIdentity,
     IReadOnlySet<string> ExistingLeagueIds,
-    IReadOnlySet<string> PlaceholderTournamentIds,
+    IReadOnlySet<string> StandaloneTournamentIds,
     IReadOnlySet<string> ExistingLiveTournamentIds,
     IReadOnlySet<string> ExistingDeckArchetypeKeys,
     IReadOnlySet<string> ExistingTournamentSlugs,
@@ -25,8 +25,11 @@ public sealed record PlannedScheduledTournament(
 public sealed record MigrationPlan(
     string BatchHash,
     IReadOnlyList<LeagueDocument> LeaguesToCreate,
-    string? PlaceholderLeagueTarget,
-    IReadOnlyList<TournamentDocument> TournamentsForPlaceholderTarget,
+    /// <summary>
+    /// Bundle Tournaments that belonged to no League. The fixed `placeholder-league` row they used to
+    /// merge into is retired, so they import as standalone Archive Tournaments (`season_id IS NULL`).
+    /// </summary>
+    IReadOnlyList<TournamentDocument> StandaloneTournaments,
     IReadOnlyList<PlannedScheduledTournament> ScheduledTournaments,
     IReadOnlyList<LiveTournamentDocument> LiveTournamentsToCreate,
     IReadOnlyList<string> DeckArchetypesToAdd);

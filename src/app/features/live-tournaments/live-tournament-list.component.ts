@@ -7,11 +7,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../auth/auth.service';
 import { LIVE_BACKEND_MODE } from '../../backend/application-backend';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
-import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
+import { ArchiveRepository } from '../../data/archive-repository.service';
 import { canManageLive } from '../../data/live-command-ux';
 import { LiveTournamentRepository } from '../../data/live-tournament-repository.service';
 import { LiveTournamentDocument, LiveTournamentStage } from '../../domain/live-tournament';
-import { PersistedLeague, PLACEHOLDER_LEAGUE_ID } from '../../domain/models';
+import type { ArchiveLeagueSeasonSummary } from '../../data/archive-summary';
 import { logBoundaryError } from '../../shared/app-logger';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { I18nService } from '../../i18n/i18n.service';
@@ -89,7 +89,7 @@ export class LiveTournamentListComponent {
   readonly syncedAt = signal<string | undefined>(undefined);
   readonly stale = signal(false);
   readonly tournaments = signal<LiveTournamentDocument[]>([]);
-  readonly leagues = signal<PersistedLeague[]>([]);
+  readonly leagues = signal<ArchiveLeagueSeasonSummary[]>([]);
   readonly runningTournaments = computed(() => this.tournaments().filter((tournament) => tournament.stage !== 'completed'));
   /** Resolved once, with the port itself (ADR 0021): a role change mid-session needs a reload. */
   readonly localMode = inject(LIVE_BACKEND_MODE) === 'browser-local';
@@ -97,21 +97,21 @@ export class LiveTournamentListComponent {
   readonly existingAuthorityAllowed = computed(() => this.localMode || canManageLive(this.auth.profile()?.globalRole));
   readonly canManage = computed(() => canUsePowerMutation(this.power.enabled(), this.existingAuthorityAllowed()));
 
-  constructor(readonly liveRepo: LiveTournamentRepository, private readonly leagueRepo: LeagueArchiveRepository, private readonly router: Router) { void this.load(); }
+  constructor(readonly liveRepo: LiveTournamentRepository, private readonly archiveRepo: ArchiveRepository, private readonly router: Router) { void this.load(); }
 
   async load(options: { force?: boolean } = {}): Promise<void> {
     this.loading.set(true);
     try {
-      // The browser-local store never finalizes into a League, and Leagues are a server read the
+      // The browser-local store never finalizes into a Season, and Seasons are a server read the
       // anonymous visitor is not entitled to — so local mode does not ask for them at all.
-      const [listResult, leagues] = await Promise.all([
+      const [listResult, seasons] = await Promise.all([
         this.cache.readCached('live-tournaments', () => this.liveRepo.list(), options),
-        this.localMode ? Promise.resolve([]) : this.leagueRepo.listLeagues()
+        this.localMode ? Promise.resolve({ items: [] as ArchiveLeagueSeasonSummary[] }) : this.archiveRepo.listLeagueSeasons()
       ]);
       this.tournaments.set(listResult.value);
       this.syncedAt.set(listResult.fetchedAt);
       this.stale.set(listResult.stale);
-      this.leagues.set(leagues);
+      this.leagues.set(seasons.items);
       this.error.set('');
     } catch (error) {
       logBoundaryError('live-tournament-list.load', error);
@@ -139,7 +139,7 @@ export class LiveTournamentListComponent {
   }
 
   leagueName(leagueId: string): string {
-    if (!leagueId || leagueId === PLACEHOLDER_LEAGUE_ID) return this.i18n.t('liveList.unassigned');
+    if (!leagueId) return this.i18n.t('liveList.unassigned');
     return this.leagues().find((league) => league.id === leagueId)?.name ?? this.i18n.t('liveList.unknownLeague');
   }
 

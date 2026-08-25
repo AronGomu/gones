@@ -6,6 +6,7 @@ import { Injector } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '../api/generated/gones-api';
+import { AuthService } from '../auth/auth.service';
 import { ArchiveBackfillQueue } from '../backend/archive-backfill-queue';
 import type { ArchiveBackfillReport, ArchiveYearLoader } from '../backend/archive-backfill-queue';
 import { ArchiveCacheService, ARCHIVE_CATALOG_KEY, ARCHIVE_YEARS_META_KEY, CATALOG_TTL_MS, utcDayKey } from '../backend/archive-cache.service';
@@ -102,10 +103,12 @@ function build(parts: {
       { provide: ArchiveBackfillQueue, useValue: queue },
       { provide: LocalArchiveBackend, useValue: local },
       { provide: Client, useValue: parts.client ?? {} },
-      // The staged-save half of the repository. None of the catalog reads below touches either, but
-      // both are field-level `inject(...)` calls, so this bare injector has to be able to answer them.
+      // The staged-save and bundle-restore half of the repository. None of the catalog reads below
+      // touches any of them, but all three are field-level `inject(...)` calls, so this bare injector
+      // has to be able to answer them. `AuthService` decides the restore destination (ADR 0028).
       { provide: PowerUserSettingsService, useValue: { requireEnabled: () => undefined } },
-      { provide: ServerArchiveBackend, useValue: {} }
+      { provide: ServerArchiveBackend, useValue: {} },
+      { provide: AuthService, useValue: { profile: () => null } }
     ]
   });
   return { repo: injector.get(ArchiveRepository), cache, queue, local };

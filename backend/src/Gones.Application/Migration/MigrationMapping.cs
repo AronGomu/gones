@@ -23,7 +23,6 @@ public sealed record MigrationMappingFile(
     string FileName,
     Guid OrganizationId,
     Guid OwnerUserId,
-    string? PlaceholderLeagueTarget,
     IReadOnlyDictionary<string, CalendarEventMapping> CalendarEvents,
     string MappingHash);
 
@@ -73,7 +72,6 @@ public static class MigrationMappingReader
 
         var organizationId = RequiredGuid(root, "organizationId", fileName);
         var ownerUserId = RequiredGuid(root, "ownerUserId", fileName);
-        var placeholderTarget = OptionalString(root, "placeholderLeagueTarget");
 
         var calendarEvents = new Dictionary<string, CalendarEventMapping>(StringComparer.Ordinal);
         if (root.TryGetProperty("calendarEvents", out var eventsElement))
@@ -88,7 +86,7 @@ public static class MigrationMappingReader
             }
         }
 
-        return new MigrationMappingFile(fileName, organizationId, ownerUserId, placeholderTarget, calendarEvents, CanonicalJson.Checksum(root));
+        return new MigrationMappingFile(fileName, organizationId, ownerUserId, calendarEvents, CanonicalJson.Checksum(root));
     }
 
     private static CalendarEventMapping ParseEventMapping(JsonElement element, string eventId, string fileName)

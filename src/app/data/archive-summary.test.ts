@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createArchiveLeague, createArchiveTournament, createLeagueSeason, toLeagueDocument, toTournamentDocument } from '../domain/archive-models';
+import { createArchiveLeague, createArchiveTournament, createLeagueSeason } from '../domain/archive-models';
 import type { ArchiveTournamentDocument, PersistedArchiveLeague, PersistedArchiveTournament, PersistedLeagueSeason } from '../domain/archive-models';
 import { createMatchRoundEntry, createRound } from '../domain/models';
 import { calculateLeagueResult, calculateTournamentResult } from '../domain/results';
@@ -53,7 +53,7 @@ describe('summarizeLeagueSeason', () => {
     const stored = season();
     const tournaments = [tournament('t-1', '2026-01-02', [['Alice', 'Bob']]), tournament('t-2', '2026-02-03', [['Carol', 'Alice']])];
 
-    expect(summarizeLeagueSeason(stored, tournaments).playerCount).toBe(calculateLeagueResult(toLeagueDocument(stored, tournaments)).rows.length);
+    expect(summarizeLeagueSeason(stored, tournaments).playerCount).toBe(calculateLeagueResult(tournaments).rows.length);
   });
 
   it('a Season with no Tournament reports null date bounds', () => {
@@ -81,7 +81,7 @@ describe('summarizeArchiveTournament', () => {
   it('summarizes a Tournament with the shared player count', () => {
     const stored = persistedTournament('t-1', '2026-01-02', [['Alice', 'Bob'], ['Carol', 'Dave']]);
 
-    expect(summarizeArchiveTournament(stored).playerCount).toBe(calculateTournamentResult(toTournamentDocument(stored)).rows.length);
+    expect(summarizeArchiveTournament(stored).playerCount).toBe(calculateTournamentResult(stored).rows.length);
     expect(summarizeArchiveTournament(stored).playerCount).toBe(4);
   });
 

@@ -8,10 +8,7 @@ namespace Gones.Domain.Leagues;
 public static partial class LeagueNormalizer
 {
     public const int GonesDataVersion = 4;
-    public const string PlaceholderLeagueId = "placeholder-league";
-    public const string PlaceholderLeagueName = "Unassigned Tournaments";
 
-    private static readonly string[] UnassignedLeagueDisplayNames = [PlaceholderLeagueName, "Tournois non assignés"];
     private static readonly CultureInfo ComparisonCulture = CultureInfo.GetCultureInfo("en-US");
 
     public static LeagueDocument Normalize(JsonElement input, Func<string>? idFactory = null)
@@ -23,21 +20,7 @@ public static partial class LeagueNormalizer
             .Select(item => NormalizeTournament(item, id, idFactory))
             .ToArray();
 
-        if (id == PlaceholderLeagueId)
-            return new LeagueDocument(PlaceholderLeagueId, PlaceholderLeagueName, status, tournaments);
-
         return new LeagueDocument(id, DefaultedTrimmedString(input, "name", "New League"), status, tournaments);
-    }
-
-    public static LeagueDocument CreatePlaceholderLeague() =>
-        new(PlaceholderLeagueId, PlaceholderLeagueName, "active", []);
-
-    public static string NormalizeLeagueNameKey(string? name) => RemoveCombiningMarks((name ?? string.Empty).Trim().ToLowerInvariant());
-
-    public static bool IsUnassignedLeagueName(string? name)
-    {
-        var key = NormalizeLeagueNameKey(name);
-        return key.Length > 0 && UnassignedLeagueDisplayNames.Any(label => NormalizeLeagueNameKey(label) == key);
     }
 
     public static string TrimPlayerName(string? value) => (value ?? string.Empty).Trim();
@@ -216,19 +199,6 @@ public static partial class LeagueNormalizer
             JsonValueKind.False => "false",
             _ => value.Value.GetRawText()
         };
-
-    private static string RemoveCombiningMarks(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(normalized.Length);
-        foreach (var rune in normalized.EnumerateRunes())
-        {
-            var category = Rune.GetUnicodeCategory(rune);
-            if (category is not (UnicodeCategory.NonSpacingMark or UnicodeCategory.SpacingCombiningMark or UnicodeCategory.EnclosingMark))
-                builder.Append(rune);
-        }
-        return builder.ToString();
-    }
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();

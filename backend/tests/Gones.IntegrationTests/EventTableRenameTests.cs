@@ -64,7 +64,7 @@ public sealed class EventTableRenameTests : IAsyncLifetime
         await db.Database.MigrateAsync();
 
         // The shared format lookup, the archive and the live domains are explicitly not renamed.
-        foreach (var table in new[] { "tournament_formats", "league_archive_aggregates", "live_aggregates" })
+        foreach (var table in new[] { "tournament_formats", "archive_tournaments", "live_aggregates" })
         {
             Assert.True(await TableExistsAsync(db, table), $"{table} must not be renamed");
         }

@@ -59,8 +59,8 @@ describe('event routes', () => {
 });
 
 describe('route exposure per capability flag', () => {
-  it('always serves the public browsing, League archive, Live and Settings surface', () => {
-    for (const path of ['', 'about', 'events', 'events/:slug', 'global-stats', 'leagues-archive', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
+  it('always serves the public browsing, archive, Live and Settings surface', () => {
+    for (const path of ['', 'about', 'events', 'events/:slug', 'global-stats', 'archive/league-seasons', 'live-tournaments', 'live-tournaments/:liveTournamentId', 'settings']) {
       expect(paths(noCapabilities)).toContain(path);
     }
   });
@@ -204,40 +204,42 @@ describe('route exposure per capability flag', () => {
     expect(eventsRoute?.canActivate).toBeUndefined();
   });
 
-  it('serves the archive list route', () => {
-    expect(paths(noCapabilities)).toContain('leagues-archive');
-  });
-
-  it('serves the archive detail route', () => {
-    expect(paths(noCapabilities)).toContain('leagues-archive/:leagueId');
-  });
-
-  it('serves the archive tournament routes', () => {
+  it('serves the three-tier archive routes', () => {
     for (const path of [
+      'archive',
+      'archive/league-seasons',
+      'archive/league-seasons/:seasonId',
+      'archive/tournaments',
+      'archive/tournaments/:tournamentId',
+      'archive/tournaments/:tournamentId/result',
+      'archive/tournaments/:tournamentId/result/metagames'
+    ]) {
+      expect(paths(noCapabilities), path).toContain(path);
+    }
+  });
+
+  /**
+   * ADR 0022 kept parameter-preserving redirects for the retired archive paths because "bookmarks and
+   * old links are a real user's problem". Gones is unreleased with zero users, so T19 reversed that
+   * clause: every retired path falls through to the `**` 404 route with no alias and no redirect.
+   */
+  it('registers no retired archive route and no redirect onto one', () => {
+    const registered = paths(noCapabilities);
+    for (const retired of [
+      'leagues',
+      'leagues/:leagueId',
+      'leagues/:leagueId/tournaments/:tournamentId',
+      'leagues/:leagueId/tournaments/:tournamentId/result',
+      'leagues/:leagueId/tournaments/:tournamentId/result/metagames',
+      'leagues-archive',
+      'leagues-archive/:leagueId',
       'leagues-archive/:leagueId/tournaments-archive/:tournamentId',
       'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result',
       'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result/metagames'
     ]) {
-      expect(paths(noCapabilities)).toContain(path);
+      expect(registered, retired).not.toContain(retired);
     }
-  });
-
-  it('redirects the old list path', () => {
-    expect(routeFor('leagues')?.redirectTo).toBe('leagues-archive');
-    expect(routeFor('leagues')?.pathMatch).toBe('full');
-  });
-
-  it('redirects the old detail path with its parameter', () => {
-    expect(redirectWith('leagues/:leagueId', { leagueId: 'abc' })).toBe('/leagues-archive/abc');
-  });
-
-  it('redirects the old tournament path with both parameters', () => {
-    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId', { leagueId: 'a', tournamentId: 'b' }))
-      .toBe('/leagues-archive/a/tournaments-archive/b');
-    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId/result', { leagueId: 'a', tournamentId: 'b' }))
-      .toBe('/leagues-archive/a/tournaments-archive/b/result');
-    expect(redirectWith('leagues/:leagueId/tournaments/:tournamentId/result/metagames', { leagueId: 'a', tournamentId: 'b' }))
-      .toBe('/leagues-archive/a/tournaments-archive/b/result/metagames');
+    expect(buildRoutes(noCapabilities).filter((route) => route.redirectTo === 'leagues-archive')).toEqual([]);
   });
 
   it('serves no bare leagues route target anywhere in the app source', () => {

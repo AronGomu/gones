@@ -56,27 +56,16 @@ export function eventRoutes(): Routes {
 }
 
 /**
- * The archived League feature was renamed to `leagues-archive` / `tournaments-archive` (ADR 0022).
- * Every retired path stays reachable as a parameter-preserving redirect so bookmarks survive; the
- * API paths deliberately carry no such alias.
- */
-function archiveRedirectRoutes(): Routes {
-  const leagueId = (params: Record<string, unknown>) => encodeURIComponent(String(params['leagueId'] ?? ''));
-  const tournamentId = (params: Record<string, unknown>) => encodeURIComponent(String(params['tournamentId'] ?? ''));
-  const tournamentPath = (params: Record<string, unknown>) => `/leagues-archive/${leagueId(params)}/tournaments-archive/${tournamentId(params)}`;
-
-  return [
-    { path: 'leagues', pathMatch: 'full', redirectTo: 'leagues-archive' },
-    { path: 'leagues/:leagueId', pathMatch: 'full', redirectTo: ({ params }) => `/leagues-archive/${leagueId(params)}` },
-    { path: 'leagues/:leagueId/tournaments/:tournamentId', pathMatch: 'full', redirectTo: ({ params }) => tournamentPath(params) },
-    { path: 'leagues/:leagueId/tournaments/:tournamentId/result', pathMatch: 'full', redirectTo: ({ params }) => `${tournamentPath(params)}/result` },
-    { path: 'leagues/:leagueId/tournaments/:tournamentId/result/metagames', pathMatch: 'full', redirectTo: ({ params }) => `${tournamentPath(params)}/result/metagames` }
-  ];
-}
-
-/**
  * Route exposure follows the resolved capability flags. The data authority is always the server, so
  * auth, registration, organizer and admin routes are gated by their own flags alone (ADR 0020).
+ *
+ * The archive is served from `/archive/**` on three tiers (League → LeagueSeason → Tournament).
+ * Every retired archive path — `/leagues`, the flat League list, its detail page and its nested
+ * tournament pages — is removed with no redirect alias, so a stale bookmark hits the 404 page.
+ * ADR 0022 kept redirects because "Bookmarks and old links are a real user's problem"; Gones is
+ * unreleased with zero users, so that rationale is void. Its "No API path aliases" clause still
+ * stands, and the retired API routes 404 too. The retired path literals are deliberately not
+ * spelled out here: `src/app/shared/retired-archive-surface.test.ts` scans this file for them.
  */
 export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
   const authV1 = features.authV1;
@@ -97,15 +86,9 @@ export function buildRoutes(features: DataAuthorityCapabilityFlags): Routes {
     { path: 'archive/tournaments/:tournamentId', loadComponent: () => import('./features/archive/tournament-detail.component').then((m) => m.TournamentDetailComponent) },
     { path: 'archive/tournaments/:tournamentId/result', loadComponent: () => import('./features/archive/tournament-result.component').then((m) => m.TournamentResultComponent) },
     { path: 'archive/tournaments/:tournamentId/result/metagames', loadComponent: () => import('./features/archive/tournament-result.component').then((m) => m.TournamentResultComponent) },
-    { path: 'leagues-archive', loadComponent: () => import('./features/leagues-archive/league-archive-list.component').then((m) => m.LeagueArchiveListComponent) },
     { path: 'live-tournaments', loadComponent: () => import('./features/live-tournaments/live-tournament-list.component').then((m) => m.LiveTournamentListComponent) },
     { path: 'live-tournaments/new', canActivate: [powerUserGuard], loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
     { path: 'live-tournaments/:liveTournamentId', loadComponent: () => import('./features/live-tournaments/live-tournament-runner.component').then((m) => m.LiveTournamentRunnerComponent) },
-    { path: 'leagues-archive/:leagueId', loadComponent: () => import('./features/leagues-archive/league-archive-detail.component').then((m) => m.LeagueArchiveDetailComponent) },
-    { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId', loadComponent: () => import('./features/tournaments-archive/tournament-archive-detail.component').then((m) => m.TournamentArchiveDetailComponent) },
-    { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result', loadComponent: () => import('./features/tournaments-archive/tournament-archive-result.component').then((m) => m.TournamentArchiveResultComponent) },
-    { path: 'leagues-archive/:leagueId/tournaments-archive/:tournamentId/result/metagames', loadComponent: () => import('./features/tournaments-archive/tournament-archive-result.component').then((m) => m.TournamentArchiveResultComponent) },
-    ...archiveRedirectRoutes(),
     { path: 'global-stats', loadComponent: () => import('./features/players/global-stats.component').then((m) => m.GlobalStatsComponent) },
     { path: 'players/:playerName', loadComponent: () => import('./features/players/player-detail.component').then((m) => m.PlayerDetailComponent) },
     { path: 'settings', loadComponent: () => import('./features/settings/settings.component').then((m) => m.SettingsComponent) },

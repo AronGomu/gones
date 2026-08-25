@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { Client } from '../api/generated/gones-api';
+import type { ArchiveRestoreRequest } from '../api/generated/gones-api';
 import { ArchiveBackfillQueue, classifyArchiveYear, isArchiveYearPartitionComplete } from '../backend/archive-backfill-queue';
 import type { ArchiveYearPage } from '../backend/archive-backfill-queue';
 import { ARCHIVE_CATALOG_KEY, ARCHIVE_YEARS_META_KEY, ArchiveCacheService, isArchiveCatalogFresh, utcDayKey } from '../backend/archive-cache.service';
@@ -10,10 +11,14 @@ import type {
   ArchiveYearEntry, ArchiveYearPartition
 } from '../backend/archive-cache.service';
 import { LocalArchiveBackend } from '../backend/local-archive-backend.service';
+import type { ArchiveRestoreResult } from '../backend/local-archive-backend.service';
 import type { ArchiveTournamentEditBatch } from '../backend/local-archive-backend.service';
 import { ServerArchiveBackend } from '../backend/server-archive-backend.service';
 import type { ArchiveTournamentPort } from '../backend/server-archive-backend.service';
-import type { LeagueStatus, PersistedArchiveTournament } from '../domain/archive-models';
+import type { ArchiveBundle, LeagueStatus, PersistedArchiveLeague, PersistedArchiveTournament, PersistedLeagueSeason } from '../domain/archive-models';
+import { buildArchiveBundle } from '../domain/archive-export-schemas';
+import { AuthService } from '../auth/auth.service';
+import { createArchiveTarget } from './archive-command-ux';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 import { isLocalArchiveId } from './archive-origin';
 import type { ArchiveCatalogResponse } from './archive-summary';
@@ -31,7 +36,7 @@ import type { ArchiveCatalogResponse } from './archive-summary';
  * down to the two files that genuinely need the API.
  */
 
-/** Renames `gones-league-updated`. Dispatched after every cache purge. */
+/** Dispatched after every cache purge. Renames the retired League announcement it replaced. */
 export const ARCHIVE_UPDATED_EVENT = 'gones-archive-updated';
 
 /** A row plus where it lives. `isLocal` is repository-only and is never stored in the cache. */
@@ -83,6 +88,20 @@ export interface ArchiveReadClient {
   getArchiveTournamentYearCatalog(year: string | undefined): Observable<RawCatalog<RawArchiveTournament>>;
   getArchiveYears(): Observable<RawArchiveYears>;
   archiveSeasonTournaments(seasonId: string): Observable<RawCatalog<RawArchiveTournament>>;
+  archiveRestoreFull(idempotencyKey: string | undefined, body: ArchiveRestoreRequest): Observable<RawArchiveRestore>;
+}
+
+/** What both authorities agree on after a restore: which records now exist. */
+export interface ArchiveRestoreSummary {
+  leagueIds: string[];
+  leagueSeasonIds: string[];
+  tournamentIds: string[];
+}
+
+interface RawArchiveRestore {
+  leagues: { id: string }[];
+  leagueSeasons: { id: string }[];
+  tournaments: { id: string }[];
 }
 
 /**
@@ -95,6 +114,11 @@ interface LocalArchiveSource {
   listArchiveLeagueSummaries(): Promise<ArchiveCatalogResponse<ArchiveLeagueSummary>>;
   listLeagueSeasonSummaries(): Promise<ArchiveCatalogResponse<ArchiveLeagueSeasonSummary>>;
   listArchiveTournamentSummaries(): Promise<ArchiveCatalogResponse<ArchiveTournamentSummary>>;
+  // The export bridge needs the documents, not the summaries: a bundle carries rounds.
+  listArchiveLeagues(): Promise<ArchiveCatalogResponse<PersistedArchiveLeague>>;
+  listLeagueSeasons(): Promise<ArchiveCatalogResponse<PersistedLeagueSeason>>;
+  listArchiveTournaments(): Promise<ArchiveCatalogResponse<PersistedArchiveTournament>>;
+  restoreArchiveBundle(bundle: ArchiveBundle, idempotencyKey?: string): Promise<ArchiveRestoreResult>;
 }
 
 /** `[]` when either bound is null, when a bound is not a `YYYY-…` string, or when last < first. */
@@ -183,6 +207,7 @@ export class ArchiveRepository {
   private readonly queue = inject(ArchiveBackfillQueue);
   private readonly local: LocalArchiveSource = inject(LocalArchiveBackend);
   private readonly power = inject(PowerUserSettingsService);
+  private readonly auth = inject(AuthService);
   private readonly localTournaments: ArchiveTournamentPort = inject(LocalArchiveBackend);
   private readonly serverTournaments: ArchiveTournamentPort = inject(ServerArchiveBackend);
 
@@ -337,6 +362,38 @@ export class ArchiveRepository {
   }
 
   /**
+   * The v5 bundle this browser can author, for the header's Gones Export. Browser-local records only:
+   * the three-tier read surface serves slim catalogs and one detail per Tournament (ADR 0039/0042),
+   * so there is no whole-document server read to build a server half from. The caller refuses rather
+   * than writing a bundle that is short of the archive it claims to back up.
+   */
+  async exportBundle(): Promise<ArchiveBundle> {
+    const [leagues, seasons, tournaments] = await Promise.all([
+      this.local.listArchiveLeagues(),
+      this.local.listLeagueSeasons(),
+      this.local.listArchiveTournaments()
+    ]);
+    return buildArchiveBundle({ leagues: leagues.items, leagueSeasons: seasons.items, tournaments: tournaments.items });
+  }
+
+  /**
+   * Persist a parsed v5 bundle. `ArchiveImportService` reads and validates but injects no store, so
+   * this is the method its doc comment names. The destination is ADR 0028's rule and nothing else:
+   * an Organizer or Admin restores onto the server, everyone else into this browser.
+   */
+  restoreBundle(bundle: ArchiveBundle, idempotencyKey = newArchiveIdempotencyKey()): Promise<ArchiveRestoreSummary> {
+    return this.mutating(async () => {
+      this.power.requireEnabled();
+      if (createArchiveTarget(this.auth.profile()?.globalRole) === 'local') {
+        const restored = await this.local.restoreArchiveBundle(bundle, idempotencyKey);
+        return toRestoreSummary(restored.leagues, restored.leagueSeasons, restored.tournaments);
+      }
+      const response = await firstValueFrom(this.client.archiveRestoreFull(idempotencyKey, toRestoreRequest(bundle)));
+      return toRestoreSummary(response.leagues, response.leagueSeasons, response.tournaments);
+    });
+  }
+
+  /**
    * The single funnel every archive mutation goes through: drop every cached catalog, then tell
    * the app. The TTL governs navigation, never correctness (ADR 0039), so a write must never wait
    * out 24 hours to become visible.
@@ -461,4 +518,35 @@ function oldestCompletedAt(partitions: ArchiveYearPartition[]): string | undefin
     .map((partition) => partition.completedAt)
     .filter((completedAt): completedAt is string => Boolean(completedAt))
     .sort()[0];
+}
+
+function toRestoreSummary(
+  leagues: readonly { id: string }[],
+  leagueSeasons: readonly { id: string }[],
+  tournaments: readonly { id: string }[]
+): ArchiveRestoreSummary {
+  return {
+    leagueIds: leagues.map((row) => row.id),
+    leagueSeasonIds: leagueSeasons.map((row) => row.id),
+    tournamentIds: tournaments.map((row) => row.id)
+  };
+}
+
+function newArchiveIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `archive-restore-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+/**
+ * The wire body for `/api/archive/restore-full`. `kind` is the server's bundle discriminator, and
+ * `seasonId` crosses as `undefined` rather than `null` because that is what the generated client
+ * declares — both serialize to an absent Season, which is what standalone means.
+ */
+function toRestoreRequest(bundle: ArchiveBundle): ArchiveRestoreRequest {
+  return {
+    kind: 'fullArchive',
+    version: bundle.version,
+    leagues: bundle.leagues,
+    leagueSeasons: bundle.leagueSeasons,
+    tournaments: bundle.tournaments.map((tournament) => ({ ...tournament, seasonId: tournament.seasonId ?? undefined }))
+  };
 }

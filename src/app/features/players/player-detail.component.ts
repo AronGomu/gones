@@ -7,15 +7,16 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatSelectModule } from '@angular/material/select';
-import { LeagueArchiveRepository } from '../../data/league-archive-repository.service';
-import { GonesData, GONES_DATA_VERSION, PersistedLeague, PLACEHOLDER_LEAGUE_ID, TournamentDocument, trimPlayerName } from '../../domain/models';
+import { LocalArchiveBackend } from '../../backend/local-archive-backend.service';
+import { trimPlayerName } from '../../domain/models';
+import type { ArchiveTournamentDocument, PersistedArchiveTournament, PersistedLeagueSeason } from '../../domain/archive-models';
 import { calculatePlayerStatistics, OpponentRecord, PlayerArchetypeUsage, PlayerMatch, PlayerStatistics } from '../../domain/player-stats';
-import { GlobalPlayerStatisticsRow, PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-api';
+import { ArchiveGlobalPlayerStatisticsRow, PlayerDetailResponse, PlayerMatchRow } from '../../api/generated/gones-api';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { escapeSearchTerm, HighlightPart, highlightSearchText, normalizeSearchText, searchWords } from '../../shared/search-highlight';
-import { isLocalLeagueId } from '../../data/league-archive-origin';
+import { isLocalArchiveId } from '../../data/archive-origin';
 import { PlayerDetailCacheService } from './player-detail-cache.service';
 import { MATCH_PAGE_SIZES, MatchPageSize, readMatchPageSize, readOnlineOnly, writeMatchPageSize, writeOnlineOnly } from './player-stats-preferences';
 import { formatRatingDelta, formatRatingValue } from './rating-format';
@@ -381,7 +382,9 @@ export class PlayerDetailComponent {
   /** The server's answer for this player, or `null` when it knows no played Match for them. */
   readonly serverPayload = signal<PlayerDetailResponse | null>(null);
   /** Only ever the browser store (ADR 0028) — the server half already arrived as `serverPayload`. */
-  readonly localLeagues = signal<PersistedLeague[]>([]);
+  readonly localTournaments = signal<PersistedArchiveTournament[]>([]);
+  /** Season names for the browser-local Tournaments, so a local match card can print its Season. */
+  readonly localSeasonNames = signal<ReadonlyMap<string, string>>(new Map());
   readonly loading = signal(false);
   readonly stale = signal(false);
   readonly truncated = signal(false);
@@ -391,24 +394,24 @@ export class PlayerDetailComponent {
   readonly matchPageSizes = MATCH_PAGE_SIZES;
   readonly matchPageSize = signal<MatchPageSize>(readMatchPageSize());
   private readonly requestedMatchPage = signal(1);
-  private localLeaguesLoaded = false;
+  private localTournamentsLoaded = false;
   readonly serverMatchCount = computed(() => this.serverPayload()?.matches?.length ?? 0);
   readonly totalMatchCount = computed(() => this.serverPayload()?.totalMatchCount ?? 0);
   /** `null` while Online-only is on: nothing browser-local counts, so nothing browser-local is read. */
   readonly localStats = computed<PlayerStatistics | null>(() => this.onlineOnly()
     ? null
-    : calculatePlayerStatistics({ version: GONES_DATA_VERSION, leagues: completedTournamentsOnly(this.localLeagues()), calendarEvents: [] } satisfies GonesData, this.playerName()));
+    : calculatePlayerStatistics(completedTournamentsOnly(this.localTournaments()), this.playerName()));
   readonly allMatches = computed<PlayerMatchView[]>(() => {
     const server = (this.serverPayload()?.matches ?? []).map(toServerMatchView);
     const local = this.localStats()?.matches ?? [];
-    return [...server, ...local.map((match) => toLocalMatchView(match, this.playerName()))];
+    return [...server, ...local.map((match) => toLocalMatchView(match, this.playerName(), this.localSeasonNames()))];
   });
   readonly stats = computed<PlayerStatsView>(() => {
     const server = this.serverPayload()?.statistics ?? null;
     const local = this.localStats();
     return local ? mergeStats(server, local, this.allMatches()) : serverStatsView(server);
   });
-  readonly serverStats = computed<GlobalPlayerStatisticsRow | null>(() => this.serverPayload()?.statistics ?? null);
+  readonly serverStats = computed<ArchiveGlobalPlayerStatisticsRow | null>(() => this.serverPayload()?.statistics ?? null);
   readonly showRatingLocalNote = computed(() => !this.onlineOnly() && this.allMatches().some((m) => m.isLocal));
   readonly matchDrawRate = computed(() => { const s = this.stats(); return s.playedMatchCount > 0 ? s.matchDraws / s.playedMatchCount : null; });
   readonly orderedMatches = computed(() => orderMatches(this.allMatches(), this.newestFirst()));
@@ -422,7 +425,7 @@ export class PlayerDetailComponent {
   readonly pagedMatches = computed(() => paginateMatches(this.filteredMatches(), this.matchPage(), this.matchPageSize()));
 
   constructor(
-    private readonly repo: LeagueArchiveRepository,
+    private readonly local: LocalArchiveBackend,
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     readonly i18n: I18nService,
@@ -430,7 +433,7 @@ export class PlayerDetailComponent {
   ) {
     this.playerName.set(this.route.snapshot.paramMap.get('playerName') ?? '');
     void this.loadPlayer();
-    if (!this.onlineOnly()) void this.loadLocalLeagues();
+    if (!this.onlineOnly()) void this.loadLocalTournaments();
   }
 
   private async loadPlayer(options: { force?: boolean } = {}): Promise<void> {
@@ -454,17 +457,21 @@ export class PlayerDetailComponent {
   }
 
   /**
-   * Browser-local leagues only, and only once. Filtering on the `local-` prefix is the guard against
-   * counting a server League twice: its matches are already in `serverPayload`.
+   * Browser-local Tournaments only, and only once. Filtering on the `local-` prefix is the guard
+   * against counting a server Tournament twice: its matches are already in `serverPayload`.
    */
-  private async loadLocalLeagues(): Promise<void> {
-    if (this.localLeaguesLoaded) return;
-    this.localLeaguesLoaded = true;
+  private async loadLocalTournaments(): Promise<void> {
+    if (this.localTournamentsLoaded) return;
+    this.localTournamentsLoaded = true;
     try {
-      const leagues = await this.repo.listLocalLeagues();
-      this.localLeagues.set(leagues.filter((league) => isLocalLeagueId(league.id)));
+      const [tournaments, seasons] = await Promise.all([
+        this.local.listArchiveTournaments(),
+        this.local.listLeagueSeasons()
+      ]);
+      this.localTournaments.set(tournaments.items.filter((tournament) => isLocalArchiveId(tournament.id)));
+      this.localSeasonNames.set(new Map(seasons.items.map((season: PersistedLeagueSeason) => [season.id, season.name])));
     } catch {
-      this.localLeaguesLoaded = false;
+      this.localTournamentsLoaded = false;
     }
     this.resetMatchPage();
   }
@@ -514,8 +521,9 @@ export class PlayerDetailComponent {
   }
 
   matchRoundLabel(match: PlayerMatchView): string { return this.i18n.t('player.roundN', { n: match.roundIndex + 1 }); }
+  /** A standalone Tournament belongs to no Season, so it prints the unassigned label. */
   leagueDisplayName(match: PlayerMatchView): string {
-    return match.leagueId === PLACEHOLDER_LEAGUE_ID ? this.i18n.t('liveList.unassigned') : match.leagueName;
+    return match.leagueName || this.i18n.t('liveList.unassigned');
   }
 
   matchHeaderLabel(match: PlayerMatchView): string { return `${this.matchDateLabel(match)} ${this.leagueDisplayName(match)} ${match.tournamentName} ${this.matchRoundLabel(match)}`; }
@@ -541,7 +549,7 @@ export class PlayerDetailComponent {
   setOnlineOnly(value: boolean): void {
     this.onlineOnly.set(value);
     writeOnlineOnly(value);
-    if (!value) void this.loadLocalLeagues();
+    if (!value) void this.loadLocalTournaments();
     this.resetMatchPage();
   }
 
@@ -575,7 +583,7 @@ export class PlayerDetailComponent {
 
   openMatchTournament(match: PlayerMatchView): void {
     void this.router.navigate(
-      ['/leagues-archive', match.leagueId, 'tournaments-archive', match.tournamentId],
+      ['/archive', 'tournaments', match.tournamentId],
       { queryParams: { round: match.roundIndex + 1 } },
     );
   }
@@ -606,8 +614,8 @@ export class PlayerDetailComponent {
  * invisible on the server. Filtering here rather than inside `calculatePlayerStatistics` keeps the
  * shared domain function — and its C# twin — identical on both sides of the parity fixtures.
  */
-export function completedTournamentsOnly(leagues: readonly PersistedLeague[]): PersistedLeague[] {
-  return leagues.map((league) => ({ ...league, tournaments: league.tournaments.filter((tournament) => tournament.status === 'completed') }));
+export function completedTournamentsOnly<T extends ArchiveTournamentDocument>(tournaments: readonly T[]): T[] {
+  return tournaments.filter((tournament) => tournament.status === 'completed');
 }
 
 export function paginateMatches<T>(matches: readonly T[], page: number, pageSize: number): T[] {
@@ -648,11 +656,12 @@ function toServerMatchView(row: PlayerMatchRow): PlayerMatchView {
   };
 }
 
-function toLocalMatchView(match: PlayerMatch, playerName: string): PlayerMatchView {
+function toLocalMatchView(match: PlayerMatch, playerName: string, seasonNames: ReadonlyMap<string, string>): PlayerMatchView {
+  const seasonId = match.tournament.seasonId;
   return {
     kind: match.kind,
-    leagueId: match.league.id,
-    leagueName: match.league.name,
+    leagueId: seasonId ?? '',
+    leagueName: seasonId ? seasonNames.get(seasonId) ?? '' : '',
     tournamentId: match.tournament.id,
     tournamentName: match.tournament.name,
     tournamentDate: match.tournament.tournamentDate ?? '',
@@ -666,13 +675,13 @@ function toLocalMatchView(match: PlayerMatch, playerName: string): PlayerMatchVi
   };
 }
 
-function rosterArchetype(tournament: TournamentDocument, playerName: string): string {
+function rosterArchetype(tournament: ArchiveTournamentDocument, playerName: string): string {
   const name = trimPlayerName(playerName);
   return tournament.playerArchetypes?.find((row) => trimPlayerName(row.playerName) === name)?.archetype.trim() ?? '';
 }
 
 /** Online-only: the read model's row is the answer, rendered exactly as it arrived. */
-function serverStatsView(row: GlobalPlayerStatisticsRow | null): PlayerStatsView {
+function serverStatsView(row: ArchiveGlobalPlayerStatisticsRow | null): PlayerStatsView {
   return {
     playedMatchCount: row?.playedMatchCount ?? 0,
     matchWins: row?.matchWins ?? 0,
@@ -693,7 +702,7 @@ function serverStatsView(row: GlobalPlayerStatisticsRow | null): PlayerStatsView
  * Counts add; ratios do not. Nemesis, Rival and the most played Archetype are recomputed from the
  * merged history — two "top of my half" summaries cannot be combined into the top of the whole.
  */
-function mergeStats(server: GlobalPlayerStatisticsRow | null, local: PlayerStatistics, matches: readonly PlayerMatchView[]): PlayerStatsView {
+function mergeStats(server: ArchiveGlobalPlayerStatisticsRow | null, local: PlayerStatistics, matches: readonly PlayerMatchView[]): PlayerStatsView {
   const playedMatchCount = (server?.playedMatchCount ?? 0) + local.playedMatchCount;
   const matchWins = (server?.matchWins ?? 0) + local.matchWins;
   const playedGameCount = (server?.playedGameCount ?? 0) + local.playedGameCount;

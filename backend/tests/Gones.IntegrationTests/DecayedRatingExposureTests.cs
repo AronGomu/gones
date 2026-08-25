@@ -17,8 +17,8 @@ namespace Gones.IntegrationTests;
 /// </summary>
 public sealed class DecayedRatingExposureTests : IAsyncLifetime
 {
-    private const string RankingsPath = "/api/leagues-archive/global-player-statistics";
-    private const string CatalogPath = "/api/leagues-archive/global-player-statistics/all";
+    private const string RankingsPath = "/api/archive/global-player-statistics";
+    private const string CatalogPath = "/api/archive/global-player-statistics/all";
     private const string PlayerPath = "/api/players/Alice";
 
     private readonly PostgreSqlTestContainer postgres = new();

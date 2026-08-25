@@ -17,9 +17,8 @@
  * A committed environment's three-tier archive goes in as one `POST /api/archive/restore-full`. Restore
  * rather than the interactive create route, because a fixture archive is history: the create route
  * refuses a non-Admin a Tournament older than the 365-day lock window, and restore is exempt from that
- * lock by design. The legacy `POST /api/leagues-archive/restore` stays beside it until the legacy
- * surface is retired, because `live-tournaments.json` resolves its `leagueKey` against the legacy
- * table.
+ * lock by design. A running tournament's `leagueKey` names a LeagueSeason of that same archive: the
+ * legacy flat League it used to name, and the restore route that seeded one, are retired (T19).
  *
  * An environment that carries data resets the local stack first, so swapping environments never
  * leaves the previous dataset behind. The reset is the same volume-dropping sequence as
@@ -364,32 +363,6 @@ async function seedRegistrations(environment, tokens, eventIds) {
   }
 }
 
-/**
- * One `POST /api/leagues-archive/restore` per fixture League: the file is a whole `LeagueDocument`,
- * which is the shape League Restore already takes, so the archive lands in a single validated call.
- *
- * League Restore mints new identities (a restored League is a new League, ADR 0022), so the fixture
- * id is only a key: the restored id is what `live-tournaments.json` has to be pointed at, and it is
- * what this returns. The idempotency key makes a re-run replay the first restore instead of adding a
- * second `Gones League 6 (restored)`.
- */
-async function seedLeagues(environment, tokens) {
-  const ids = new Map();
-  if (!environment.leagues.length) return ids;
-
-  // Admin passes the Organizer policy and owns no League, so ownership never blocks a re-seed.
-  const token = tokenForRole(environment, tokens, 'Admin', 'leagues');
-
-  for (const league of environment.leagues) {
-    const restored = await requireResponse(await api('POST', '/api/leagues-archive/restore', {
-      token,
-      body: { kind: 'league', gonesDataVersion: 2, league },
-      idempotencyKey: `${environment.name}-league-restore-${league.id}`
-    }), 'leagues', league.id);
-    ids.set(league.id, (await restored.json()).id);
-  }
-  return ids;
-}
 
 /**
  * The whole three-tier archive of an environment in one `POST /api/archive/restore-full`.
@@ -426,7 +399,7 @@ async function seedArchive(environment, tokens) {
  * Every command answers `{ document, documentVersion, eTag }` and the next one must send that latest
  * `eTag` as `If-Match`, so the chain is strictly sequential.
  */
-async function seedLiveTournaments(environment, tokens, leagueIds) {
+async function seedLiveTournaments(environment, tokens, seasonIds) {
   if (!environment.liveTournaments.length) return;
 
   for (const entry of environment.liveTournaments) {
@@ -435,7 +408,7 @@ async function seedLiveTournaments(environment, tokens, leagueIds) {
       token,
       body: {
         name: entry.name,
-        leagueId: entry.leagueKey === null ? null : leagueIds.get(entry.leagueKey) ?? null,
+        leagueId: entry.leagueKey === null ? null : seasonIds.get(entry.leagueKey) ?? null,
         // A running tournament is happening now, so its date is relative like the Calendar's; only
         // the archive keeps absolute dates (ADR 0030).
         tournamentDate: localDateTime(entry.tournamentDate.offsetDays, '00:00').slice(0, 10),
@@ -568,7 +541,6 @@ const organizationIds = await seedOrganizations(environment, tokens);
 // thousands of Events through preview-then-publish is hours of HTTP, and the rows are generated
 // in exactly the shape those endpoints would have written. Everything else still goes through the API.
 let eventIds;
-let leagueIds;
 let archiveIds;
 if (bulk) {
   const loaded = bulkLoadStress({
@@ -579,21 +551,20 @@ if (bulk) {
     formatSlugs
   });
   eventIds = loaded.eventIds;
-  leagueIds = loaded.leagueIds;
   archiveIds = loaded.archiveIds;
-  console.log(`\nBulk-loaded ${loaded.counts.events} Events, ${loaded.counts.registrations} registrations, ${loaded.counts.leagues} legacy League references, ${loaded.counts.archiveLeagues} archive Leagues, ${loaded.counts.archiveLeagueSeasons} League Seasons, ${loaded.counts.archiveTournaments} archive Tournaments and ${loaded.counts.auditRecords} audit rows.`);
+  console.log(`\nBulk-loaded ${loaded.counts.events} Events, ${loaded.counts.registrations} registrations, ${loaded.counts.archiveLeagues} archive Leagues, ${loaded.counts.archiveLeagueSeasons} League Seasons, ${loaded.counts.archiveTournaments} archive Tournaments and ${loaded.counts.auditRecords} audit rows.`);
   await rebuildPlayerStatistics();
 } else {
   eventIds = await seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs);
   await seedRegistrations(environment, tokens, eventIds);
-  leagueIds = await seedLeagues(environment, tokens);
   archiveIds = await seedArchive(environment, tokens);
   // The restore wrote the three-tier archive outside any transaction that recomputes the read model,
   // so the rankings still describe the empty archive the API booted against. Same startup trigger the
   // bulk branch uses, this time over the restored rows.
   if (archiveIds.tournaments.size > 0) await rebuildPlayerStatistics();
 }
-await seedLiveTournaments(environment, tokens, leagueIds);
+// A Live tournament's `leagueKey` names a LeagueSeason now: the flat League it used to name is gone.
+await seedLiveTournaments(environment, tokens, archiveIds.leagueSeasons);
 
 const emailWidth = Math.max(0, ...environment.accounts.map(({ email }) => email.length));
 const roleWidth = Math.max(0, ...environment.accounts.map(({ role }) => role.length));
@@ -614,7 +585,6 @@ const seeded = [
   [formatIds.size, 'formats'],
   [eventIds.size, 'Events'],
   [environment.registrations.length, 'registrations'],
-  [leagueIds.size, 'league archives'],
   [archiveIds.leagues.size, 'archive Leagues'],
   [archiveIds.leagueSeasons.size, 'archive League Seasons'],
   [archiveIds.tournaments.size, 'archive Tournaments'],

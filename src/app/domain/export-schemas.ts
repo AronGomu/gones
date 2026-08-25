@@ -1,15 +1,7 @@
 /**
- * Versioned contracts for Gones export artifacts (data versions 1–4).
- *
- * v4 public exports are allowlist-only: League/Result source documents plus public
- * Scheduled (calendar) fields. Everything account-, delivery- or Live-draft-related is
- * on an explicit denylist and must never appear in a public artifact.
+ * Version-agnostic export helpers: public denylist, size limits and the artifact checksum. The
+ * versioned bundle schema lives in ./archive-export-schemas.ts (v5).
  */
-
-export type SupportedExportVersion = 1 | 2 | 3 | 4;
-
-/** Public League source fields allowed in v4 exports. */
-export const PUBLIC_EXPORT_V4_LEAGUE_FIELDS = ['id', 'name', 'status', 'tournaments'] as const;
 
 /** Public Scheduled (calendar event) fields allowed in v4 exports. */
 export const PUBLIC_EXPORT_V4_CALENDAR_EVENT_FIELDS = [
@@ -38,68 +30,6 @@ export const EXPORT_LIMITS = {
   /** Maximum Deck Archetypes in one private migration bundle. */
   maxDeckArchetypes: 2000
 } as const;
-
-interface ExportJsonSchema {
-  $id: string;
-  type: 'object';
-  additionalProperties: boolean;
-  required: readonly string[];
-  properties: Record<string, unknown>;
-}
-
-const versionConst = (version: number) => ({ const: version });
-
-function kindTaggedSchema(version: SupportedExportVersion, extra: Record<string, unknown>, { closed = false, required = [] as readonly string[] } = {}): ExportJsonSchema {
-  return {
-    $id: `https://gones.app/schemas/export-v${version}.json`,
-    type: 'object',
-    additionalProperties: !closed,
-    required: ['kind', 'gonesDataVersion', ...required],
-    properties: {
-      kind: { enum: ['league', 'fullData'] },
-      gonesDataVersion: versionConst(version),
-      gonesAppVersion: { type: 'string' },
-      exportedAt: { type: 'string' },
-      ...extra
-    }
-  };
-}
-
-const leagueSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [...PUBLIC_EXPORT_V4_LEAGUE_FIELDS],
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    status: { enum: ['active', 'completed'] },
-    tournaments: { type: 'array' }
-  }
-} as const;
-
-const calendarEventSchema = {
-  type: 'object',
-  additionalProperties: false,
-  required: [...PUBLIC_EXPORT_V4_CALENDAR_EVENT_FIELDS],
-  properties: Object.fromEntries(PUBLIC_EXPORT_V4_CALENDAR_EVENT_FIELDS.map((field) => [field, { type: 'string' }]))
-} as const;
-
-/**
- * JSON Schemas for every supported export data version.
- * v1–v3 stay permissive (`additionalProperties: true`) because historical files carry
- * shape drift; v4 is closed and only the public allowlist may appear.
- */
-export const EXPORT_JSON_SCHEMAS: Record<SupportedExportVersion, ExportJsonSchema> = {
-  1: kindTaggedSchema(1, { league: { type: 'object' }, version: versionConst(1) }),
-  2: kindTaggedSchema(2, { league: { type: 'object' }, leagues: { type: 'array' } }),
-  3: kindTaggedSchema(3, { league: { type: 'object' }, leagues: { type: 'array' }, calendarEvents: { type: 'array' } }),
-  4: kindTaggedSchema(4, {
-    league: leagueSchema,
-    leagues: { type: 'array', maxItems: EXPORT_LIMITS.maxFullDataLeagues, items: leagueSchema },
-    calendarEvents: { type: 'array', maxItems: EXPORT_LIMITS.maxCalendarEvents, items: calendarEventSchema },
-    checksum: { type: 'string', pattern: '^sha256:[0-9a-f]{64}$' }
-  }, { closed: true })
-};
 
 /** Deep-scan an export payload; throws `deniedExportField:<name>` on the first denylisted key. */
 export function assertNoDeniedFields(value: unknown): void {

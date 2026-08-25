@@ -1,4 +1,4 @@
-import { TournamentDocument } from './models';
+import type { ArchiveTournamentDocument } from './archive-models';
 import { RankingRow, calculateTournamentResult } from './results';
 import { tournamentPlayerArchetypeRows } from './tournament-archetypes';
 import { validateRoundEntry } from './validation';
@@ -31,7 +31,7 @@ export interface TournamentSummary {
   };
 }
 
-export function buildTournamentSummary(tournament: TournamentDocument, now = new Date()): TournamentSummary {
+export function buildTournamentSummary(tournament: ArchiveTournamentDocument, now = new Date()): TournamentSummary {
   const result = calculateTournamentResult(tournament);
   const facts = collectTournamentSummaryFacts(tournament, result.rows.length);
   const topRows = result.rows.map((row) => ({
@@ -54,7 +54,7 @@ export function formatSummaryPercentage(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
 
-function collectTournamentSummaryFacts(tournament: TournamentDocument, playerCount: number): { archetypesByPlayer: Map<string, string>; stats: TournamentSummary['stats'] } {
+function collectTournamentSummaryFacts(tournament: ArchiveTournamentDocument, playerCount: number): { archetypesByPlayer: Map<string, string>; stats: TournamentSummary['stats'] } {
   const archetypesByPlayer = new Map(tournamentPlayerArchetypeRows(tournament).map((row) => [row.playerName, row.archetype]));
   const stats: TournamentSummary['stats'] = { playerCount, roundCount: tournament.rounds?.length ?? 0, matchCount: 0, byeCount: 0, gameCount: 0 };
   for (const round of tournament.rounds ?? []) {

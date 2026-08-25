@@ -24,10 +24,8 @@
  * size classes in {@link SEASON_SIZE_CLASSES} — a World Championship is one event, a late Grand Prix
  * season is sixty — so the archive pages are judged against the real range and not a middling Season.
  *
- * `leagues.json` is no longer the archive: it holds only the legacy League rows the running tournaments
- * point their `leagueId` at, one stub per referenced `leagueKey` with no Tournaments. The whole legacy
- * archive beside a full three-tier one would be 44 MB of duplicate history and would double every
- * `global`-scope ranking, because that scope folds both tables in until the legacy surface is retired.
+ * A running tournament's `leagueKey` names a LeagueSeason of the three-tier archive: the legacy flat
+ * League it used to name is retired (T19), and with it `leagues.json`.
  *
  * Archive dates are measured against {@link ARCHIVE_ANCHOR_DATE}, not the clock, so the dataset stays
  * byte-identical from one day to the next — and therefore **ages**: past roughly mid-2027 every
@@ -1105,9 +1103,8 @@ export function assertTournamentBudget(tournaments) {
  *
  * The `leagueKey` is minted here rather than looked up, because the League it names is a **legacy**
  * row: `POST /api/live-tournaments` still resolves its `leagueId` against `league_archive_aggregates`.
- * {@link generateLiveReferenceLeagues} turns each key into the one stub row that resolution needs.
  */
-function generateLiveTournaments(random, volumes, clubs) {
+function generateLiveTournaments(random, volumes, clubs, leagueSeasons) {
   const live = [];
   const hosts = clubs.filter((club) => club.activity !== 'occasional');
   for (let index = 0; index < volumes.liveTournaments; index += 1) {
@@ -1119,7 +1116,8 @@ function generateLiveTournaments(random, volumes, clubs) {
       key: `stress-live-${pad(index, 2)}`,
       organizerEmail: club.organizerEmails[0],
       name: `${club.name} Live ${pad(index, 2)}`,
-      leagueKey: index % 3 === 0 ? null : `stress-legacy-league-${club.key.slice(-3)}`,
+      // Every third one is unassigned, which finalizes to a standalone Archive Tournament.
+      leagueKey: index % 3 === 0 ? null : leagueSeasons[index % leagueSeasons.length].id,
       tournamentDate: { offsetDays: 0 },
       roundCount,
       customRoundCount: true,
@@ -1138,23 +1136,6 @@ function generateLiveTournaments(random, volumes, clubs) {
   return live;
 }
 
-/**
- * One legacy `league_archive_aggregates` stub per Live tournament that names a League.
- *
- * The whole legacy archive beside a full three-tier one would be 44 MB of duplicate history, and the
- * `global` player-statistics scope folds both tables in until the legacy surface is retired — so every
- * ranking number would double. What Live actually needs is a row to point its `leagueId` at.
- */
-function generateLiveReferenceLeagues(liveTournaments, clubs) {
-  const byIndex = new Map(clubs.map((club) => [club.key.slice(-3), club]));
-  const referenced = [...new Set(liveTournaments.map((live) => live.leagueKey).filter((key) => key !== null))].sort();
-  return referenced.map((id) => ({
-    id,
-    name: `${byIndex.get(id.slice(-3)).name} — Live`,
-    status: 'active',
-    tournaments: []
-  }));
-}
 
 /**
  * Audit rows, capped (A10). They carry no id: `scripts/bulk-load-stress.mjs` mints one per row, and the
@@ -1201,8 +1182,7 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
   const registrations = generateRegistrations(random, events, registrable, clubs);
   const archive = generateArchive(random, volumes, clubs, archetypesFor);
   assertTournamentBudget(archive.tournaments);
-  const liveTournaments = generateLiveTournaments(random, volumes, clubs);
-  const leagues = generateLiveReferenceLeagues(liveTournaments, clubs);
+  const liveTournaments = generateLiveTournaments(random, volumes, clubs, archive.leagueSeasons);
   const auditRecords = generateAuditRecords(random, volumes, accounts);
 
   // `club`, `tier`, `region` and `year` are how this file reasons about an Event; the fixture format
@@ -1218,7 +1198,6 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
     formats,
     tournaments,
     registrations,
-    leagues,
     archiveLeagues: archive.leagues,
     // `sizeClass` is how this file reasons about a Season; the fixture format knows no such field and
     // the restore endpoint would carry it straight to the API.
@@ -1247,7 +1226,6 @@ export function writeStressEnvironment(data, directory = STRESS_DIRECTORY) {
     ['formats.json', data.formats, true],
     ['tournaments.json', data.tournaments, false],
     ['registrations.json', data.registrations, false],
-    ['leagues.json', data.leagues, false],
     ['archive-leagues.json', data.archiveLeagues, true],
     ['archive-league-seasons.json', data.archiveLeagueSeasons, true],
     ['archive-tournaments.json', data.archiveTournaments, false],
@@ -1313,7 +1291,6 @@ if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
     `  ${data.tournaments.length} Events (${tiers.local ?? 0} locals, ${tiers.monthly ?? 0} monthly Opens, ${tiers.regional ?? 0} regional, ${tiers.national ?? 0} national)`,
     `  ${data.registrations.length} registrations`,
     `  ${data.archiveLeagues.length} archive Leagues, ${data.archiveLeagueSeasons.length} League Seasons, ${data.archiveTournaments.length} Tournaments (${standalone} standalone, ${entries} Round Entries)`,
-    `  ${data.leagues.length} legacy League references for the running tournaments`,
     `  ${data.liveTournaments.length} running tournaments`,
     `  ${data.auditRecords.length} audit rows`
   ].join('\n'));

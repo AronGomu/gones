@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
+import { ArchiveGlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
 import {
   GLOBAL_STATS_PAGE_SIZES,
   GLOBAL_STATS_GATED_SORT_COLS,
@@ -296,7 +296,7 @@ describe('global stats scope', () => {
 // Ordering — the client-side catalog must rank exactly as the paged endpoint does
 // ---------------------------------------------------------------------------
 
-function row(playerName: string, overrides: Partial<GlobalPlayerStatisticsRow> = {}): GlobalPlayerStatisticsRow {
+function row(playerName: string, overrides: Partial<ArchiveGlobalPlayerStatisticsRow> = {}): ArchiveGlobalPlayerStatisticsRow {
   return {
     position: 0, playerName, playedMatchCount: 0, matchWins: 0, matchLosses: 0, matchDraws: 0,
     matchWinrate: 0, playedGameCount: 0, gameWins: 0, gameLosses: 0, gameWinrate: 0,
@@ -308,7 +308,7 @@ function row(playerName: string, overrides: Partial<GlobalPlayerStatisticsRow> =
   };
 }
 
-const names = (rows: readonly GlobalPlayerStatisticsRow[]): string[] => rows.map((item) => item.playerName);
+const names = (rows: readonly ArchiveGlobalPlayerStatisticsRow[]): string[] => rows.map((item) => item.playerName);
 
 describe('sortGlobalStatsRows', () => {
   /**
