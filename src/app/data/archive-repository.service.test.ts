@@ -14,7 +14,9 @@ import type {
   ArchiveYearPartition, ArchiveYearsMetaRecord
 } from '../backend/archive-cache.service';
 import { LocalArchiveBackend } from '../backend/local-archive-backend.service';
+import { ServerArchiveBackend } from '../backend/server-archive-backend.service';
 import { createArchiveTournament, createLeagueSeason } from '../domain/archive-models';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 import type { PersistedArchiveTournament, PersistedLeagueSeason, RoundEntry } from '../domain/archive-models';
 import { summarizeArchiveTournament, summarizeLeagueSeason } from './archive-summary';
 import type { ArchiveCatalogResponse } from './archive-summary';
@@ -96,7 +98,11 @@ function build(parts: {
       { provide: ArchiveCacheService, useValue: cache },
       { provide: ArchiveBackfillQueue, useValue: queue },
       { provide: LocalArchiveBackend, useValue: local },
-      { provide: Client, useValue: parts.client ?? {} }
+      { provide: Client, useValue: parts.client ?? {} },
+      // The staged-save half of the repository. None of the catalog reads below touches either, but
+      // both are field-level `inject(...)` calls, so this bare injector has to be able to answer them.
+      { provide: PowerUserSettingsService, useValue: { requireEnabled: () => undefined } },
+      { provide: ServerArchiveBackend, useValue: {} }
     ]
   });
   return { repo: injector.get(ArchiveRepository), cache, queue, local };

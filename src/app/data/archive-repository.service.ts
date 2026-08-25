@@ -10,7 +10,11 @@ import type {
   ArchiveYearEntry, ArchiveYearPartition
 } from '../backend/archive-cache.service';
 import { LocalArchiveBackend } from '../backend/local-archive-backend.service';
-import type { LeagueStatus } from '../domain/archive-models';
+import type { ArchiveTournamentEditBatch } from '../backend/local-archive-backend.service';
+import { ServerArchiveBackend } from '../backend/server-archive-backend.service';
+import type { ArchiveTournamentPort } from '../backend/server-archive-backend.service';
+import type { LeagueStatus, PersistedArchiveTournament } from '../domain/archive-models';
+import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 import { isLocalArchiveId } from './archive-origin';
 import type { ArchiveCatalogResponse } from './archive-summary';
 
@@ -42,6 +46,13 @@ export interface ArchiveCatalogResult<T> {
   fetchedAt: string;       // ISO instant of the server half; for Tournaments the OLDEST partition
   fromCache: boolean;      // the server half came from IndexedDB, no request was made
   stale: boolean;          // the server was not reached, or a year could not be refreshed
+}
+
+/** One staged save. `expectedVersion` is the `documentVersion` the draft was cloned from. */
+export interface ArchiveStagedSave {
+  tournamentId: string;
+  expectedVersion: number;
+  batch: ArchiveTournamentEditBatch;
 }
 
 export interface ArchiveSeasonTournamentsResult {
@@ -139,6 +150,9 @@ export class ArchiveRepository {
   private readonly cache = inject(ArchiveCacheService);
   private readonly queue = inject(ArchiveBackfillQueue);
   private readonly local: LocalArchiveSource = inject(LocalArchiveBackend);
+  private readonly power = inject(PowerUserSettingsService);
+  private readonly localTournaments: ArchiveTournamentPort = inject(LocalArchiveBackend);
+  private readonly serverTournaments: ArchiveTournamentPort = inject(ServerArchiveBackend);
 
   listLeagues(options: { force?: boolean } = {}): Promise<ArchiveCatalogResult<ArchiveLeagueRow>> {
     return this.loadCatalog<RawArchiveLeague, ArchiveLeagueSummary>({
@@ -244,6 +258,30 @@ export class ArchiveRepository {
   }
 
   /**
+   * The whole Tournament document, from the store the id names. `null` for `404`.
+   * `get`-prefixed, so the structural coverage test classifies it as the read it is.
+   */
+  async getTournament(tournamentId: string): Promise<PersistedArchiveTournament | null> {
+    return this.tournamentPort(tournamentId).getArchiveTournament(tournamentId);
+  }
+
+  /**
+   * ADR 0037's one staged save. One request, one version bump, and the authoritative document comes
+   * back in the response so the caller adopts it without a second read.
+   *
+   * `requireEnabled()` runs inside the wrapper's action, not before it, so a power-gate refusal is a
+   * rejected promise like every other refusal instead of a synchronous throw the caller would have
+   * to guard separately.
+   */
+  saveTournamentEdits(save: ArchiveStagedSave): Promise<PersistedArchiveTournament> {
+    return this.mutating(async () => {
+      this.power.requireEnabled();
+      return this.tournamentPort(save.tournamentId)
+        .applyArchiveTournamentEditBatch(save.tournamentId, save.expectedVersion, save.batch);
+    });
+  }
+
+  /**
    * The single funnel every archive mutation goes through: drop every cached catalog, then tell
    * the app. The TTL governs navigation, never correctness (ADR 0039), so a write must never wait
    * out 24 hours to become visible.
@@ -251,6 +289,22 @@ export class ArchiveRepository {
   async invalidateArchiveCaches(): Promise<void> {
     await this.cache.clearAll();
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(ARCHIVE_UPDATED_EVENT));
+  }
+
+  /**
+   * Every mutating method's one exit: run the write, then invalidate. Invalidating before the write,
+   * or invalidating when it threw, would drop a good cache and repopulate it from data the failed
+   * write never changed.
+   */
+  private async mutating<T>(action: () => Promise<T>): Promise<T> {
+    const result = await action();
+    await this.invalidateArchiveCaches();
+    return result;
+  }
+
+  /** The whole routing rule: origin is encoded in the id, and nothing else decides the store. */
+  private tournamentPort(tournamentId: string): ArchiveTournamentPort {
+    return isLocalArchiveId(tournamentId) ? this.localTournaments : this.serverTournaments;
   }
 
   private async loadCatalog<TRaw, TRow extends object>(

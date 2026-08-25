@@ -1617,3 +1617,52 @@ fails, `pkill -f "ng serve"` and re-run.
 - [ ] **The console is clean.** With DevTools open, walk `/archive/league-seasons`, the Tournaments tab, Synchronize on both, `/settings`, expand and run the resynchronize once online and once offline, and switch language. Zero console errors.
 - [ ] **Known, accepted — resynchronizing while offline leaves the archive empty until you are back online.** The clear runs first by design, so a refill that cannot reach the server leaves nothing behind and the archive pages show their empty/error state until the next successful load. The alternative — refill first — would let the backfill decide a year it was about to drop is still present, which is the staleness this button exists to fix. Nothing user-authored is affected.
 - [ ] **Known, accepted — there is no archive mutation to watch invalidate yet.** `ArchiveRepository` is read-only, so no page on `/archive/**` can create, rename or delete anything, and the invalidation funnel currently has no production caller other than this button. The structural test `src/app/data/archive-cache-invalidation.test.ts` is what holds the guarantee: add a mutating method to that class without routing it through `invalidateArchiveCaches()` and `every mutating method reaches the invalidation funnel` names it and fails the build.
+
+## T17 archive-staged-edit
+
+This slice puts ADR 0037's **power-user staged editor** on the new archive surface. It is the first and
+only mutation on `/archive/**`: `/archive/tournaments/:tournamentId` still loads read-only for everyone,
+an authorized Power User clicks **Edit**, mutates an in-memory draft that touches no store, and one
+confirmed **Save Changes** sends a single explicit-intent batch to
+`POST /api/archive/tournaments/{id}/edit-batch` with a mandatory `If-Match`. A `200` adopts the
+authoritative document that comes back in the response body — there is **no** refetch afterwards.
+
+Three refusals to keep straight while testing, because they are different things and must look
+different on screen. **`412 stale_version`** means somebody else committed while you were drafting: the
+draft survives, and **Reload Latest** appears. **`409 archive_tournament_locked`** means the Tournament
+was played more than 365 days ago: the draft survives, and Reload Latest must **not** appear, because a
+lock is not a version conflict. Neither one ever retries — a silent retry would overwrite the other
+person's edit. The 365-day lock is derived from `tournamentDate` at render time, never stored, and a
+browser-local (`local-`) record is exempt from it.
+
+The legacy `/leagues-archive` and `/tournaments-archive` staged editors are untouched and stay live
+until T19; both surfaces work at the same time.
+
+Start from a running stack on the demo data: `npm run dev:env -- --env=demo`, then `npm run dev:serve`.
+The dev server is `127.0.0.1:4200` and the local API is `127.0.0.1:5080`. If the `127.0.0.1:4200` bind
+fails, `pkill -f "ng serve"` and re-run. The API needs `GONES_FEATURES__AUTH_V1=true` for sign-in to
+exist at all; `npm run dev:env` sets it, a bare `docker compose up` does not.
+
+- [ ] **The four gates are green.** `npm run test` prints `Test Files 174 passed (174)` and `Tests 2242 passed (2242)` with no failed suite; `npm run typecheck` exits `0` with no output; `npm run lint` prints `All files pass linting.`; `npm run build` exits `0`. `npx cypress run --spec cypress/e2e/archive-staged-edit.cy.js` prints `7 passing`.
+- [ ] **The page is read-only for a visitor.** Signed out, open any row from `/archive/tournaments`. The paragraph *"This archived Tournament is read-only."* is visible, there is no **Edit** button, and there is no name, date or Season input anywhere on the page.
+- [ ] **Power mode alone grants nothing.** Still signed out, turn **Power User** on in `/settings` and reopen the same server Tournament. There is still no Edit button — the browser preference is a UX capability, never an authority.
+- [ ] **All three gates together reveal the control.** Sign in as `organizer-aura-live-standings@gones.test` (`Gones-dev-pass-123!`), keep Power User on, and open a Tournament dated inside the last 365 days. **Edit** and the status toggle (**Mark complete** / **Reopen**) are now visible.
+- [ ] **Editing is a draft, not a write.** Click Edit. The name, date and Season fields appear. Change the name, add a round, add a match, type two player names. Open DevTools → Network filtered to `archive`: **no request has been made**. Now press F5. The page comes back with the original name and without the staged round — the draft lived only in memory.
+- [ ] **One save is one request, and the response is adopted.** Edit again, change the name, press **Save Changes**. Exactly one dialog appears, and its message names the Season move and both deletion counts (`Deleted rounds: 0. Deleted entries: 0.`). Confirm. In the Network tab there is exactly **one** `POST …/edit-batch` carrying an `If-Match` header, and **no** `GET …/tournaments/{id}` after it. The heading shows the new name and the page is back to read-only.
+- [ ] **The server row really changed.** In a terminal, `curl -sS http://127.0.0.1:5080/api/archive/tournaments/<id>`. The `name` is the new one and `documentVersion` went up by exactly **one** — not two, not zero.
+- [ ] **An empty save writes nothing.** Click Edit, change nothing, press Save Changes. No dialog opens, no request is made, and the page simply leaves edit mode.
+- [ ] **A deletion is summarised once, and marked destructive.** Edit, delete a round through its `⋯` menu and delete one entry from another round, then Save Changes. The single dialog reports both counts, and the confirm button is styled as destructive. Cancel it: no request is made and the draft is still there.
+- [ ] **Cancel asks only when it has something to lose.** Click Edit and immediately **Cancel Edit** — it exits with no dialog. Click Edit, change the name, then Cancel Edit — a confirmation appears; cancelling it keeps you in edit mode with the change intact.
+- [ ] **A blank name is refused before any request.** Edit, clear the name field entirely, press Save Changes. The message *"Give this Tournament a name before saving."* appears, no dialog opens, no request is made, and the rest of the draft is untouched.
+- [ ] **`412` keeps the draft and offers Reload Latest.** Open the Tournament and click Edit. In a second terminal, commit a rename to the same Tournament through the API so its version moves on. Back in the browser, change the name and Save Changes. The message *"This Tournament changed since you opened it…"* appears, the name field still holds **your** text, and a **Reload latest saved data** button appears. The Network tab shows exactly one `POST` — nothing retried.
+- [ ] **Reload Latest never merges.** Press it and cancel the confirmation: the draft is still there, still one `POST` in total. Press it again and confirm: the page shows the **other** person's name, the draft is gone, edit mode has exited, and still no second write was attempted.
+- [ ] **`409` on a locked Tournament reads as a lock, not a conflict.** Open a Tournament from 1996 or 1997 as the Organizer. There is **no** Edit button, and the notice *"Locked — this Tournament was played more than 365 days ago…"* is visible. (To see the refusal itself, an Admin must first move a row's date past the window while another window holds the fresh copy; the message is *"…is locked. Only an administrator can still change it."*, the draft survives, and **no** Reload Latest button appears — a lock is not a version conflict.)
+- [ ] **An Admin still gets the control on a locked row.** Sign in as an Admin with Power User on and open the same 1996 Tournament. The Edit button **is** offered, matching the server's Admin lock bypass — the UI never hides a control the server would accept.
+- [ ] **The Season move is same-authority only, and standalone is a real option.** Edit a server Tournament: the Season dropdown lists server Seasons plus **Standalone — no Season**, and no browser-local Season ever appears in it. Pick Standalone and save; the page then shows the standalone marker instead of a Season link, and `seasonId` is `null` on the API row.
+- [ ] **The status toggle is one batch too.** With the page read-only, press **Mark complete** and confirm. One `POST …/edit-batch` goes out, the status chip flips, and the version rises by one. The toggle is hidden while you are in edit mode.
+- [ ] **Turning Power User off takes the controls away again.** Go to `/settings`, turn Power User off, return to the Tournament. Edit and the status toggle are gone; the read-only paragraph is back.
+- [ ] **French is complete.** Switch the language to French. Edit reads `Modifier`, Cancel Edit reads `Annuler la modification`, Save Changes reads `Enregistrer les modifications`, the save dialog reads `Enregistrer les modifications du tournoi ?`, the Season option reads `Indépendant — sans saison`, and the stale message starts `Ce tournoi a changé depuis son ouverture.` No raw key such as `archiveEdit.saveChanges` may appear anywhere.
+- [ ] **The legacy editor still works.** Open the legacy `/leagues-archive` surface, drill into a Tournament and stage an edit there. It behaves exactly as it did before this slice — both editors are alive until T19.
+- [ ] **The console is clean.** With DevTools open, walk the whole flow above: read-only load, Edit, draft mutation, empty save, refused save, `412`, Reload Latest, status toggle, Power User off. Zero console errors.
+- [ ] **Known, accepted — a browser-local Tournament cannot be reached from `/archive/**` yet.** The move is same-authority by design, but the new archive tabs do not list browser-local rows and `/archive/**` has no create affordance at this point in the plan, so there is no UI path to a local staged edit. The local write path is covered by `src/app/data/archive-repository.staged-edit.test.ts` (`routes a local id to the browser store`) and by the component test that classifies `ArchiveConcurrencyError` exactly like a wire `412`.
+- [ ] **Known, accepted — restoring a row after a test still bumps its version.** Every write bumps `documentVersion`, including the one that puts a name back. A demo row you edited and restored will read the original name at a higher version; that is correct optimistic-concurrency behaviour, not drift.
