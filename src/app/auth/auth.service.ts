@@ -71,20 +71,20 @@ export class AuthService {
   }
 
   private async restoreSession(): Promise<void> {
-    let generation: number | undefined;
     let profileEstablishmentStarted = false;
     try {
-      generation = await this.prepareEstablishment();
-      const response = await firstValueFrom(this.client.refresh());
+      const restored = await this.spendRefreshCookie((response, generation) => ({ response, generation }));
       profileEstablishmentStarted = true;
-      await this.establishProfile(response, generation);
+      await this.establishProfile(restored.response, restored.generation);
     } catch (error) {
       this.bootstrapFailed.set(true);
       if (error instanceof AuthCoordinationUnavailableError) {
-        await this.invalidateAndPurgeIgnoringFailure();
+        // `spendRefreshCookie` purges its own unavailable-coordination path. An establishment that
+        // already started published the access token, so losing coordination there still has to
+        // purge here — `establishProfile()` cannot, it needs the lock it just lost.
+        if (profileEstablishmentStarted) await this.invalidateAndPurgeIgnoringFailure();
         throw error;
       }
-      if (generation !== undefined && !profileEstablishmentStarted) await this.clearFailedEstablishment(generation);
     } finally {
       this.bootstrapped.set(true);
     }

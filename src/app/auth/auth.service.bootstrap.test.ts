@@ -1,12 +1,12 @@
 import '@angular/compiler';
 import { Injector } from '@angular/core';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiAccessTokenStore } from '../api/api-boundary';
 import { AccessTokenResponse, Client, UserProfileResponse } from '../api/generated/gones-api';
 import { AuthSessionCoordinationService } from './auth-session-coordination.service';
 import { AuthService } from './auth.service';
-import { installFakeWebLocks, removeWebLocks } from './fake-web-locks';
+import { installFakeWebLocks, removeWebLocks, SharedFakeWebLocks } from './fake-web-locks';
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
@@ -112,5 +112,42 @@ describe('AuthService.bootstrap', () => {
     expect(service.profile()).toBeNull();
     expect(service.bootstrapFailed()).toBe(true);
     expect(service.bootstrapped()).toBe(true);
+  });
+
+  it('purges the session when coordination disappears after the access token was published', async () => {
+    const { service, store, client } = setup(() => of(token));
+    // Establishment already set the token; losing coordination mid-flight must not leave it behind.
+    client.meGET.mockImplementation(() => { removeWebLocks(); return of(profile); });
+
+    await expect(service.bootstrap()).rejects.toThrow('authCoordinationUnavailable');
+
+    expect(store.token).toBeUndefined();
+    expect(service.profile()).toBeNull();
+    expect(service.bootstrapFailed()).toBe(true);
+    expect(service.bootstrapped()).toBe(true);
+  });
+
+  it('holds the auth lock across the startup refresh, so a second tab cannot spend the same cookie', async () => {
+    installFakeWebLocks(new SharedFakeWebLocks());
+    const firstResult = new Subject<AccessTokenResponse>();
+    const firstTab = setup(() => firstResult);
+    const secondTab = setup(() => of(token));
+
+    const firstBootstrap = firstTab.service.bootstrap();
+    await vi.waitFor(() => expect(firstTab.client.refresh).toHaveBeenCalledTimes(1));
+    const secondBootstrap = secondTab.service.bootstrap();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // The cookie the second tab would present is still the one the first tab is spending.
+    expect(secondTab.client.refresh).not.toHaveBeenCalled();
+    expect(secondTab.service.bootstrapped()).toBe(false);
+
+    firstResult.next(token);
+    firstResult.complete();
+    await Promise.all([firstBootstrap, secondBootstrap]);
+
+    expect(secondTab.client.refresh).toHaveBeenCalledTimes(1);
+    expect(firstTab.service.bootstrapped()).toBe(true);
+    expect(secondTab.service.bootstrapped()).toBe(true);
   });
 });
