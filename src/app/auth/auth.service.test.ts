@@ -61,42 +61,159 @@ describe('AuthService', () => {
     expect(client.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it('does not let an older refresh overwrite a newer same-generation login', async () => {
+  it('serialises a login behind an in-flight refresh instead of letting them share the cookie', async () => {
     const refreshResult = new Subject<AccessTokenResponse>();
     const { service, store, client } = setup(() => refreshResult);
     service.profile.set(profile);
     store.set(token.accessToken);
-    const staleRefresh = firstValueFrom(service.refreshAccessToken());
+    const inFlightRefresh = firstValueFrom(service.refreshAccessToken());
     await vi.waitFor(() => expect(client.refresh).toHaveBeenCalledTimes(1));
 
     client.login.mockReturnValue(of(tokenB));
     client.meGET.mockReturnValue(of(profileB));
-    await service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+    const pendingLogin = service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // The refresh round trip holds the origin-wide auth lock, so the login cannot start yet.
+    expect(client.login).not.toHaveBeenCalled();
+
     refreshResult.next(token);
     refreshResult.complete();
+    await expect(inFlightRefresh).resolves.toBeUndefined();
+    await pendingLogin;
 
-    await expect(staleRefresh).rejects.toThrow('authSessionTransitionSuperseded');
     expect(store.token).toBe(tokenB.accessToken);
     expect(service.profile()).toBe(profileB);
   });
 
-  it('does not let an older refresh failure purge a newer same-generation login', async () => {
+  it('does not let a failed refresh purge the login that was waiting behind it', async () => {
     const refreshResult = new Subject<AccessTokenResponse>();
     const refreshError = new Error('stale refresh failed');
     const { service, store, client } = setup(() => refreshResult);
     service.profile.set(profile);
     store.set(token.accessToken);
-    const staleRefresh = firstValueFrom(service.refreshAccessToken());
+    const inFlightRefresh = firstValueFrom(service.refreshAccessToken());
     await vi.waitFor(() => expect(client.refresh).toHaveBeenCalledTimes(1));
 
     client.login.mockReturnValue(of(tokenB));
     client.meGET.mockReturnValue(of(profileB));
-    await service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
-    refreshResult.error(refreshError);
+    const pendingLogin = service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(client.login).not.toHaveBeenCalled();
 
-    await expect(staleRefresh).rejects.toBe(refreshError);
+    refreshResult.error(refreshError);
+    await expect(inFlightRefresh).rejects.toBe(refreshError);
+    await pendingLogin;
+
     expect(store.token).toBe(tokenB.accessToken);
     expect(service.profile()).toBe(profileB);
+  });
+
+  it('holds the auth lock across the refresh round trip, so two tabs cannot spend the same cookie', async () => {
+    installFakeWebLocks(new SharedFakeWebLocks());
+    const winnerResult = new Subject<AccessTokenResponse>();
+    const firstTab = setup(() => winnerResult);
+    const secondTab = setup(() => of(token));
+
+    const first = firstValueFrom(firstTab.service.refreshAccessToken());
+    await vi.waitFor(() => expect(firstTab.client.refresh).toHaveBeenCalledTimes(1));
+    const second = firstValueFrom(secondTab.service.refreshAccessToken());
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // The cookie the second tab would present is still the one the first tab is spending.
+    expect(secondTab.client.refresh).not.toHaveBeenCalled();
+
+    winnerResult.next(token);
+    winnerResult.complete();
+    await Promise.all([first, second]);
+
+    expect(secondTab.client.refresh).toHaveBeenCalledTimes(1);
+    expect(secondTab.store.token).toBe('memory-token');
+  });
+
+  it('releases the auth lock after the hold deadline, so another tab can still sign in', async () => {
+    vi.useFakeTimers();
+    try {
+      installFakeWebLocks(new SharedFakeWebLocks());
+      const hung = new Subject<AccessTokenResponse>();
+      const firstTab = setup(() => hung);
+      const secondTab = setup(() => of(token));
+      secondTab.client.login.mockReturnValue(of(tokenB));
+      secondTab.client.meGET.mockReturnValue(of(profileB));
+
+      const stuck = firstValueFrom(firstTab.service.refreshAccessToken());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(firstTab.client.refresh).toHaveBeenCalledTimes(1);
+
+      const login = secondTab.service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(secondTab.client.login).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      await login;
+      expect(secondTab.client.login).toHaveBeenCalledTimes(1);
+      expect(secondTab.store.token).toBe('user-b-token');
+
+      // The abandoned hold never abandons the request: the answer still arrives, and the
+      // generation the second tab advanced is what refuses it.
+      hung.next(token);
+      hung.complete();
+      await expect(stuck).rejects.toThrow('authSessionTransitionSuperseded');
+      expect(secondTab.store.token).toBe('user-b-token');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('publishes a refresh that answered after the lock hold expired, without a second round trip', async () => {
+    vi.useFakeTimers();
+    try {
+      const slow = new Subject<AccessTokenResponse>();
+      const { service, store, client } = setup(() => slow);
+      store.set('expired-token');
+
+      const pending = firstValueFrom(service.refreshAccessToken());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(client.refresh).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      slow.next(token);
+      slow.complete();
+
+      await expect(pending).resolves.toBeUndefined();
+      expect(client.refresh).toHaveBeenCalledTimes(1);
+      expect(store.token).toBe('memory-token');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refuses a late refresh publication whose session generation moved while the lock was free', async () => {
+    vi.useFakeTimers();
+    try {
+      const slow = new Subject<AccessTokenResponse>();
+      const { service, store, client } = setup(() => slow);
+      service.profile.set(profile);
+      store.set(token.accessToken);
+
+      const stale = firstValueFrom(service.refreshAccessToken());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(client.refresh).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      client.login.mockReturnValue(of(tokenB));
+      client.meGET.mockReturnValue(of(profileB));
+      await service.login({ email: 'u2@example.test', password: 'password', deviceLabel: undefined });
+
+      slow.next(token);
+      slow.complete();
+
+      await expect(stale).rejects.toThrow('authSessionTransitionSuperseded');
+      expect(store.token).toBe(tokenB.accessToken);
+      expect(service.profile()).toBe(profileB);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('fails closed before login when localStorage is readable but unwritable', async () => {

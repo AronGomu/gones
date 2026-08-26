@@ -21,6 +21,18 @@ import { AuthCoordinationUnavailableError, AuthSessionCoordinationService } from
 import { SessionCatalogSyncService } from './session-catalog-sync.service';
 import { SessionScopeService } from './session-scope.service';
 
+/**
+ * Ceiling on how long one tab may hold the origin-wide auth lock for a refresh round trip.
+ * It bounds the hold, never the request: aborting a rotation the server already committed
+ * leaves a consumed cookie in the jar, and the next restore presents it as a replay.
+ */
+const REFRESH_LOCK_HOLD_MS = 10_000;
+
+/** Refresh round trip result, captured without rejecting so the hold deadline can race it. */
+type RefreshOutcome =
+  | { readonly ok: true; readonly response: AccessTokenResponse }
+  | { readonly ok: false; readonly error: unknown };
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly client = inject(Client);
@@ -184,12 +196,62 @@ export class AuthService {
   }
 
   private async refreshAccessTokenOnce(): Promise<void> {
-    const generation = await this.prepareEstablishmentOrFailClosed();
+    await this.spendRefreshCookie((response, generation) => this.publishToken(response, generation));
+  }
+
+  /**
+   * Spends the refresh cookie inside the origin-wide auth lock. Two tabs presenting the same
+   * cookie reads as a replay to the server, and it revokes the whole session family, so the round
+   * trip has to be serialised across tabs and not only inside one.
+   *
+   * The deadline bounds the hold, never the request: a cancelled rotation the server already
+   * committed leaves a consumed cookie in the jar and loses the family on the next restore. So on
+   * expiry the lock is released, the round trip stays subscribed, and a late response is published
+   * under a fresh lock where `publishToken()`'s generation assertion decides if it is still current.
+   */
+  private async spendRefreshCookie<T>(underLock: (response: AccessTokenResponse, generation: number) => T): Promise<T> {
     try {
-      const response = await firstValueFrom(this.client.refresh());
-      await this.coordination.withAvailableLock(() => this.publishToken(response, generation));
+      const held = await this.coordination.withAvailableLock(async () => {
+        await this.ensurePurgeComplete();
+        const generation = this.coordination.generation();
+        const roundTrip = this.settleRefresh();
+        let deadlineTimer!: ReturnType<typeof setTimeout>;
+        const deadline = new Promise<undefined>(resolve => { deadlineTimer = setTimeout(() => resolve(undefined), REFRESH_LOCK_HOLD_MS); });
+        let outcome: RefreshOutcome | undefined;
+        try {
+          outcome = await Promise.race([roundTrip, deadline]);
+        } finally {
+          clearTimeout(deadlineTimer);
+        }
+        if (!outcome) return { late: true as const, generation, roundTrip };
+        return { late: false as const, published: await this.finishRefresh(outcome, generation, underLock) };
+      });
+      if (!held.late) return held.published.value;
+      // Awaited outside the lock: re-acquiring first would hold it for the rest of the round trip.
+      const late = await held.roundTrip;
+      const published = await this.coordination.withAvailableLock(() => this.finishRefresh(late, held.generation, underLock));
+      return published.value;
     } catch (error) {
-      await this.clearFailedEstablishment(generation);
+      if (error instanceof AuthCoordinationUnavailableError) await this.invalidateAndPurgeIgnoringFailure();
+      throw error;
+    }
+  }
+
+  /** Never rejects: a rejection racing the hold deadline would surface as an unhandled rejection. */
+  private settleRefresh(): Promise<RefreshOutcome> {
+    return firstValueFrom(this.client.refresh()).then(
+      (response): RefreshOutcome => ({ ok: true, response }),
+      (error: unknown): RefreshOutcome => ({ ok: false, error })
+    );
+  }
+
+  /** Caller already holds the auth lock. Result is boxed so the generic survives the `await`. */
+  private async finishRefresh<T>(outcome: RefreshOutcome, generation: number, underLock: (response: AccessTokenResponse, generation: number) => T): Promise<{ value: T }> {
+    try {
+      if (!outcome.ok) throw outcome.error;
+      return { value: underLock(outcome.response, generation) };
+    } catch (error) {
+      await this.clearFailedEstablishmentLocked(generation);
       throw error;
     }
   }
@@ -263,10 +325,13 @@ export class AuthService {
   }
 
   private async clearFailedEstablishment(generation: number): Promise<void> {
-    await this.coordination.withLock(async () => {
-      if (this.coordination.generation() !== generation) return;
-      await this.invalidateAndPurgeIgnoringFailure();
-    });
+    await this.coordination.withLock(() => this.clearFailedEstablishmentLocked(generation));
+  }
+
+  /** Caller already holds the auth lock. */
+  private async clearFailedEstablishmentLocked(generation: number): Promise<void> {
+    if (this.coordination.generation() !== generation) return;
+    await this.invalidateAndPurgeIgnoringFailure();
   }
 
   private runTeardown<T>(action: () => Promise<T>): Promise<T> {
