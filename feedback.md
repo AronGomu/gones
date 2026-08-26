@@ -1,25 +1,39 @@
-New Feature : Archive must now include page for tournaments.
+Refont About Page :
 
-Archive feature update to now handle solo tournament outside of league properly instead of simply storing into an "other" league archive.
+1. Fetch fire and ice illustration : upscale them to full hd and put as background behind bloc of texts
 
-Tournaments may or may not be part of a league. It becomes a may.
+Update Bio :
 
-Archive main page is split into 2 tabs. Leagues and Tournaments.
+Alex Noir - :
+EN : 80's born, MtG player since 1998, Korean enthousiast, salt taster, punk spreader.
+FR : 80's born, Joueur de MtG depuis 1998, fan Coreen, gouteur de sel et punk spreader.
+Avatar : /home/aron/Downloads/alpha_bolt.jpeg (move image to project and use it as illustration)
 
-Leagues tab stayt he same as current feature
+Luka Mrakovcic - Community Manager
+EN :
+Learned to play magic too late to buy Reserved List (thanks proxy).
+Tempo for Life 💙❤️(🖤💚).
+MtgOnes for Ever ❤️‍🔥.
 
-Tournaments replicate leagues but now clicking a tournament card directly goes to the archive tournament because there is no league.
+FR :
+A appris a jouer a Magic trop tard pour acheter des cartes reserves listes (merci les proxys).
+Tempo for Life 💙❤️(🖤💚).
+MtgOnes for Ever ❤️‍🔥.
 
-Leagues-Archive must be renamed to archive to distinguish feature from subsection of the feature.
+Avatar : ../../Downloads/lukas_avatar.jpg
 
-Evolution of Archives Leagues and Tournament page :
-Remove the card view to become a paginated table like global rankings.
+Loïc Chowchow - Cook in Chief :
 
-Column 1 : Date last update
-Column 2 : Name league|tournament
-Column 3 : number of tournaments
-Column 4 : number of players
-Column 5 : Status active|completed
+EN:
+I begin playing MTG in 1996 at school. After a long break of ~20 years. I came back with the Balek bar and MtgOnes to Legacy.
+Official kitchen chef for the Fire/Ice tournament with my wife Emmanuelle and my slave Lukas!
+EldraGROZIZI and rakdos reanimator player.
+Find me as Pouhaskaye Pulsky on social media.
 
-Add that you can click on the row to dropdown all related tournaments from a league from the main archive page league tab direcly on the table.
-clicking on a row directly go tournament|league
+FR :
+J'ai commence a jouer a Magic en 1996 a l'ecole. Apres une longue pause ~20 ans. Je suis revenu avec le Balek bar et MTGones au Legacy.
+Cuisinier officiel pour le tournoi Fire/Ice avec ma femme Emmanuelle et mon esclave Lukas !
+Joueur d'EldraGROZIZI et rakdos reanimator.
+Trouvez moi au nom de Pouhaskaye Pulsky sur les reseaux.
+
+Avatar :
