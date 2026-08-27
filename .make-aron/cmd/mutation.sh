@@ -4,14 +4,21 @@ set -uo pipefail
 
 # G5 reads one mutation-testing-elements report at reports/mutation/mutation.json.
 # Each stack produces its own; this merges them by union of the "files" map.
+#
+# Scope is the diff's line ranges, not the changed files: handed a bare path both
+# engines mutate the whole file, and crap.py scores every mutant in the report,
+# so a small edit to a large service would be graded on code the ticket never
+# touched. diff-ranges.py turns the hunks into each engine's range syntax.
 OUT=reports/mutation/mutation.json
 mkdir -p reports/mutation
 rm -f "$OUT" reports/mutation/mutation-js.json reports/mutation/mutation-net.json
 
-node_touched() { changed_files | grep -qE '^(src|ops)/.*\.ts$'; }
+node_scope="$(python3 .make-aron/cmd/diff-ranges.py "$BASE_REF" \
+  --pattern '^(src|ops)/.*\.ts$' --format js | grep -v '\.test\.ts:' | paste -sd, -)"
 
-if node_touched; then
-  npx stryker run .make-aron/stryker.config.json --since "$BASE_REF" || true
+if [ -n "$node_scope" ]; then
+  echo "stryker --mutate $node_scope"
+  npx stryker run .make-aron/stryker.config.json --mutate "$node_scope" || true
 fi
 
 if backend_touched; then
@@ -19,15 +26,23 @@ if backend_touched; then
   # suite takes ~5 minutes per run, which per-mutant is not a budget any ticket
   # can pay; a survivor that only an integration test would have killed is a
   # missing unit test, which is the outcome this pipeline wants anyway.
-  rm -rf .make-aron/.stryker-net
-  dotnet-stryker \
-    --solution backend/Gones.sln \
-    --test-project backend/tests/Gones.UnitTests/Gones.UnitTests.csproj \
-    --since:"$BASE_REF" \
-    --reporter json \
-    --output .make-aron/.stryker-net || true
-  found="$(find .make-aron/.stryker-net -name 'mutation-report.json' | head -1)"
-  [ -n "$found" ] && cp "$found" reports/mutation/mutation-net.json
+  net_scope=()
+  while IFS= read -r entry; do
+    [ -n "$entry" ] && net_scope+=(--mutate "$entry")
+  done < <(python3 .make-aron/cmd/diff-ranges.py "$BASE_REF" \
+             --pattern '^backend/src/.*\.cs$' --format net)
+
+  if [ ${#net_scope[@]} -gt 0 ]; then
+    rm -rf .make-aron/.stryker-net
+    dotnet-stryker \
+      --solution backend/Gones.sln \
+      --test-project backend/tests/Gones.UnitTests/Gones.UnitTests.csproj \
+      "${net_scope[@]}" \
+      --reporter json \
+      --output .make-aron/.stryker-net || true
+    found="$(find .make-aron/.stryker-net -name 'mutation-report.json' | head -1)"
+    [ -n "$found" ] && cp "$found" reports/mutation/mutation-net.json
+  fi
 fi
 
 python3 - "$OUT" reports/mutation/mutation-js.json reports/mutation/mutation-net.json <<'PY'
