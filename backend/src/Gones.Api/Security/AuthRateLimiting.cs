@@ -26,6 +26,7 @@ public sealed record RateLimitSettings(
     int RefreshPermitLimit,
     int PublicReadPermitLimit,
     int WritePermitLimit,
+    int AuthenticatedReadPermitLimit,
     int RegistrationPermitLimit,
     int ExportPermitLimit,
     int AdminPermitLimit)
@@ -34,6 +35,7 @@ public sealed record RateLimitSettings(
     public const string RefreshKey = "GONES_RATE_LIMIT_REFRESH_PERMIT_LIMIT";
     public const string PublicReadKey = "GONES_RATE_LIMIT_PUBLIC_READ_PERMIT_LIMIT";
     public const string WriteKey = "GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT";
+    public const string AuthenticatedReadKey = "GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT";
     public const string RegistrationKey = "GONES_RATE_LIMIT_REGISTRATION_PERMIT_LIMIT";
     public const string ExportKey = "GONES_RATE_LIMIT_EXPORT_PERMIT_LIMIT";
     public const string AdminKey = "GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT";
@@ -43,6 +45,7 @@ public sealed record RateLimitSettings(
         AuthRateLimiting.RefreshPermitLimit,
         AuthRateLimiting.PublicReadPermitLimit,
         AuthRateLimiting.WritePermitLimit,
+        AuthRateLimiting.AuthenticatedReadPermitLimit,
         AuthRateLimiting.RegistrationPermitLimit,
         AuthRateLimiting.ExportPermitLimit,
         AuthRateLimiting.AdminPermitLimit);
@@ -58,6 +61,7 @@ public sealed record RateLimitSettings(
                 RefreshPermitLimit = RelaxedPermitLimit,
                 PublicReadPermitLimit = RelaxedPermitLimit,
                 WritePermitLimit = RelaxedPermitLimit,
+                AuthenticatedReadPermitLimit = RelaxedPermitLimit,
                 AdminPermitLimit = RelaxedPermitLimit
             }
             : Defaults;
@@ -66,6 +70,7 @@ public sealed record RateLimitSettings(
             Read(configuration, RefreshKey, fallback.RefreshPermitLimit),
             Read(configuration, PublicReadKey, fallback.PublicReadPermitLimit),
             Read(configuration, WriteKey, fallback.WritePermitLimit),
+            Read(configuration, AuthenticatedReadKey, fallback.AuthenticatedReadPermitLimit),
             Read(configuration, RegistrationKey, fallback.RegistrationPermitLimit),
             Read(configuration, ExportKey, fallback.ExportPermitLimit),
             Read(configuration, AdminKey, fallback.AdminPermitLimit));
@@ -93,6 +98,8 @@ public static class AuthRateLimiting
     public const int PublicReadPermitLimit = 120;
     /// <summary>authenticated writes: 30 per minute, per user.</summary>
     public const int WritePermitLimit = 30;
+    /// <summary>authenticated reads: 120 per minute, per user.</summary>
+    public const int AuthenticatedReadPermitLimit = 120;
     /// <summary>tournament registration writes: 10 per minute, per user.</summary>
     public const int RegistrationPermitLimit = 10;
     /// <summary>exports: 10 per hour, per user and IP.</summary>
@@ -104,6 +111,7 @@ public static class AuthRateLimiting
     public static readonly TimeSpan RefreshWindow = TimeSpan.FromMinutes(15);
     public static readonly TimeSpan PublicReadWindow = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan WriteWindow = TimeSpan.FromMinutes(1);
+    public static readonly TimeSpan AuthenticatedReadWindow = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan RegistrationWindow = TimeSpan.FromMinutes(1);
     public static readonly TimeSpan ExportWindow = TimeSpan.FromHours(1);
     public static readonly TimeSpan AdminWindow = TimeSpan.FromMinutes(1);
@@ -149,6 +157,13 @@ public static class AuthRateLimiting
                     return RateLimitPartition.GetFixedWindowLimiter(
                         TelemetryRedaction.HashRateLimitKey($"public-read:{ClientKey(context)}"),
                         _ => NewWindowOptions(settings.PublicReadPermitLimit, PublicReadWindow));
+                }
+
+                if (isRead && user is not null)
+                {
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        TelemetryRedaction.HashRateLimitKey($"authenticated-read:{user}"),
+                        _ => NewWindowOptions(settings.AuthenticatedReadPermitLimit, AuthenticatedReadWindow));
                 }
 
                 if (!isRead && user is not null)

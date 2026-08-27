@@ -31,6 +31,8 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(TimeSpan.FromMinutes(1), AuthRateLimiting.PublicReadWindow);
         Assert.Equal(30, AuthRateLimiting.WritePermitLimit);
         Assert.Equal(TimeSpan.FromMinutes(1), AuthRateLimiting.WriteWindow);
+        Assert.Equal(120, AuthRateLimiting.AuthenticatedReadPermitLimit);
+        Assert.Equal(TimeSpan.FromMinutes(1), AuthRateLimiting.AuthenticatedReadWindow);
         Assert.Equal(10, AuthRateLimiting.RegistrationPermitLimit);
         Assert.Equal(TimeSpan.FromMinutes(1), AuthRateLimiting.RegistrationWindow);
         Assert.Equal(10, AuthRateLimiting.ExportPermitLimit);
@@ -48,6 +50,7 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         var overridden = RateLimitSettings.Load(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             [RateLimitSettings.PublicReadKey] = "7",
+            [RateLimitSettings.AuthenticatedReadKey] = "5",
             [RateLimitSettings.AdminKey] = "3"
         }).Build(), relaxedDefaults: true);
 
@@ -57,10 +60,12 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         Assert.Equal(AuthRateLimiting.ExportPermitLimit, local.ExportPermitLimit);
         Assert.Equal(RateLimitSettings.RelaxedPermitLimit, local.PublicReadPermitLimit);
         Assert.Equal(RateLimitSettings.RelaxedPermitLimit, local.WritePermitLimit);
+        Assert.Equal(RateLimitSettings.RelaxedPermitLimit, local.AuthenticatedReadPermitLimit);
         Assert.Equal(RateLimitSettings.RelaxedPermitLimit, local.AdminPermitLimit);
         Assert.Equal(RateLimitSettings.RelaxedPermitLimit, local.RefreshPermitLimit);
         Assert.Equal(7, overridden.PublicReadPermitLimit);
         Assert.Equal(3, overridden.AdminPermitLimit);
+        Assert.Equal(5, overridden.AuthenticatedReadPermitLimit);
     }
 
     [Fact]
@@ -99,6 +104,51 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         {
             foreach (var response in statuses) response.Dispose();
         }
+    }
+
+    [Fact]
+    public async Task Authenticated_reads_outside_admin_are_limited_per_user_with_429_and_retry_after()
+    {
+        using var client = CreateClient((RateLimitSettings.AuthenticatedReadKey, "3"));
+        var user = Guid.NewGuid().ToString("D");
+
+        var responses = new List<HttpResponseMessage>();
+        for (var attempt = 0; attempt < 5; attempt++) responses.Add(await GetAuthenticatedReadAsync(client, user));
+        try
+        {
+            Assert.Equal(3, responses.Count(response => response.StatusCode == HttpStatusCode.OK));
+            var rejected = responses.Where(response => response.StatusCode == HttpStatusCode.TooManyRequests).ToArray();
+            Assert.Equal(2, rejected.Length);
+            foreach (var response in rejected)
+            {
+                Assert.Equal("rate_limited", await ProblemCode(response));
+                var retryAfter = Assert.Single(response.Headers.GetValues("Retry-After"));
+                Assert.True(int.TryParse(retryAfter, out var seconds) && seconds > 0, $"Retry-After must be positive seconds, was '{retryAfter}'.");
+                Assert.True(seconds <= AuthRateLimiting.AuthenticatedReadWindow.TotalSeconds);
+            }
+        }
+        finally
+        {
+            foreach (var response in responses) response.Dispose();
+        }
+    }
+
+    [Fact]
+    public async Task Authenticated_reads_do_not_leak_across_users_or_throttle_anonymous_reads()
+    {
+        using var client = CreateClient((RateLimitSettings.AuthenticatedReadKey, "1"));
+        var first = Guid.NewGuid().ToString("D");
+        var second = Guid.NewGuid().ToString("D");
+
+        using var firstOk = await GetAuthenticatedReadAsync(client, first);
+        using var firstRejected = await GetAuthenticatedReadAsync(client, first);
+        using var secondOk = await GetAuthenticatedReadAsync(client, second);
+        using var anonymous = await client.GetAsync("/api/_contract/public-read");
+
+        Assert.Equal(HttpStatusCode.OK, firstOk.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, firstRejected.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondOk.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, anonymous.StatusCode);
     }
 
     [Fact]
@@ -209,6 +259,13 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         request.Headers.Add("X-Test-Roles", "Admin");
         using var response = await client.SendAsync(request);
         return response.StatusCode;
+    }
+
+    private static async Task<HttpResponseMessage> GetAuthenticatedReadAsync(HttpClient client, string userId)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/_contract/public-read");
+        request.Headers.Add("X-Test-User", userId);
+        return await client.SendAsync(request);
     }
 
     private static async Task<string?> ProblemCode(HttpResponseMessage response)

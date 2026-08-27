@@ -18,7 +18,8 @@ Every locked V1 limit is enforced **in-process** by `Microsoft.AspNetCore.RateLi
 (`backend/src/Gones.Api/Security/AuthRateLimiting.cs`). Two layers stack:
 
 1. A **global limiter** partitions every `/api` request so a newly added route cannot silently ship
-   unlimited: `/api/admin` per user, anonymous reads per client IP, authenticated writes per user.
+   unlimited: `/api/admin` per user, anonymous reads per client IP, authenticated reads per user,
+   authenticated writes per user.
 2. **Endpoint policies** applied with `RequireRateLimiting` for the surfaces that need a tighter or
    differently-keyed bucket than the global default.
 
@@ -28,6 +29,7 @@ Every locked V1 limit is enforced **in-process** by `Microsoft.AspNetCore.RateLi
 | same, per account | 5 / 15 min | normalized account | `AuthAccountRateLimitFilter` |
 | `POST /api/auth/refresh` | 30 / 15 min | refresh session cookie | `refresh-session` |
 | anonymous reads under `/api` | 120 / min | client IP | global + `public-read-ip` |
+| authenticated reads under `/api` outside `/api/admin` | 120 / min | user id | global |
 | authenticated writes under `/api` | 30 / min | user id | global + `write-user` |
 | tournament self-registration | 10 / min | user id | `registration-user` |
 | participant / league CSV export | 10 / hour | user id + client IP | `export-user-ip` |
@@ -44,8 +46,8 @@ audit record (best-effort — a rejection raised before persistence is configure
 **Overrides.** Each bucket reads an optional environment key
 (`GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT`, `GONES_RATE_LIMIT_REFRESH_PERMIT_LIMIT`,
 `GONES_RATE_LIMIT_PUBLIC_READ_PERMIT_LIMIT`, `GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT`,
-`GONES_RATE_LIMIT_REGISTRATION_PERMIT_LIMIT`, `GONES_RATE_LIMIT_EXPORT_PERMIT_LIMIT`,
-`GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT`). In `Development` and `Testing` the volume-shaped buckets
+`GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT`, `GONES_RATE_LIMIT_REGISTRATION_PERMIT_LIMIT`,
+`GONES_RATE_LIMIT_EXPORT_PERMIT_LIMIT`, `GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT`). In `Development` and `Testing` the volume-shaped buckets
 default to an effectively unlimited value so local suites are not throttled; explicit configuration
 still wins, and the dedicated suites set exact tiny limits to prove 429 + `Retry-After`.
 

@@ -1969,3 +1969,46 @@ touched. Everything the Cypress spec cannot prove is here. Run the stack with
 - [ ] **The add flow still completes.** With a related account selected, press Add. The POST to `/api/events/<id>/registrations/by-organizer` carries `{ "userId": "…" }` only, and the participant appears in the table below.
 - [ ] **A platform Admin resolves anyone, and still learns nothing extra.** Signed in as an Admin who is *not* a member of the organization, look up the stranger from the first step. It answers `200` — the relatedness rule is bypassed for Admins by design — and the body is still exactly `userId` and `username`.
 - [ ] **The route is rate limited.** Replay the lookup faster than 10 times a minute as the same user (`for i in $(seq 14); do curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer <token>" "http://127.0.0.1:5080/api/organizations/<orgId>/users/lookup?username=<a related username>"; done`). From the 11th call in the window the answer is `429`, `content-type: application/problem+json`, `Retry-After: 60`. Compose runs the API with `ASPNETCORE_ENVIRONMENT=Production`, so the `registration-user` limit is the real 10 per minute per user with no override needed — only Development and Testing relax limits, and never this one. The bucket is shared with `POST /api/events/<id>/registrations/by-organizer`, so an add spent in the same minute brings the `429` one call sooner.
+
+## T2 meter-authenticated-reads
+
+The global limiter used to bucket only admin traffic, anonymous reads and authenticated writes, so
+an authenticated `GET`/`HEAD` to any non-admin `/api` route fell through to `GetNoLimiter` and
+shipped unmetered. Two integration tests in
+`backend/tests/Gones.IntegrationTests/RateLimitPolicyTests.cs` prove the new bucket against the
+Testing-only probe route; what is here is what they cannot prove — the real
+`ASPNETCORE_ENVIRONMENT=Production` limit of 120 per minute per user against a real signed-in
+session. Run the stack with `docker compose up -d --wait frontend-development` (dev server
+`127.0.0.1:4200`, API `127.0.0.1:5080`) and sign in as an Organizer who owns at least one Event with
+participants. The probe route below, `GET /api/events/<eventId>/registrations`, is the
+participant list the audit named: authenticated, carries email and legal name, and declares no
+endpoint policy of its own, so the global bucket is the only thing metering it.
+
+- [ ] **Normal use is not throttled.** Browse the app as the signed-in Organizer for a minute —
+      Calendar, Event detail, the participants panel, back and forth. Nothing returns `429`; 120
+      reads a minute is well above what the UI issues (the frontend has no polling timer).
+- [ ] **The bucket fires.** Replay the participant list faster than 120 times a minute as the same
+      user
+      (`for i in $(seq 125); do curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer <token>" "http://127.0.0.1:5080/api/events/<eventId>/registrations"; done | sort | uniq -c`).
+      The count shows 120 `200` and 5 `429`. Compose runs the API with
+      `ASPNETCORE_ENVIRONMENT=Production`, so no override is needed — only Development and Testing
+      relax the volume buckets.
+- [ ] **The rejection is the uniform one.** Re-run one throttled call with `-i`. The reply is `429`
+      with `content-type: application/problem+json`, a body whose `code` is `rate_limited`, and a
+      `Retry-After` header that is a positive whole number of seconds no greater than `60`.
+- [ ] **No cross-user leakage.** With the first user's bucket exhausted, sign in as a second account
+      (any other Organizer or Admin) and load the same participant list. It answers `200` — the
+      partition is keyed per user id, not per IP, even though both calls come from your machine.
+- [ ] **Anonymous reads keep their own bucket.** While the first user is still throttled, request a
+      public route with no `Authorization` header
+      (`curl -sS -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:5080/api/events"`). It answers
+      `200`: anonymous traffic stays in the `public-read` bucket at 120 per minute per client IP.
+- [ ] **Existing buckets are untouched.** Confirm the admin surface still allows 60 reads a minute
+      per user (`/api/admin/**`, signed in as an Admin) and that an authenticated write still trips
+      at 30 a minute — the new bucket sits between them in the partitioner and must not have
+      swallowed either.
+- [ ] **The override works.** Stop the stack, set `GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT=5`
+      in the API service environment, bring it back up, and repeat the second step with `seq 8`. The
+      6th call onward answers `429`. Unset it again afterwards. Note that `compose.yaml` does not
+      pass this key through by default — its rate-limit passthrough list is deliberately partial —
+      so add it to the `api` service's `environment:` block for the duration of this check only.
