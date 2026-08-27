@@ -7585,6 +7585,12 @@ export class Client implements IClient {
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
             }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
+            }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             return throwException("An unexpected server error occurred.", status, _responseText, _headers);
@@ -11287,9 +11293,6 @@ export interface OrganizationNotificationSettingsResponse {
 export interface OrganizationUserLookupResponse {
     userId: string;
     username: string;
-    firstName: string;
-    lastName: string;
-    email: string;
 
     [key: string]: any;
 }

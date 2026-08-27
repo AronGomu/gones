@@ -5228,6 +5228,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -11498,10 +11508,7 @@
       "OrganizationUserLookupResponse": {
         "required": [
           "userId",
-          "username",
-          "firstName",
-          "lastName",
-          "email"
+          "username"
         ],
         "type": "object",
         "properties": {
@@ -11510,15 +11517,6 @@
             "format": "uuid"
           },
           "username": {
-            "type": "string"
-          },
-          "firstName": {
-            "type": "string"
-          },
-          "lastName": {
-            "type": "string"
-          },
-          "email": {
             "type": "string"
           }
         }

@@ -98,7 +98,7 @@ export class ParticipantBlockDialogComponent {
           @if (lookupError()) { <p class="error" role="alert" data-cy="participant-lookup-error">{{ lookupError() }}</p> }
           @if (selectedUser(); as user) {
             <div class="participant-selection" data-cy="participant-selection">
-              <div data-cy="participant-selection-summary"><strong data-cy="participant-selection-username">{{ user.username }}</strong><span data-cy="participant-selection-legal-name">{{ user.firstName }} {{ user.lastName }}</span><span data-cy="participant-selection-email">{{ user.email }}</span></div>
+              <div data-cy="participant-selection-summary"><strong data-cy="participant-selection-username">{{ user.username }}</strong></div>
               <button mat-flat-button type="button" data-cy="participant-add" [disabled]="!!pending()" (click)="addParticipant(user)">{{ pending() === 'add' ? i18n.t('participants.adding') : i18n.t('participants.add') }}</button>
             </div>
           }
@@ -243,8 +243,11 @@ export class OrganizerParticipantsComponent {
     this.pending.set('lookup');
     try {
       this.selectedUser.set(await firstValueFrom(this.client.lookupOrganizationUser(event.organizationId, query.username, query.email)));
-    } catch {
-      this.lookupError.set(this.i18n.t('participants.lookupFailed'));
+    } catch (error) {
+      // A throttled lookup says nothing about the account: telling the organizer "no match" would
+      // deny an account they are entitled to resolve.
+      const throttled = error instanceof ApiProblemError && error.status === 429;
+      this.lookupError.set(this.i18n.t(throttled ? 'participants.lookupThrottled' : 'participants.lookupFailed'));
     } finally {
       this.pending.set('');
     }

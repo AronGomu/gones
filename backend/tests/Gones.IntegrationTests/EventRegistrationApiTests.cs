@@ -11,6 +11,8 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -299,22 +301,250 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         using var outsider = await SendAsync(HttpMethod.Get, $"/api/events/{tournament.Id:D}/registrations", seed.User.Id);
         Assert.Equal(HttpStatusCode.NotFound, outsider.StatusCode);
 
+        await using (var database = CreateContext())
+        {
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
         using var exactUsername = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.Organizer.Id);
         Assert.Equal(HttpStatusCode.OK, exactUsername.StatusCode);
         var lookup = await exactUsername.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(seed.User.Id, lookup.GetProperty("userId").GetGuid());
-        Assert.Equal(seed.User.Email, lookup.GetProperty("email").GetString());
+        Assert.Equal("CurrentUser", lookup.GetProperty("username").GetString());
+        Assert.False(lookup.TryGetProperty("email", out _));
+        Assert.False(lookup.TryGetProperty("firstName", out _));
+        Assert.False(lookup.TryGetProperty("lastName", out _));
         using var exactEmail = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?email={Uri.EscapeDataString(seed.User.Email!)}", seed.Organizer.Id);
         Assert.Equal(HttpStatusCode.OK, exactEmail.StatusCode);
         Assert.Equal(seed.User.Id, (await exactEmail.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
         using var partial = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=Current", seed.Organizer.Id);
         Assert.Equal(HttpStatusCode.NotFound, partial.StatusCode);
+        // Relate the unverified account to the org first, so its 404 can only come from the missing
+        // email confirmation and not from the relatedness filter.
+        await using (var database = CreateContext())
+        {
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.Unverified.Id, seed.Organizer.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
         using var unverified = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?email={Uri.EscapeDataString(seed.Unverified.Email!)}", seed.Organizer.Id);
         Assert.Equal(HttpStatusCode.NotFound, unverified.StatusCode);
         using var unauthorizedLookup = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.User.Id);
         Assert.Equal(HttpStatusCode.NotFound, unauthorizedLookup.StatusCode);
         using var adminLookup = await SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?username=CurrentUser", seed.Registered.Id, roles: "Admin");
         Assert.Equal(HttpStatusCode.OK, adminLookup.StatusCode);
+    }
+
+    /// <summary>
+    /// F2. The lookup used to resolve any verified account on the platform and hand back its email
+    /// and legal name, so any Organizer could harvest PII across the organization boundary and read
+    /// 404-vs-200 as an email-existence oracle. It now answers only for accounts already related to
+    /// the organization — a member, or anyone who ever attempted a registration on one of its live
+    /// events, whatever that attempt's status — and never with more than userId + username. A
+    /// platform Admin bypasses relatedness, never the shrunk body.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_refuses_accounts_unrelated_to_the_organization()
+    {
+        var live = await CreateTournamentAsync("Relation Cup", 10);
+        var deleted = await CreateTournamentAsync("Deleted Relation Cup", 10);
+        deleted.SoftDelete(seed.Organizer.Id, "hidden", clock.GetCurrentInstant());
+        await using (var database = CreateContext())
+        {
+            var past = EventRegistrationAttempt.Register(live.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant());
+            past.CancelByUser(seed.Registered.Id, clock.GetCurrentInstant());
+            database.EventRegistrationAttempts.Add(past);
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(deleted.Id, seed.Blocked.Id, seed.Blocked.Id, clock.GetCurrentInstant()));
+            database.Events.Update(deleted);
+            await database.SaveChangesAsync();
+        }
+
+        using var unrelated = await LookupAsync("username=CurrentUser", seed.Organizer.Id);
+        using var unknown = await LookupAsync("username=Nobody", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, unrelated.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        Assert.Equal(await ProblemFieldsAsync(unknown), await ProblemFieldsAsync(unrelated));
+        using var unrelatedEmail = await LookupAsync($"email={Uri.EscapeDataString(seed.User.Email!)}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, unrelatedEmail.StatusCode);
+        using var deletedEventOnly = await LookupAsync("username=Blocked", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, deletedEventOnly.StatusCode);
+
+        using var member = await LookupAsync("username=Organizer", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, member.StatusCode);
+        var memberBody = await member.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(seed.Organizer.Id, memberBody.GetProperty("userId").GetGuid());
+        Assert.Equal("Organizer", memberBody.GetProperty("username").GetString());
+        Assert.Equal(
+            new[] { "userId", "username" },
+            memberBody.EnumerateObject().Select(property => property.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray());
+
+        using var pastParticipant = await LookupAsync("username=Registered", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, pastParticipant.StatusCode);
+        Assert.Equal(seed.Registered.Id, (await pastParticipant.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+
+        using var adminBypass = await LookupAsync("username=Blocked", seed.User.Id, roles: "Admin");
+        Assert.Equal(HttpStatusCode.OK, adminBypass.StatusCode);
+        var adminBody = await adminBypass.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(seed.Blocked.Id, adminBody.GetProperty("userId").GetGuid());
+        Assert.False(adminBody.TryGetProperty("email", out _));
+        Assert.False(adminBody.TryGetProperty("firstName", out _));
+        Assert.False(adminBody.TryGetProperty("lastName", out _));
+    }
+
+    /// <summary>
+    /// The lookup resolves one exact identifier, never a search: naming both criteria, naming neither,
+    /// or naming a Username no account could hold is a caller mistake, answered by a 400 that says
+    /// which field is wrong rather than by a widened match.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_rejects_a_criterion_that_is_not_one_exact_identifier()
+    {
+        using var both = await LookupAsync($"username=CurrentUser&email={Uri.EscapeDataString(seed.User.Email!)}", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
+        Assert.Equal("lookup", InvalidFieldOf(await both.Content.ReadFromJsonAsync<JsonElement>()));
+
+        using var neither = await LookupAsync("username=%20", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.BadRequest, neither.StatusCode);
+        Assert.Equal("lookup", InvalidFieldOf(await neither.Content.ReadFromJsonAsync<JsonElement>()));
+
+        using var tooShort = await LookupAsync("username=ab", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.BadRequest, tooShort.StatusCode);
+        Assert.Equal("username", InvalidFieldOf(await tooShort.Content.ReadFromJsonAsync<JsonElement>()));
+    }
+
+    /// <summary>
+    /// Membership relates an account to one organization, not to the platform: the same subject that
+    /// a rival organization resolves as its own member stays unknown to ours.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_refuses_a_member_of_another_organization()
+    {
+        var rival = await CreateOrganizationAsync("Rival Org", seed.User.Id, seed.Registered.Id);
+
+        using var ours = await LookupAsync("username=CurrentUser", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, ours.StatusCode);
+
+        using var theirs = await SendAsync(HttpMethod.Get, $"/api/organizations/{rival.Id:D}/users/lookup?username=CurrentUser", seed.Registered.Id);
+        Assert.Equal(HttpStatusCode.OK, theirs.StatusCode);
+        Assert.Equal(seed.User.Id, (await theirs.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+    }
+
+    /// <summary>
+    /// A registration attempt relates its subject to the organization that owns the event, and to no
+    /// other: registering on a rival's tournament must not make an account resolvable through ours.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_refuses_a_registrant_of_another_organizations_event()
+    {
+        var rival = await CreateOrganizationAsync("Rival Org", seed.Registered.Id);
+        var rivalTournament = await CreateTournamentAsync(rival.Id, "Rival Cup", 10);
+        await using (var database = CreateContext())
+        {
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(rivalTournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
+        using var ours = await LookupAsync("username=CurrentUser", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, ours.StatusCode);
+
+        using var theirs = await SendAsync(HttpMethod.Get, $"/api/organizations/{rival.Id:D}/users/lookup?username=CurrentUser", seed.Registered.Id);
+        Assert.Equal(HttpStatusCode.OK, theirs.StatusCode);
+        Assert.Equal(seed.User.Id, (await theirs.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+    }
+
+    /// <summary>
+    /// Closing an account withdraws it from the lookup even where the relation that made it visible
+    /// survives: the organizer keeps the past registration, not a handle on the person who left.
+    /// The email is the only key that outlives closure, so it is the one this asserts on.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_refuses_a_closed_account_that_is_still_related_to_the_organization()
+    {
+        var tournament = await CreateTournamentAsync("Closure Cup", 10);
+        await using (var database = CreateContext())
+        {
+            database.EventRegistrationAttempts.Add(EventRegistrationAttempt.Register(tournament.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant()));
+            await database.SaveChangesAsync();
+        }
+
+        var byEmail = $"email={Uri.EscapeDataString(seed.Registered.Email!)}";
+        using var whileOpen = await LookupAsync(byEmail, seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, whileOpen.StatusCode);
+
+        await using (var database = CreateContext())
+        {
+            var profile = await database.UserProfiles.SingleAsync(item => item.UserId == seed.Registered.Id);
+            profile.CloseAndAnonymize("deleted-account", clock.GetCurrentInstant());
+            await database.SaveChangesAsync();
+        }
+
+        using var whenClosed = await LookupAsync(byEmail, seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, whenClosed.StatusCode);
+    }
+
+    /// <summary>
+    /// The email criterion must not become the existence oracle the username criterion is not: an
+    /// unrelated address that does have an account answers byte for byte like one that has none.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_answers_an_unrelated_email_exactly_like_an_unknown_email()
+    {
+        using var unrelated = await LookupAsync($"email={Uri.EscapeDataString(seed.User.Email!)}", seed.Organizer.Id);
+        using var unknown = await LookupAsync($"email={Uri.EscapeDataString($"nobody-{Guid.NewGuid():N}@example.test")}", seed.Organizer.Id);
+
+        Assert.Equal(HttpStatusCode.NotFound, unrelated.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        Assert.Equal(await ProblemFieldsAsync(unknown), await ProblemFieldsAsync(unrelated));
+    }
+
+    /// <summary>
+    /// Relatedness is the existence of an attempt, never its outcome: an organizer who cancelled a
+    /// tournament or removed a participant can still find them to add them back. An account that
+    /// never attempted anything stays unknown, so the 200s below are not a blanket answer.
+    /// </summary>
+    [Fact]
+    public async Task Lookup_resolves_past_participants_whatever_ended_their_attempt()
+    {
+        var tournament = await CreateTournamentAsync("Aftermath Cup", 10);
+        await using (var database = CreateContext())
+        {
+            var cancelledByTournament = EventRegistrationAttempt.Register(tournament.Id, seed.User.Id, seed.User.Id, clock.GetCurrentInstant());
+            cancelledByTournament.CancelByTournament(seed.Organizer.Id, clock.GetCurrentInstant());
+            var removedByOrganizer = EventRegistrationAttempt.Register(tournament.Id, seed.Registered.Id, seed.Registered.Id, clock.GetCurrentInstant());
+            removedByOrganizer.RemoveByOrganizer(seed.Organizer.Id, clock.GetCurrentInstant());
+            database.EventRegistrationAttempts.AddRange(cancelledByTournament, removedByOrganizer);
+            await database.SaveChangesAsync();
+        }
+
+        using var cancelled = await LookupAsync("username=CurrentUser", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, cancelled.StatusCode);
+        Assert.Equal(seed.User.Id, (await cancelled.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+
+        using var removed = await LookupAsync("username=Registered", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.OK, removed.StatusCode);
+        Assert.Equal(seed.Registered.Id, (await removed.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("userId").GetGuid());
+
+        using var neverAttempted = await LookupAsync("username=Blocked", seed.Organizer.Id);
+        Assert.Equal(HttpStatusCode.NotFound, neverAttempted.StatusCode);
+    }
+
+    /// <summary>
+    /// The lookup is an unauthenticated-username-to-account probe for anyone holding one organizer
+    /// seat, so it is throttled like a registration write. The Testing environment relaxes every
+    /// limit to a million permits, so the mapping is asserted on the route metadata, not by
+    /// exhausting a window.
+    /// </summary>
+    [Fact]
+    public void Lookup_route_is_mapped_under_the_registration_rate_limit_policy()
+    {
+        var lookup = Factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .OfType<RouteEndpoint>()
+            .Single(endpoint => endpoint.RoutePattern.RawText == "/api/organizations/{organizationId:guid}/users/lookup");
+
+        Assert.Equal(
+            new[] { "registration-user" },
+            lookup.Metadata.GetOrderedMetadata<EnableRateLimitingAttribute>().Select(policy => policy.PolicyName).ToArray());
     }
 
     [Fact]
@@ -517,12 +747,15 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         await database.SaveChangesAsync();
     }
 
-    private async Task<Event> CreateTournamentAsync(string title, int capacity)
+    private Task<Event> CreateTournamentAsync(string title, int capacity) =>
+        CreateTournamentAsync(seed.Organization.Id, title, capacity);
+
+    private async Task<Event> CreateTournamentAsync(Guid organizationId, string title, int capacity)
     {
         await using var database = CreateContext();
         var legacy = await database.TournamentFormats.SingleAsync(item => item.Id == seed.Legacy.Id);
         var tournament = Event.Create(
-            seed.Organization.Id,
+            organizationId,
             seed.Organizer.Id,
             new ScheduledTournamentDraft(title, title.ToLowerInvariant().Replace(' ', '-'), "Summary", null, "12 Street", null, "Paris", "France", "Europe/Paris", new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), capacity),
             [legacy],
@@ -530,6 +763,19 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         database.Events.Add(tournament);
         await database.SaveChangesAsync();
         return tournament;
+    }
+
+    /// <summary>A second organization, with the given accounts as its organizers.</summary>
+    private async Task<Organization> CreateOrganizationAsync(string name, params Guid[] memberUserIds)
+    {
+        await using var database = CreateContext();
+        var organization = Organization.Create(name, null, null, null, clock.GetCurrentInstant());
+        database.Organizations.Add(organization);
+        await database.SaveChangesAsync();
+        database.OrganizationMembers.AddRange(memberUserIds.Select(userId =>
+            OrganizationMember.Create(organization.Id, userId, OrganizationRoles.Organizer, clock.GetCurrentInstant())));
+        await database.SaveChangesAsync();
+        return organization;
     }
 
     private async Task<IReadOnlyList<ApplicationUser>> AddUsersAsync(int count)
@@ -566,6 +812,23 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         request.Headers.Add("X-Test-User", userId.ToString("D"));
         request.Headers.Add("X-Test-Roles", roles);
         return Client.SendAsync(request);
+    }
+
+    private Task<HttpResponseMessage> LookupAsync(string query, Guid callerId, string roles = "User") =>
+        SendAsync(HttpMethod.Get, $"/api/organizations/{seed.Organization.Id:D}/users/lookup?{query}", callerId, roles: roles);
+
+    /// <summary>The single field a validation problem blames.</summary>
+    private static string InvalidFieldOf(JsonElement problem) =>
+        problem.GetProperty("errors").EnumerateObject().Single().Name;
+
+    /// <summary>Problem body minus the per-request traceId, so two 404s can be compared for an oracle.</summary>
+    private static async Task<string> ProblemFieldsAsync(HttpResponseMessage response)
+    {
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        return string.Join('|', problem.EnumerateObject()
+            .Where(property => property.Name != "traceId")
+            .OrderBy(property => property.Name, StringComparer.Ordinal)
+            .Select(property => $"{property.Name}={property.Value}"));
     }
 
     private static async Task AssertProblem(HttpResponseMessage response, HttpStatusCode status, string code)
@@ -628,6 +891,7 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options);
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
+    private WebApplicationFactory<Program> Factory => factory ?? throw new InvalidOperationException("Factory not initialized.");
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
     private sealed record SeedRows(Organization Organization, ApplicationUser Organizer, ApplicationUser User, ApplicationUser Registered, ApplicationUser Blocked, ApplicationUser Unverified, TournamentFormat Legacy);

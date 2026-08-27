@@ -29,10 +29,12 @@ internal static class OrganizerParticipantEndpoints
         var users = app.MapGroup("/api").RequireAuthorization(AuthorizationPolicies.User);
 
         users.MapGet("/organizations/{organizationId:guid}/users/lookup", LookupUserAsync)
+            .RequireRateLimiting(AuthRateLimiting.RegistrationPolicy)
             .WithName("LookupOrganizationUser")
             .Produces<OrganizationUserLookupResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests);
         users.MapGet("/organizations/{organizationId:guid}/blocked-users", ListBlockedUsersAsync)
             .WithName("ListOrganizationBlockedUsers")
             .Produces<OrganizationBlockedUserListResponse>()
@@ -218,27 +220,8 @@ internal sealed class OrganizerParticipantService(
         CancellationToken cancellationToken)
     {
         _ = await access.RequireMemberAsync(organizationId, actorUserId, isAdmin, cancellationToken);
-        var hasUsername = !string.IsNullOrWhiteSpace(username);
-        var hasEmail = !string.IsNullOrWhiteSpace(email);
-        if (hasUsername == hasEmail)
-        {
-            throw Validation("lookup", "Provide exactly one exact Username or email.");
-        }
-
-        string? normalizedUsername = null;
-        if (hasUsername)
-        {
-            try
-            {
-                normalizedUsername = Username.Normalize(username!);
-            }
-            catch (ArgumentException)
-            {
-                throw Validation("username", "Username is invalid.");
-            }
-        }
-        var normalizedEmail = hasEmail ? email!.Trim().ToUpperInvariant() : null;
-        return await (
+        var (normalizedUsername, normalizedEmail) = NormalizeLookupKey(username, email);
+        var accounts =
             from user in database.Users.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on user.Id equals profile.UserId
             where user.EmailConfirmed
@@ -246,8 +229,54 @@ internal sealed class OrganizerParticipantService(
                 && (normalizedUsername != null
                     ? profile.NormalizedUsername == normalizedUsername
                     : user.NormalizedEmail == normalizedEmail)
-            select new OrganizationUserLookupResponse(user.Id, profile.Username, profile.FirstName, profile.LastName, user.Email!)
-        ).SingleOrDefaultAsync(cancellationToken) ?? throw new ResourceNotFoundException();
+            select new { user.Id, profile.Username };
+        // A platform Admin resolves any account; an organizer only the ones their organization knows:
+        // its members, plus everyone who ever attempted a registration on one of its live events,
+        // whatever became of that attempt — a past participant stays resolvable so an organizer can
+        // add them again.
+        if (!isAdmin)
+        {
+            accounts = accounts.Where(account =>
+                database.OrganizationMembers.Any(member =>
+                    member.OrganizationId == organizationId && member.UserId == account.Id)
+                || database.EventRegistrationAttempts.Any(attempt =>
+                    attempt.UserId == account.Id
+                    && database.Events.Any(tournament =>
+                        tournament.Id == attempt.EventId
+                        && tournament.OrganizationId == organizationId
+                        && tournament.DeletedAt == null)));
+        }
+
+        var match = await accounts.SingleOrDefaultAsync(cancellationToken) ?? throw new ResourceNotFoundException();
+        return new OrganizationUserLookupResponse(match.Id, match.Username);
+    }
+
+    /// <summary>
+    /// The one exact identifier a lookup answers, normalized the way its column is stored. Exactly one
+    /// of the two criteria has to be present: naming both is as ambiguous as naming neither.
+    /// </summary>
+    private static (string? Username, string? Email) NormalizeLookupKey(string? username, string? email)
+    {
+        var hasUsername = !string.IsNullOrWhiteSpace(username);
+        var hasEmail = !string.IsNullOrWhiteSpace(email);
+        if (hasUsername == hasEmail)
+        {
+            throw Validation("lookup", "Provide exactly one exact Username or email.");
+        }
+
+        if (hasEmail)
+        {
+            return (null, email!.Trim().ToUpperInvariant());
+        }
+
+        try
+        {
+            return (Username.Normalize(username!), null);
+        }
+        catch (ArgumentException)
+        {
+            throw Validation("username", "Username is invalid.");
+        }
     }
 
     public async Task<OrganizationBlockedUserListResponse> ListBlockedUsersAsync(
@@ -508,7 +537,7 @@ internal sealed record BlockOrganizationUserRequest(
     [property: Required, StringLength(OrganizationBlockedUser.MaximumReasonLength)] string Reason,
     Instant? ExpiresAt);
 
-internal sealed record OrganizationUserLookupResponse(Guid UserId, string Username, string FirstName, string LastName, string Email);
+internal sealed record OrganizationUserLookupResponse(Guid UserId, string Username);
 
 internal sealed record OrganizationBlockedUserResponse(
     Guid BlockId,

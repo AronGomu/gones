@@ -43,9 +43,8 @@ describe('Organizer participant management', () => {
   it('shows private paged fields, selects verified User lookup, locks add, then explains capacity race', () => {
     mockPage();
     cy.intercept('GET', `**/api/organizations/${orgId}/users/lookup?*`, req => {
-      expect(req.query).to.deep.include({ username: 'new-user' });
-      expect(req.query.email).to.be.undefined;
-      req.reply({ userId: 'new-user-id', username: 'new-user', firstName: 'New', lastName: 'User', email: 'new@example.test' });
+      expect(req.query).to.deep.equal({ username: 'new-user' });
+      req.reply({ userId: 'new-user-id', username: 'new-user' });
     }).as('lookup');
     let addCalls = 0;
     cy.intercept('POST', `**/api/events/${eventId}/registrations/by-organizer`, req => {
@@ -60,7 +59,7 @@ describe('Organizer participant management', () => {
     cy.get('[data-cy="participant-row"]').should('contain.text', 'alice-user').and('contain.text', 'Alice Martin').and('contain.text', 'alice@example.test').and('contain.text', 'Active');
     cy.get('[data-cy="participant-lookup-input"]').type('new-user{enter}');
     cy.wait('@lookup');
-    cy.get('[data-cy="participant-selection"]').should('contain.text', 'new@example.test');
+    cy.get('[data-cy="participant-selection"]').should('contain.text', 'new-user');
     cy.get('[data-cy="participant-add"]').dblclick().should('be.disabled');
     cy.wait('@add');
     cy.wrap(null).should(() => expect(addCalls).to.eq(1));
