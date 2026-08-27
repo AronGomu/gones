@@ -20,14 +20,8 @@
 !/fixtures/dev-environments/stress/environment.json
 
 /.pi/artifacts/
-# make-aron-v2 quality-gate scratch: run ledgers, coverage and mutation workspaces.
-# The config (gates.json, cmd/, layers.json, equivalent-mutants.json) is committed.
-/coverage/
-/.make-aron/runs/
-/.make-aron/.cov/
-/.make-aron/.stryker-tmp/
-/.make-aron/.stryker-net/
-/.make-aron/.complexity.csv
+# Local agent scratch: run ledgers and per-ticket QA scripts.
+/.make-aron/
 # Graphify knowledge graph: rebuilt locally with `graphify extract . --code-only`.
 /graphify-out/
 # Test CA exported by the C41 release rehearsal; recreated on every run.
