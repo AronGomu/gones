@@ -161,14 +161,18 @@ after repeated transport failures so one broken provider cannot burn the whole q
 
 ```bash
 # inside the release-test stack, or on the host with the same image and mounts
-gones-backup.sh            # writes <name>.dump.enc, .sha256 and .meta.json into GONES_BACKUP_ROOT
+gones-backup.sh            # writes <name>.dump.enc, .sha256, .hmac and .meta.json into GONES_BACKUP_ROOT
 gones-restore.sh <archive> # verifies the checksum and the key before touching the database
 ```
 
 - Archives are AES-encrypted (`Salted__` header) and written **only** inside the mounted backup root.
   A path outside it exits `2`.
-- A corrupt archive exits `10` and a wrong key exits `11` — both **before** the database is touched.
-  A restore that fails is never a half-restored database.
+- A corrupt archive exits `10`, a missing or failing HMAC exits `12`, and a non-archive payload exits
+  `11` — all **before** the database is touched. A restore that fails is never a half-restored
+  database.
+- Every archive carries an `.hmac` sidecar (HMAC-SHA256 keyed from the backup passphrase). Restore is
+  **strict**: an archive without a valid MAC is refused — archives taken before the MAC existed are
+  not restorable, so take a fresh backup immediately after deploying this.
 - The rehearsal destroys the PostgreSQL data volume outright and restores into an empty database,
   then re-runs the migration job to prove it applies nothing new and that the append-only audit
   trigger came back with the schema.

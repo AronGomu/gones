@@ -1,9 +1,10 @@
 #!/bin/sh
 # Gones encrypted PostgreSQL backup (C41).
 #
-# Writes exactly three files into GONES_BACKUP_ROOT, and nowhere else:
+# Writes exactly four files into GONES_BACKUP_ROOT, and nowhere else:
 #   <name>.dump.enc      AES-256-CBC(PBKDF2) envelope around a pg_dump custom-format archive
 #   <name>.dump.enc.sha256  checksum of the ciphertext, so corruption is caught before decryption
+#   <name>.dump.enc.hmac   HMAC-SHA256 over the ciphertext, keyed by PBKDF2(passphrase, fresh salt) — tamper evidence
 #   <name>.meta.json     provenance: when, which server, which cipher, which checksum algorithm
 #
 # Inputs are environment only, so any host that can mount a volume and inject a secret can schedule it.
@@ -68,6 +69,14 @@ mv "$staging" "$archive"
 trap - EXIT INT TERM
 ( cd "$GONES_BACKUP_ROOT" && sha256sum "$name.dump.enc" > "$name.dump.enc.sha256" )
 
+# A checksum catches corruption; only a MAC catches substitution. The MAC key is PBKDF2 from the
+# same passphrase with its own salt, so it differs from the encryption key and needs no new secret.
+mac_salt="$(openssl rand -hex 8)"
+mac_key="$(openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -S "$mac_salt" -pass "$pass" -P | sed -n 's/^key=//p')"
+[ -n "$mac_key" ] || fail "MAC key derivation produced nothing" 1
+mac="$(openssl dgst -sha256 -mac HMAC -macopt hexkey:"$mac_key" -r "$archive" | cut -d' ' -f1)"
+printf 'v1 pbkdf2-sha256-600000 %s %s\n' "$mac_salt" "$mac" > "$GONES_BACKUP_ROOT/$name.dump.enc.hmac"
+
 server="$(psql --dbname="$dsn" --no-psqlrc --tuples-only --no-align --command 'SHOW server_version' 2>/dev/null || echo unknown)"
 cat > "$GONES_BACKUP_ROOT/$name.meta.json" <<META
 {
@@ -77,6 +86,7 @@ cat > "$GONES_BACKUP_ROOT/$name.meta.json" <<META
   "clientVersion": "$(pg_dump --version | tr -d '\n')",
   "format": "pg_dump custom",
   "cipher": "aes-256-cbc/pbkdf2-600000",
+  "mac": "hmac-sha256/pbkdf2-sha256-600000",
   "checksum": "sha256"
 }
 META

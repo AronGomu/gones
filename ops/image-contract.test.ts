@@ -206,4 +206,18 @@ describe('backup and restore commands', () => {
     expect(restore).toContain('sha256sum');
     expect(restore).toContain('PGDMP');
   });
+
+  it('authenticates the ciphertext with an HMAC derived from the same passphrase', () => {
+    const backup = read('deploy/backup/gones-backup.sh');
+    const restore = read('deploy/backup/gones-restore.sh');
+
+    for (const script of [backup, restore]) {
+      expect(script).toContain('-mac HMAC');
+      expect(script).toContain('pbkdf2-sha256-600000');
+    }
+    expect(backup).toContain('.dump.enc.hmac');
+    expect(restore).toContain('refusing to restore an unauthenticated archive');
+    // The MAC must be verified before any decryption is attempted.
+    expect(restore.indexOf('-mac HMAC')).toBeLessThan(restore.indexOf('openssl enc -d'));
+  });
 });

@@ -49,6 +49,10 @@ try {
   psql(`INSERT INTO backup_rehearsal_marker (id) VALUES ('${marker}');`);
   check(psql(`select count(*) from backup_rehearsal_marker where id = '${marker}';`).stdout.trim() === '1', 'a marker row exists before the dump');
 
+  // `run` reuses whatever image is already tagged, so a stale one would let an edited backup script
+  // pass unread. Build the tools image explicitly before anything asserts on its behaviour.
+  if (compose(['--profile', 'tools', 'build', 'backup']).status !== 0) throw new Error('the backup image failed to build');
+
   console.log('\n=== taking an encrypted backup ===');
   const backup = tool(['backup'], ['GONES_BACKUP_NAME=rehearsal']);
   check(backup.status === 0, `backup command succeeds (${backup.stdout.trim().split('\n').pop() ?? backup.stderr.trim()})`);
@@ -56,6 +60,7 @@ try {
   const listing = tool(['--entrypoint', 'ls', 'backup', '-1', '/backups']).stdout.trim().split('\n').map((line) => line.trim()).filter(Boolean);
   check(listing.includes('rehearsal.dump.enc'), `the archive lands in the mounted backup root (${listing.join(', ')})`);
   check(listing.includes('rehearsal.dump.enc.sha256'), 'a checksum is written next to the archive');
+  check(listing.includes('rehearsal.dump.enc.hmac'), 'an HMAC sidecar is written next to the archive');
   check(listing.includes('rehearsal.meta.json'), 'provenance metadata is written next to the archive');
 
   const header = tool(['--entrypoint', 'sh', 'backup', '-c', 'head -c 8 /backups/rehearsal.dump.enc | od -An -c | tr -d " \\n"']).stdout.trim();
@@ -63,16 +68,28 @@ try {
   const escaped = tool(['--entrypoint', 'sh', 'backup', '-c', 'ls /tmp /var/tmp 2>/dev/null | grep -c dump || true']).stdout.trim();
   check(escaped === '0' || escaped === '', 'nothing is written outside the mounted backup root');
 
-  console.log('\n=== a wrong key must fail before the database is touched ===');
+  console.log('\n=== a wrong key must fail at MAC verification, before decryption ===');
   const wrongKey = tool(['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', 'rehearsal.dump.enc'], ['GONES_BACKUP_KEY_FILE=', 'GONES_BACKUP_KEY=definitely-not-the-backup-key']);
-  check(wrongKey.status === 11, `restore with a wrong key exits 11 (got ${wrongKey.status})`);
-  check(/wrong key/i.test(wrongKey.stderr), `restore with a wrong key says so (${wrongKey.stderr.trim().slice(0, 90)})`);
+  check(wrongKey.status === 12, `restore with a wrong key exits 12 at MAC verification (got ${wrongKey.status})`);
+  check(/tampered|wrong key/i.test(wrongKey.stderr), `restore with a wrong key says so (${wrongKey.stderr.trim().slice(0, 90)})`);
 
   console.log('\n=== a corrupt archive must fail before the database is touched ===');
   tool(['--entrypoint', 'sh', 'backup', '-c', 'cp /backups/rehearsal.dump.enc /backups/corrupt.dump.enc && cp /backups/rehearsal.dump.enc.sha256 /backups/corrupt.dump.enc.sha256 && sed -i "s/rehearsal/corrupt/" /backups/corrupt.dump.enc.sha256 && printf "corruption" | dd of=/backups/corrupt.dump.enc bs=1 seek=64 conv=notrunc 2>/dev/null']);
   const corrupt = tool(['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', 'corrupt.dump.enc']);
   check(corrupt.status === 10, `restore of a corrupt archive exits 10 (got ${corrupt.status})`);
   check(/corrupt/i.test(corrupt.stderr), `restore of a corrupt archive says so (${corrupt.stderr.trim().slice(0, 90)})`);
+
+  console.log('\n=== a tampered archive with a regenerated checksum must still be refused ===');
+  tool(['--entrypoint', 'sh', 'backup', '-c', 'cp /backups/rehearsal.dump.enc /backups/tampered.dump.enc && cp /backups/rehearsal.dump.enc.hmac /backups/tampered.dump.enc.hmac && printf "substitution" | dd of=/backups/tampered.dump.enc bs=1 seek=64 conv=notrunc 2>/dev/null && cd /backups && sha256sum tampered.dump.enc > tampered.dump.enc.sha256']);
+  const tampered = tool(['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', 'tampered.dump.enc']);
+  check(tampered.status === 12, `restore of a tampered archive with a matching checksum exits 12 (got ${tampered.status})`);
+  check(/MAC verification failed/.test(tampered.stderr), `the refusal names the MAC (${tampered.stderr.trim().slice(0, 90)})`);
+
+  console.log('\n=== an archive without a MAC sidecar must be refused outright ===');
+  tool(['--entrypoint', 'sh', 'backup', '-c', 'cp /backups/rehearsal.dump.enc /backups/nomac.dump.enc && cd /backups && sha256sum nomac.dump.enc > nomac.dump.enc.sha256']);
+  const noMac = tool(['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', 'nomac.dump.enc']);
+  check(noMac.status === 12, `restore without a MAC sidecar exits 12 (got ${noMac.status})`);
+  check(/unauthenticated archive/.test(noMac.stderr), `the refusal says the archive is unauthenticated (${noMac.stderr.trim().slice(0, 90)})`);
 
   console.log('\n=== paths outside the mounted root are refused ===');
   const escape = tool(['--entrypoint', '/usr/local/bin/gones-restore.sh', 'backup', '/etc/passwd']);

@@ -1,9 +1,10 @@
 #!/bin/sh
 # Gones encrypted PostgreSQL restore (C41).
 #
-# Refuses to touch the database until the archive has proven itself twice:
+# Refuses to touch the database until the archive has proven itself three times:
 #   1. the recorded sha256 of the ciphertext still matches  -> exit 10 on corruption
-#   2. the decrypted stream really is a pg_dump archive     -> exit 11 on a wrong key
+#   2. the HMAC over the ciphertext verifies with the same passphrase -> exit 12 on tampering/wrong key/missing MAC
+#   3. the decrypted stream really is a pg_dump archive     -> exit 11 on a wrong key
 #
 # Usage: gones-restore.sh <archive-name-or-path>   (or GONES_BACKUP_FILE)
 #   GONES_BACKUP_ROOT       absolute directory holding the archive; nothing outside it is read
@@ -45,6 +46,17 @@ if [ -f "$archive.sha256" ]; then
 else
     fail "no $name.sha256 next to the archive, refusing to restore an unverifiable dump" 10
 fi
+
+# Strict by decision: an archive without a valid MAC is not restorable. The checksum above only
+# proves the bytes are self-consistent; the MAC proves they are the bytes the backup wrote.
+[ -f "$archive.hmac" ] || fail "no $name.hmac next to the archive, refusing to restore an unauthenticated archive" 12
+read -r mac_version mac_kdf mac_salt mac_expected < "$archive.hmac" || true
+if [ "${mac_version:-}" != "v1" ] || [ "${mac_kdf:-}" != "pbkdf2-sha256-600000" ] || [ -z "${mac_salt:-}" ] || [ -z "${mac_expected:-}" ]; then
+    fail "unsupported MAC format in $name.hmac, refusing to restore" 12
+fi
+mac_key="$(openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -S "$mac_salt" -pass "$pass" -P | sed -n 's/^key=//p')"
+mac_actual="$(openssl dgst -sha256 -mac HMAC -macopt hexkey:"$mac_key" -r "$archive" | cut -d' ' -f1)"
+[ "$mac_actual" = "$mac_expected" ] || fail "MAC verification failed: $name was tampered with or the key is wrong, refusing to restore" 12
 
 plaintext="${TMPDIR:-/tmp}/gones-restore-$$.dump"
 trap 'rm -f "$plaintext"' EXIT INT TERM

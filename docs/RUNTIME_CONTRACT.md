@@ -169,18 +169,20 @@ image (`gones-migrator import --help`).
 ### Backup scheduler
 
 Schedule `gones-backup` (any cron-like facility) with `GONES_BACKUP_ROOT` pointed at a mounted,
-persistent directory and `GONES_BACKUP_DSN`/`GONES_BACKUP_KEY_FILE` injected. It writes exactly three
+persistent directory and `GONES_BACKUP_DSN`/`GONES_BACKUP_KEY_FILE` injected. It writes exactly four
 files per run and never touches anything outside that root:
 
 ```
 <name>.dump.enc         AES-256-CBC(PBKDF2, 600k iterations) over a pg_dump custom-format archive
 <name>.dump.enc.sha256  checksum of the ciphertext
+<name>.dump.enc.hmac    HMAC-SHA256 over the ciphertext (key derived from the passphrase); restore refuses archives without a valid MAC
 <name>.meta.json        creation time, server/client versions, cipher, checksum algorithm
 ```
 
 Restore with `gones-restore.sh <name>` from the same image. It refuses to touch the database when the
-checksum fails (exit 10), when the passphrase is wrong (exit 11) or when the requested path escapes
-the backup root (exit 2). `GONES_BACKUP_VERIFY_ONLY=true` runs both checks and stops.
+checksum fails (exit 10), when the MAC is missing or does not verify — which is also what a wrong
+passphrase produces (exit 12) — or when the requested path escapes the backup root (exit 2).
+`GONES_BACKUP_VERIFY_ONLY=true` runs every check and stops.
 
 **Deferred:** shipping archives to remote/offsite storage, retention and expiry sweeps, managed PITR,
 and measured RPO/RTO. The host is responsible for retaining and replicating the mounted directory
