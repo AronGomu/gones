@@ -34,6 +34,32 @@ describe('PublicEventService', () => {
     expect(get.mock.calls[2][1].headers.get('If-None-Match')).toBe('"v1"');
   });
 
+  /** F15 — one key per event slug visited used to grow until the origin quota killed every later write. */
+  it('evicts the oldest cached event beyond the cap of 30', async () => {
+    localStorage.clear();
+    for (let index = 0; index < 30; index += 1) {
+      localStorage.setItem(`gones.events.cache.${index}`, JSON.stringify({
+        data: {}, cachedAt: new Date(Date.now() - (30 - index) * 60 * 1000).toISOString()
+      }));
+    }
+    const get = vi.fn().mockReturnValue(of(new HttpResponse({ body: response, status: 200, headers: new HttpHeaders({ ETag: '"v1"' }) })));
+    const injector = Injector.create({ providers: [
+      PublicEventService,
+      { provide: HttpClient, useValue: { get } },
+      { provide: API_BASE_URL, useValue: 'https://api.example' }
+    ] });
+    const service = injector.get(PublicEventService);
+    // Same key the service builds: the prefix plus the encoded request URL and its (empty) query.
+    const detailKey = `gones.events.cache.${encodeURIComponent('https://api.example/api/events/lyon-legacy?')}`;
+
+    await service.detail('lyon-legacy');
+
+    expect(localStorage.getItem('gones.events.cache.0')).toBeNull();
+    expect(localStorage.getItem('gones.events.cache.1')).not.toBeNull();
+    expect(localStorage.getItem(detailKey)).not.toBeNull();
+    expect(Object.keys(localStorage).filter((key) => key.startsWith('gones.events.cache.'))).toHaveLength(30);
+  });
+
   it('builds the ICS download URL from the base API URL', () => {
     const injector = Injector.create({ providers: [
       PublicEventService,

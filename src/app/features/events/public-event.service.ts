@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL, PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
+import { writeBoundedCacheValue } from '../../shared/catalog-cache';
 
 export interface CachedApiResult<T> {
   data: T;
@@ -18,6 +19,9 @@ interface CacheEntry<T> {
 }
 
 const CACHE_PREFIX = 'gones.events.cache.';
+
+/** F15 bound: at most this many event details are kept; the oldest by fetch time is evicted beyond it. */
+const CACHE_MAX_ENTRIES = 30;
 
 @Injectable({ providedIn: 'root' })
 export class PublicEventService {
@@ -60,11 +64,11 @@ export class PublicEventService {
   private writeCache<T>(key: string, response: HttpResponse<T>): string | undefined {
     if (response.body === null) return undefined;
     const cachedAt = new Date().toISOString();
-    try {
-      globalThis.localStorage?.setItem(key, JSON.stringify({ data: response.body, etag: response.headers.get('ETag') ?? undefined, cachedAt } satisfies CacheEntry<T>));
-    } catch {
-      // Cache failure must not hide fresh public data.
-    }
+    writeBoundedCacheValue(
+      { prefix: CACHE_PREFIX, maxEntries: CACHE_MAX_ENTRIES, timestampField: 'cachedAt' },
+      key,
+      JSON.stringify({ data: response.body, etag: response.headers.get('ETag') ?? undefined, cachedAt } satisfies CacheEntry<T>)
+    );
     return cachedAt;
   }
 }

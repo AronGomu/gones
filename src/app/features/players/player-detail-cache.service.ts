@@ -1,9 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Client, PlayerDetailResponse } from '../../api/generated/gones-api';
-import { CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
+import { CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeBoundedCacheValue } from '../../shared/catalog-cache';
 
 export const PLAYER_DETAIL_CACHE_PREFIX = 'gones.player.';
+
+/** F15 bound: at most this many player details are kept; the oldest by fetch time is evicted beyond it. */
+export const PLAYER_DETAIL_CACHE_MAX_ENTRIES = 10;
 
 /**
  * One key per player, case-folded: `GET /api/players/{playerName}` resolves a name
@@ -47,7 +50,11 @@ export class PlayerDetailCacheService {
   private store(key: string, payload: PlayerDetailResponse | null, truncated: boolean): PlayerDetailResult {
     const fetchedAt = new Date().toISOString();
     const entry: StoredEntry = { items: payload, fetchedAt, truncated };
-    writeCatalogEntry(key, entry);
+    writeBoundedCacheValue(
+      { prefix: PLAYER_DETAIL_CACHE_PREFIX, maxEntries: PLAYER_DETAIL_CACHE_MAX_ENTRIES, timestampField: 'fetchedAt' },
+      key,
+      JSON.stringify(entry)
+    );
     return { items: payload, fetchedAt, fromCache: false, stale: false, truncated };
   }
 }

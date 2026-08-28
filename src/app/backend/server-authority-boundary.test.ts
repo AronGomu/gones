@@ -180,6 +180,8 @@ describe('canonical browser store containment', () => {
       'src/app/backend/archive-cache.service.ts',
       // Public Event catalog — anonymous GET responses.
       'src/app/features/events/event-catalog-cache.service.ts',
+      // Public per-event detail — anonymous GET responses, bounded writer only (F15).
+      'src/app/features/events/public-event.service.ts',
       // Public global Player Statistics catalog — anonymous GET responses.
       'src/app/features/players/global-stats-catalog-cache.service.ts',
       // Public per-player statistics — anonymous GET responses.

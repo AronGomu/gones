@@ -58,3 +58,68 @@ export function isCatalogFresh(entry: CatalogEntry<unknown>, ttlMs = CATALOG_TTL
   const fetchedAt = Date.parse(entry.fetchedAt);
   return Number.isFinite(fetchedAt) && now - fetchedAt < ttlMs;
 }
+
+/** A localStorage key family holding one entry per entity, bounded by count with oldest-first eviction. */
+export interface BoundedPrefixConfig {
+  prefix: string;
+  maxEntries: number;
+  timestampField: 'fetchedAt' | 'cachedAt';
+}
+
+/**
+ * Bounded write for per-entity key families (`gones.player.`, `gones.events.cache.`): a full store
+ * evicts the oldest sibling and retries instead of silently dropping the fresh row, and a family
+ * past its cap sheds oldest entries after every successful write. A row that cannot be parsed or
+ * dated counts as oldest, so corruption is reclaimed first. Never throws — same doctrine as above.
+ */
+export function writeBoundedCacheValue(config: BoundedPrefixConfig, key: string, serialized: string): void {
+  const storage = globalThis.localStorage;
+  if (!storage) return;
+  try {
+    for (;;) {
+      try {
+        storage.setItem(key, serialized);
+        break;
+      } catch {
+        if (!evictOldest(storage, config, key)) return;
+      }
+    }
+    while (siblingKeys(storage, config.prefix).length > config.maxEntries) {
+      if (!evictOldest(storage, config, key)) return;
+    }
+  } catch {
+    // A store whose enumeration itself fails is a cache miss, never an error.
+  }
+}
+
+function siblingKeys(storage: Storage, prefix: string): string[] {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(prefix)) keys.push(key);
+  }
+  return keys;
+}
+
+/** Removes the oldest family member other than `keep`. Returns false when there is nothing left to evict. */
+function evictOldest(storage: Storage, config: BoundedPrefixConfig, keep: string): boolean {
+  const candidates = siblingKeys(storage, config.prefix).filter((key) => key !== keep).sort();
+  let victim: string | undefined;
+  let victimAt = Infinity;
+  for (const key of candidates) {
+    let at: number;
+    try {
+      at = Date.parse((JSON.parse(storage.getItem(key) ?? '') as Record<string, string>)[config.timestampField]);
+      if (Number.isNaN(at)) at = -Infinity;
+    } catch {
+      at = -Infinity;
+    }
+    if (at < victimAt) {
+      victim = key;
+      victimAt = at;
+    }
+  }
+  if (victim === undefined) return false;
+  storage.removeItem(victim);
+  return true;
+}

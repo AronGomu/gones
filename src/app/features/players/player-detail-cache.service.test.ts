@@ -3,7 +3,7 @@ import { Injector } from '@angular/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { Client, PlayerDetailResponse } from '../../api/generated/gones-api';
-import { PLAYER_DETAIL_CACHE_PREFIX, PlayerDetailCacheService, playerDetailCacheKey } from './player-detail-cache.service';
+import { PLAYER_DETAIL_CACHE_MAX_ENTRIES, PLAYER_DETAIL_CACHE_PREFIX, PlayerDetailCacheService, playerDetailCacheKey } from './player-detail-cache.service';
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -158,4 +158,32 @@ describe('PlayerDetailCacheService', () => {
 
     await expect(service.load('Alice')).rejects.toMatchObject({ status: 500 });
   });
+
+  /** F15 — one key per player visited used to grow until the origin quota killed every later write. */
+  it('evicts the oldest player entry beyond the cap of 10', async () => {
+    for (let index = 0; index < PLAYER_DETAIL_CACHE_MAX_ENTRIES; index += 1) {
+      globalThis.localStorage!.setItem(playerDetailCacheKey(`P${index}`), JSON.stringify({
+        items: payload(), fetchedAt: new Date(Date.now() - (PLAYER_DETAIL_CACHE_MAX_ENTRIES - index) * 60 * 1000).toISOString(), truncated: false
+      }));
+    }
+    const getPlayer = vi.fn().mockReturnValue(of(payload()));
+    const service = buildService(getPlayer);
+
+    await service.load('Eleventh');
+
+    expect(globalThis.localStorage!.getItem(playerDetailCacheKey('P0'))).toBeNull();
+    expect(globalThis.localStorage!.getItem(playerDetailCacheKey('P1'))).not.toBeNull();
+    expect(globalThis.localStorage!.getItem(playerDetailCacheKey('Eleventh'))).not.toBeNull();
+    expect(cachedPlayerKeys()).toHaveLength(PLAYER_DETAIL_CACHE_MAX_ENTRIES);
+  });
 });
+
+function cachedPlayerKeys(): string[] {
+  const storage = globalThis.localStorage!;
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key?.startsWith(PLAYER_DETAIL_CACHE_PREFIX)) keys.push(key);
+  }
+  return keys;
+}
