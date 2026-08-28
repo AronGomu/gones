@@ -2199,3 +2199,35 @@ recomputed hash — which is what makes them hand-writable.
 - [ ] **The file input recovers after a refusal.** Right after any refusal above, pick the *same* file
       again. The error line re-renders rather than staying stale/silent (`importLeague` clears
       `input.value` in its `finally`), and picking a valid bundle afterwards clears the error.
+
+## T7 season-counts-lost-update
+
+Backend-only concurrency fix: the `archive_league_seasons` row is now locked `FOR UPDATE` before its
+Tournaments are counted, at both recount sites (`RecomputeSeasonCountsAsync` in the archive Tournament
+commands, `RefreshSeasonCountsAsync` in the Live finalize). Automated coverage is the new integration
+test `Tournament_delete_racing_another_delete_keeps_the_Season_counts_exact`; these steps are the human
+confirmation that single-writer behaviour and the Live path are untouched in a real app.
+
+- [ ] **Single-writer counters are unchanged.** As an Organizer, open a League Season that already has
+      Tournaments. Create a Tournament in it, then edit it, then move it to another Season, then delete
+      it. After each step the Season's Tournament/player counts and first/last dates on the archive
+      catalog screen match what they did before this change — one write, one correct recount, no error
+      and no visible slowdown.
+- [ ] **The counters land after a Live finalize.** Run a Live tournament attached to a Season through to
+      **Finalize**. The finalized Tournament appears in that Season and the Season's Tournament count
+      goes up by exactly one, with the first/last tournament dates widening to include it.
+- [ ] **A standalone Live finalize still works.** Finalize a Live tournament that has **no** Season. It
+      finalizes normally and no Season row is touched — the `seasonId is null` early return must still
+      short-circuit before any lock is taken.
+- [ ] **Two writers on one Season do not lose a count.** Open the same League Season in two browser
+      windows signed in as Organizer. In window A start deleting one Tournament and in window B delete a
+      different Tournament in that same Season at essentially the same moment. Both deletes succeed, and
+      after both finish the Season's Tournament count has dropped by **two**, not one. Reload the page to
+      confirm the stored value (not just the cached view) is right.
+- [ ] **Nothing hangs under the new lock.** Repeat the two-window delete a few times, and also try two
+      simultaneous Tournament *moves* in opposite directions between the same two Seasons (A→B in one
+      window, B→A in the other). Every request returns — no request spins forever and no `500` from a
+      deadlock; the slower writer simply waits for the faster one.
+- [ ] **A Season deleted underneath a Tournament write is still a skip, not an error.** Delete a Season,
+      then delete a Tournament that pointed at it. The Tournament delete returns success rather than a
+      `404`/`500` — the "Season row absent → skip the recount" behaviour is deliberate and unchanged.

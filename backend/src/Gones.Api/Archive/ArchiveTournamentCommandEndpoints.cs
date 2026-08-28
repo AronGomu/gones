@@ -385,16 +385,19 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
     /// <summary>
     /// Rewrites the derived Season counters from the Season's live Tournaments, after the Tournament
     /// write has been saved and before the transaction commits. <c>RefreshCatalogCounts</c> touches
-    /// neither <c>version</c> nor <c>updated_at</c>, which is what keeps concurrency per row. Saved one
-    /// Season at a time in ascending ID order so two opposing concurrent moves take the two Season row
-    /// locks in the same order and cannot deadlock.
+    /// neither <c>version</c> nor <c>updated_at</c>, which is what keeps concurrency per row. Each Season
+    /// row is locked FOR UPDATE before its Tournaments are counted, so a concurrent writer recounts after
+    /// this one commits instead of overwriting it with a stale snapshot; Seasons are processed in
+    /// ascending ID order so two opposing concurrent moves take the two row locks in the same order and
+    /// cannot deadlock.
     /// </summary>
     private async Task RecomputeSeasonCountsAsync(IEnumerable<string?> seasonIds, CancellationToken cancellationToken)
     {
         foreach (var seasonId in seasonIds.OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
         {
-            var season = await database.ArchiveLeagueSeasons
-                .SingleOrDefaultAsync(item => item.DocumentId == seasonId && item.DeletedAt == null, cancellationToken);
+            var season = (await database.ArchiveLeagueSeasons
+                .FromSqlInterpolated($"SELECT * FROM archive_league_seasons WHERE document_id = {seasonId} AND deleted_at IS NULL FOR UPDATE")
+                .ToListAsync(cancellationToken)).SingleOrDefault();
             if (season is null) continue;
             var stored = await database.ArchiveTournaments.AsNoTracking()
                 .Where(item => item.SeasonId == seasonId && item.DeletedAt == null)

@@ -387,12 +387,13 @@ internal sealed class LiveCommandService(GonesDbContext database, IClock clock, 
         return existing;
     }
 
-    /// <summary>The one Season-counter rule, shared with the archive commands. A standalone Tournament has no Season to refresh.</summary>
+    /// <summary>The one Season-counter rule, shared with the archive commands. The Season row is locked FOR UPDATE before counting so a concurrent Tournament writer cannot overwrite this recount with a stale one. A standalone Tournament has no Season to refresh.</summary>
     private async Task RefreshSeasonCountsAsync(string? seasonId, CancellationToken cancellationToken)
     {
         if (seasonId is null) return;
-        var season = await database.ArchiveLeagueSeasons
-            .SingleOrDefaultAsync(item => item.DocumentId == seasonId && item.DeletedAt == null, cancellationToken);
+        var season = (await database.ArchiveLeagueSeasons
+            .FromSqlInterpolated($"SELECT * FROM archive_league_seasons WHERE document_id = {seasonId} AND deleted_at IS NULL FOR UPDATE")
+            .ToListAsync(cancellationToken)).SingleOrDefault();
         if (season is null) return;
         var stored = await database.ArchiveTournaments.AsNoTracking()
             .Where(item => item.SeasonId == seasonId && item.DeletedAt == null)

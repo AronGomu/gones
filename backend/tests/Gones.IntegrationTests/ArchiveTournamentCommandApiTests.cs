@@ -589,6 +589,61 @@ public sealed class ArchiveTournamentCommandApiTests : IAsyncLifetime
         Assert.Empty(await StatisticsAsync());
     }
 
+    /// <summary>
+    /// F8 regression, the race made deterministic: an outside transaction plays writer A — it takes the
+    /// Season row lock, soft-deletes tournament-1 and holds. The HTTP delete of the second Tournament
+    /// must queue on that Season lock before counting, so once A commits it recounts over both
+    /// deletions. Pre-fix it counted while A's delete was invisible and wrote 1 instead of 0.
+    /// </summary>
+    [Fact]
+    public async Task Tournament_delete_racing_another_delete_keeps_the_Season_counts_exact()
+    {
+        using var created = await SendAsync(HttpMethod.Post, "/api/archive/tournaments", new { name = "Course", tournamentDate = Iso(Today), seasonId = "season-1" }, "Organizer", key: "race-second");
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var secondId = (await Body(created)).GetProperty("id").GetString()!;
+
+        await using var blocker = CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        var held = (await blocker.ArchiveLeagueSeasons
+            .FromSqlInterpolated($"SELECT * FROM archive_league_seasons WHERE document_id = {"season-1"} AND deleted_at IS NULL FOR UPDATE")
+            .ToListAsync()).Single();
+        var first = await blocker.ArchiveTournaments.SingleAsync(item => item.DocumentId == "tournament-1");
+        first.SoftDelete(SystemClock.Instance.GetCurrentInstant());
+        await blocker.SaveChangesAsync();
+
+        var deleting = SendAsync(HttpMethod.Delete, $"/api/archive/tournaments/{secondId}", new { }, "Organizer", ifMatch: StrongETag.Encode(1));
+        await WaitUntilBlockedOnSeasonRowAsync();
+        await transaction.CommitAsync();
+
+        using var response = await deleting;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var season = await SeasonAsync("season-1");
+        Assert.Equal(0, season.TournamentCount);
+        Assert.Equal(0, season.PlayerCount);
+        Assert.Null(season.FirstTournamentDate);
+        Assert.Null(season.LastTournamentDate);
+    }
+
+    /// <summary>
+    /// Condition-poll, not a sleep: succeeds the moment some other backend is lock-waiting on the
+    /// Season table, fails loudly after 15s. The poll query names the table only inside its own text,
+    /// and a polling backend is never in wait_event_type 'Lock', so it cannot match itself.
+    /// </summary>
+    private async Task WaitUntilBlockedOnSeasonRowAsync()
+    {
+        await using var poll = CreateContext();
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            var waiting = await poll.Database
+                .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%archive_league_seasons%'")
+                .SingleAsync();
+            if (waiting > 0) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+        Assert.Fail("No backend queued on the archive_league_seasons row lock within 15s.");
+    }
+
     [Fact]
     public async Task Tournament_season_move_re_keys_the_scoped_rows()
     {
