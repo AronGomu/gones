@@ -317,8 +317,13 @@ export class AppComponent {
       return;
     }
     this.importError.set('');
-    const bundle = await this.repo.exportBundle();
-    saveJsonFile(await attachArchiveChecksum(bundle), archiveBundleFilename());
+    try {
+      const bundle = await this.repo.exportBundle();
+      saveJsonFile(await attachArchiveChecksum(bundle), archiveBundleFilename());
+    } catch (error) {
+      logBoundaryError('app-header.fullDataExport', error, {});
+      this.importError.set(this.i18n.t('msg.fullDataExportFailed'));
+    }
   }
 
   async importLeague(event: Event): Promise<void> {

@@ -52,9 +52,9 @@ function localBundle() {
   });
 }
 
-function setup({ signedIn = false }: { signedIn?: boolean } = {}) {
+function setup({ signedIn = false, exportRejects = false }: { signedIn?: boolean; exportRejects?: boolean } = {}) {
   saveJsonFileMock.mockClear();
-  const exportBundle = vi.fn(async () => localBundle());
+  const exportBundle = vi.fn(async () => { if (exportRejects) throw new Error('indexedDbUnavailable'); return localBundle(); });
   const repo = { exportBundle, getTournament: vi.fn(async () => null) } as unknown as ArchiveRepository;
   const router = { url: '/archive/league-seasons', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
   const auth = { enabled: true, profile: signal(signedIn ? { id: 'organizer', globalRole: 'Organizer' } : null) } as unknown as AuthService;
@@ -84,6 +84,17 @@ function savedFilename(): string {
 }
 
 describe('AppComponent archive export', () => {
+  // Same reason as `AppComponent import refusal messages` below: `DeckArchetypeSettingsService`
+  // defaults to fr, and the export failure copy is asserted in English.
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('gones.settings.language', 'en');
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
   it('writes the browser-local records as a v5 bundle', async () => {
     const { component, exportBundle } = setup();
 
@@ -119,6 +130,26 @@ describe('AppComponent archive export', () => {
 
   it('a signed-out visitor exports: the browser store is the whole archive they can see', async () => {
     const { component } = setup();
+
+    await component.downloadFullExport();
+
+    expect(saveJsonFileMock).toHaveBeenCalledTimes(1);
+    expect(component.importError()).toBe('');
+  });
+
+  it('a failing store open surfaces an error instead of an unhandled rejection', async () => {
+    const { component } = setup({ exportRejects: true });
+
+    await component.downloadFullExport();
+
+    expect(saveJsonFileMock).not.toHaveBeenCalled();
+    expect(component.importError()).toBe('Could not export. Browser storage could not be opened, so no file was written.');
+  });
+
+  it('a later successful export clears the failure banner', async () => {
+    const { component, exportBundle } = setup({ exportRejects: true });
+    await component.downloadFullExport();
+    exportBundle.mockImplementation(async () => localBundle());
 
     await component.downloadFullExport();
 
