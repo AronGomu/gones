@@ -74,4 +74,3 @@
 | rehearsal | Full stack dress run with fake providers, TLS | `scripts/release-rehearsal.mjs` |
 | smoke | Short post-deploy checks per subsystem | `scripts/smoke-full-stack.mjs` |
 | cypress | Browser end-to-end journeys, one file per flow | `cypress/e2e/` |
-| runbook | Operator procedures for the online deployment | `docs/online-website-runbook.md` |

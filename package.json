@@ -12,7 +12,6 @@
     "cy:open": "cypress open",
     "cy:run": "cypress run",
     "build": "ng build",
-    "build:pages": "ng build --base-href /gones/ && node scripts/prepare-github-pages.mjs",
     "lint": "ng lint",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json",
     "test": "vitest run",

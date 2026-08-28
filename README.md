@@ -198,7 +198,6 @@ which hides what actually broke.
 | Command | What it does |
 | --- | --- |
 | `npm run build` | production bundle |
-| `npm run build:pages` | GitHub Pages bundle with its base href |
 | `npm run e2e:ci` | full-stack browser suite in Docker — the only way the auth specs can pass |
 | `npm run acceptance:matrix` | every V1 capability row and its executable evidence |
 | `npm run release:preflight` | pre-release checks |
