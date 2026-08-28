@@ -79,6 +79,33 @@ function stubPublicEvents(items = []) {
   cy.intercept('GET', '**/api/events/all*', { items, page: 1, pageSize: 100, totalCount: items.length }).as('publicEvents');
 }
 
+// Persistence chain for the title: blur → debounceIntent('settings', 400ms) → pumpIntents →
+// LocalLiveBackend.updateLiveSettings → IndexedDB put ('gones-live' / 'tournaments'). The reload
+// this gate guards must not fire until the committed row carries the new name.
+function readPersistedLiveNames(win) {
+  return new Cypress.Promise((resolve, reject) => {
+    const open = win.indexedDB.open('gones-live', 1);
+    open.onerror = () => reject(open.error ?? new Error('indexedDbOpenFailed'));
+    open.onsuccess = () => {
+      const db = open.result;
+      const request = db.transaction('tournaments', 'readonly').objectStore('tournaments').getAll();
+      request.onsuccess = () => { db.close(); resolve(request.result.map((row) => row.name)); };
+      request.onerror = () => { db.close(); reject(request.error ?? new Error('indexedDbRequestFailed')); };
+    };
+  });
+}
+
+function expectPersistedLiveName(name, attempt = 0) {
+  cy.window({ log: false })
+    .then((win) => readPersistedLiveNames(win))
+    .then((names) => {
+      if (names.includes(name)) return;
+      expect(attempt, `IndexedDB 'gones-live'/'tournaments' row named "${name}" (poll ${attempt})`).to.be.lessThan(40);
+      cy.wait(150, { log: false });
+      expectPersistedLiveName(name, attempt + 1);
+    });
+}
+
 describe('Power User Event, League and Live gates', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
@@ -154,7 +181,7 @@ describe('Power User Event, League and Live gates', () => {
     cy.location('pathname').should('match', /^\/live-tournaments\/.+$/);
     cy.get('[data-cy="live-tournament-name-input"]').clear().type('Local Power Cup').blur();
     cy.contains('h1', 'Local Power Cup').should('be.visible');
-    cy.wait(600);
+    expectPersistedLiveName('Local Power Cup');
 
     cy.window().then((win) => win.localStorage.setItem(POWER_KEY, 'false'));
     cy.reload();
