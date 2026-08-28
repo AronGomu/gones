@@ -30,10 +30,10 @@ services:
     image: ${GONES_IMAGE_FRONTEND:?the release candidate must name the immutable frontend digest}
     pull_policy: never
     environment:
-      GONES_DATA_MODE: server
-      GONES_API_BASE_URL: https://localhost:8443
-      GONES_AUTH_V1: "true"
-      GONES_ADMIN_V1: "true"
+      GONES_DATA_MODE: ${GONES_DATA_MODE:-server}
+      GONES_API_BASE_URL: ${GONES_API_BASE_URL:-https://localhost:8443}
+      GONES_AUTH_V1: ${GONES_AUTH_V1:-true}
+      GONES_ADMIN_V1: ${GONES_ADMIN_V1:-true}
 
   backup:
     image: ${GONES_IMAGE_BACKUP:?the release candidate must name the immutable backup digest}

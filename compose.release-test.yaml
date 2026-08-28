@@ -197,10 +197,10 @@ services:
         GONES_FRONTEND_API_BASE_URL: https://localhost:8443
     # C44: injected at container start, so the artifact is not bound to the origin it was built with.
     environment:
-      GONES_DATA_MODE: ${GONES_FRONTEND_DATA_MODE:-server}
-      GONES_API_BASE_URL: ${GONES_FRONTEND_API_BASE_URL:-https://localhost:8443}
-      GONES_AUTH_V1: "true"
-      GONES_ADMIN_V1: "true"
+      GONES_DATA_MODE: ${GONES_DATA_MODE:-server}
+      GONES_API_BASE_URL: ${GONES_API_BASE_URL:-https://localhost:8443}
+      GONES_AUTH_V1: ${GONES_AUTH_V1:-true}
+      GONES_ADMIN_V1: ${GONES_ADMIN_V1:-true}
     read_only: true
     tmpfs:
       - /var/cache/nginx:size=16m
