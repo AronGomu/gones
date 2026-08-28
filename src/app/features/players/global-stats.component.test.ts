@@ -703,14 +703,36 @@ describe('GlobalStatsComponent — scoped empty state, status and paging', () =>
     expect(client.mock.calls[0][5]).toBeUndefined();
   });
 
-  it('sends sort=decayedRating once the column is on the wire', async () => {
-    const { client, comp, emit } = buildComponent(rankingsResponse([makeRow({ decayedRating: 1480 })]), { sort: 'decayedRating' });
-    await vi.waitFor(() => expect(comp.showDecayedRating()).toBe(true));
-
-    emit({ sort: 'decayedRating' });
+  it('re-issues the request with the gated sort once the first load opens the gate', async () => {
+    const { client, comp } = buildComponent(
+      rankingsResponse([makeRow({ decayedRating: 1480 })]),
+      { sort: 'decayedRating', dir: 'desc' },
+    );
 
     await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(2));
-    expect(client.mock.calls.at(-1)?.[5]).toBe('decayedRating');
+
+    expect(client.mock.calls[0][5]).toBeUndefined();
+    expect(client.mock.calls[1][5]).toBe('decayedRating');
+    expect(client.mock.calls[1][6]).toBe('desc');
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+    expect(comp.ariaSort('decayedRating')).toBe('descending');
+  });
+
+  it('retries the gated sort at most once per emission', async () => {
+    // Pathological pair: the first response opens the gate, the retry's closes it again.
+    let calls = 0;
+    const { client, comp } = buildComponent(() => {
+      calls += 1;
+      return calls === 1
+        ? rankingsResponse([makeRow({ decayedRating: 1480 })])
+        : rankingsResponse([makeRow({ decayedRating: undefined })]);
+    }, { sort: 'decayedRating' });
+
+    await vi.waitFor(() => expect(client).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(comp.loading()).toBe(false));
+
+    expect(client).toHaveBeenCalledTimes(2);
+    expect(comp.ariaSort('decayedRating')).toBeNull();
   });
 });
 

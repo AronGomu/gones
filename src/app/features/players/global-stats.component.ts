@@ -293,6 +293,8 @@ export class GlobalStatsComponent implements OnDestroy {
   readonly currentSeason = signal<string>(GLOBAL_STATS_SCOPE_ALL);
   readonly scopeAll = GLOBAL_STATS_SCOPE_ALL;
   private requestToken = 0;
+  /** One retry per URL emission: re-issue when the loaded rows open the sort gate. */
+  private gatedSortRetried = false;
 
   readonly showDecayedRating = computed(() => this.rows().some(row => row.decayedRating !== null && row.decayedRating !== undefined));
   readonly visibleColumnCount = computed(() => this.showDecayedRating() ? 12 : 11);
@@ -353,6 +355,7 @@ export class GlobalStatsComponent implements OnDestroy {
       this.committedSearch.set(query.search);
       this.currentLeague.set(query.league);
       this.currentSeason.set(query.season);
+      this.gatedSortRetried = false;
       void this.loadRankings();
     });
     void this.loadScopeCatalogs();
@@ -370,6 +373,7 @@ export class GlobalStatsComponent implements OnDestroy {
   private async loadRankings(): Promise<void> {
     const token = ++this.requestToken;
     const scope = this.scope();
+    const sentSort = this.currentSort();
     this.loading.set(true);
     try {
       const response = await firstValueFrom(this.client.getArchiveGlobalPlayerStatistics(
@@ -378,13 +382,20 @@ export class GlobalStatsComponent implements OnDestroy {
         this.currentPage(),
         this.currentSize(),
         this.committedSearch() || undefined,
-        this.currentSort(),
+        sentSort,
         this.currentDirection(),
       ));
       // A slower earlier request must not paint its scope under a newer scope's badge.
       if (token !== this.requestToken) return;
       this.rows.set(response.items ?? []);
       this.totalCount.set(response.totalCount ?? 0);
+      // The rows just flipped the gate: the URL asks for a sort this request did not carry. Re-issue
+      // once under the same spinner, so the default ranking is never painted under the gated indicator.
+      if (!this.gatedSortRetried && this.currentSort() !== sentSort) {
+        this.gatedSortRetried = true;
+        void this.loadRankings();
+        return;
+      }
       this.syncedAt.set(new Date().toISOString());
       this.stale.set(false);
       this.error.set('');
