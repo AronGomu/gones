@@ -320,9 +320,10 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     window.removeEventListener('gones-open-live-tournament-advanced-settings', this.openAdvancedSettingsListener);
-    for (const pending of this.debouncedIntents.values()) clearTimeout(pending.timer);
-    this.debouncedIntents.clear();
-    this.queuedIntents.clear();
+    // F10: pending debounced edits were shown optimistically — promote them to the queue instead
+    // of dropping them, so fast navigation cannot lose an entered score. Fire-and-forget: pump
+    // errors already route through handleCommandError.
+    void this.flushIntents();
   }
 
   /** Best-effort: an unreachable catalog only costs the autocomplete its suggestions. */

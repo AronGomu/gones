@@ -2264,3 +2264,48 @@ boundary error, and lets the app boot anonymously. Automated coverage is
 - [ ] **Normal browsing is untouched.** Re-allow cookies and site data for the origin, hard-reload, and
       sign in. The session restores across a reload exactly as before, and the console shows **no**
       `boundary":"auth.bootstrap"` line on a normal start.
+
+## T9 flush-debounced-intents
+
+Frontend-only fix in the Live runner: `ngOnDestroy`
+(`src/app/features/live-tournaments/live-tournament-runner.component.ts`) used to `clearTimeout` every
+debounced intent and drop both intent maps, so an edit made within the 400 ms debounce window was
+applied optimistically to the on-screen document but never sent to the store. Destroy now calls
+`void this.flushIntents()` — the same one-liner `saveDraft()` already used — which promotes each
+pending debounced intent to the queue and lets the pump drain it; already-queued intents are no longer
+discarded either. Automated coverage is
+`src/app/features/live-tournaments/live-tournament-runner-destroy-flush.test.ts`; these steps are the
+human confirmation in a real browser. Type the value and leave **immediately** (well under half a
+second) in every step below — waiting for the debounce to fire tests the old path, not this fix.
+
+- [ ] **A score typed just before leaving is kept (server mode).** Signed in as an Organizer with power
+      user mode on, open a Live tournament that is in an active round. Type a score into a match, then
+      *within the same second* click *Back to running tournaments*. Re-open the same tournament: the
+      score you typed is still there. Hard-reload the page and confirm it survives the reload too — that
+      proves it reached the server, not just the local view.
+- [ ] **The same holds in the browser-local store.** Repeat the step above signed out (browser-local
+      Live mode, the tournament shows the local-mode notice). Type a score, navigate straight back,
+      re-open, then hard-reload. The score persists.
+- [ ] **A player edit just before leaving is kept.** In the same runner, change a player's name (or one
+      of their initial win/draw/loss values) and navigate away immediately. Re-open and hard-reload —
+      the edited value is stored, not reverted to the old one.
+- [ ] **A settings edit just before leaving is kept.** Change the tournament name, the Swiss round
+      count, or the paid-tracking toggle and leave immediately. Re-open and hard-reload — the setting
+      stuck.
+- [ ] **Browser back/forward counts as leaving.** Repeat the score step but leave with the browser's
+      **Back** button instead of the in-app button. Same result: the score is stored.
+- [ ] **Leaving with nothing pending is silent.** Open a Live tournament, touch nothing, and navigate
+      away. No error banner appears, and in DevTools → *Network* no `PATCH`/score request is issued by
+      the runner on the way out (server mode). Nothing must be written just because the page closed.
+- [ ] **Leaving while offline does not error or queue.** In server mode, open a Live tournament, go
+      offline (DevTools → *Network* → *Offline*), type a score, and navigate away immediately. Come back
+      online and re-open the tournament: the app shows no stuck spinner and no phantom write appears
+      later — offline writes are refused up front, never replayed after the fact.
+- [ ] **Leaving and coming straight back is not broken by the flush.** Type a score, navigate away, then
+      immediately re-open the *same* tournament. The re-opened page shows the score and behaves
+      normally. If it instead shows the stale-document message ("the tournament was modified elsewhere"
+      / *Document périmé*), reload once — it must recover to the correct score rather than staying stuck
+      or losing the edit.
+- [ ] **Tab close is still not covered — confirm the known gap.** Type a score and close the browser tab
+      outright (no navigation). Re-open the tournament: the score may be **lost**. This is expected and
+      out of scope for this change; note it if it bothers you, but it is not a regression.
