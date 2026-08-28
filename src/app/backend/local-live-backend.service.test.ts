@@ -8,150 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { liveCommandError } from '../data/live-command-ux';
 import { finalizeLiveTournament as finalizeLiveTournamentDocument, generateNextSwissRound, LiveTournamentDocument } from '../domain/live-tournament';
 import { LOCAL_LIVE_DB_NAME, LOCAL_LIVE_STORE, LocalLiveBackend } from './local-live-backend.service';
-
-/**
- * `fake-indexeddb` is not a dependency and this ticket adds none, so the whole IndexedDB surface the
- * adapter uses is stubbed in-memory here. The backing maps live at module scope, which is what makes
- * the "survives a new service instance" row meaningful: a second adapter re-opens the same data.
- */
-interface FakeStore {
-  keyPath: string;
-  rows: Map<string, unknown>;
-}
-
-interface FakeDatabaseState {
-  version: number;
-  stores: Map<string, FakeStore>;
-}
-
-const databases = new Map<string, FakeDatabaseState>();
-
-function clone<T>(value: T): T {
-  return typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T);
-}
-
-class FakeRequest<T> {
-  result!: T;
-  error: DOMException | null = null;
-  onsuccess: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onupgradeneeded: (() => void) | null = null;
-  onblocked: (() => void) | null = null;
-}
-
-class FakeObjectStore {
-  constructor(private readonly store: FakeStore, private readonly transaction: FakeTransaction) {}
-
-  getAll(): FakeRequest<unknown[]> {
-    return this.transaction.enqueue(() => [...this.store.rows.values()].map((row) => clone(row)));
-  }
-
-  get(key: string): FakeRequest<unknown> {
-    const row = this.store.rows.get(key);
-    return this.transaction.enqueue(() => (row === undefined ? undefined : clone(row)));
-  }
-
-  put(value: Record<string, unknown>): FakeRequest<string> {
-    return this.transaction.enqueue(() => {
-      const key = String(value[this.store.keyPath]);
-      this.store.rows.set(key, clone(value));
-      return key;
-    });
-  }
-
-  delete(key: string): FakeRequest<undefined> {
-    return this.transaction.enqueue(() => {
-      this.store.rows.delete(key);
-      return undefined;
-    });
-  }
-}
-
-class FakeTransaction {
-  error: DOMException | null = null;
-  oncomplete: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  private pending = 0;
-  private failed = false;
-  private settled = false;
-
-  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {}
-
-  objectStore(name: string): FakeObjectStore {
-    const store = this.state.stores.get(name);
-    if (!store) throw new Error(`NotFoundError: object store ${name}`);
-    return new FakeObjectStore(store, this);
-  }
-
-  enqueue<T>(run: () => T): FakeRequest<T> {
-    const request = new FakeRequest<T>();
-    this.pending += 1;
-    queueMicrotask(() => {
-      this.pending -= 1;
-      try {
-        request.result = run();
-        request.onsuccess?.();
-      } catch (error) {
-        this.failed = true;
-        request.error = error as DOMException;
-        request.onerror?.();
-      }
-      if (this.pending === 0) queueMicrotask(() => this.settle());
-    });
-    return request;
-  }
-
-  private settle(): void {
-    if (this.settled) return;
-    this.settled = true;
-    if (this.failed) this.onerror?.();
-    else this.oncomplete?.();
-  }
-}
-
-class FakeDatabase {
-  readonly objectStoreNames: { contains: (name: string) => boolean };
-
-  constructor(private readonly state: FakeDatabaseState) {
-    this.objectStoreNames = { contains: (name: string) => this.state.stores.has(name) };
-  }
-
-  createObjectStore(name: string, options: { keyPath: string }): void {
-    this.state.stores.set(name, { keyPath: options.keyPath, rows: new Map() });
-  }
-
-  transaction(_names: string[], mode: string): FakeTransaction {
-    return new FakeTransaction(this.state, mode);
-  }
-
-  close(): void {}
-}
-
-const fakeIndexedDb = {
-  open(name: string, version: number): FakeRequest<FakeDatabase> {
-    const request = new FakeRequest<FakeDatabase>();
-    queueMicrotask(() => {
-      const existing = databases.get(name);
-      const state = existing ?? { version: 0, stores: new Map<string, FakeStore>() };
-      if (!existing) databases.set(name, state);
-      const upgradeNeeded = state.version < version;
-      request.result = new FakeDatabase(state);
-      if (upgradeNeeded) {
-        state.version = version;
-        request.onupgradeneeded?.();
-      }
-      queueMicrotask(() => request.onsuccess?.());
-    });
-    return request;
-  }
-};
-
-const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
-
-function installFakeIndexedDb(): void {
-  Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
-}
+import { installFakeIndexedDb, resetFakeIndexedDb, restoreRealIndexedDb } from './in-memory-indexeddb.fake';
 
 function newBackend(http = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() }): { backend: LocalLiveBackend; http: typeof http } {
   const injector = Injector.create({ providers: [LocalLiveBackend, { provide: HttpClient, useValue: http }] });
@@ -181,13 +38,12 @@ async function scoreAndValidate(backend: LocalLiveBackend, started: LiveTourname
 }
 
 beforeEach(() => {
-  databases.clear();
+  resetFakeIndexedDb();
   installFakeIndexedDb();
 });
 
 afterEach(() => {
-  if (originalIndexedDb) Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
-  else Reflect.deleteProperty(globalThis as unknown as Record<string, unknown>, 'indexedDB');
+  restoreRealIndexedDb();
 });
 
 describe('LocalLiveBackend', () => {

@@ -19,188 +19,7 @@ import {
   LocalArchiveBackend
 } from './local-archive-backend.service';
 import type { ArchiveTournamentEditBatch } from './local-archive-backend.service';
-
-/**
- * `fake-indexeddb` is not a dependency and this ticket adds none, so the whole IndexedDB surface the
- * adapter uses is stubbed in-memory here — the same fake `local-live-backend.service.test.ts` uses.
- * The backing maps live at module scope, so a second adapter instance re-opens the same data.
- */
-interface FakeStore {
-  keyPath: string;
-  rows: Map<string, unknown>;
-}
-
-interface FakeDatabaseState {
-  version: number;
-  stores: Map<string, FakeStore>;
-}
-
-const databases = new Map<string, FakeDatabaseState>();
-let failPutAt: number | null = null;
-let putCount = 0;
-let readwriteTransactionCount = 0;
-
-function clone<T>(value: T): T {
-  return typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T);
-}
-
-class FakeRequest<T> {
-  result!: T;
-  error: DOMException | null = null;
-  onsuccess: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onupgradeneeded: (() => void) | null = null;
-  onblocked: (() => void) | null = null;
-}
-
-class FakeObjectStore {
-  constructor(private readonly store: FakeStore, private readonly transaction: FakeTransaction) {}
-
-  getAll(): FakeRequest<unknown[]> {
-    return this.transaction.enqueue(() => [...this.store.rows.values()].map((row) => clone(row)));
-  }
-
-  get(key: string): FakeRequest<unknown> {
-    const row = this.store.rows.get(key);
-    return this.transaction.enqueue(() => (row === undefined ? undefined : clone(row)));
-  }
-
-  put(value: Record<string, unknown>): FakeRequest<string> {
-    return this.transaction.enqueue(() => {
-      putCount += 1;
-      if (putCount === failPutAt) throw new DOMException('Injected put failure', 'ConstraintError');
-      const key = String(value[this.store.keyPath]);
-      this.store.rows.set(key, clone(value));
-      return key;
-    });
-  }
-
-  delete(key: string): FakeRequest<undefined> {
-    return this.transaction.enqueue(() => {
-      this.store.rows.delete(key);
-      return undefined;
-    });
-  }
-}
-
-class FakeTransaction {
-  error: DOMException | null = null;
-  oncomplete: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  private pending = 0;
-  private failed = false;
-  private settled = false;
-  private readonly snapshot: Map<string, Map<string, unknown>>;
-
-  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {
-    this.snapshot = new Map([...state.stores].map(([name, store]) => [name, new Map([...store.rows].map(([key, value]) => [key, clone(value)]))]));
-  }
-
-  abort(): void {
-    this.failed = true;
-    queueMicrotask(() => this.settle(true));
-  }
-
-  objectStore(name: string): FakeObjectStore {
-    const store = this.state.stores.get(name);
-    if (!store) throw new Error(`NotFoundError: object store ${name}`);
-    return new FakeObjectStore(store, this);
-  }
-
-  enqueue<T>(run: () => T): FakeRequest<T> {
-    const request = new FakeRequest<T>();
-    this.pending += 1;
-    queueMicrotask(() => {
-      this.pending -= 1;
-      try {
-        request.result = run();
-        request.onsuccess?.();
-      } catch (error) {
-        this.failed = true;
-        request.error = error as DOMException;
-        request.onerror?.();
-      }
-      if (this.pending === 0) setTimeout(() => this.settle(), 0);
-    });
-    return request;
-  }
-
-  private settle(aborted = false): void {
-    if (this.settled) return;
-    this.settled = true;
-    if (this.failed) {
-      for (const [name, rows] of this.snapshot) {
-        const store = this.state.stores.get(name);
-        if (store) store.rows = new Map(rows);
-      }
-      if (aborted) this.onabort?.();
-      else this.onerror?.();
-    } else this.oncomplete?.();
-  }
-}
-
-class FakeDatabase {
-  readonly objectStoreNames: { contains: (name: string) => boolean };
-
-  constructor(private readonly state: FakeDatabaseState) {
-    this.objectStoreNames = { contains: (name: string) => this.state.stores.has(name) };
-  }
-
-  createObjectStore(name: string, options: { keyPath: string }): void {
-    this.state.stores.set(name, { keyPath: options.keyPath, rows: new Map() });
-  }
-
-  transaction(_names: string[], mode: string): FakeTransaction {
-    if (mode === 'readwrite') readwriteTransactionCount += 1;
-    return new FakeTransaction(this.state, mode);
-  }
-
-  close(): void {}
-}
-
-const fakeIndexedDb = {
-  open(name: string, version: number): FakeRequest<FakeDatabase> {
-    const request = new FakeRequest<FakeDatabase>();
-    queueMicrotask(() => {
-      const existing = databases.get(name);
-      const state = existing ?? { version: 0, stores: new Map<string, FakeStore>() };
-      if (!existing) databases.set(name, state);
-      const upgradeNeeded = state.version < version;
-      request.result = new FakeDatabase(state);
-      if (upgradeNeeded) {
-        state.version = version;
-        request.onupgradeneeded?.();
-      }
-      queueMicrotask(() => request.onsuccess?.());
-    });
-    return request;
-  }
-};
-
-const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
-
-function installFakeIndexedDb(): void {
-  Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
-}
-
-/** One-shot failing factory: the first `open` rejects, every later one falls through to the fake. */
-function installOpenFailingOnce(): void {
-  let failed = false;
-  const factory = {
-    open(name: string, version: number): FakeRequest<FakeDatabase> {
-      if (failed) return fakeIndexedDb.open(name, version);
-      failed = true;
-      const request = new FakeRequest<FakeDatabase>();
-      queueMicrotask(() => {
-        request.error = new DOMException('Injected open failure', 'UnknownError');
-        request.onerror?.();
-      });
-      return request;
-    }
-  };
-  Object.defineProperty(globalThis, 'indexedDB', { value: factory as unknown as IDBFactory, configurable: true, writable: true });
-}
+import { fakeIndexedDbState, installFakeIndexedDb, installOpenFailingOnce, resetFakeIndexedDb, restoreRealIndexedDb } from './in-memory-indexeddb.fake';
 
 /** Built the way the UI builds an entry: through the domain factory, so it carries a real id. */
 const match = (player1Name: string, player2Name: string, id?: string): MatchRoundEntry =>
@@ -247,16 +66,12 @@ function bundleOf(calendarEvents: ArchiveBundle['calendarEvents'] = []): Archive
 }
 
 beforeEach(() => {
-  databases.clear();
-  failPutAt = null;
-  putCount = 0;
-  readwriteTransactionCount = 0;
+  resetFakeIndexedDb();
   installFakeIndexedDb();
 });
 
 afterEach(() => {
-  if (originalIndexedDb) Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
-  else Reflect.deleteProperty(globalThis as unknown as Record<string, unknown>, 'indexedDB');
+  restoreRealIndexedDb();
 });
 
 describe('LocalArchiveBackend', () => {
@@ -396,21 +211,21 @@ describe('LocalArchiveBackend', () => {
   it('deleting a Season detaches its Tournaments', async () => {
     const { backend, season, tournament } = await seededArchive();
     const second = await backend.createArchiveTournament(season.id, 'Cup', '2026-08-18');
-    const transactionsBefore = readwriteTransactionCount;
+    const transactionsBefore = fakeIndexedDbState.readwriteTransactionCount;
 
     await backend.deleteLeagueSeason(season.id, season.documentVersion);
 
     expect(await backend.getLeagueSeason(season.id)).toBeNull();
     expect(await backend.getArchiveTournament(tournament.id)).toMatchObject({ seasonId: null, documentVersion: tournament.documentVersion + 1 });
     expect(await backend.getArchiveTournament(second.id)).toMatchObject({ seasonId: null, documentVersion: second.documentVersion + 1 });
-    expect(readwriteTransactionCount - transactionsBefore).toBe(1);
+    expect(fakeIndexedDbState.readwriteTransactionCount - transactionsBefore).toBe(1);
   });
 
   it('a failed detach leaves both stores untouched', async () => {
     const { backend, season, tournament } = await seededArchive();
     const second = await backend.createArchiveTournament(season.id, 'Cup', '2026-08-18');
-    putCount = 0;
-    failPutAt = 2;
+    fakeIndexedDbState.putCount = 0;
+    fakeIndexedDbState.failPutAt = 2;
 
     await expect(backend.deleteLeagueSeason(season.id, season.documentVersion)).rejects.toThrow();
 

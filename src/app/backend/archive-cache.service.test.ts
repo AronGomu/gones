@@ -3,171 +3,22 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-
-/**
- * `fake-indexeddb` is not a dependency and this ticket adds none, so the IndexedDB surface the
- * cache uses is stubbed in-memory here — the same fake `local-league-archive-backend.service.test.ts`
- * uses, plus `clear()` and string-normalized keys, because the year store is keyed by a number.
- */
-interface FakeStore { keyPath: string; rows: Map<string, unknown> }
-interface FakeDatabaseState { version: number; stores: Map<string, FakeStore> }
-
-const databases = new Map<string, FakeDatabaseState>();
-let failPutAt: number | null = null;
-let putCount = 0;
-let readwriteTransactionCount = 0;
-
-function clone<T>(value: T): T {
-  return typeof structuredClone === 'function' ? structuredClone(value) : (JSON.parse(JSON.stringify(value)) as T);
-}
-
-class FakeRequest<T> {
-  result!: T;
-  error: DOMException | null = null;
-  onsuccess: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onupgradeneeded: (() => void) | null = null;
-  onblocked: (() => void) | null = null;
-}
-
-class FakeObjectStore {
-  constructor(private readonly store: FakeStore, private readonly transaction: FakeTransaction) {}
-
-  getAll(): FakeRequest<unknown[]> {
-    return this.transaction.enqueue(() => [...this.store.rows.values()].map((row) => clone(row)));
-  }
-
-  get(key: unknown): FakeRequest<unknown> {
-    const row = this.store.rows.get(String(key));
-    return this.transaction.enqueue(() => (row === undefined ? undefined : clone(row)));
-  }
-
-  put(value: Record<string, unknown>): FakeRequest<string> {
-    return this.transaction.enqueue(() => {
-      putCount += 1;
-      if (putCount === failPutAt) throw new DOMException('Injected put failure', 'ConstraintError');
-      const key = String(value[this.store.keyPath]);
-      this.store.rows.set(key, clone(value));
-      return key;
-    });
-  }
-
-  delete(key: unknown): FakeRequest<undefined> {
-    return this.transaction.enqueue(() => { this.store.rows.delete(String(key)); return undefined; });
-  }
-
-  clear(): FakeRequest<undefined> {
-    return this.transaction.enqueue(() => { this.store.rows.clear(); return undefined; });
-  }
-}
-
-class FakeTransaction {
-  error: DOMException | null = null;
-  oncomplete: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
-  private pending = 0;
-  private failed = false;
-  private settled = false;
-  private readonly snapshot: Map<string, Map<string, unknown>>;
-
-  constructor(private readonly state: FakeDatabaseState, readonly mode: string) {
-    this.snapshot = new Map([...state.stores].map(([name, store]) => [name, new Map([...store.rows].map(([key, value]) => [key, clone(value)]))]));
-  }
-
-  abort(): void { this.failed = true; queueMicrotask(() => this.settle(true)); }
-
-  objectStore(name: string): FakeObjectStore {
-    const store = this.state.stores.get(name);
-    if (!store) throw new Error(`NotFoundError: object store ${name}`);
-    return new FakeObjectStore(store, this);
-  }
-
-  enqueue<T>(run: () => T): FakeRequest<T> {
-    const request = new FakeRequest<T>();
-    this.pending += 1;
-    queueMicrotask(() => {
-      this.pending -= 1;
-      try { request.result = run(); request.onsuccess?.(); }
-      catch (error) { this.failed = true; request.error = error as DOMException; request.onerror?.(); }
-      if (this.pending === 0) setTimeout(() => this.settle(), 0);
-    });
-    return request;
-  }
-
-  private settle(aborted = false): void {
-    if (this.settled) return;
-    this.settled = true;
-    if (this.failed) {
-      for (const [name, rows] of this.snapshot) {
-        const store = this.state.stores.get(name);
-        if (store) store.rows = new Map(rows);
-      }
-      if (aborted) this.onabort?.(); else this.onerror?.();
-    } else this.oncomplete?.();
-  }
-}
-
-class FakeDatabase {
-  readonly objectStoreNames: { contains: (name: string) => boolean };
-
-  constructor(private readonly state: FakeDatabaseState) {
-    this.objectStoreNames = { contains: (name: string) => this.state.stores.has(name) };
-  }
-
-  createObjectStore(name: string, options: { keyPath: string }): void {
-    this.state.stores.set(name, { keyPath: options.keyPath, rows: new Map() });
-  }
-
-  transaction(_names: string[], mode: string): FakeTransaction {
-    if (mode === 'readwrite') readwriteTransactionCount += 1;
-    return new FakeTransaction(this.state, mode);
-  }
-
-  close(): void {}
-}
-
-const fakeIndexedDb = {
-  open(name: string, version: number): FakeRequest<FakeDatabase> {
-    const request = new FakeRequest<FakeDatabase>();
-    queueMicrotask(() => {
-      const existing = databases.get(name);
-      const state = existing ?? { version: 0, stores: new Map<string, FakeStore>() };
-      if (!existing) databases.set(name, state);
-      const upgradeNeeded = state.version < version;
-      request.result = new FakeDatabase(state);
-      if (upgradeNeeded) { state.version = version; request.onupgradeneeded?.(); }
-      queueMicrotask(() => request.onsuccess?.());
-    });
-    return request;
-  }
-};
-
-const originalIndexedDb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
-
-function installFakeIndexedDb(): void {
-  Object.defineProperty(globalThis, 'indexedDB', { value: fakeIndexedDb as unknown as IDBFactory, configurable: true, writable: true });
-}
-
-beforeEach(() => {
-  databases.clear();
-  failPutAt = null;
-  putCount = 0;
-  readwriteTransactionCount = 0;
-  installFakeIndexedDb();
-});
-
-afterEach(() => {
-  if (originalIndexedDb) Object.defineProperty(globalThis, 'indexedDB', originalIndexedDb);
-  else Reflect.deleteProperty(globalThis as unknown as Record<string, unknown>, 'indexedDB');
-});
-
 import {
   ARCHIVE_CACHE_DB_NAME, ARCHIVE_CACHE_DB_VERSION, ARCHIVE_CACHE_STORES, ARCHIVE_CATALOG_KEY,
   ARCHIVE_YEARS_META_KEY, ArchiveCacheService, CACHE_LEAGUE_STORE,
   CACHE_YEAR_PARTITION_STORE, CATALOG_TTL_MS, isArchiveCatalogFresh, utcDayKey
 } from './archive-cache.service';
 import type { ArchiveCatalogRecord, ArchiveLeagueSummary, ArchiveYearPartition, ArchiveYearsMetaRecord } from './archive-cache.service';
+import { fakeIndexedDbState, installFakeIndexedDb, resetFakeIndexedDb, restoreRealIndexedDb } from './in-memory-indexeddb.fake';
+
+beforeEach(() => {
+  resetFakeIndexedDb();
+  installFakeIndexedDb();
+});
+
+afterEach(() => {
+  restoreRealIndexedDb();
+});
 
 const league = (id: string): ArchiveLeagueSummary =>
   ({ id, name: `League ${id}`, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-02T00:00:00.000Z', documentVersion: 1 });
@@ -186,7 +37,7 @@ const cacheSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '
 /** Seeds a row the service is forbidden to write itself, so no test depends on a writer it must not have. */
 async function seed(cache: ArchiveCacheService, store: string, key: string, value: unknown): Promise<void> {
   await cache.database();
-  databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.get(store)!.rows.set(key, value);
+  fakeIndexedDbState.databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.get(store)!.rows.set(key, value);
 }
 
 /** A `rows` map whose `get` throws, so a read fails inside the transaction the way a corrupt store would. */
@@ -206,7 +57,7 @@ describe('archive cache storage contract', () => {
   it('creates all four stores on first open', async () => {
     await new ArchiveCacheService().database();
 
-    expect([...databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.keys()]).toEqual([...ARCHIVE_CACHE_STORES]);
+    expect([...fakeIndexedDbState.databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.keys()]).toEqual([...ARCHIVE_CACHE_STORES]);
   });
 
   it('a missing catalog row reads as null', async () => {
@@ -279,11 +130,11 @@ describe('archive cache storage contract', () => {
     await cache.writeSeasonCatalog({ key: ARCHIVE_CATALOG_KEY, items: [], totalCount: 0, truncated: false, fetchedAt: '2026-08-22T10:00:00.000Z' });
     await cache.writeYearsMeta(yearsMeta());
     await seed(cache, CACHE_YEAR_PARTITION_STORE, '2026', partition(2026));
-    readwriteTransactionCount = 0;
+    fakeIndexedDbState.readwriteTransactionCount = 0;
 
     await cache.clearAll();
 
-    expect(readwriteTransactionCount).toBe(1);
+    expect(fakeIndexedDbState.readwriteTransactionCount).toBe(1);
     expect(await cache.readLeagueCatalog()).toBeNull();
     expect(await cache.readSeasonCatalog()).toBeNull();
     expect(await cache.readYearsMeta()).toBeNull();
@@ -293,7 +144,7 @@ describe('archive cache storage contract', () => {
   it('a failed read is a miss, never a throw', async () => {
     const cache = new ArchiveCacheService();
     await cache.database();
-    databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.get(CACHE_LEAGUE_STORE)!.rows = new ThrowingMap();
+    fakeIndexedDbState.databases.get(ARCHIVE_CACHE_DB_NAME)!.stores.get(CACHE_LEAGUE_STORE)!.rows = new ThrowingMap();
 
     expect(await cache.readLeagueCatalog()).toBeNull();
   });
@@ -302,7 +153,7 @@ describe('archive cache storage contract', () => {
     const cache = new ArchiveCacheService();
     const first = catalogRecord([league('a')]);
     await cache.writeLeagueCatalog(first);
-    failPutAt = putCount + 1;
+    fakeIndexedDbState.failPutAt = fakeIndexedDbState.putCount + 1;
 
     await expect(cache.writeLeagueCatalog(catalogRecord([league('b')], '2026-08-23T10:00:00.000Z'))).resolves.toBeUndefined();
 

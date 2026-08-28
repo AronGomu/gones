@@ -23,9 +23,8 @@ import { get, getAllKeys, openDatabase, put, remove } from './indexed-db';
  * is dropped by the reset this service registers with `SessionScopeService`: logout, a failed
  * bootstrap and account deletion all reach it. A closed tab does not.
  *
- * IndexedDB is confined to this file, `indexed-db.ts`, `local-live-backend.service.ts` (ADR 0021) and
- * `local-league-archive-backend.service.ts` (ADR 0028); `server-authority-boundary.test.ts` fails if
- * it appears anywhere else.
+ * IndexedDB is confined to the files allowlisted in `server-authority-boundary.test.ts` (ADR 0021
+ * for Live, ADR 0028 for the Archive); that test fails if IndexedDB appears anywhere else.
  */
 export const SERVER_READ_CACHE_DB_NAME = 'gones-cache';
 export const SERVER_READ_CACHE_STORE = 'reads';

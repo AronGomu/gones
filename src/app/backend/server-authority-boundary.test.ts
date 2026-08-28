@@ -109,6 +109,10 @@ describe('canonical browser store containment', () => {
       // key-value budget because one year partition may hold 25,000 rows. Public answers only, so
       // logout does not purge it; anything user-scoped still belongs to `server-read-cache.service.ts`.
       'src/app/backend/archive-cache.service.ts',
+      // Shared in-memory IndexedDB fake for the backend vitest suites (F17). Test scaffolding only,
+      // never shipped on an app path. Not an ADR: allowlisted by user decision 2026-08-27, recorded
+      // in artifacts/GRILL_2026_08_27_gones-audit-fixes/ANSWERS.md.
+      'src/app/backend/in-memory-indexeddb.fake.ts',
       // Promise wrapper over the raw request/transaction API. No data rules.
       'src/app/backend/indexed-db.ts',
       // The three-tier archive browser-local authority (ADR 0028), composing the pure domain.

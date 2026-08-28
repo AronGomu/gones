@@ -1,9 +1,9 @@
 /**
  * Minimal promise wrapper over the IndexedDB request/transaction API — no third-party dependency.
  *
- * IndexedDB is confined to this file, `local-live-backend.service.ts` (ADR 0021) and
- * `local-league-archive-backend.service.ts` (ADR 0028); the boundary test in
- * `server-authority-boundary.test.ts` fails if it appears anywhere else.
+ * IndexedDB is confined to the files allowlisted by the boundary test in
+ * `server-authority-boundary.test.ts` (ADR 0021 for Live, ADR 0028 for the Archive); it fails
+ * if IndexedDB appears anywhere else.
  */
 
 export function openDatabase(name: string, version: number, upgrade: (database: IDBDatabase) => void): Promise<IDBDatabase> {
