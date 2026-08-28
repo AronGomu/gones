@@ -143,8 +143,15 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         Assert.Equal("validation_failed", await ProblemCodeAsync(rejected));
     }
 
+    /// <summary>
+    /// Both collisions are still caught after Unicode normalization, but they are not answered the
+    /// same way: only the email is an account-existence oracle, so only the email answer has to stay
+    /// byte-identical to a fresh signup. A taken username is already public on the participants list,
+    /// so it is named as a field error instead of sending the caller to Verify Email for a link
+    /// nobody queued.
+    /// </summary>
     [Fact]
-    public async Task Normalized_username_and_email_collisions_answer_the_same_generic_202()
+    public async Task Normalized_email_collision_answers_the_same_generic_202_and_username_collision_names_the_field()
     {
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"collision-{suffix}@example.test";
@@ -154,18 +161,63 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         using var emailCollision = await RegisterAsync($"COLLISION-{suffix}@EXAMPLE.TEST", $"Other{suffix[..8]}", "another-valid-password");
 
         Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
-        Assert.Equal(HttpStatusCode.Accepted, usernameCollision.StatusCode);
         Assert.Equal(HttpStatusCode.Accepted, emailCollision.StatusCode);
         var answer = await first.Content.ReadAsStringAsync();
-        Assert.Equal(answer, await usernameCollision.Content.ReadAsStringAsync());
         Assert.Equal(answer, await emailCollision.Content.ReadAsStringAsync());
-        Assert.Equal(HeaderFingerprint(first), HeaderFingerprint(usernameCollision));
         Assert.Equal(HeaderFingerprint(first), HeaderFingerprint(emailCollision));
-        Assert.All(new[] { first, usernameCollision, emailCollision }, response => Assert.Null(response.Headers.Location));
+        Assert.All(new[] { first, emailCollision }, response => Assert.Null(response.Headers.Location));
+
+        Assert.Equal(HttpStatusCode.BadRequest, usernameCollision.StatusCode);
+        using var refusal = await ProblemAsync(usernameCollision);
+        Assert.Equal("username_taken", refusal.RootElement.GetProperty("code").GetString());
+        Assert.NotEmpty(refusal.RootElement.GetProperty("errors").GetProperty("Username").EnumerateArray());
 
         await using var database = CreateContext();
         Assert.Equal(1, await database.Users.CountAsync(item => item.NormalizedEmail == email.ToUpperInvariant()));
         Assert.Equal(1, await database.UserProfiles.CountAsync(profile => profile.NormalizedUsername == Username.Normalize(username)));
+    }
+
+    [Fact]
+    public async Task Taken_username_on_a_fresh_email_creates_no_account_and_queues_no_email()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var username = $"Taken{suffix[..8]}";
+        using var owner = await RegisterAsync($"taken-owner-{suffix}@example.test", username, "valid-password-value");
+        Assert.Equal(HttpStatusCode.Accepted, owner.StatusCode);
+
+        var freshEmail = $"taken-username-{suffix}@example.test";
+        var conflictsBefore = await RegisterConflictAuditCountAsync();
+        using var rejected = await RegisterAsync(freshEmail, username.ToUpperInvariant(), "another-valid-password");
+
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        using var refusal = await ProblemAsync(rejected);
+        Assert.Equal("username_taken", refusal.RootElement.GetProperty("code").GetString());
+        Assert.NotEmpty(refusal.RootElement.GetProperty("errors").GetProperty("Username").EnumerateArray());
+        Assert.Equal(conflictsBefore + 1, await RegisterConflictAuditCountAsync());
+
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.Users.CountAsync(item => item.NormalizedEmail == freshEmail.ToUpperInvariant()));
+        // The generic 202 this replaces sent the caller to Verify Email to wait for a link that was
+        // never queued, for an account that was never created.
+        Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync(item => item.Recipient == freshEmail));
+    }
+
+    [Fact]
+    public async Task Taken_email_and_taken_username_answer_the_generic_202_without_naming_the_username()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"both-taken-{suffix}@example.test";
+        var username = $"BothTaken{suffix[..8]}";
+        using var first = await RegisterAsync(email, username, "valid-password-value");
+        using var both = await RegisterAsync(email.ToUpperInvariant(), username.ToUpperInvariant(), "another-valid-password");
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        // The email branch wins: naming the username would confirm the address has an account.
+        Assert.Equal(HttpStatusCode.Accepted, both.StatusCode);
+        var answer = await both.Content.ReadAsStringAsync();
+        Assert.Equal(await first.Content.ReadAsStringAsync(), answer);
+        Assert.DoesNotContain("sername", answer, StringComparison.Ordinal);
+        Assert.Equal(HeaderFingerprint(first), HeaderFingerprint(both));
     }
 
     [Fact]
@@ -178,6 +230,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
         Assert.Equal(HttpStatusCode.Accepted, duplicate.StatusCode);
+        Assert.Equal(await first.Content.ReadAsStringAsync(), await duplicate.Content.ReadAsStringAsync());
 
         await using var database = CreateContext();
         Assert.Equal(1, await database.Users.CountAsync(item => item.NormalizedEmail == email.ToUpperInvariant()));
@@ -226,7 +279,12 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         using var first = await requests[0];
         using var second = await requests[1];
 
-        Assert.All(new[] { first.StatusCode, second.StatusCode }, status => Assert.Equal(HttpStatusCode.Accepted, status));
+        // The winner is always accepted. The loser is refused either by name, when the winner had
+        // already committed, or generically by the unique index, when both cleared the uniqueness
+        // check first - the race decides which, so both refusals are allowed here.
+        Assert.Contains(HttpStatusCode.Accepted, new[] { first.StatusCode, second.StatusCode });
+        Assert.All(new[] { first.StatusCode, second.StatusCode },
+            status => Assert.Contains(status, new[] { HttpStatusCode.Accepted, HttpStatusCode.BadRequest }));
         await using var database = CreateContext();
         Assert.Equal(1, await database.UserProfiles.CountAsync(profile => profile.NormalizedUsername == username.ToUpperInvariant()));
     }
@@ -984,6 +1042,20 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
     {
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         return body.GetProperty("code").GetString() ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Parses the buffered body rather than reading the response stream, so a test may assert on the
+    /// problem code and on its field map without the second read hitting a closed stream.
+    /// </summary>
+    private static async Task<JsonDocument> ProblemAsync(HttpResponseMessage response) =>
+        JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+    private async Task<int> RegisterConflictAuditCountAsync()
+    {
+        await using var database = CreateContext();
+        return await database.AuditRecords
+            .CountAsync(record => record.Action == "auth.register.failed" && record.RedactedDiff == "{\"outcome\":\"conflict\"}");
     }
 
     private static async Task<string> StableProblemAsync(HttpResponseMessage response)

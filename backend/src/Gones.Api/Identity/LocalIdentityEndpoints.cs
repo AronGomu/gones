@@ -101,11 +101,17 @@ internal static class LocalIdentityEndpoints
             {
                 await transaction.RollbackAsync(cancellationToken);
                 database.ChangeTracker.Clear();
-                var duplicate = result.Errors.Any(error => error.Code is "DuplicateUserName" or "DuplicateEmail");
+                var duplicateEmail = result.Errors.Any(error => error.Code is "DuplicateEmail");
+                var duplicate = duplicateEmail || result.Errors.Any(error => error.Code is "DuplicateUserName");
                 await WriteAuditAsync(database, null, "auth.register.failed", "registration",
                     duplicate ? "{\"outcome\":\"conflict\"}" : "{\"outcome\":\"rejected\"}", clock, cancellationToken);
                 metrics.RecordAuthRejection("register");
                 if (!duplicate) throw IdentityValidation(result.Errors);
+                // A taken username is not an account-existence oracle - the public participants list
+                // already shows usernames - so it is named instead of being answered generically, which
+                // sent the caller to Verify Email to wait for a link nobody had queued. A taken email
+                // still wins the tie: naming the username there would confirm the address has an account.
+                if (!duplicateEmail) throw UsernameTaken();
                 await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
                 return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
             }
@@ -550,6 +556,13 @@ internal static class LocalIdentityEndpoints
 
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
+
+    /// <summary>
+    /// The field map puts the refusal next to the username input; the narrower code lets the client
+    /// phrase it in the reader's language instead of falling back to its generic failure line.
+    /// </summary>
+    private static ApiValidationException UsernameTaken() =>
+        new(new Dictionary<string, string[]> { ["Username"] = ["Username is already taken."] }, "username_taken");
 }
 
 internal sealed record RegisterRequest(

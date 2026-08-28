@@ -7,8 +7,13 @@ public abstract class ApiException(string code, string safeMessage, int statusCo
     public int StatusCode { get; } = statusCode;
 }
 
-public sealed class ApiValidationException(IReadOnlyDictionary<string, string[]> errors)
-    : ApiException("validation_failed", "One or more fields are invalid.", StatusCodes.Status400BadRequest)
+/// <summary>
+/// The default <c>validation_failed</c> code stays the wire contract for every existing caller; a
+/// narrower code (for example <c>username_taken</c>) is passed when the client has to tell one
+/// rejection apart from another to phrase it in the reader's own language.
+/// </summary>
+public sealed class ApiValidationException(IReadOnlyDictionary<string, string[]> errors, string code = "validation_failed")
+    : ApiException(code, "One or more fields are invalid.", StatusCodes.Status400BadRequest)
 {
     public IReadOnlyDictionary<string, string[]> Errors { get; } = errors;
 }

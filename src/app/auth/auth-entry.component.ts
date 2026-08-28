@@ -230,8 +230,13 @@ export class AuthEntryComponent {
     this.pending.set(true); this.error.set(''); this.status.set(''); this.fieldErrors.set({});
     try { await action(); }
     catch (error) {
-      this.fieldErrors.set(fieldErrorsFromProblem(error));
-      this.error.set(error instanceof ApiProblemError && error.status === 429 ? this.i18n.t('auth.rateLimited') : this.i18n.t('auth.genericError'));
+      // A taken username is the one rejection the API names but cannot phrase: its field message is
+      // English and this product is read in French too, so the localized text replaces it.
+      const usernameTaken = error instanceof ApiProblemError && error.problem.code === 'username_taken';
+      const fields = fieldErrorsFromProblem(error);
+      this.fieldErrors.set(usernameTaken ? { ...fields, username: [this.i18n.t('auth.usernameTaken')] } : fields);
+      if (usernameTaken) this.error.set(this.i18n.t('auth.usernameTaken'));
+      else this.error.set(error instanceof ApiProblemError && error.status === 429 ? this.i18n.t('auth.rateLimited') : this.i18n.t('auth.genericError'));
     } finally { this.pending.set(false); }
   }
 }

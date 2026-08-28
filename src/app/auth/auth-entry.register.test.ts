@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { ApiProblemError } from '../api/api-boundary';
 import { AuthEntryComponent } from './auth-entry.component';
 import { AuthService } from './auth.service';
 import { I18nService } from '../i18n/i18n.service';
@@ -65,6 +66,19 @@ describe('AuthEntryComponent register password confirmation', () => {
 
     expect(register).toHaveBeenCalledWith(expect.objectContaining({ returnUrl: undefined }));
     expect(navigate.mock.calls[0][1].queryParams).not.toHaveProperty('returnUrl');
+  });
+
+  it('names the taken username in the reader language instead of a generic failure', async () => {
+    const { component, register, navigate } = setup();
+    register.mockRejectedValueOnce(new ApiProblemError(400, { code: 'username_taken', errors: { Username: ['Username is already taken.'] } }));
+    component.password.set('aaaaaaaaaaaa');
+    component.confirmPassword = 'aaaaaaaaaaaa';
+
+    await component.submitRegister();
+
+    expect(component.fieldErrors()['username']).toEqual(['auth.usernameTaken']);
+    expect(component.error()).toBe('auth.usernameTaken');
+    expect(navigate).not.toHaveBeenCalled();
   });
 });
 
