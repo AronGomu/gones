@@ -28,8 +28,6 @@ export function totalPages(totalCount: number, pageSize: number): number {
   return Math.max(1, Math.ceil(Math.max(0, totalCount) / Math.max(1, pageSize)));
 }
 
-export const ADMIN_CACHE_FAMILIES = ['admin-users', 'admin-organizations', 'admin-organization-members', 'admin-user-picker', 'admin-audit', 'admin-notifications', 'admin-deleted-events'] as const;
-
 export function adminCacheKey(family: string, params: Record<string, string | number | boolean | undefined>): string {
   const qs = Object.keys(params)
     .filter(k => params[k] !== undefined)

@@ -36,7 +36,3 @@ export function validateMatch(entry: MatchRoundEntry): ValidationResult {
   if (Number.isInteger(player2Score) && player2Score > 2) codes.push('resultTooManyGameLosses');
   return { valid: codes.length === 0, codes };
 }
-
-export function isValidRoundEntry(entry: RoundEntry): boolean {
-  return validateRoundEntry(entry).valid;
-}

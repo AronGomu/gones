@@ -9,11 +9,3 @@ export function fieldErrorsFromProblem(error: unknown): AuthFieldErrors {
     return [name.charAt(0).toLowerCase() + name.slice(1), messages];
   }));
 }
-
-export function genericAuthError(error: unknown): string {
-  if (error instanceof ApiProblemError) {
-    if (error.status === 429) return 'Too many attempts. Wait, then retry.';
-    if (error.status === 401) return 'Email or password is incorrect.';
-  }
-  return 'Request failed. Check your details, then retry.';
-}

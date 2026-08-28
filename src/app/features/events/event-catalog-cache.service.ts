@@ -3,11 +3,10 @@ import { Injectable, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL, PublicEventCatalogResponse } from '../../api/generated/gones-api';
 import { joinApiUrl } from '../../api/api-boundary';
-import { CATALOG_TTL_MS, CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
+import { CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
 import { PublicEventView } from './public-event-list';
 
 export const EVENT_CATALOG_CACHE_KEY = 'gones.events.catalog';
-export const EVENT_CATALOG_TTL_MS = CATALOG_TTL_MS;
 
 export type EventCatalogResult = CatalogResult<PublicEventView[]>;
 

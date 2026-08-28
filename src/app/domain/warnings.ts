@@ -53,10 +53,6 @@ export function getTournamentWarnings(tournament: ArchiveTournamentDocument): To
   return warnings;
 }
 
-export function hasMissingByeWarning(tournament: ArchiveTournamentDocument): boolean {
-  return getTournamentWarnings(tournament).some((warning) => warning.code === 'missingBye');
-}
-
 function collectTournamentPlayers(tournament: ArchiveTournamentDocument): Set<string> {
   const players = new Set<string>();
   for (const round of tournament.rounds ?? []) {

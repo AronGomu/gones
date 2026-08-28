@@ -1,6 +1,5 @@
 import { RoundEntry, trimPlayerName } from './models';
 import type { ArchiveTournamentDocument } from './archive-models';
-import { LiveTournamentDocument, LiveTournamentPlayerDocument, LiveTournamentRoundDocument } from './live-tournament';
 
 export function playerNameKey(name: string): string {
   return trimPlayerName(name).toLocaleLowerCase();
@@ -44,32 +43,6 @@ export function renamePlayerInRoundEntry(entry: RoundEntry, fromName: string, to
     ...entry,
     player: samePlayerName(entry.player, from) ? to : entry.player,
     opponent: samePlayerName(entry.opponent, from) ? to : entry.opponent
-  };
-}
-
-export function renamePlayerInLiveTournament(live: LiveTournamentDocument, fromName: string, toName: string): LiveTournamentDocument {
-  const from = trimPlayerName(fromName);
-  const to = trimPlayerName(toName);
-  if (!from || !to) return live;
-  return {
-    ...live,
-    players: live.players.map((player) => renameLivePlayer(player, from, to)),
-    rounds: live.rounds.map((round) => renameLiveRound(round, from, to)),
-    firstRoundPlayerOrder: live.firstRoundPlayerOrder ?? []
-  };
-}
-
-function renameLivePlayer(player: LiveTournamentPlayerDocument, from: string, to: string): LiveTournamentPlayerDocument {
-  return samePlayerName(player.name, from) ? { ...player, name: to } : player;
-}
-
-function renameLiveRound(round: LiveTournamentRoundDocument, from: string, to: string): LiveTournamentRoundDocument {
-  return {
-    ...round,
-    entries: round.entries.map((item) => ({
-      ...item,
-      entry: renamePlayerInRoundEntry(item.entry, from, to)
-    }))
   };
 }
 
