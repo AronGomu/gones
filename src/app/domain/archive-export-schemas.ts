@@ -290,6 +290,17 @@ export function parseArchiveBundle(value: unknown): ArchiveBundle {
     };
   });
 
+  // Mirrors the server restore's refusal: a bundle link must resolve inside the bundle
+  // (ArchiveTournamentCommandEndpoints rejects the same input with a 400).
+  const leagueIdSet = new Set(leagues.map((league) => league.id));
+  for (const season of leagueSeasons) {
+    if (!leagueIdSet.has(season.leagueId)) throw new Error('unresolvedArchiveBundleLink:leagueSeasons');
+  }
+  const seasonIdSet = new Set(leagueSeasons.map((season) => season.id));
+  for (const tournament of tournaments) {
+    if (tournament.seasonId !== null && !seasonIdSet.has(tournament.seasonId)) throw new Error('unresolvedArchiveBundleLink:tournaments');
+  }
+
   const calendarEvents = collection(payload['calendarEvents'], ARCHIVE_EXPORT_LIMITS.maxCalendarEvents).map((entry) => {
     const parsed = row(entry);
     requireExactKeys(parsed, ARCHIVE_EXPORT_V5_CALENDAR_EVENT_FIELDS);

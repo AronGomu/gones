@@ -418,6 +418,30 @@ describe('LocalArchiveBackend', () => {
     expect((await backend.listArchiveTournaments()).items).toEqual([]);
   });
 
+  it('refuses a bundle whose Season names an absent League', async () => {
+    const backend = new LocalArchiveBackend();
+    const bundle = bundleOf();
+    bundle.leagueSeasons[0] = { ...bundle.leagueSeasons[0], leagueId: 'no-such-league' };
+
+    await expect(backend.restoreArchiveBundle(bundle)).rejects.toThrowError('unresolvedArchiveBundleLink:leagueSeasons');
+
+    expect((await backend.listArchiveLeagues()).items).toEqual([]);
+    expect((await backend.listLeagueSeasons()).items).toEqual([]);
+    expect((await backend.listArchiveTournaments()).items).toEqual([]);
+  });
+
+  it('refuses a bundle whose Tournament names an absent Season', async () => {
+    const backend = new LocalArchiveBackend();
+    const bundle = bundleOf();
+    bundle.tournaments[0] = { ...bundle.tournaments[0], seasonId: 'no-such-season' };
+
+    await expect(backend.restoreArchiveBundle(bundle)).rejects.toThrowError('unresolvedArchiveBundleLink:tournaments');
+
+    expect((await backend.listArchiveLeagues()).items).toEqual([]);
+    expect((await backend.listLeagueSeasons()).items).toEqual([]);
+    expect((await backend.listArchiveTournaments()).items).toEqual([]);
+  });
+
   it('lists tournaments newest first, ties broken by id', async () => {
     const backend = new LocalArchiveBackend();
     const january = await backend.createArchiveTournament(null, 'January', '2026-01-01');

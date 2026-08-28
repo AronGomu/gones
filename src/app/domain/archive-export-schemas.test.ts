@@ -277,6 +277,20 @@ describe('archive export bundle v5', () => {
     expect(() => parseArchiveBundle(payload)).toThrow('unsupportedArchiveBundle');
   });
 
+  it('refuses a Season whose League is absent from the bundle', () => {
+    const payload = goldenBundle() as unknown as { leagueSeasons: { leagueId: string }[] };
+    payload.leagueSeasons[0].leagueId = 'no-such-league';
+
+    expect(() => parseArchiveBundle(payload)).toThrow('unresolvedArchiveBundleLink:leagueSeasons');
+  });
+
+  it('refuses a Tournament whose Season is absent from the bundle', () => {
+    const payload = goldenBundle() as unknown as { tournaments: { seasonId: string | null }[] };
+    payload.tournaments[0].seasonId = 'no-such-season';
+
+    expect(() => parseArchiveBundle(payload)).toThrow('unresolvedArchiveBundleLink:tournaments');
+  });
+
   it('refuses more rows than a collection cap allows', () => {
     const template = goldenBundle().tournaments[0];
     const payload = goldenPayload();

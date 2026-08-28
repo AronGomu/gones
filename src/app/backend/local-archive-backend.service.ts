@@ -400,6 +400,12 @@ export class LocalArchiveBackend implements ArchiveBackendPort {
     const taken = new Set((await getAll<Partial<PersistedArchiveLeague>>(database, LOCAL_LEAGUE_STORE)).map((row) => String(row.name ?? '')));
     const leagueIds = new Map(bundle.leagues.map((league) => [league.id, newLocalArchiveId()]));
     const seasonIds = new Map(bundle.leagueSeasons.map((season) => [season.id, newLocalArchiveId()]));
+    for (const season of bundle.leagueSeasons) {
+      if (!leagueIds.has(season.leagueId)) throw new Error('unresolvedArchiveBundleLink:leagueSeasons');
+    }
+    for (const tournament of bundle.tournaments) {
+      if (tournament.seasonId !== null && !seasonIds.has(tournament.seasonId)) throw new Error('unresolvedArchiveBundleLink:tournaments');
+    }
     const timestamp = new Date().toISOString();
 
     const leagues: PersistedArchiveLeague[] = bundle.leagues.map((league) => {
