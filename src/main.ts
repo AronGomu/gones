@@ -11,6 +11,7 @@ import { API_BASE_URL } from './app/api/generated/gones-api';
 import { serviceWorkerBypassInterceptor } from './app/api/service-worker-cache';
 import { buildRoutes } from './app/app.routes';
 import { authSessionInterceptor } from './app/auth/auth.interceptor';
+import { runAuthBootstrap } from './app/auth/auth-bootstrap';
 import { AuthService } from './app/auth/auth.service';
 import { ServerReadCacheService } from './app/backend/server-read-cache.service';
 import { DataAuthority, DataAuthorityConfigurationError, configureDataAuthority, mergeRuntimeDeclaration } from './app/config/data-authority';
@@ -78,7 +79,7 @@ async function startGones(): Promise<void> {
       provideAppInitializer(() => inject(ViewportScroller).setOffset(routeScrollOffset)),
       provideAppInitializer(() => {
         inject(ServerReadCacheService); // register private-cache purge before bootstrap can fail
-        return inject(AuthService).bootstrap();
+        return runAuthBootstrap(inject(AuthService));
       }),
       { provide: ErrorHandler, useClass: GonesErrorHandler },
       provideRouter(

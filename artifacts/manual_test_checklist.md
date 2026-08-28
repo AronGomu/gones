@@ -2231,3 +2231,36 @@ confirmation that single-writer behaviour and the Live path are untouched in a r
 - [ ] **A Season deleted underneath a Tournament write is still a skip, not an error.** Delete a Season,
       then delete a Tournament that pointed at it. The Tournament delete returns success rather than a
       `404`/`500` — the "Season row absent → skip the recount" behaviour is deliberate and unchanged.
+
+## T8 blocked-site-data-fallback
+
+Frontend-only startup fix: the app initializer now calls `runAuthBootstrap(inject(AuthService))`
+(`src/app/auth/auth-bootstrap.ts`) instead of `AuthService.bootstrap()` directly. A browser that blocks
+site data for the origin — or has no Web Locks API — makes session coordination unavailable, and that
+used to reject the initializer, abort `bootstrapApplication` and leave a white page even on the public
+surfaces. The wrapper swallows exactly `AuthCoordinationUnavailableError`, logs it as a structured
+boundary error, and lets the app boot anonymously. Automated coverage is
+`src/app/auth/auth-bootstrap.test.ts`; these steps are the human confirmation in a real browser.
+
+- [ ] **The public calendar renders with site data blocked.** In Chrome, open the site, then in the
+      address-bar site settings (padlock → *Site settings* → *Cookies and site data*) choose **Block**
+      for this origin, or use *Settings → Privacy → Third-party cookies → Block all cookies* while the
+      tab is open. Hard-reload the app. The Event calendar renders normally — no blank/white page, no
+      "Gones cannot start" alert.
+- [ ] **The degradation is logged, never silent.** With site data still blocked, open DevTools →
+      *Console* on that reload. Exactly one line reads
+      `{"level":"error","boundary":"auth.bootstrap","context":{"degraded":"anonymous"},"message":"authCoordinationUnavailable"}`.
+      An empty console here means the failure went silent and is a defect.
+- [ ] **The other public surfaces work too.** Still with site data blocked, click through to an Event
+      detail page and to the League Archive (Seasons → a Season → its Tournaments). Each page loads its
+      content; navigation back and forward keeps working.
+- [ ] **Auth-gated surfaces read as signed-out, not broken.** Still blocked, open the header account
+      menu and navigate to a signed-in-only route (Settings / My registrations). You are treated as a
+      visitor — you get the sign-in prompt or the login redirect, not a blank page and not a spinner
+      that never ends.
+- [ ] **Signing in with site data blocked fails cleanly.** Still blocked, submit the login form with
+      valid credentials. It reports a failure in the UI and the app stays usable — the page must not go
+      blank and must not need a manual reload to recover.
+- [ ] **Normal browsing is untouched.** Re-allow cookies and site data for the origin, hard-reload, and
+      sign in. The session restores across a reload exactly as before, and the console shows **no**
+      `boundary":"auth.bootstrap"` line on a normal start.
