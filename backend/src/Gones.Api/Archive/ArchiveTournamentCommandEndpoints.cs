@@ -414,6 +414,11 @@ internal sealed class ArchiveTournamentCommandService(GonesDbContext database, I
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         await database.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtext({scope}), hashtext({key}))", cancellationToken);
         var existing = await database.IdempotencyRecords.AsNoTracking().SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+        if (existing is not null && existing.ExpiresAt <= clock.GetCurrentInstant())
+        {
+            await database.IdempotencyRecords.Where(item => item.Id == existing.Id).ExecuteDeleteAsync(cancellationToken);
+            existing = null;
+        }
         if (existing is not null)
         {
             var stored = JsonSerializer.Deserialize<StoredArchiveCommand>(existing.ResponseBody, StoredJsonOptions)

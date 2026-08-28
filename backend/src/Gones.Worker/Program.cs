@@ -36,6 +36,7 @@ builder.Services.AddNotificationWorker(builder.Configuration);
 builder.Services.AddTournamentScheduler(builder.Configuration);
 builder.Services.AddScoped<WorkerHeartbeatStore>();
 builder.Services.AddScoped<UserEmailHistoryRedactor>();
+builder.Services.AddScoped<IdempotencyRecordSweeper>();
 builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();

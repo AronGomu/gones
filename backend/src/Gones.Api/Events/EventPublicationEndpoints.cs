@@ -172,6 +172,11 @@ internal sealed class EventPublicationService(
             {
                 var existing = await database.IdempotencyRecords.AsNoTracking()
                     .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == idempotencyKey, cancellationToken);
+                if (existing is not null && existing.ExpiresAt <= clock.GetCurrentInstant())
+                {
+                    await database.IdempotencyRecords.Where(item => item.Id == existing.Id).ExecuteDeleteAsync(cancellationToken);
+                    existing = null;
+                }
                 if (existing is not null)
                 {
                     var stored = JsonSerializer.Deserialize<StoredPublishResult>(existing.ResponseBody, StoredJsonOptions)

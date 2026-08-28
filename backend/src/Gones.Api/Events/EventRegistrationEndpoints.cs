@@ -432,6 +432,11 @@ internal sealed class EventRegistrationService(
     {
         var existing = await database.IdempotencyRecords.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Scope == scope && item.Key == key, cancellationToken);
+        if (existing is not null && existing.ExpiresAt <= clock.GetCurrentInstant())
+        {
+            await database.IdempotencyRecords.Where(item => item.Id == existing.Id).ExecuteDeleteAsync(cancellationToken);
+            return null;
+        }
         if (existing is null) return null;
         var stored = JsonSerializer.Deserialize<StoredRegistrationMutation>(existing.ResponseBody, StoredJsonOptions)
             ?? throw new InvalidOperationException("Stored registration result is invalid.");

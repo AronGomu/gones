@@ -129,6 +129,28 @@ public sealed class ArchiveTournamentCommandApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tournament_create_re_executes_when_the_stored_Idempotency_record_expired()
+    {
+        using var first = await SendAsync(HttpMethod.Post, "/api/archive/tournaments", new { name = "Clef expiree", tournamentDate = Iso(Today) }, "Organizer", key: "clef-expiree");
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var firstId = (await Body(first)).GetProperty("id").GetString();
+
+        await using (var expire = CreateContext())
+        {
+            await expire.Database.ExecuteSqlRawAsync(
+                "UPDATE idempotency_records SET expires_at = now() - interval '1 hour' WHERE key = 'clef-expiree'");
+        }
+
+        using var second = await SendAsync(HttpMethod.Post, "/api/archive/tournaments", new { name = "Clef expiree", tournamentDate = Iso(Today) }, "Organizer", key: "clef-expiree");
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        Assert.NotEqual(firstId, (await Body(second)).GetProperty("id").GetString());
+
+        await using var verify = CreateContext();
+        Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(item => item.Key == "clef-expiree"));
+        Assert.Equal(2, await verify.ArchiveTournaments.CountAsync(item => item.Name == "Clef expiree"));
+    }
+
+    [Fact]
     public async Task Tournament_create_accepts_a_standalone_row()
     {
         using var created = await SendAsync(

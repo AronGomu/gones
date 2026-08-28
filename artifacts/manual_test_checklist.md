@@ -2352,3 +2352,39 @@ comment lines. These steps confirm the documentation matches the shipped behavio
 - [ ] **Nothing else moved.** Browse the Live standings page and an archived Tournament Result page for
       an existing tournament you already know. The ranking numbers, tiebreaker columns and row order are
       exactly what they were before this change — this slice added documentation and tests only.
+
+## T11 idempotency-expiry-sweep
+
+Every idempotency writer already stamped `expires_at = now + 24h`, but no reader looked at it: a key
+replayed a month later still returned the stored response, and nothing ever deleted the rows. This
+slice enforces the window at the five idempotent surfaces (event registration/unregistration, event
+lifecycle, event publication, archive tournament commands, live commands) and adds a worker sweep that
+batch-deletes expired `idempotency_records` and `consumed_event_preview_tickets` (500 per table per
+pass, first pass at worker startup, then every 24h; 1h retry after a failure). No schema change, no new
+migration, no new environment variable.
+
+Start from a stack running this branch (`npm run dev -- --detached`, which enables auth). Rebuild the
+images first — `docker compose build api worker` — a stale worker image never sweeps. Then
+`npm run dev:accounts` to seed `admin@gones.test` (Admin) and `test@gones.test` (User), password
+`Gones-dev-pass-123!`. Get a token with:
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:5080/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@gones.test","password":"Gones-dev-pass-123!","deviceLabel":"manual"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["accessToken"])')
+```
+
+**Never run `docker compose down` while working through this section** — it destroys the local Postgres
+volume and with it every row these steps are about. Use `docker compose stop` / `start` / `restart`.
+
+- [ ] **A live key still replays — the control.** `curl -si -X POST http://127.0.0.1:5080/api/archive/tournaments -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -H 'Idempotency-Key: manuel-vivant' -d '{"name":"Manuel vivant","tournamentDate":"2026-08-28"}'` returns `201`. Send the identical request again: `201` with the **same** `id`. Send it a third time with a different body (`"name":"Autre"`) and the same key: `409` with `"code":"idempotency_conflict"`. This is unchanged behavior and must still hold.
+- [ ] **An expired key re-executes instead of replaying.** Create one with a fresh key: `curl -si -X POST http://127.0.0.1:5080/api/archive/tournaments -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -H 'Idempotency-Key: manuel-expire' -d '{"name":"Manuel expire","tournamentDate":"2026-08-28"}'` → `201`, note the `id`. Force the stored row past its window: `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "update idempotency_records set expires_at = now() - interval '1 hour' where key = 'manuel-expire';"` → prints `UPDATE 1`. Repeat the identical create with the same key. It returns `201` with a **different** `id`.
+- [ ] **The re-execution left exactly one record, with a fresh window.** `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select count(*), min(expires_at) > now() from idempotency_records where key = 'manuel-expire';"` prints `1|t` — the expired row was deleted and replaced, the unique `(scope, key)` index was never violated. `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select count(*) from archive_tournaments where name = 'Manuel expire';"` prints `2`: both commands really ran.
+- [ ] **The worker sweeps at startup and says so.** `docker compose restart worker`, wait a few seconds, then `docker compose logs worker | grep idempotency`. A line reading `Event=idempotency.records.swept; Count=N` appears (event id 7009). `N` is the number of expired rows it found — `0` is a valid result on a clean database.
+- [ ] **The sweep deletes expired rows of both tables and keeps live ones.** Seed one expired and one live preview ticket, and expire one idempotency record: `docker compose exec -T postgres psql -U gones_migration -d gones -c "insert into consumed_event_preview_tickets (ticket_hash, expires_at) values (repeat('a',64), now() - interval '1 hour'), (repeat('b',64), now() + interval '1 hour');" -c "update idempotency_records set expires_at = now() - interval '1 hour' where key = 'manuel-vivant';"`. Then `docker compose restart worker` and wait for the `idempotency.records.swept` line. Now `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select (select count(*) from consumed_event_preview_tickets where ticket_hash = repeat('a',64)), (select count(*) from consumed_event_preview_tickets where ticket_hash = repeat('b',64)), (select count(*) from idempotency_records where key = 'manuel-vivant'), (select count(*) from idempotency_records where key = 'manuel-expire');"` prints `0|1|0|1`: both expired rows gone, both live rows untouched.
+- [ ] **Sweeping a consumed preview ticket cannot reopen a replay.** A consumed ticket row expires at the ticket's own expiry (10 minutes after issue), so by the time the sweep can delete it the ticket itself is already refused. Confirm the refusal still fires *inside* the window: publish a tournament through the preview flow (`POST /api/events/preview`, then `POST /api/events` with the returned ticket), then immediately re-send the publish with that same ticket and a **different** idempotency key. It must be refused with `409` and `"code":"preview_ticket_replayed"`, not accepted.
+- [ ] **Migration-import records are not swept.** Import a v5 bundle (`/archive` → import, or `npm run migration:smoke`), then `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select count(*), min(expires_at) > now() + interval '90 years' from idempotency_records where scope like 'migration-import%';"`. The count is at least `1` and the second column is `t` — those rows are stamped 100 years out on purpose and must survive every sweep. Re-run `docker compose restart worker` and re-check: the count is unchanged.
+- [ ] **The worker keeps doing its other work.** After the sweeps above, `docker compose logs worker | tail -30` still shows `worker.heartbeat` lines continuing, and `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select last_seen_at > now() - interval '2 minutes' from worker_heartbeats;"` prints `t`. Notifications, reminders and the tournament scheduler are unaffected.
+- [ ] **A sweep failure is logged and retried, not fatal (optional).** With the stack up, `docker compose stop postgres`, wait ~30 seconds, then `docker compose start postgres`. `docker compose logs worker | grep -E 'idempotency.sweep_failed|worker.poll.failed'` shows an error line naming the exception type, and after Postgres is back the worker resumes heartbeating and eventually logs `idempotency.records.swept` again. The worker process must never exit. Do **not** use `docker compose down` for this step.
+- [ ] **The other four idempotent surfaces behave the same way (spot check one).** Register for an event with an `Idempotency-Key`, expire that row (`update idempotency_records set expires_at = now() - interval '1 hour' where scope like 'tournament-registration:%';`), and replay the same registration request. It must re-execute rather than return the stored response — for an already-registered user that means the normal already-registered answer, never a stale replay of the first success.
