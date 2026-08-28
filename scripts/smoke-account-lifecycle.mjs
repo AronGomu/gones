@@ -35,7 +35,7 @@ async function actionToken() {
 async function register(email, username) {
   await clearSink();
   const response = await post('/api/auth/register', { email, username, password, firstName: 'Local', lastName: 'Smoke' });
-  if (response.status !== 201) throw new Error(`register failed: ${response.status} ${await response.text()}`);
+  if (response.status !== 202) throw new Error(`register failed: ${response.status} ${await response.text()}`);
   return actionToken();
 }
 

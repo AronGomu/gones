@@ -16,7 +16,7 @@ namespace Gones.Api.Identity;
 
 internal static class AccountLifecycleEndpoints
 {
-    private static readonly GenericAccountActionResponse GenericResponse =
+    internal static readonly GenericAccountActionResponse GenericResponse =
         new("If the account is eligible, an email has been queued.");
 
     public static void MapAccountLifecycleEndpoints(this RouteGroupBuilder auth, RouteGroupBuilder users)
@@ -95,7 +95,25 @@ internal static class AccountLifecycleEndpoints
         IClock clock,
         CancellationToken cancellationToken)
     {
-        var user = await userManager.FindByEmailAsync(request.Email.Trim());
+        await TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+        return Results.Accepted(value: GenericResponse);
+    }
+
+    /// <summary>
+    /// Re-issues a verification email out of band, or no-ops for a missing/confirmed account. Registration calls it on
+    /// the duplicate path so the HTTP answer stays byte-identical to a fresh signup while the real owner still gets
+    /// their link. It opens its own transaction, so the caller's transaction must be committed or rolled back first.
+    /// </summary>
+    internal static async Task TryResendVerificationAsync(
+        string email,
+        string? returnUrl,
+        UserManager<ApplicationUser> userManager,
+        GonesDbContext database,
+        AccountLifecycleService lifecycle,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var user = await userManager.FindByEmailAsync(email);
         if (user is not null && !user.EmailConfirmed)
         {
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
@@ -108,13 +126,12 @@ internal static class AccountLifecycleEndpoints
             if (!changePending)
             {
                 var profile = await database.UserProfiles.SingleAsync(item => item.UserId == user.Id, cancellationToken);
-                await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, request.ReturnUrl, cancellationToken);
+                await lifecycle.IssueAsync(user, AccountActionPurpose.VerifyEmail, profile.Username, profile.PreferredLanguage, null, returnUrl, cancellationToken);
                 database.AuditRecords.Add(NewAudit(user.Id, "auth.email.verification_resent", ["verificationGeneration"], clock));
                 await database.SaveChangesAsync(cancellationToken);
             }
             await transaction.CommitAsync(cancellationToken);
         }
-        return Results.Accepted(value: GenericResponse);
     }
 
     private static async Task<IResult> ForgotPasswordAsync(

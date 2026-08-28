@@ -9,6 +9,7 @@ import {
   EmailAccountRequest,
   EmailChangeRequest,
   ExternalIdentityResponse,
+  GenericAccountActionResponse,
   LoginRequest,
   OAuthFlowResponse,
   PatchUserProfileRequest,
@@ -107,7 +108,7 @@ export class AuthService {
     return await this.establishProfile(response, generation);
   }
 
-  register(request: RegisterRequest): Promise<UserProfileResponse> {
+  register(request: RegisterRequest): Promise<GenericAccountActionResponse> {
     return firstValueFrom(this.client.register(request));
   }
 

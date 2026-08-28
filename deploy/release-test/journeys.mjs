@@ -87,12 +87,13 @@ async function registerAndVerify(email, username) {
     method: 'POST',
     body: { email, username, password, firstName: 'Release', lastName: 'Tester' }
   });
-  if (registered.status !== 201 && registered.status !== 409) {
+  if (registered.status !== 202) {
     throw new Error(`register ${email} failed: ${registered.status} ${registered.text.slice(0, 200)}`);
   }
-  if (registered.status === 201) {
-    const token = await waitForActionToken(email, '/verify-email');
-    if (!token) throw new Error(`no verification email reached the local sink for ${email}`);
+  // Registration answers the same 202 for a fresh address and an existing one, so the sink decides:
+  // a token means this run created (or re-verified) the account, no token means an already-verified re-run.
+  const token = await waitForActionToken(email, '/verify-email');
+  if (token) {
     const verified = await call('/api/auth/verify-email', { method: 'POST', body: { token } });
     if (verified.status >= 300) throw new Error(`verify ${email} failed: ${verified.status} ${verified.text.slice(0, 200)}`);
   }
@@ -154,7 +155,7 @@ async function bootstrapStage() {
     method: 'POST',
     body: { email: bootstrapEmail, username: 'release-bootstrap-2', password, firstName: 'Release', lastName: 'Tester' }
   });
-  check(duplicate.status === 409, `re-registering the same address is refused (${duplicate.status})`);
+  check(duplicate.status === 202, `re-registering the same address is answered generically (${duplicate.status})`);
   const stillUser = await call('/api/admin/users', { token: session.token });
   check(stillUser.status === 403, `a verified account is not an Admin before the bootstrap CLI runs (${stillUser.status})`);
   emit({ bootstrapUserId: session.profile.userId ?? session.profile.id });

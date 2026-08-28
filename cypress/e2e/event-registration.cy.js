@@ -63,7 +63,7 @@ describe('public participant registration', () => {
       : req.reply({ statusCode: 401 }));
     cy.intercept('POST', '**/api/auth/register', req => {
       expect(req.body.returnUrl).to.eq(returnUrl);
-      req.reply({ statusCode: 201, body: { ...profile, email: 'calendar-user@example.test', emailVerified: false } });
+      req.reply({ statusCode: 202, body: { message: 'If the account is eligible, an email has been queued.' } });
     }).as('createAccount');
     cy.intercept('POST', '**/api/auth/verify-email', { statusCode: 204 }).as('verifyEmail');
     cy.intercept('POST', '**/api/auth/login', req => {

@@ -409,9 +409,9 @@ public sealed class AccountDeletionTests : IAsyncLifetime
             firstName = "Alice",
             lastName = "Martin"
         });
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
-        var body = await registration.Content.ReadFromJsonAsync<JsonElement>();
-        var userId = body.GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
+        await using var database = CreateContext();
+        var userId = (await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant())).Id;
         var token = await LoginAsync(email);
         return new TestAccount(userId, email, username, token);
     }

@@ -86,7 +86,7 @@ public sealed class AdminBootstrapAndCatalogTests : IAsyncLifetime
     {
         var email = $"boot-bad-{Guid.NewGuid():N}@example.test";
         using var registration = await RegisterAsync(email, $"Bad{Guid.NewGuid():N}"[..12]);
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         var wrongConfig = await RunBootstrapCliAsync(email, configuredEmail: "other@example.test");
         Assert.NotEqual(0, wrongConfig.ExitCode);
@@ -269,7 +269,7 @@ public sealed class AdminBootstrapAndCatalogTests : IAsyncLifetime
     private async Task RegisterAndVerifyAsync(string email, string username)
     {
         using var registration = await RegisterAsync(email, username);
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
         await using var database = CreateContext();
         var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
         user.EmailConfirmed = true;

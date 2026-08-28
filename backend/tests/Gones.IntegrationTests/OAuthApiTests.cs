@@ -205,7 +205,7 @@ public sealed class OAuthApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"existing-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Existing{suffix[..8]}");
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
         var started = await StartAsync("google", "complete", $"collision-{suffix}", email);
 
         using var callback = await SendWithCookieAsync(HttpMethod.Get, started.CallbackPath, started.Cookie);
@@ -340,7 +340,7 @@ public sealed class OAuthApiTests : IAsyncLifetime
         using var firstCallback = await SendWithCookieAsync(HttpMethod.Get, first.CallbackPath, first.Cookie);
         Assert.Equal(HttpStatusCode.OK, firstCallback.StatusCode);
         using var collidingRegistration = await RegisterAsync(changed, $"Collision{suffix[..8]}");
-        Assert.Equal(HttpStatusCode.Created, collidingRegistration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, collidingRegistration.StatusCode);
 
         var second = await StartAsync("google", "complete", subject, changed);
         using var secondCallback = await SendWithCookieAsync(HttpMethod.Get, second.CallbackPath, second.Cookie);

@@ -66,15 +66,8 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"private-{suffix}@example.test";
         using var register = await RegisterAsync(email, $"Player{suffix[..8]}", "valid-password-value");
-        var registered = await register.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal(HttpStatusCode.Created, register.StatusCode);
-        Assert.Equal("fr", registered.GetProperty("preferredLanguage").GetString());
-        Assert.False(registered.GetProperty("isFirstNamePublic").GetBoolean());
-        Assert.False(registered.GetProperty("isLastNamePublic").GetBoolean());
-        Assert.False(registered.GetProperty("isLocationPublic").GetBoolean());
-        Assert.False(registered.GetProperty("isBirthDatePublic").GetBoolean());
-        Assert.False(registered.GetProperty("isPreferredLanguagePublic").GetBoolean());
+        Assert.Equal(HttpStatusCode.Accepted, register.StatusCode);
 
         using var unauthorized = await Client.GetAsync("/api/users/me");
         Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
@@ -85,6 +78,12 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, profile.StatusCode);
         Assert.Equal(email, body.GetProperty("email").GetString());
         Assert.Equal("User", body.GetProperty("globalRole").GetString());
+        Assert.Equal("fr", body.GetProperty("preferredLanguage").GetString());
+        Assert.False(body.GetProperty("isFirstNamePublic").GetBoolean());
+        Assert.False(body.GetProperty("isLastNamePublic").GetBoolean());
+        Assert.False(body.GetProperty("isLocationPublic").GetBoolean());
+        Assert.False(body.GetProperty("isBirthDatePublic").GetBoolean());
+        Assert.False(body.GetProperty("isPreferredLanguagePublic").GetBoolean());
     }
 
     [Fact]
@@ -93,7 +92,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"claims-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Claims{suffix[..8]}", "valid-password-value");
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         var token = await LoginAsync(email, "valid-password-value");
         using var payload = DecodeJwtPayload(token);
@@ -129,7 +128,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         using var simple = await RegisterAsync($"simple-{suffix}@example.test", $"Simple{suffix[..8]}", "aaaaaaaaaaaa");
 
         Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, simple.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, simple.StatusCode);
     }
 
     [Fact]
@@ -139,22 +138,79 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         using var accepted = await RegisterAsync($"username-accepted-{suffix}@example.test", new string('a', 33), "valid-password-value");
         using var rejected = await RegisterAsync($"username-rejected-{suffix}@example.test", new string('b', 65), "valid-password-value");
 
-        Assert.Equal(HttpStatusCode.Created, accepted.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, accepted.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         Assert.Equal("validation_failed", await ProblemCodeAsync(rejected));
     }
 
     [Fact]
-    public async Task Normalized_username_and_email_collisions_are_rejected()
+    public async Task Normalized_username_and_email_collisions_answer_the_same_generic_202()
     {
         var suffix = Guid.NewGuid().ToString("N");
-        using var first = await RegisterAsync($"collision-{suffix}@example.test", $"Élodie{suffix[..5]}", "valid-password-value");
+        var email = $"collision-{suffix}@example.test";
+        var username = $"Élodie{suffix[..5]}";
+        using var first = await RegisterAsync(email, username, "valid-password-value");
         using var usernameCollision = await RegisterAsync($"other-{suffix}@example.test", $"E\u0301LODIE{suffix[..5]}", "another-valid-password");
         using var emailCollision = await RegisterAsync($"COLLISION-{suffix}@EXAMPLE.TEST", $"Other{suffix[..8]}", "another-valid-password");
 
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, usernameCollision.StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, emailCollision.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, usernameCollision.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, emailCollision.StatusCode);
+        var answer = await first.Content.ReadAsStringAsync();
+        Assert.Equal(answer, await usernameCollision.Content.ReadAsStringAsync());
+        Assert.Equal(answer, await emailCollision.Content.ReadAsStringAsync());
+        Assert.Equal(HeaderFingerprint(first), HeaderFingerprint(usernameCollision));
+        Assert.Equal(HeaderFingerprint(first), HeaderFingerprint(emailCollision));
+        Assert.All(new[] { first, usernameCollision, emailCollision }, response => Assert.Null(response.Headers.Location));
+
+        await using var database = CreateContext();
+        Assert.Equal(1, await database.Users.CountAsync(item => item.NormalizedEmail == email.ToUpperInvariant()));
+        Assert.Equal(1, await database.UserProfiles.CountAsync(profile => profile.NormalizedUsername == Username.Normalize(username)));
+    }
+
+    [Fact]
+    public async Task Duplicate_registration_resends_verification_to_unverified_account()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"duplicate-unverified-{suffix}@example.test";
+        using var first = await RegisterAsync(email, $"Unverified{suffix[..8]}", "valid-password-value");
+        using var duplicate = await RegisterAsync(email, $"Other{suffix[..8]}", "another-valid-password");
+
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, duplicate.StatusCode);
+
+        await using var database = CreateContext();
+        Assert.Equal(1, await database.Users.CountAsync(item => item.NormalizedEmail == email.ToUpperInvariant()));
+        var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
+        var tokens = await database.AccountActionTokens
+            .Where(item => item.UserId == user.Id && item.Purpose == AccountActionPurpose.VerifyEmail)
+            .ToListAsync();
+        Assert.Equal(2, tokens.Count);
+        Assert.Equal(1, tokens.Count(token => token.SupersededAt == null));
+    }
+
+    [Fact]
+    public async Task Duplicate_registration_for_verified_account_queues_no_email()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var email = $"duplicate-verified-{suffix}@example.test";
+        using var first = await RegisterAsync(email, $"Verified{suffix[..8]}", "valid-password-value");
+        Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
+
+        Guid userId;
+        await using (var confirmation = CreateContext())
+        {
+            var confirmed = await confirmation.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
+            confirmed.EmailConfirmed = true;
+            await confirmation.SaveChangesAsync();
+            userId = confirmed.Id;
+        }
+
+        using var duplicate = await RegisterAsync(email, $"Other{suffix[..8]}", "another-valid-password");
+        Assert.Equal(HttpStatusCode.Accepted, duplicate.StatusCode);
+
+        await using var database = CreateContext();
+        Assert.Equal(1, await database.NotificationOutboxRecords.CountAsync(item => item.UserId == userId));
     }
 
     [Fact]
@@ -170,8 +226,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         using var first = await requests[0];
         using var second = await requests[1];
 
-        Assert.Equal(1, new[] { first.StatusCode, second.StatusCode }.Count(status => status == HttpStatusCode.Created));
-        Assert.Equal(1, new[] { first.StatusCode, second.StatusCode }.Count(status => status == HttpStatusCode.Conflict));
+        Assert.All(new[] { first.StatusCode, second.StatusCode }, status => Assert.Equal(HttpStatusCode.Accepted, status));
         await using var database = CreateContext();
         Assert.Equal(1, await database.UserProfiles.CountAsync(profile => profile.NormalizedUsername == username.ToUpperInvariant()));
     }
@@ -182,7 +237,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"lockout-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Lockout{suffix[..8]}", "valid-password-value");
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         string? firstFailure = null;
         for (var attempt = 0; attempt < 5; attempt++)
@@ -547,7 +602,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"verify-register-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Verify{suffix[..8]}", "valid-password-value");
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         await using var database = CreateContext();
         var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
@@ -567,7 +622,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var email = $"verify-return-{suffix}@example.test";
         const string returnUrl = "/calendar?month=2035-03&view=list&register=lyon-legacy";
         using var registration = await RegisterAsync(email, $"Return{suffix[..8]}", "valid-password-value", returnUrl);
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         var registrationAction = await LatestActionUrlAsync(email);
         Assert.Equal(returnUrl, System.Web.HttpUtility.ParseQueryString(registrationAction.Query)["returnUrl"]);
@@ -587,7 +642,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var suffix = Guid.NewGuid().ToString("N");
         var email = $"verify-unsafe-{suffix}@example.test";
         using var registration = await RegisterAsync(email, $"Unsafe{suffix[..8]}", "valid-password-value", returnUrl);
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
 
         var action = await LatestActionUrlAsync(email);
         Assert.Null(System.Web.HttpUtility.ParseQueryString(action.Query)["returnUrl"]);
@@ -738,7 +793,7 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         var changeToken = await LatestActionTokenAsync(targetEmail.ToUpperInvariant());
 
         using var collision = await RegisterAsync(targetEmail, $"Collision{suffix[..8]}", "another-valid-password");
-        Assert.Equal(HttpStatusCode.Created, collision.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, collision.StatusCode);
         using var confirmation = await Client.PostAsJsonAsync("/api/auth/confirm-email-change", new { token = changeToken });
         Assert.Equal(HttpStatusCode.Conflict, confirmation.StatusCode);
 
@@ -910,6 +965,20 @@ public sealed class LocalIdentityApiTests : IAsyncLifetime
         payload = payload.PadRight(payload.Length + ((4 - payload.Length % 4) % 4), '=');
         return JsonDocument.Parse(Convert.FromBase64String(payload));
     }
+
+    /// <summary>
+    /// Every response header except the two that carry a fresh value on every request regardless of
+    /// outcome (<c>Date</c> and <c>X-Correlation-ID</c>). A registration answer that matched on status
+    /// and body but carried a stray <c>Location</c> would still be an existence oracle, so the
+    /// duplicate and fresh paths are compared on headers too.
+    /// </summary>
+    private static readonly string[] PerRequestHeaders = ["Date", "X-Correlation-ID"];
+
+    private static string HeaderFingerprint(HttpResponseMessage response) => string.Join('\n',
+        response.Headers.Concat(response.Content.Headers)
+            .Where(header => !PerRequestHeaders.Contains(header.Key, StringComparer.OrdinalIgnoreCase))
+            .Select(header => $"{header.Key}: {string.Join(',', header.Value)}")
+            .OrderBy(value => value, StringComparer.Ordinal));
 
     private static async Task<string> ProblemCodeAsync(HttpResponseMessage response)
     {

@@ -29,9 +29,8 @@ internal static class LocalIdentityEndpoints
             .RequireRateLimiting(AuthRateLimiting.IpPolicy)
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .AddEndpointFilter<AuthAccountRateLimitFilter>()
-            .Produces<UserProfileResponse>(StatusCodes.Status201Created)
+            .Produces<GenericAccountActionResponse>(StatusCodes.Status202Accepted)
             .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
         auth.MapPost("/login", LoginAsync)
             .RequireRateLimiting(AuthRateLimiting.IpPolicy)
@@ -102,10 +101,13 @@ internal static class LocalIdentityEndpoints
             {
                 await transaction.RollbackAsync(cancellationToken);
                 database.ChangeTracker.Clear();
-                await WriteAuditAsync(database, null, "auth.register.failed", "registration", "{\"outcome\":\"rejected\"}", clock, cancellationToken);
+                var duplicate = result.Errors.Any(error => error.Code is "DuplicateUserName" or "DuplicateEmail");
+                await WriteAuditAsync(database, null, "auth.register.failed", "registration",
+                    duplicate ? "{\"outcome\":\"conflict\"}" : "{\"outcome\":\"rejected\"}", clock, cancellationToken);
                 metrics.RecordAuthRejection("register");
-                if (result.Errors.Any(error => error.Code is "DuplicateUserName" or "DuplicateEmail")) throw new ResourceConflictException();
-                throw IdentityValidation(result.Errors);
+                if (!duplicate) throw IdentityValidation(result.Errors);
+                await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+                return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
             }
 
             database.UserProfiles.Add(profile);
@@ -115,7 +117,7 @@ internal static class LocalIdentityEndpoints
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             metrics.RecordAuthSuccess("register");
-            return Results.Created("/api/users/me", ToResponse(user, profile));
+            return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
         }
         catch (DbUpdateException)
         {
@@ -123,7 +125,8 @@ internal static class LocalIdentityEndpoints
             database.ChangeTracker.Clear();
             await WriteAuditAsync(database, null, "auth.register.failed", "registration", "{\"outcome\":\"conflict\"}", clock, cancellationToken);
             metrics.RecordAuthRejection("register");
-            throw new ResourceConflictException();
+            await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+            return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
         }
     }
 

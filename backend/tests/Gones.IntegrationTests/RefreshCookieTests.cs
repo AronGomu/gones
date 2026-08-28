@@ -149,7 +149,7 @@ public sealed class RefreshCookieTests : IAsyncLifetime
             firstName = "Alice",
             lastName = "Martin"
         });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
         return email;
     }
 

@@ -10,7 +10,7 @@ import { I18nService } from '../i18n/i18n.service';
 import { LastVisitedUrlService } from './last-visited-url.service';
 
 function setup(returnUrl: string | null = null, mode = 'register') {
-  const register = vi.fn(async () => ({ email: 'user@example.test', emailVerified: false }));
+  const register = vi.fn(async () => ({ message: 'If the account is eligible, an email has been queued.' }));
   const values: Record<string, string | null> = { returnUrl };
   const route = {
     snapshot: {
@@ -46,6 +46,7 @@ describe('AuthEntryComponent register password confirmation', () => {
   it('sends a safe returnUrl and carries it to Verify Email', async () => {
     const returnUrl = '/calendar?view=list&register=lyon-legacy';
     const { component, register, navigate } = setup(returnUrl);
+    component.email.set('user@example.test');
     component.password.set('aaaaaaaaaaaa');
     component.confirmPassword = 'aaaaaaaaaaaa';
 

@@ -209,7 +209,7 @@ public sealed class BrevoWebhookAndAdminTests : IAsyncLifetime
             firstName = "Test",
             lastName = "Admin"
         });
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
         await using (var database = CreateContext())
         {
             var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());

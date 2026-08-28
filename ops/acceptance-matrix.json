@@ -735,7 +735,7 @@
                 {
                     "gate": "rehearsal",
                     "target": "deploy/release-test/journeys.mjs",
-                    "detail": "re-registering the same address is refused"
+                    "detail": "re-registering the same address is answered generically"
                 }
             ]
         },
@@ -1030,8 +1030,8 @@
                 },
                 {
                     "gate": "vitest",
-                    "target": "src/app/auth/registration-gate.test.ts",
-                    "detail": "client-side completion gate"
+                    "target": "src/app/auth/auth-return-link.test.ts",
+                    "detail": "complete-profile mode offers no return link, so the mandatory profile cannot be skipped"
                 }
             ]
         },

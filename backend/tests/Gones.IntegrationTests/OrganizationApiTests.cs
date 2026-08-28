@@ -149,7 +149,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         await RegisterAndVerifyAsync(adminEmail, UniqueUsername("Adu"));
         await RegisterAndVerifyAsync(ownerEmail, UniqueUsername("Owu"));
         using var unverifiedReg = await RegisterAsync(unverifiedEmail, UniqueUsername("Unv"));
-        Assert.Equal(HttpStatusCode.Created, unverifiedReg.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, unverifiedReg.StatusCode);
         await PromoteToAdminAsync(adminEmail);
 
         await using var database = CreateContext();
@@ -1025,7 +1025,7 @@ public sealed class OrganizationApiTests : IAsyncLifetime
     private async Task RegisterAndVerifyAsync(string email, string username)
     {
         using var registration = await RegisterAsync(email, username);
-        Assert.Equal(HttpStatusCode.Created, registration.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, registration.StatusCode);
         await using var database = CreateContext();
         var user = await database.Users.SingleAsync(item => item.NormalizedEmail == email.ToUpperInvariant());
         user.EmailConfirmed = true;

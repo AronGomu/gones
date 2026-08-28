@@ -10,7 +10,6 @@ import { BackButtonComponent } from '../shared/back-button.component';
 import { AuthFieldErrors, fieldErrorsFromProblem } from './auth-errors';
 import { AuthService } from './auth.service';
 import { authReturnLink, AuthMode } from './auth-return-link';
-import { registrationDestination } from './registration-gate';
 import { LastVisitedUrlService, loginDestination } from './last-visited-url.service';
 import { passwordConfirmationErrors } from './password-confirmation';
 import { isValidLoginEmail, isValidLoginPassword, loginFormIsValid } from './login-validation';
@@ -171,7 +170,7 @@ export class AuthEntryComponent {
     const mismatch = passwordConfirmationErrors(this.password(), this.confirmPassword, this.i18n.t('auth.passwordMismatch'));
     if (Object.keys(mismatch).length) { this.fieldErrors.set(mismatch); this.error.set(this.i18n.t('auth.passwordMismatch')); return; }
     await this.run(async () => {
-      const profile = await this.auth.register({
+      await this.auth.register({
         email: this.email(),
         username: this.username,
         password: this.password(),
@@ -179,8 +178,8 @@ export class AuthEntryComponent {
         lastName: this.lastName,
         returnUrl: this.returnUrl || undefined
       });
-      await this.router.navigate([registrationDestination(profile)], {
-        queryParams: { email: profile.email, registered: 'true', ...(this.returnUrl ? { returnUrl: this.returnUrl } : {}) }
+      await this.router.navigate(['/verify-email'], {
+        queryParams: { email: this.email(), registered: 'true', ...(this.returnUrl ? { returnUrl: this.returnUrl } : {}) }
       });
     });
   }
