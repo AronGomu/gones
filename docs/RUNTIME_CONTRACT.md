@@ -28,8 +28,8 @@ dependency of any kind.
 
 ## Frontend data authority
 
-The frontend artifact declares one data authority and never infers it (ADR 0019). A host serving
-Gones Calendar V1 must serve a `server`-mode declaration:
+The frontend artifact declares one data authority and never infers it (ADR 0019, narrowed to
+server-only by ADR 0020). A host serving Gones Calendar V1 must serve a `server`-mode declaration:
 
 | Build arg (the artifact's default) | Value for the V1 server stack |
 | --- | --- |
@@ -37,12 +37,12 @@ Gones Calendar V1 must serve a `server`-mode declaration:
 | `GONES_FRONTEND_API_BASE_URL` | an API origin |
 | `GONES_FRONTEND_AUTH_V1` / `GONES_FRONTEND_ADMIN_V1` | optional; admin requires auth |
 
-The only other legal declaration is `GONES_FRONTEND_DATA_MODE=legacy-browser` with an **empty**
-`GONES_FRONTEND_API_BASE_URL` and both capabilities off — the frozen static deployment. Anything else
-fails `scripts/check-frontend-data-authority.mjs` during the image build; a hand-edited artifact
-refuses to bootstrap rather than falling back to browser storage. In `server` mode the database is
-the single authority and the browser holds only language, view preference, filters and the anonymous
-public read cache.
+`server` is the only legal value. The retired `legacy-browser` declaration (ADR 0020) is refused
+with `dataModeUnknown` at all three layers — the build-time checker
+(`scripts/check-frontend-data-authority.mjs`), the container-start gate and the browser resolver.
+Any other declaration fails the image build; a hand-edited artifact refuses to bootstrap rather than
+falling back to browser storage. The database is the single authority and the browser holds only
+language, view preference, filters and the anonymous public read cache.
 
 ### Runtime injection (C44)
 
@@ -51,7 +51,7 @@ serve on any origin, so the declaration that is actually served is injected at c
 
 | Runtime variable | Meaning |
 | --- | --- |
-| `GONES_DATA_MODE` | `server` or `legacy-browser` |
+| `GONES_DATA_MODE` | `server` — the only legal value |
 | `GONES_API_BASE_URL` | the exact API origin this deployment talks to |
 | `GONES_AUTH_V1` / `GONES_ADMIN_V1` | capability flags; admin requires auth |
 
@@ -65,8 +65,8 @@ together by `ops/frontend-data-authority.test.ts`), then writes, into the contai
   the configuration.
 
 An incoherent declaration **exits the container before nginx serves a byte**. A host that injects
-nothing keeps exactly the declaration the image was built with, which is what the frozen static
-deployment does. Consequence: an artifact is never bound to one domain or CDN, and moving a
+nothing keeps exactly the declaration the image was built with — the repository default, which
+declares `server`. Consequence: an artifact is never bound to one domain or CDN, and moving a
 deployment to another origin needs no rebuild — `npm run release:preflight` refuses a candidate whose
 served origin is the only origin its artifact could ever serve.
 
