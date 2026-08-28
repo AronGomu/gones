@@ -106,16 +106,9 @@ public static class LeagueRules
 
     public static LeagueResult CalculateLeagueResult(LeagueDocument league)
     {
-        var rows = CalculateRows(league.Tournaments.SelectMany(tournament => tournament.Rounds).SelectMany(round => round.Entries));
-        var dates = league.Tournaments.Select(tournament => tournament.TournamentDate).Where(date => date.Length > 0).Order(StringComparer.Ordinal).ToArray();
-        var incomplete = league.Tournaments.Any(tournament => CalculateTournamentResult(tournament).Incomplete);
-        return new LeagueResult(
-            "league",
-            dates.FirstOrDefault() ?? string.Empty,
-            dates.LastOrDefault() ?? string.Empty,
-            incomplete,
-            incomplete && rows.Count > 0,
-            rows);
+        var accumulator = new LeagueResultAccumulator();
+        foreach (var tournament in league.Tournaments) accumulator.Add(tournament);
+        return accumulator.Build("league");
     }
 
     public static PlayerStatistics CalculatePlayerStatistics(GonesData data, string playerName, PlayerStatisticsFilters? filters = null)
@@ -511,54 +504,9 @@ public static class LeagueRules
 
     private static IReadOnlyList<RankingRow> CalculateRows(IEnumerable<RoundEntry> entries)
     {
-        var records = new Dictionary<string, MutableRankingRecord>(StringComparer.Ordinal);
-        var opponentNamesByPlayer = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var entry in entries)
-        {
-            if (!Validate(entry).Valid) continue;
-            if (entry is ByeRoundEntry bye)
-            {
-                var record = EnsureRecord(records, bye.PlayerName);
-                record.MatchWins++;
-                record.Byes++;
-                record.Points += 3;
-                record.MatchAssignmentCount++;
-                continue;
-            }
-            if (entry is not MatchRoundEntry match) continue;
-            var player = EnsureRecord(records, match.Player1Name);
-            var opponent = EnsureRecord(records, match.Player2Name);
-            player.PlayedMatchCount++;
-            opponent.PlayedMatchCount++;
-            player.MatchAssignmentCount++;
-            opponent.MatchAssignmentCount++;
-            player.GameWins += match.Player1Score;
-            player.GameLosses += match.Player2Score;
-            opponent.GameWins += match.Player2Score;
-            opponent.GameLosses += match.Player1Score;
-            AddOpponent(opponentNamesByPlayer, match.Player1Name, match.Player2Name);
-            AddOpponent(opponentNamesByPlayer, match.Player2Name, match.Player1Name);
-            ApplyMatchPoints(player, opponent, match);
-        }
-
-        var rows = records.Values.Select(record => new RankingRow(
-            record.PlayerName,
-            record.Points,
-            record.MatchWins,
-            record.MatchDraws,
-            record.MatchLosses,
-            record.Byes,
-            record.PlayedMatchCount,
-            record.MatchAssignmentCount,
-            record.GameWins,
-            record.GameLosses,
-            0,
-            Percentage(record.GameWins, record.GameWins + record.GameLosses) ?? 0,
-            AverageOpponentPercentage(opponentNamesByPlayer.GetValueOrDefault(record.PlayerName) ?? [], records, MatchWinPercentage),
-            AverageOpponentPercentage(opponentNamesByPlayer.GetValueOrDefault(record.PlayerName) ?? [], records, GameWinPercentage)))
-            .ToList();
-        rows.Sort(CompareRankingRows);
-        return rows.Select((row, index) => row with { Rank = index + 1 }).ToArray();
+        var accumulator = new LeagueResultAccumulator();
+        accumulator.AddEntries(entries);
+        return accumulator.BuildRows();
     }
 
     private static int CompareRankingRows(RankingRow left, RankingRow right)
@@ -764,5 +712,103 @@ public static class LeagueRules
         public int MatchAssignmentCount { get; set; }
         public int GameWins { get; set; }
         public int GameLosses { get; set; }
+    }
+
+    /// <summary>
+    /// Single-pass standings accumulator. Feed Tournaments one at a time — a caller loading them in
+    /// batches keeps only the current batch plus per-player aggregates in memory — and <see cref="Build"/>
+    /// produces exactly what <see cref="CalculateLeagueResult"/> produces over the same Tournaments in the
+    /// same order.
+    ///
+    /// <para>The order the Tournaments arrive in is part of the contract: the row projection walks
+    /// <c>records</c> in insertion order, so feeding the same documents in a different order can reorder
+    /// two rows the sort cannot separate.</para>
+    /// </summary>
+    public sealed class LeagueResultAccumulator
+    {
+        private readonly Dictionary<string, MutableRankingRecord> records = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, List<string>> opponentNamesByPlayer = new(StringComparer.Ordinal);
+        private string? minDate;
+        private string? maxDate;
+        private bool incomplete;
+
+        public void Add(TournamentDocument tournament)
+        {
+            ArgumentNullException.ThrowIfNull(tournament);
+            var entries = tournament.Rounds.SelectMany(round => round.Entries).ToArray();
+            AddEntries(entries);
+            if (tournament.TournamentDate.Length > 0)
+            {
+                if (minDate is null || string.CompareOrdinal(tournament.TournamentDate, minDate) < 0) minDate = tournament.TournamentDate;
+                if (maxDate is null || string.CompareOrdinal(tournament.TournamentDate, maxDate) > 0) maxDate = tournament.TournamentDate;
+            }
+            // The Incomplete half of CalculateTournamentResult, without computing that result's rows.
+            incomplete |= tournament.Rounds.Count == 0 || entries.Any(entry => !Validate(entry).Valid);
+        }
+
+        public LeagueResult Build(string scope)
+        {
+            var rows = BuildRows();
+            return new LeagueResult(
+                scope,
+                minDate ?? string.Empty,
+                maxDate ?? string.Empty,
+                incomplete,
+                incomplete && rows.Count > 0,
+                rows);
+        }
+
+        internal void AddEntries(IEnumerable<RoundEntry> entries)
+        {
+            foreach (var entry in entries)
+            {
+                if (!Validate(entry).Valid) continue;
+                if (entry is ByeRoundEntry bye)
+                {
+                    var record = EnsureRecord(records, bye.PlayerName);
+                    record.MatchWins++;
+                    record.Byes++;
+                    record.Points += 3;
+                    record.MatchAssignmentCount++;
+                    continue;
+                }
+                if (entry is not MatchRoundEntry match) continue;
+                var player = EnsureRecord(records, match.Player1Name);
+                var opponent = EnsureRecord(records, match.Player2Name);
+                player.PlayedMatchCount++;
+                opponent.PlayedMatchCount++;
+                player.MatchAssignmentCount++;
+                opponent.MatchAssignmentCount++;
+                player.GameWins += match.Player1Score;
+                player.GameLosses += match.Player2Score;
+                opponent.GameWins += match.Player2Score;
+                opponent.GameLosses += match.Player1Score;
+                AddOpponent(opponentNamesByPlayer, match.Player1Name, match.Player2Name);
+                AddOpponent(opponentNamesByPlayer, match.Player2Name, match.Player1Name);
+                ApplyMatchPoints(player, opponent, match);
+            }
+        }
+
+        internal IReadOnlyList<RankingRow> BuildRows()
+        {
+            var rows = records.Values.Select(record => new RankingRow(
+                record.PlayerName,
+                record.Points,
+                record.MatchWins,
+                record.MatchDraws,
+                record.MatchLosses,
+                record.Byes,
+                record.PlayedMatchCount,
+                record.MatchAssignmentCount,
+                record.GameWins,
+                record.GameLosses,
+                0,
+                Percentage(record.GameWins, record.GameWins + record.GameLosses) ?? 0,
+                AverageOpponentPercentage(opponentNamesByPlayer.GetValueOrDefault(record.PlayerName) ?? [], records, MatchWinPercentage),
+                AverageOpponentPercentage(opponentNamesByPlayer.GetValueOrDefault(record.PlayerName) ?? [], records, GameWinPercentage)))
+                .ToList();
+            rows.Sort(CompareRankingRows);
+            return rows.Select((row, index) => row with { Rank = index + 1 }).ToArray();
+        }
     }
 }

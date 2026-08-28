@@ -3000,3 +3000,85 @@ Work **signed out** on the server-backed archive (the cached catalogs are the pu
 - [ ] **Confirm the read semantics are untouched.** Nothing about how a row is *served* changed: `/registrations` still serves a row under 24h without hitting the server, still falls back to a stale row when the server is unreachable (throttle to Offline and reload — the page renders with its stale marker), still refetches on the page's refresh control, and cancelling or creating a registration still drops every `registrations?page=…` row at once via `invalidateFamily`. The only new behaviour is deletion on write past 200 keys.
 - [ ] **The commit is the two files the ticket names plus this checklist.** `git show --stat HEAD` → `src/app/backend/server-read-cache.service.ts`, `src/app/backend/server-read-cache.service.test.ts`, `artifacts/manual_test_checklist.md`. Nothing else moved: `git show HEAD -- backend/ cypress/ ops/ deploy/ compose.yaml package.json src/app/shared/ src/app/features/` must print nothing. In particular the localStorage caches (`catalog-cache.ts`, `player-detail-cache.service.ts`, `public-event.service.ts`) were bounded by an earlier slice and their caps are untouched here, and there is no IndexedDB schema change and no database version bump — `SERVER_READ_CACHE_DB_VERSION` is still `1`, so an existing browser keeps its rows and simply starts obeying the cap on the next write.
 - [ ] **No stack teardown is needed for this section** — it is frontend-only. `npm run e2e:ci` and `npm run cy:run` were deliberately not run for this slice (plan Scope Out). If you stopped the stack, use `docker compose down` on its own: do not add `--volumes` and do not run `npm run db:reset`, either wipes the local database volumes and forces a full reseed.
+
+## T36 season-read-batched
+
+- [ ] **Read this first — what changed, and the one claim every check below exists to test.** `GET /api/archive/league-seasons/{seasonId}/result` used to materialise **every** Tournament row of the Season in one unbounded `ToListAsync`, parse every jsonb document, and hold them all in a single in-memory `LeagueDocument` before computing standings. It now keyset-walks the same Tournaments in **pages of at most `Gones:Archive:SeasonResultBatchSize` (default `5000`, env `GONES__ARCHIVE__SEASONRESULTBATCHSIZE`)**, folding each page into a `LeagueRules.LeagueResultAccumulator` and releasing it before fetching the next. **The batch bounds how many documents are resident at once; it never bounds how many are counted.** Standings are a sum over every Round entry of every Tournament, so a document dropped from the walk does not shorten the table — it changes Alice's points. This body has no `truncated` flag and must never grow one. **If any step below shows the standings changing when you change only the batch size, stop: that is a hard failure of this commit, not a tuning knob.**
+- [ ] **Bring the stack up and find your largest Season, so everything after this is measured on real data rather than the two-Tournament test fixture.** With `docker compose up -d`, run:
+
+  ```
+  docker compose exec -T postgres psql -U gones_migration -d gones -At -c "
+  SELECT season_id, count(*) FROM archive_tournaments
+  WHERE deleted_at IS NULL AND season_id IS NOT NULL
+  GROUP BY season_id ORDER BY 2 DESC, season_id LIMIT 5;"
+  ```
+
+  Take the top row: call the id `S` and the count `N`. `N` is the number of documents one request has to fold. If `N` is 0 or 1 you cannot observe paging at all — import or seed more Tournaments first (`npm run dev:env`), or accept that every check below degenerates to the single-page case and proves nothing about batching.
+- [ ] **Capture the reference body at a batch size larger than the whole Season — this *is* the pre-commit code path.** A batch of `1000000` fetches every document in one query and breaks on the first short page, which is byte-for-byte what the old single-`ToListAsync` implementation did. Stop the running API and run a one-off with the override, because `compose.yaml` does not interpolate this key:
+
+  ```
+  docker compose stop api
+  docker compose run --rm --service-ports -e GONES__ARCHIVE__SEASONRESULTBATCHSIZE=1000000 api
+  ```
+
+  In a second terminal (substitute your `S`):
+
+  ```
+  curl -s http://127.0.0.1:5080/api/archive/league-seasons/S/result | jq -S . > /tmp/t36-whole.json
+  wc -c /tmp/t36-whole.json && jq '.rows | length' /tmp/t36-whole.json
+  ```
+
+  Ctrl-C the one-off when the file is written. Keep `/tmp/t36-whole.json` — it is the baseline for every comparison in this section.
+- [ ] **Confirm a Season that spans many batches answers exactly the same standings.** Repeat the run at three batch sizes that force multi-page walks — one that divides `N` exactly, one that does not, and the pathological `1`:
+
+  ```
+  for B in 1 7 "$((N/2))"; do
+    docker compose run --rm --service-ports -e GONES__ARCHIVE__SEASONRESULTBATCHSIZE=$B api &
+    sleep 15
+    curl -s http://127.0.0.1:5080/api/archive/league-seasons/S/result | jq -S . > /tmp/t36-batch-$B.json
+    docker compose stop api; wait
+    diff -u /tmp/t36-whole.json /tmp/t36-batch-$B.json && echo "BATCH $B IDENTICAL"
+  done
+  ```
+
+  Every `diff` must print nothing and every iteration must print `BATCH <B> IDENTICAL`. Run the loop by hand one batch size at a time if the backgrounding is awkward — the requirement is only that each body is captured while that batch size is in force. A single differing row, a different `rank`, a different `startDate`/`endDate`, or a different `opponentsMatchWinPercentage` means the walk is skipping or double-counting documents. `B=1` is the harshest case: `N` separate queries plus one, with every intermediate page a single document.
+- [ ] **Confirm the exact-multiple case, where the last page is empty.** The loop cannot tell "the Season ended exactly here" from "there is more", so a Season whose size is an exact multiple of the batch pays **one extra query that returns zero rows** and then stops. Pick a `B` that divides `N` exactly (for example `B = N`, or `B = 1` which always divides), re-run the capture above, and confirm two things: the body still matches `/tmp/t36-whole.json`, and the request **returns** rather than hanging. A hang here would mean the empty page did not end the loop. Note that `B = N` is the boundary worth trying explicitly: the first page is full, so the code must issue a second query, get nothing, and break.
+- [ ] **Prove it against the actual previous build, not just against a large batch size.** This is the definitive "unchanged from before" check and the only one that does not trust the new code to describe its own baseline. With the stack still up, check the parent commit out into a scratch worktree and run the *old* API against the same database on a different port:
+
+  ```
+  git worktree add /tmp/t36-before 84d33c0
+  cd /tmp/t36-before
+  GONES_DB_CONNECTION='Host=127.0.0.1;Port=5433;Database=gones;Username=gones_app;Password=local-app-only' \
+  GONES_ALLOWED_ORIGINS='http://127.0.0.1:4200' \
+  GONES_AUTH_SIGNING_KEY='local-development-only-signing-key-change-me' \
+  GONES_PUBLIC_APP_ORIGIN='http://127.0.0.1:4200' \
+  ASPNETCORE_URLS='http://127.0.0.1:5081' \
+  dotnet run --project backend/src/Gones.Api
+  ```
+
+  Then `curl -s http://127.0.0.1:5081/api/archive/league-seasons/S/result | jq -S . > /tmp/t36-old.json` and `diff -u /tmp/t36-old.json /tmp/t36-whole.json`. It must print nothing. Stop the old API, then clean up with `git worktree remove /tmp/t36-before` — do **not** delete the directory by hand and leave the worktree registered. `84d33c0` is the commit this slice was written on top of; if later tickets have landed, use `git log --oneline` to confirm it is still the parent of the T36 commit before trusting the comparison.
+- [ ] **Confirm the ETag and the 304 path did not move with the batch size.** The stamp is computed from the whole visible set *before* the walk starts and does not include the batch size — unlike the row-list route, whose ETag deliberately includes its ceiling because that ceiling decides a `truncated` flag. So:
+
+  ```
+  curl -sD - -o /dev/null http://127.0.0.1:5080/api/archive/league-seasons/S/result | grep -iE '^(etag|cache-control):'
+  ```
+
+  must print the **same** `ETag` at batch `1` and at batch `1000000`, and `Cache-Control: public, max-age=60` in both. Replay it with `curl -sD - -o /dev/null -H 'If-None-Match: <that etag>' …` and expect `304`. An ETag that changes with the batch size would evict every client's cached standings on a config tweak that changes nothing they can see.
+- [ ] **Confirm the error paths are untouched.** `curl -s -o /dev/null -w '%{http_code}\n'` against `/api/archive/league-seasons/season-does-not-exist/result` → `404`; against `/api/archive/league-seasons/%20/result` → `400`; both with `content-type: application/problem+json`. A Season that exists but holds no Tournament → `200` with `"rows": []`, `"startDate": ""`, `"endDate": ""`, `"incomplete": false`. The empty Season is the zero-batch case: the first query returns nothing, the loop breaks immediately, and the accumulator builds the empty result.
+- [ ] **Confirm memory is genuinely bounded and not merely reorganised — and understand exactly what "bounded" means here.** With `docker stats gones-api` (or `docker compose stats api`) open, hit the route on your largest Season at `1000000` and then at `500`, allowing a few seconds between runs. Peak RSS at the small batch must be visibly lower, and the gap must widen as `N` grows; the entity rows are fetched `AsNoTracking()` (`PublicArchiveEndpoints.cs`), so a finished page is genuinely unreferenced rather than pinned by EF's change tracker — that is what makes the reduction real. **What is bounded is the resident document set: at most `batchSize` rows and their parsed `TournamentDocument`s at a time, instead of all `N`.** What is *not* constant is the accumulator itself: it holds one record per player plus one opponent-name entry per match side, so it still grows with the Season's player and match counts, just not with document *size* (round text, archetypes, raw jsonb). Do not expect flat memory — expect the document tier to stop dominating.
+- [ ] **Optional deep check: count the queries the walk actually issues.** Only if you want the page count observed rather than inferred. This writes a local-only Postgres setting, so the reset step is mandatory:
+
+  ```
+  docker compose exec -T postgres psql -U gones_migration -d gones -c "ALTER DATABASE gones SET log_statement = 'all';"
+  docker compose restart api
+  # issue exactly one request at a known batch size B, then:
+  docker compose logs --since 2m postgres | grep -c 'FROM archive_tournaments'
+  docker compose exec -T postgres psql -U gones_migration -d gones -c "ALTER DATABASE gones RESET log_statement;"
+  docker compose restart api
+  ```
+
+  Expect `floor(N / B) + 1` page queries when `B` divides `N`, `ceil(N / B)` when it does not, plus the three fixed stamp statements (`COUNT`, `MAX`, `SUM`) the ETag has always issued. Before this commit it was always exactly one page query — that single unbounded read is the finding this slice fixes. Do not skip the `RESET`: leaving `log_statement = 'all'` on makes every later section's Postgres logs unreadable.
+- [ ] **Confirm a nonsense batch size cannot hang the route, and know the one value that does fail.** `-e GONES__ARCHIVE__SEASONRESULTBATCHSIZE=0` and `=-5` must both still answer complete, correct standings: the handler clamps with `Math.Max(1, …)`, and without that clamp a batch of `0` would loop forever fetching nothing. A **non-numeric** value (`=abc`) makes the route answer `500`, because `configuration.GetValue<int>` refuses to convert it — that is the identical failure mode the sibling `Gones:Archive:MaximumSeasonTournamentSize` has had all along, so treat it as an operator-misconfiguration report, not a regression introduced here.
+- [ ] **Confirm the frontend is untouched.** No client file changed in this commit, so `/archive/league-seasons` and any Season standings view must render exactly as before with no rebuild of the web bundle. If a Season's table looks different, the cause is server-side and belongs in the diff checks above.
+- [ ] **The commit is the four files the ticket names plus this checklist.** `git show --stat HEAD` → `backend/src/Gones.Domain/Leagues/LeagueRules.cs`, `backend/src/Gones.Api/Archive/PublicArchiveEndpoints.cs`, `backend/tests/Gones.UnitTests/LeagueRulesTests.cs`, `backend/tests/Gones.IntegrationTests/ArchiveTournamentDetailApiTests.cs`, `artifacts/manual_test_checklist.md`. Nothing else moved: `git show HEAD -- src/ cypress/ ops/ deploy/ compose.yaml package.json backend/src/Gones.Infrastructure/` must print nothing. In particular there is **no migration and no schema change** — the keyset walk orders on the existing `(tournament_date, document_id)` pair and `document_id` is already the primary key, which is what makes "every document visited exactly once" true rather than hopeful.
+- [ ] **No stack teardown beyond stopping what you started.** `npm run e2e:ci` and `npm run cy:run` were deliberately not run for this slice (plan Scope Out). If you stop the stack, use `docker compose down` on its own: do not add `--volumes` and do not run `npm run db:reset`, either wipes the local database volumes and forces a full reseed — which would also destroy the large Season you just used as evidence.

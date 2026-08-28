@@ -74,6 +74,14 @@ internal static class PublicArchiveEndpoints
     public const int MaximumSeasonTournamentSize = 5000;
     public const string MaximumSeasonTournamentSizeKey = "Gones:Archive:MaximumSeasonTournamentSize";
 
+    /// <summary>
+    /// The batch size of the Season standings read. Not a ceiling: standings are computed from every
+    /// document, so nothing here may truncate — the batch only bounds how many rows are resident at
+    /// once. Frozen at the sibling row-list ceiling above.
+    /// </summary>
+    public const int SeasonResultBatchSize = 5000;
+    public const string SeasonResultBatchSizeKey = "Gones:Archive:SeasonResultBatchSize";
+
     public static void MapPublicArchiveEndpoints(this WebApplication app)
     {
         app.MapGet("/api/archive/leagues/all", ListLeagueCatalogAsync)
@@ -403,10 +411,11 @@ internal static class PublicArchiveEndpoints
         HttpRequest request,
         HttpResponse response,
         GonesDbContext database,
+        IConfiguration configuration,
         CancellationToken cancellationToken)
     {
         ValidateRouteValue(seasonId, nameof(seasonId), ArchiveLeagueSeason.MaximumDocumentIdLength);
-        var season = await LoadSeasonAsync(database, seasonId, cancellationToken);
+        _ = await LoadSeasonAsync(database, seasonId, cancellationToken);
         var visible = VisibleTournamentsOfSeason(database, seasonId);
         // A representation of its own, so a client holding the row-list ETag is never answered 304 and
         // left rendering a standings body it never received.
@@ -419,17 +428,42 @@ internal static class PublicArchiveEndpoints
         SetReadThroughCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
 
-        var tournaments = await visible
-            .OrderBy(tournament => tournament.TournamentDate)
-            .ThenBy(tournament => EF.Functions.Collate(tournament.DocumentId, OrdinalCollation))
-            .ToListAsync(cancellationToken);
-        var league = new LeagueDocument(
-            season.DocumentId,
-            season.Name,
-            season.Status,
-            [.. tournaments.Select(tournament => ArchiveDocumentAdapter.ToLegacyTournament(tournament.ReadDocument(), seasonId))]);
+        // The only route here that carries no ceiling, and it may never grow one: standings are summed
+        // over every entry of every Tournament, so dropping documents answers wrong numbers rather than
+        // fewer rows. The batch bounds what is resident at once, not what is counted — the keyset walk
+        // below visits the whole Season, one page of documents at a time.
+        var batchSize = Math.Max(1, configuration.GetValue(SeasonResultBatchSizeKey, SeasonResultBatchSize));
+        var accumulator = new LeagueRules.LeagueResultAccumulator();
+        LocalDate? lastDate = null;
+        string? lastId = null;
+        while (true)
+        {
+            var page = visible;
+            // Strictly greater on the (date, id) pair the order is built from. `DocumentId` is the key,
+            // so a pair never repeats and no document can be visited twice or skipped.
+            if (lastDate is { } afterDate && lastId is { } afterId)
+            {
+                page = page.Where(tournament =>
+                    tournament.TournamentDate > afterDate
+                    || (tournament.TournamentDate == afterDate
+                        && string.Compare(EF.Functions.Collate(tournament.DocumentId, OrdinalCollation), afterId) > 0));
+            }
+            var batch = await page
+                .OrderBy(tournament => tournament.TournamentDate)
+                .ThenBy(tournament => EF.Functions.Collate(tournament.DocumentId, OrdinalCollation))
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+            foreach (var tournament in batch)
+                accumulator.Add(ArchiveDocumentAdapter.ToLegacyTournament(tournament.ReadDocument(), seasonId));
+            // A full page cannot prove the walk is over, so a Season that is an exact multiple of the
+            // batch pays one more query that comes back empty.
+            if (batch.Count < batchSize) break;
+            lastDate = batch[^1].TournamentDate;
+            lastId = batch[^1].DocumentId;
+        }
+
         // `League` now names the top tier, so a Season's standings must not label themselves one.
-        return Results.Ok(LeagueRules.CalculateLeagueResult(league) with { Scope = "season" });
+        return Results.Ok(accumulator.Build("season"));
     }
 
     /// <summary>

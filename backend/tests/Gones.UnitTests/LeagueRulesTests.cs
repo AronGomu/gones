@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Gones.Domain.Leagues;
 
 namespace Gones.UnitTests;
@@ -79,6 +80,50 @@ public sealed class LeagueRulesTests
             Assert.Equal(expected.Rival, row.Rival);
             Assert.Equal(expected.MostPlayedArchetype, row.MostPlayedArchetype);
         }
+    }
+
+    /// <summary>
+    /// The batched Season read feeds Tournaments one at a time, so the accumulator has to land on exactly
+    /// what the single-pass calculation lands on. Deep equality rather than field spot-checks: the whole
+    /// body is the contract, dates and ordering included.
+    /// </summary>
+    [Fact]
+    public void Accumulator_matches_the_single_pass_league_result()
+    {
+        TournamentDocument[] tournaments =
+        [
+            new("t-old", "season", "Tournament Old", "2026-03-01", "completed",
+                [new RoundDocument("t-old-round", [Match("Alice", "Bob", 2, 1), Match("Carol", "Alice", 0, 2)])], []),
+            // No Round at all, so it contributes no row and still makes the Season incomplete.
+            new("t-empty", "season", "Tournament Empty", "2026-05-04", "active", [], []),
+            // Three game wins is not a legal result, so the entry is skipped and incomplete is set.
+            new("t-new", "season", "Tournament New", "2026-08-17", "completed",
+                [new RoundDocument("t-new-round", [Match("Bob", "Carol", 3, 1)])], [])
+        ];
+        var league = new LeagueDocument("season-1", "Season One", "completed", tournaments);
+        var accumulator = new LeagueRules.LeagueResultAccumulator();
+
+        foreach (var tournament in tournaments) accumulator.Add(tournament);
+        var accumulated = accumulator.Build("league");
+
+        Assert.True(JsonNode.DeepEquals(
+            LeagueJson.ToNode(accumulated),
+            LeagueJson.ToNode(LeagueRules.CalculateLeagueResult(league))));
+        Assert.True(accumulated.Incomplete);
+        Assert.True(accumulated.Provisional);
+    }
+
+    [Fact]
+    public void Accumulator_over_no_tournaments_builds_the_empty_result()
+    {
+        var result = new LeagueRules.LeagueResultAccumulator().Build("season");
+
+        Assert.Equal("season", result.Scope);
+        Assert.Equal(string.Empty, result.StartDate);
+        Assert.Equal(string.Empty, result.EndDate);
+        Assert.False(result.Incomplete);
+        Assert.False(result.Provisional);
+        Assert.Empty(result.Rows);
     }
 
     private static GonesData Data(params LeagueDocument[] leagues) => new(LeagueNormalizer.GonesDataVersion, leagues, []);

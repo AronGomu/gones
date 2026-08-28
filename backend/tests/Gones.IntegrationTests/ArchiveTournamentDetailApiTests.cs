@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -126,6 +127,31 @@ public sealed class ArchiveTournamentDetailApiTests : IAsyncLifetime
         Assert.Equal(3, rows.Length);
     }
 
+    /// <summary>
+    /// The Season standings are the one archive read with no ceiling, because a dropped document changes
+    /// the numbers rather than shortening the list. Forcing the batch to a single document turns the walk
+    /// into three queries over a two-Tournament Season and pins that the answer is unchanged by it.
+    /// </summary>
+    [Fact]
+    public async Task Computes_the_Season_result_in_batches_without_truncation()
+    {
+        using var batched = CreateClient(("Gones:Archive:SeasonResultBatchSize", "1"));
+        using var whole = CreateClient();
+        var body = await ReadAsync(batched, "/api/archive/league-seasons/season-1/result");
+        var single = await ReadAsync(whole, "/api/archive/league-seasons/season-1/result");
+        var rows = body.GetProperty("rows").EnumerateArray().ToArray();
+
+        Assert.Equal("season", body.GetProperty("scope").GetString());
+        Assert.Equal("2026-03-01", body.GetProperty("startDate").GetString());
+        Assert.Equal("2026-08-17", body.GetProperty("endDate").GetString());
+        Assert.Equal(3, rows.Length);
+        // Alice played t-old and t-new, one per batch: a walk that stopped at the first page would show 1.
+        Assert.Equal(2, rows.Single(row => row.GetProperty("playerName").GetString() == "Alice").GetProperty("playedMatchCount").GetInt32());
+        // Two Tournaments is an exact multiple of a batch of one, so the third query comes back empty and
+        // the body still has to match the one the default batch produces in a single page.
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse(body.GetRawText()), JsonNode.Parse(single.GetRawText())));
+    }
+
     [Fact]
     public async Task Answers_empty_rows_for_the_result_of_a_Season_with_no_Tournament()
     {
@@ -182,7 +208,7 @@ public sealed class ArchiveTournamentDetailApiTests : IAsyncLifetime
         return await response.Content.ReadFromJsonAsync<JsonElement>();
     }
 
-    private HttpClient CreateClient()
+    private HttpClient CreateClient(params (string Key, string Value)[] settings)
     {
         var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -192,6 +218,7 @@ public sealed class ArchiveTournamentDetailApiTests : IAsyncLifetime
             builder.UseSetting("GONES_AUTH_SIGNING_KEY", "t7-archive-detail-signing-key-value");
             builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
             builder.UseSetting("Gones:PlayerStatistics:RebuildOnStartup", "false");
+            foreach (var (key, value) in settings) builder.UseSetting(key, value);
         });
         factories.Add(factory);
         return factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
