@@ -88,12 +88,18 @@ export class ArchiveCacheService {
   private handle?: Promise<IDBDatabase>;
 
   database(): Promise<IDBDatabase> {
-    this.handle ??= openDatabase(ARCHIVE_CACHE_DB_NAME, ARCHIVE_CACHE_DB_VERSION, (database) => {
-      for (const store of ARCHIVE_CACHE_STORES) {
-        if (database.objectStoreNames.contains(store)) continue;
-        database.createObjectStore(store, { keyPath: store === CACHE_YEAR_PARTITION_STORE ? 'year' : 'key' });
-      }
-    });
+    if (!this.handle) {
+      const opening = openDatabase(ARCHIVE_CACHE_DB_NAME, ARCHIVE_CACHE_DB_VERSION, (database) => {
+        for (const store of ARCHIVE_CACHE_STORES) {
+          if (database.objectStoreNames.contains(store)) continue;
+          database.createObjectStore(store, { keyPath: store === CACHE_YEAR_PARTITION_STORE ? 'year' : 'key' });
+        }
+      }).catch((error: unknown) => {
+        if (this.handle === opening) this.handle = undefined; // a later call must retry
+        throw error;
+      });
+      this.handle = opening;
+    }
     return this.handle;
   }
 

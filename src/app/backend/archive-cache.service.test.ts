@@ -9,7 +9,7 @@ import {
   CACHE_YEAR_PARTITION_STORE, CATALOG_TTL_MS, isArchiveCatalogFresh, utcDayKey
 } from './archive-cache.service';
 import type { ArchiveCatalogRecord, ArchiveLeagueSummary, ArchiveYearPartition, ArchiveYearsMetaRecord } from './archive-cache.service';
-import { fakeIndexedDbState, installFakeIndexedDb, resetFakeIndexedDb, restoreRealIndexedDb } from './in-memory-indexeddb.fake';
+import { fakeIndexedDbState, installFakeIndexedDb, installOpenFailingOnce, resetFakeIndexedDb, restoreRealIndexedDb } from './in-memory-indexeddb.fake';
 
 beforeEach(() => {
   resetFakeIndexedDb();
@@ -172,6 +172,26 @@ describe('archive cache storage contract', () => {
     await expect(cache.writeLeagueCatalog(catalogRecord([]))).resolves.toBeUndefined();
     await expect(cache.writeYearsMeta(yearsMeta())).resolves.toBeUndefined();
     await expect(cache.clearAll()).resolves.toBeUndefined();
+  });
+
+  it('a failed open is not memoized: database() rejects once then retries', async () => {
+    installOpenFailingOnce();
+    const cache = new ArchiveCacheService();
+
+    await expect(cache.database()).rejects.toThrow('Injected open failure');
+
+    await expect(cache.database()).resolves.toBeDefined();
+  });
+
+  it('the cache recovers after a transient open failure', async () => {
+    installOpenFailingOnce();
+    const cache = new ArchiveCacheService();
+
+    expect(await cache.readLeagueCatalog()).toBeNull();
+
+    const record = catalogRecord([league('a')]);
+    await cache.writeLeagueCatalog(record);
+    expect(await cache.readLeagueCatalog()).toEqual(record);
   });
 
   it('exposes no method that writes a single year partition', () => {
