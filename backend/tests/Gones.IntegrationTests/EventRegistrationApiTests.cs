@@ -204,6 +204,41 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         Assert.Equal(JsonValueKind.Null, participant.GetProperty("location").ValueKind);
     }
 
+    [Fact]
+    public async Task Public_participants_are_paged_and_cached()
+    {
+        var tournament = await CreateTournamentAsync("Paged Roster Cup", 10);
+        using var registered = await RegisterAsync(tournament.Id, seed.User.Id, "paged-roster");
+        Assert.Equal(HttpStatusCode.Created, registered.StatusCode);
+
+        using var first = await Client.GetAsync($"/api/events/{tournament.Slug}/participants");
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.NotNull(first.Headers.ETag);
+        Assert.Equal("public, max-age=60", first.Headers.CacheControl!.ToString());
+        var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, firstBody.GetProperty("page").GetInt32());
+        Assert.Equal(20, firstBody.GetProperty("pageSize").GetInt32());
+        Assert.Equal(1, firstBody.GetProperty("totalCount").GetInt32());
+        Assert.Single(firstBody.GetProperty("items").EnumerateArray());
+
+        using var replay = new HttpRequestMessage(HttpMethod.Get, $"/api/events/{tournament.Slug}/participants");
+        replay.Headers.TryAddWithoutValidation("If-None-Match", first.Headers.ETag!.ToString());
+        using var notModified = await Client.SendAsync(replay);
+        Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
+
+        using var second = await Client.GetAsync($"/api/events/{tournament.Slug}/participants?page=2&pageSize=1");
+        var secondBody = await second.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, secondBody.GetProperty("items").GetArrayLength());
+        Assert.Equal(2, secondBody.GetProperty("page").GetInt32());
+        Assert.Equal(1, secondBody.GetProperty("pageSize").GetInt32());
+        Assert.Equal(1, secondBody.GetProperty("totalCount").GetInt32());
+
+        using var clamped = await Client.GetAsync($"/api/events/{tournament.Slug}/participants?page=0&pageSize=500");
+        var clampedBody = await clamped.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(1, clampedBody.GetProperty("page").GetInt32());
+        Assert.Equal(100, clampedBody.GetProperty("pageSize").GetInt32());
+    }
+
     private async Task<JsonElement> PublicParticipantAsync(string title, bool birthDatePublic, bool locationPublic)
     {
         var tournament = await CreateTournamentAsync(title, 4);

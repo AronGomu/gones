@@ -15,7 +15,12 @@ import { MatDialog } from '@angular/material/dialog';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { of } from 'rxjs';
-import { PublicEventDetailResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import {
+  PublicEventDetailResponse,
+  PublicEventParticipantListResponse,
+  PublicEventParticipantResponse,
+  UserProfileResponse
+} from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
@@ -42,7 +47,7 @@ function build(options: { register?: () => Promise<unknown>; confirmUnregister?:
     register: vi.fn(options.register ?? (async () => ({}))),
     unregister: vi.fn(async () => ({})),
     capability: vi.fn(async () => ({ canRegister: true, canUnregister: false, reason: 'available', activeParticipantCount: 0, capacity: 2 })),
-    participants: vi.fn(async () => ({ items: [] }))
+    participants: vi.fn(async (): Promise<PublicEventParticipantListResponse> => ({ items: [], page: 1, pageSize: 100, totalCount: 0 }))
   };
   const injector = Injector.create({ providers: [
     { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics'), detail: vi.fn(async () => ({ data: event, stale: false, cachedAt: undefined })) } },
@@ -112,6 +117,34 @@ describe('PublicEventDetailComponent registration actions', () => {
     expect(participants).toContain('data-cy="registration-reason"');
     expect(participants).toContain('data-cy="registration-offline"');
     expect(participants).toContain('data-cy="registration-status"');
+  });
+
+  it('loads participants only after the visitor asks', async () => {
+    const { component, registrations } = build();
+    await component.load();
+    expect(registrations.participants).not.toHaveBeenCalled();
+    await component.showParticipants();
+    expect(registrations.participants).toHaveBeenCalledWith('lyon-legacy', 1, 100);
+    expect(component.participantsRequested()).toBe(true);
+  });
+
+  it('show more appends the next participants page', async () => {
+    const { component, registrations } = build();
+    const pageOne = { userId: 'u1', username: 'Alpha' } as unknown as PublicEventParticipantResponse;
+    const pageTwo = { userId: 'u2', username: 'Beta' } as unknown as PublicEventParticipantResponse;
+    registrations.participants
+      .mockResolvedValueOnce({ items: [pageOne], page: 1, pageSize: 100, totalCount: 2 })
+      .mockResolvedValueOnce({ items: [pageTwo], page: 2, pageSize: 100, totalCount: 2 });
+    await component.showParticipants();
+    await component.loadMoreParticipants();
+    expect(registrations.participants).toHaveBeenLastCalledWith('lyon-legacy', 2, 100);
+    expect(component.participants()).toEqual([pageOne, pageTwo]);
+    expect(component.participantsTotal()).toBe(2);
+  });
+
+  it('participants section is click-gated with a pager', () => {
+    expect(source).toContain('data-cy="public-participants-show"');
+    expect(source).toContain('data-cy="public-participants-more"');
   });
 
   it('successful registration opens the success dialog', async () => {

@@ -25,6 +25,8 @@ import {
 } from './event-registration.service';
 import { EventDetailViewComponent } from './event-detail-view.component';
 
+const PARTICIPANTS_PAGE_SIZE = 100;
+
 @Component({
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent, OfflineBannerComponent, EventDetailViewComponent],
@@ -71,7 +73,8 @@ import { EventDetailViewComponent } from './event-detail-view.component';
             @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
             <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
           }
-          @if (participantsLoading()) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
+          @if (!participantsRequested()) { <button mat-stroked-button type="button" data-cy="public-participants-show" (click)="showParticipants()">{{ i18n.t('registration.showParticipants') }}</button> }
+          @else if (participantsLoading() && !participants().length) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
           @else if (participantsError()) { <div role="alert" data-cy="public-participants-error"><p data-cy="public-participants-error-text">{{ i18n.t('registration.participantsLoadFailed') }}</p><button mat-stroked-button type="button" data-cy="public-participants-retry" (click)="loadParticipants()">{{ i18n.t('common.retry') }}</button></div> }
           @else if (!participants().length) { <p data-cy="public-participants-empty">{{ i18n.t('registration.noParticipants') }}</p> }
           @else {
@@ -80,6 +83,7 @@ import { EventDetailViewComponent } from './event-detail-view.component';
                 <li data-cy="public-participant"><strong [attr.data-cy]="'public-participant-name-' + participant.userId">{{ participant.username }}</strong>@if (optionalParticipantFields(participant); as fields) { @if (fields) { <span [attr.data-cy]="'public-participant-fields-' + participant.userId">{{ fields }}</span> } }</li>
               }
             </ul>
+            @if (participants().length < participantsTotal()) { <button mat-stroked-button type="button" data-cy="public-participants-more" [disabled]="participantsLoading()" (click)="loadMoreParticipants()">{{ i18n.t('registration.moreParticipants') }}</button> }
           }
         </section>
       </div>
@@ -97,6 +101,9 @@ export class PublicEventDetailComponent implements OnInit {
   @ViewChild('registrationStatus') private registrationStatus?: ElementRef<HTMLElement>;
   readonly event = signal<PublicEventDetailResponse | null>(null);
   readonly participants = signal<PublicEventParticipantResponse[]>([]);
+  readonly participantsRequested = signal(false);
+  readonly participantsTotal = signal(0);
+  private readonly participantsPage = signal(0);
   readonly capability = signal<EventRegistrationCapabilityResponse | null>(null);
   readonly loading = signal(true);
   readonly participantsLoading = signal(false);
@@ -126,7 +133,7 @@ export class PublicEventDetailComponent implements OnInit {
       this.event.set(result.data);
       this.stale.set(result.stale);
       this.cachedAt.set(result.cachedAt);
-      await Promise.all([this.loadParticipants(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
+      await Promise.all([this.participantsRequested() ? this.loadParticipants() : Promise.resolve(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
     } catch (error) {
       this.event.set(null);
       this.stale.set(false);
@@ -138,12 +145,38 @@ export class PublicEventDetailComponent implements OnInit {
     }
   }
 
+  async showParticipants(): Promise<void> {
+    this.participantsRequested.set(true);
+    await this.loadParticipants();
+  }
+
   async loadParticipants(): Promise<void> {
+    if (!this.participantsRequested()) return;
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
     this.participantsLoading.set(true);
     this.participantsError.set(false);
     try {
-      this.participants.set((await this.registrations.participants(slug)).items);
+      const response = await this.registrations.participants(slug, 1, PARTICIPANTS_PAGE_SIZE);
+      this.participants.set(response.items);
+      this.participantsPage.set(response.page);
+      this.participantsTotal.set(response.totalCount);
+    } catch {
+      this.participantsError.set(true);
+    } finally {
+      this.participantsLoading.set(false);
+    }
+  }
+
+  async loadMoreParticipants(): Promise<void> {
+    if (this.participantsLoading()) return;
+    const slug = this.route.snapshot.paramMap.get('slug') ?? '';
+    this.participantsLoading.set(true);
+    this.participantsError.set(false);
+    try {
+      const response = await this.registrations.participants(slug, this.participantsPage() + 1, PARTICIPANTS_PAGE_SIZE);
+      this.participants.update(current => [...current, ...response.items]);
+      this.participantsPage.set(response.page);
+      this.participantsTotal.set(response.totalCount);
     } catch {
       this.participantsError.set(true);
     } finally {

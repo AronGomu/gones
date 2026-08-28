@@ -52,8 +52,8 @@ export class EventRegistrationService {
     inject(SessionScopeService).register(() => this.retryKeys.clear());
   }
 
-  participants(slug: string): Promise<PublicEventParticipantListResponse> {
-    return firstValueFrom(this.client.participants(slug));
+  participants(slug: string, page = 1, pageSize = 100): Promise<PublicEventParticipantListResponse> {
+    return firstValueFrom(this.client.participants(slug, page, pageSize));
   }
 
   capability(eventId: string): Promise<EventRegistrationCapabilityResponse> {

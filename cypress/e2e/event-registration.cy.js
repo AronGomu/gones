@@ -7,11 +7,11 @@ const event = {
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 const profile = { id: 'user', email: 'user@example.test', emailVerified: true, globalRole: 'User', username: 'CurrentUser', firstName: 'Current', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false };
-const participants = { items: [{ userId: 'other', username: 'PublicUser', firstName: 'Visible', lastName: undefined, location: undefined, birthYear: undefined, preferredLanguage: undefined }] };
+const participants = { items: [{ userId: 'other', username: 'PublicUser', firstName: 'Visible', lastName: undefined, location: undefined, birthYear: undefined, preferredLanguage: undefined }], page: 1, pageSize: 100, totalCount: 1 };
 
 function common() {
   cy.intercept('GET', '**/api/events/lyon-legacy', event).as('detail');
-  cy.intercept('GET', '**/api/events/lyon-legacy/participants', participants).as('participants');
+  cy.intercept('GET', '**/api/events/lyon-legacy/participants*', participants).as('participants');
 }
 
 function authenticated(overrides = {}) {
@@ -133,6 +133,7 @@ describe('public participant registration', () => {
     cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401 });
     visit('/events/lyon-legacy');
     cy.get('[data-cy="registration-login"]').should('be.visible');
+    cy.get('[data-cy="public-participants-show"]').click();
     cy.get('[data-cy="public-participant"]').should('contain.text', 'PublicUser').and('contain.text', 'Visible').and('not.contain.text', 'user@example.test');
     cy.get('[data-cy="public-event-detail"]').should('not.contain.text', '@example.test');
   });

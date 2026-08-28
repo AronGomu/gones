@@ -147,9 +147,11 @@ export interface IClient {
      */
     eventsGET2(slug: string): Observable<PublicEventDetailResponse>;
     /**
+     * @param page (optional)
+     * @param pageSize (optional)
      * @return OK
      */
-    participants(slug: string): Observable<PublicEventParticipantListResponse>;
+    participants(slug: string, page: number | undefined, pageSize: number | undefined): Observable<PublicEventParticipantListResponse>;
     /**
      * @return OK
      */
@@ -2384,13 +2386,23 @@ export class Client implements IClient {
     }
 
     /**
+     * @param page (optional)
+     * @param pageSize (optional)
      * @return OK
      */
-    participants(slug: string): Observable<PublicEventParticipantListResponse> {
-        let url_ = this.baseUrl + "/api/events/{slug}/participants";
+    participants(slug: string, page: number | undefined, pageSize: number | undefined): Observable<PublicEventParticipantListResponse> {
+        let url_ = this.baseUrl + "/api/events/{slug}/participants?";
         if (slug === undefined || slug === null)
             throw new globalThis.Error("The parameter 'slug' must be defined.");
         url_ = url_.replace("{slug}", encodeURIComponent("" + slug));
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_ : any = {
@@ -2427,6 +2439,10 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PublicEventParticipantListResponse;
             return _observableOf(result200);
+            }));
+        } else if (status === 304) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("Not Modified", status, _responseText, _headers);
             }));
         } else if (status === 404) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -11518,6 +11534,9 @@ export interface PublicEventOrganizationResponse {
 
 export interface PublicEventParticipantListResponse {
     items: PublicEventParticipantResponse[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
 
     [key: string]: any;
 }

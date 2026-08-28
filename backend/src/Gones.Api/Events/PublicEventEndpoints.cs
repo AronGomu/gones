@@ -47,6 +47,7 @@ internal static partial class PublicEventEndpoints
         app.MapGet("/api/events/{slug}/participants", ListParticipantsAsync)
             .AllowAnonymous()
             .Produces<PublicEventParticipantListResponse>()
+            .Produces(StatusCodes.Status304NotModified)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         app.MapGet("/api/events/{slug}.ics", GetIcsAsync)
@@ -257,19 +258,32 @@ internal static partial class PublicEventEndpoints
 
     private static async Task<IResult> ListParticipantsAsync(
         string slug,
+        int? page,
+        int? pageSize,
+        HttpRequest request,
+        HttpResponse response,
         GonesDbContext database,
         CancellationToken cancellationToken)
     {
+        var pageNumber = page is null or < 1 ? 1 : page.Value;
+        var size = pageSize is null or < 1 ? DefaultPageSize : Math.Min(pageSize.Value, MaximumPageSize);
         var tournament = await LoadDetailAsync(database, slug, cancellationToken);
-        var profiles = await (
+        var query =
             from attempt in database.EventRegistrationAttempts.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on attempt.UserId equals profile.UserId
             where attempt.EventId == tournament.Id
                 && attempt.Status == TournamentRegistrationStatus.Confirmed
                 && profile.ClosedAt == null
             orderby profile.NormalizedUsername, profile.UserId
-            select profile
-        ).ToListAsync(cancellationToken);
+            select profile;
+        var total = await query.CountAsync(cancellationToken);
+        var profiles = await query
+            .Skip((pageNumber - 1) * size)
+            .Take(size)
+            .ToListAsync(cancellationToken);
+        var etag = HashETag($"participants:{tournament.Id:N}:{tournament.Version}:{total}:{pageNumber}:{size}:{string.Join('|', profiles.Select(profile => $"{profile.UserId:N}:{profile.UpdatedAt.ToUnixTimeTicks()}"))}");
+        SetPublicCache(response, etag);
+        if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
         var participants = profiles
             .Select(profile => new PublicEventParticipantResponse(
                 profile.UserId,
@@ -280,7 +294,7 @@ internal static partial class PublicEventEndpoints
                 profile.IsBirthDatePublic ? profile.BirthDate?.Year : null,
                 profile.IsPreferredLanguagePublic ? profile.PreferredLanguage : null))
             .ToList();
-        return Results.Ok(new PublicEventParticipantListResponse(participants));
+        return Results.Ok(new PublicEventParticipantListResponse(participants, pageNumber, size, total));
     }
 
     private static string? JoinLocation(UserProfile profile)
@@ -603,7 +617,11 @@ internal sealed record PublicTournamentFormatResponse(
     string Slug,
     int SortOrder);
 
-internal sealed record PublicEventParticipantListResponse(IReadOnlyList<PublicEventParticipantResponse> Items);
+internal sealed record PublicEventParticipantListResponse(
+    IReadOnlyList<PublicEventParticipantResponse> Items,
+    int Page,
+    int PageSize,
+    int TotalCount);
 
 internal sealed record PublicEventParticipantResponse(
     Guid UserId,
