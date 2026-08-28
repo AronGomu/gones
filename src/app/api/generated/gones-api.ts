@@ -11358,6 +11358,7 @@ export interface PlayerMatchRow {
 
 export interface PlayerNameListResponse {
     items: PlayerNameSummary[];
+    truncated: boolean;
 
     [key: string]: any;
 }

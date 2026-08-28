@@ -91,6 +91,7 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.Equal(2, items["Alice"].GetProperty("leagueCount").GetInt32());
         Assert.Equal(1, items["alice"].GetProperty("occurrenceCount").GetInt32());
         Assert.False(items.ContainsKey("Dana"), "deleted Leagues must not contribute names");
+        Assert.False(body.GetProperty("truncated").GetBoolean());
 
         using var filtered = await SendAsync(HttpMethod.Get, "/api/maintenance/player-names?search=ali", body: null, role: "Admin");
         var filteredNames = (await Body(filtered)).GetProperty("items").EnumerateArray()
@@ -98,6 +99,52 @@ public sealed class PlayerNameMaintenanceApiTests : IAsyncLifetime
         Assert.Contains("Alice", filteredNames);
         Assert.Contains("alice", filteredNames);
         Assert.DoesNotContain("Bob", filteredNames);
+    }
+
+    [Fact]
+    public async Task Player_name_search_is_capped_at_the_configured_ceiling_and_reports_truncation()
+    {
+        await using var cappedFactory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_DB_CONNECTION", postgres.GetConnectionString());
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+            builder.UseSetting("GONES_AUTH_SIGNING_KEY", "c36-maintenance-signing-key-value-long-enough");
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
+            builder.UseSetting("Gones:Maintenance:MaximumPlayerNameCatalogSize", "2");
+        });
+        using var cappedClient = cappedFactory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/maintenance/player-names");
+        request.Headers.TryAddWithoutValidation("X-Test-User", Actor.ToString("D"));
+        request.Headers.TryAddWithoutValidation("X-Test-Roles", "Organizer");
+        using var response = await cappedClient.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await Body(response);
+        var names = body.GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("name").GetString()).ToArray();
+        Assert.Equal(new[] { "Alice", "alice" }, names);
+        Assert.True(body.GetProperty("truncated").GetBoolean());
+    }
+
+    /// <summary>
+    /// The search term is a literal substring, as the in-memory <c>Contains</c> was. Unescaped, each of
+    /// these would change the answer: <c>%</c> and <c>_</c> are LIKE wildcards that match every seeded
+    /// name, and a trailing <c>\</c> is the ESCAPE character, which Postgres rejects outright.
+    /// </summary>
+    [Fact]
+    public async Task Player_name_search_matches_wildcard_and_escape_characters_literally()
+    {
+        foreach (var term in new[] { "%25", "_", "%5C" })
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"/api/maintenance/player-names?search={term}", body: null, role: "Organizer");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Empty((await Body(response)).GetProperty("items").EnumerateArray());
+        }
+
+        using var matching = await SendAsync(HttpMethod.Get, "/api/maintenance/player-names?search=li", body: null, role: "Organizer");
+        var names = (await Body(matching)).GetProperty("items").EnumerateArray()
+            .Select(item => item.GetProperty("name").GetString()).ToArray();
+        Assert.Equal(new[] { "Alice", "alice" }, names);
     }
 
     [Fact]

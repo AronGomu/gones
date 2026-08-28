@@ -10,6 +10,7 @@ using Gones.Domain.Persistence;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using Npgsql;
 
 namespace Gones.Api.Leagues;
 
@@ -19,6 +20,13 @@ namespace Gones.Api.Leagues;
 /// </summary>
 internal static class PlayerNameMaintenanceEndpoints
 {
+    /// <summary>
+    /// The player-name catalog ceiling. The maintenance screen downloads the whole catalog once and
+    /// filters it locally, so the cap bounds the body rather than paging it.
+    /// </summary>
+    public const int MaximumPlayerNameCatalogSize = 5000;
+    public const string MaximumPlayerNameCatalogSizeKey = "Gones:Maintenance:MaximumPlayerNameCatalogSize";
+
     public static void MapPlayerNameMaintenanceEndpoints(this WebApplication app)
     {
         var maintenance = app.MapGroup("/api/maintenance").RequireAuthorization(AuthorizationPolicies.Organizer);
@@ -57,49 +65,94 @@ internal static class PlayerNameMaintenanceEndpoints
         Results.Ok(await service.RenameAsync(OrganizationPrincipal.UserId(principal), request.FromName, request.ToName, cancellationToken));
 }
 
-internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClock clock, PlayerStatisticsRebuildService playerStatistics)
+internal sealed class PlayerNameMaintenanceService(
+    GonesDbContext database,
+    IClock clock,
+    PlayerStatisticsRebuildService playerStatistics,
+    IConfiguration configuration,
+    ILogger<PlayerNameMaintenanceService> logger)
 {
+    /// <summary>
+    /// One row per trimmed, non-empty player-name slot of every live Tournament — the SQL twin of
+    /// LeaguePlayerNameMaintenance.EnumeratePlayerNameSlots, so the list never deserializes a document.
+    /// </summary>
+    private const string PlayerNameSlotsSql = """
+        FROM archive_tournaments t
+        CROSS JOIN LATERAL jsonb_array_elements(t.document -> 'rounds') AS r(round)
+        CROSS JOIN LATERAL jsonb_array_elements(r.round -> 'entries') AS e(entry)
+        CROSS JOIN LATERAL (
+            SELECT btrim(candidate.value, E' \t\r\n') AS name
+            FROM (VALUES
+                (CASE WHEN e.entry ->> 'kind' = 'match' THEN e.entry ->> 'player1Name' END),
+                (CASE WHEN e.entry ->> 'kind' = 'match' THEN e.entry ->> 'player2Name' END),
+                (CASE WHEN e.entry ->> 'kind' = 'bye' THEN e.entry ->> 'playerName' END),
+                (CASE WHEN e.entry ->> 'kind' = 'invalid' THEN e.entry ->> 'player' END),
+                (CASE WHEN e.entry ->> 'kind' = 'invalid' THEN e.entry ->> 'opponent' END)
+            ) AS candidate(value)
+            WHERE candidate.value IS NOT NULL AND btrim(candidate.value, E' \t\r\n') <> ''
+        ) AS s
+        WHERE t.deleted_at IS NULL
+        """;
+
+    private static readonly string ListSql = $"""
+        SELECT s.name AS "Name", count(*)::int AS "OccurrenceCount", count(DISTINCT t.document_id)::int AS "LeagueCount"
+        {PlayerNameSlotsSql}
+          AND (@search = '' OR s.name ILIKE '%' || @search || '%' ESCAPE '\')
+        GROUP BY s.name
+        ORDER BY lower(s.name) COLLATE "C", s.name COLLATE "C"
+        LIMIT @limit
+        """;
+
+    private static readonly string ImpactsSql = $"""
+        SELECT t.document_id AS "Id", t.name AS "Name", count(*)::int AS "OccurrenceCount"
+        {PlayerNameSlotsSql}
+          AND s.name = @from
+        GROUP BY t.document_id, t.name
+        ORDER BY t.document_id
+        """;
+
+    private static readonly string MergeSql = $"""
+        SELECT EXISTS (
+            SELECT 1
+            {PlayerNameSlotsSql}
+              AND s.name <> @from
+              AND lower(s.name) = lower(@to)
+        ) AS "Value"
+        """;
+
     public async Task<PlayerNameListResponse> SearchAsync(string? search, CancellationToken cancellationToken)
     {
-        var names = new Dictionary<string, (int Occurrences, HashSet<string> Leagues)>(StringComparer.Ordinal);
-        foreach (var row in await ActiveTournamentsAsync(cancellationToken))
+        // The term is a literal substring, the way the in-memory Contains was: its own wildcards escape.
+        var term = (search ?? string.Empty).Trim();
+        var escaped = term.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+        var ceiling = configuration.GetValue(
+            PlayerNameMaintenanceEndpoints.MaximumPlayerNameCatalogSizeKey,
+            PlayerNameMaintenanceEndpoints.MaximumPlayerNameCatalogSize);
+        var rows = await database.Database
+            .SqlQueryRaw<PlayerNameCountRow>(ListSql, new NpgsqlParameter("search", escaped), new NpgsqlParameter("limit", ceiling + 1))
+            .ToListAsync(cancellationToken);
+
+        var truncated = rows.Count > ceiling;
+        if (truncated)
         {
-            foreach (var slot in LeaguePlayerNameMaintenance.EnumeratePlayerNameSlots(Carrier(row)))
-            {
-                var entry = names.TryGetValue(slot, out var existing) ? existing : (0, new HashSet<string>(StringComparer.Ordinal));
-                entry.Item1 += 1;
-                entry.Item2.Add(row.DocumentId);
-                names[slot] = entry;
-            }
+            rows.RemoveRange(ceiling, rows.Count - ceiling);
+            logger.LogWarning("Maintenance player-name catalog truncated: ceiling={Ceiling}", ceiling);
         }
 
-        var term = (search ?? string.Empty).Trim();
-        var items = names
-            .Where(item => term.Length == 0 || item.Key.Contains(term, StringComparison.OrdinalIgnoreCase))
-            .Select(item => new PlayerNameSummary(item.Key, item.Value.Occurrences, item.Value.Leagues.Count))
-            .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.Name, StringComparer.Ordinal)
-            .ToArray();
-        return new PlayerNameListResponse(items);
+        return new PlayerNameListResponse(
+            rows.Select(row => new PlayerNameSummary(row.Name, row.OccurrenceCount, row.LeagueCount)).ToArray(),
+            truncated);
     }
 
     public async Task<PlayerRenamePreviewResponse> PreviewAsync(string fromName, string toName, CancellationToken cancellationToken)
     {
         var (from, to) = RequireNames(fromName, toName);
-        var impacts = new List<PlayerRenameLeagueImpact>();
-        var mergesWithExisting = false;
-        foreach (var row in await ActiveTournamentsAsync(cancellationToken))
-        {
-            var document = Carrier(row);
-            var occurrences = LeaguePlayerNameMaintenance.CountExactOccurrences(document, from);
-            if (!mergesWithExisting)
-            {
-                mergesWithExisting = LeaguePlayerNameMaintenance.EnumeratePlayerNameSlots(document)
-                    .Any(slot => !string.Equals(slot, from, StringComparison.Ordinal) && SameName(slot, to));
-            }
-            if (occurrences == 0) continue;
-            impacts.Add(new PlayerRenameLeagueImpact(row.DocumentId, row.Name, occurrences));
-        }
+        var impacts = await database.Database
+            .SqlQueryRaw<PlayerRenameImpactRow>(ImpactsSql, new NpgsqlParameter("from", from))
+            .ToListAsync(cancellationToken);
+        var mergesWithExisting = await database.Database
+            .SqlQueryRaw<bool>(MergeSql, new NpgsqlParameter("from", from), new NpgsqlParameter("to", to))
+            .SingleAsync(cancellationToken);
 
         return new PlayerRenamePreviewResponse(
             from,
@@ -107,7 +160,7 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
             impacts.Count,
             impacts.Sum(item => item.OccurrenceCount),
             mergesWithExisting,
-            impacts);
+            impacts.Select(row => new PlayerRenameLeagueImpact(row.Id, row.Name, row.OccurrenceCount)).ToArray());
     }
 
     public async Task<PlayerRenameCommitResponse> RenameAsync(Guid actorId, string fromName, string toName, CancellationToken cancellationToken)
@@ -162,12 +215,6 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
         return new PlayerRenameCommitResponse(from, to, results.Length, affectedOccurrences, results);
     }
 
-    private async Task<IReadOnlyList<ArchiveTournament>> ActiveTournamentsAsync(CancellationToken cancellationToken) =>
-        await database.ArchiveTournaments.AsNoTracking()
-            .Where(item => item.DeletedAt == null)
-            .OrderBy(item => item.DocumentId)
-            .ToListAsync(cancellationToken);
-
     /// <summary>
     /// One Tournament wrapped in the single-Tournament League the name-maintenance rules still take.
     /// The carrier's id and name never leave this method — the response rows carry the Tournament's.
@@ -177,9 +224,6 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
         var document = row.ReadDocument();
         return new LeagueDocument(row.DocumentId, row.Name, "active", [ArchiveDocumentAdapter.ToLegacyTournament(document, document.SeasonId ?? string.Empty)]);
     }
-
-    private static bool SameName(string left, string right) =>
-        string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private static (string From, string To) RequireNames(string fromName, string toName)
     {
@@ -192,10 +236,24 @@ internal sealed class PlayerNameMaintenanceService(GonesDbContext database, IClo
 
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
+
+    private sealed class PlayerNameCountRow
+    {
+        public string Name { get; set; } = string.Empty;
+        public int OccurrenceCount { get; set; }
+        public int LeagueCount { get; set; }
+    }
+
+    private sealed class PlayerRenameImpactRow
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public int OccurrenceCount { get; set; }
+    }
 }
 
 internal sealed record PlayerRenameRequest(string FromName, string ToName);
-internal sealed record PlayerNameListResponse(IReadOnlyList<PlayerNameSummary> Items);
+internal sealed record PlayerNameListResponse(IReadOnlyList<PlayerNameSummary> Items, bool Truncated);
 internal sealed record PlayerNameSummary(string Name, int OccurrenceCount, int LeagueCount);
 internal sealed record PlayerRenameLeagueImpact(string Id, string Name, int OccurrenceCount);
 internal sealed record PlayerRenamePreviewResponse(

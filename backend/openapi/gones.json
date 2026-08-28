@@ -11754,7 +11754,8 @@
       },
       "PlayerNameListResponse": {
         "required": [
-          "items"
+          "items",
+          "truncated"
         ],
         "type": "object",
         "properties": {
@@ -11763,6 +11764,9 @@
             "items": {
               "$ref": "#/components/schemas/PlayerNameSummary"
             }
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
