@@ -4,6 +4,7 @@ const AUTH_SESSION_TRANSITION_LOCK = 'gones.auth.session-transition';
 const AUTH_COORDINATION_PROBE_KEY = 'gones.auth.coordinationProbe';
 const AUTH_PRIVATE_PURGE_REQUIRED_KEY = 'gones.auth.privatePurgeRequired';
 const AUTH_SESSION_GENERATION_KEY = 'gones.auth.sessionGeneration';
+const AUTH_SESSION_OWNER_KEY = 'gones.auth.sessionOwner';
 
 export interface AuthCacheScope {
   readonly profileId: string;
@@ -14,7 +15,12 @@ export class AuthCoordinationUnavailableError extends Error {
   constructor() { super('authCoordinationUnavailable'); }
 }
 
-/** Origin-wide auth ordering metadata. Values are marker/counter only, never profile or domain data. */
+/**
+ * Origin-wide auth ordering metadata: markers, the session counter, and the account id that owns the
+ * current generation. Ownership is the one identifier here, it is what lets a tab tell a peer
+ * establishing its own account from a peer establishing another one, and teardown removes it. No
+ * profile or domain data is ever stored.
+ */
 @Injectable({ providedIn: 'root' })
 export class AuthSessionCoordinationService {
   private localGeneration = 0;
@@ -94,13 +100,35 @@ export class AuthSessionCoordinationService {
     }
   }
 
-  /** Starts a new profile session. Caller must hold `withAvailableLock()`. */
-  advanceGeneration(): number {
+  /**
+   * Starts a new profile session. Caller must hold `withAvailableLock()`. `profileId` is the account
+   * the token published in this same hold belongs to: recording it here, where the counter moves,
+   * is what keeps the two from ever disagreeing. Omitting it costs only the re-anchor — every reader
+   * of a missing record supersedes instead.
+   */
+  advanceGeneration(profileId?: string): number {
     const nextGeneration = this.generation() + 1;
     this.profileScope = undefined;
     this.persistGeneration(nextGeneration);
+    this.persistGenerationOwner(nextGeneration, profileId);
     this.localGeneration = nextGeneration;
     return nextGeneration;
+  }
+
+  /**
+   * The current generation, when `profileId` is exactly the account the tab that advanced it
+   * published it for. Everything else answers `undefined` and so supersedes the caller: no record, a
+   * record an older generation left behind, another account, a purge in between, unreadable storage.
+   */
+  generationOwnedBy(profileId: string): number | undefined {
+    if (!profileId || !this.isAvailable() || this.isPurgeRequired()) return undefined;
+    const generation = this.generation();
+    try {
+      return globalThis.localStorage?.getItem(AUTH_SESSION_OWNER_KEY) === `${generation}:${profileId}` ? generation : undefined;
+    } catch {
+      this.storageUnavailable = true;
+      return undefined;
+    }
   }
 
   bindProfile(profileId: string, generation: number): void {
@@ -137,6 +165,12 @@ export class AuthSessionCoordinationService {
     } catch {
       generationPersisted = false;
     }
+    try {
+      this.persistGenerationOwner(nextGeneration, undefined);
+    } catch {
+      // A record this teardown could not remove still names an older generation, so no establishment
+      // can read it as an owner. Removing it is hygiene for a store that outlives logout, not ordering.
+    }
     if (!purgeMarkerPersisted || !generationPersisted) this.storageUnavailable = true;
     return nextGeneration;
   }
@@ -166,6 +200,19 @@ export class AuthSessionCoordinationService {
     try {
       globalThis.localStorage?.setItem(AUTH_SESSION_GENERATION_KEY, String(generation));
       if (globalThis.localStorage?.getItem(AUTH_SESSION_GENERATION_KEY) !== String(generation)) throw new AuthCoordinationUnavailableError();
+    } catch {
+      this.storageUnavailable = true;
+      throw new AuthCoordinationUnavailableError();
+    }
+  }
+
+  /** The generation is part of the stored value, so a record can only ever answer for its own. */
+  private persistGenerationOwner(generation: number, profileId: string | undefined): void {
+    const owner = profileId ? `${generation}:${profileId}` : null;
+    try {
+      if (owner === null) globalThis.localStorage?.removeItem(AUTH_SESSION_OWNER_KEY);
+      else globalThis.localStorage?.setItem(AUTH_SESSION_OWNER_KEY, owner);
+      if ((globalThis.localStorage?.getItem(AUTH_SESSION_OWNER_KEY) ?? null) !== owner) throw new AuthCoordinationUnavailableError();
     } catch {
       this.storageUnavailable = true;
       throw new AuthCoordinationUnavailableError();

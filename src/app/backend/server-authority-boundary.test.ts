@@ -131,13 +131,21 @@ describe('canonical browser store containment', () => {
     expect(coordinationSource).toContain("const AUTH_COORDINATION_PROBE_KEY = 'gones.auth.coordinationProbe';");
     expect(coordinationSource).toContain("const AUTH_PRIVATE_PURGE_REQUIRED_KEY = 'gones.auth.privatePurgeRequired';");
     expect(coordinationSource).toContain("const AUTH_SESSION_GENERATION_KEY = 'gones.auth.sessionGeneration';");
+    expect(coordinationSource).toContain("const AUTH_SESSION_OWNER_KEY = 'gones.auth.sessionOwner';");
 
+    // The owner record holds one account id and the generation it was written for, so a tab a peer
+    // superseded can tell that peer established its own account before it re-anchors onto it (T41).
+    // It is written in the hold that moves the counter, read only as an exact match, and removed on
+    // teardown — an account id may live here for exactly as long as that account's session does.
     const allowed = new Map([
       ['globalThis.localStorage?.getItem(AUTH_SESSION_GENERATION_KEY)', 3],
       ['globalThis.localStorage?.getItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 4],
+      ['globalThis.localStorage?.getItem(AUTH_SESSION_OWNER_KEY)', 2],
       ['globalThis.localStorage?.setItem(AUTH_SESSION_GENERATION_KEY, String(generation))', 1],
       ["globalThis.localStorage?.setItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY, '1')", 1],
+      ['globalThis.localStorage?.setItem(AUTH_SESSION_OWNER_KEY, owner)', 1],
       ['globalThis.localStorage?.removeItem(AUTH_PRIVATE_PURGE_REQUIRED_KEY)', 1],
+      ['globalThis.localStorage?.removeItem(AUTH_SESSION_OWNER_KEY)', 1],
       ["globalThis.localStorage?.setItem(AUTH_COORDINATION_PROBE_KEY, '1')", 1],
       ['globalThis.localStorage?.getItem(AUTH_COORDINATION_PROBE_KEY)', 2],
       ['globalThis.localStorage?.removeItem(AUTH_COORDINATION_PROBE_KEY)', 1]
@@ -152,7 +160,8 @@ describe('canonical browser store containment', () => {
 
   it('keeps global browser storage access inside the documented browser-only allowlist', () => {
     expect(filesMatching(/localStorage\??\.(get|set|remove)Item/)).toEqual([
-      // Cross-tab marker + generation only; values contain no profile or domain data.
+      // Cross-tab markers, the session generation, and the account id owning that generation
+      // (removed on teardown). No profile or domain data.
       'src/app/auth/auth-session-coordination.service.ts',
       // Browser view preference.
       'src/app/features/events/public-event-list.component.ts',

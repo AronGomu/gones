@@ -34,6 +34,23 @@ type RefreshOutcome =
   | { readonly ok: true; readonly response: AccessTokenResponse }
   | { readonly ok: false; readonly error: unknown };
 
+/**
+ * The account an access token was minted for, read from its `sub` claim. It is never a grant: the
+ * only thing it is compared against is the profile the server returns for that same token, so a
+ * token this tab cannot read costs the ownership record and nothing else — readers of a missing
+ * record supersede, which is what a superseded tab already did.
+ */
+function accessTokenAccount(accessToken: string): string | undefined {
+  const claims = accessToken.split('.')[1];
+  if (!claims) return undefined;
+  try {
+    const parsed = JSON.parse(atob(claims.replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: unknown };
+    return typeof parsed?.sub === 'string' && parsed.sub ? parsed.sub : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly client = inject(Client);
@@ -276,9 +293,9 @@ export class AuthService {
     });
   }
 
-  /** Caller already holds the auth lock. Generation advance and token publication are one atomic step. */
+  /** Caller already holds the auth lock. Advance, ownership record and token publication are one atomic step. */
   private advanceAndPublishSession(response: AccessTokenResponse): number {
-    const sessionGeneration = this.coordination.advanceGeneration();
+    const sessionGeneration = this.coordination.advanceGeneration(accessTokenAccount(response.accessToken));
     this.tokens.set(response.accessToken);
     return sessionGeneration;
   }
@@ -299,20 +316,38 @@ export class AuthService {
 
   /** Session generation already advanced and token published under the lock. */
   private async completeProfileEstablishment(sessionGeneration: number): Promise<UserProfileResponse> {
+    let establishedGeneration = sessionGeneration;
     try {
       const profile = await firstValueFrom(this.client.meGET());
       await this.coordination.withAvailableLock(() => {
-        this.assertGeneration(sessionGeneration);
-        this.coordination.bindProfile(profile.id, sessionGeneration);
+        establishedGeneration = this.resolveEstablishedGeneration(profile.id, sessionGeneration);
+        this.coordination.bindProfile(profile.id, establishedGeneration);
         this.profile.set(profile);
       });
-      await this.catalogSync.adopt(profile.id, () => this.isPublishedSessionCurrent(profile, sessionGeneration));
-      await this.coordination.withAvailableLock(() => this.assertCurrentSession(sessionGeneration, profile));
+      await this.catalogSync.adopt(profile.id, () => this.isPublishedSessionCurrent(profile, establishedGeneration));
+      await this.coordination.withAvailableLock(() => this.assertCurrentSession(establishedGeneration, profile));
       return profile;
     } catch (error) {
-      await this.clearFailedEstablishment(sessionGeneration);
+      await this.clearFailedEstablishment(establishedGeneration);
       throw error;
     }
+  }
+
+  /**
+   * The generation this profile belongs in. `meGET` is a round trip and cannot hold the lock, so a
+   * peer may have advanced the counter meanwhile: when it advanced it for this exact account the two
+   * tabs are restoring one session and this one re-anchors onto it rather than reporting itself
+   * signed out. An owner that is another account, or one this tab cannot read at all, supersedes —
+   * binding a profile into a generation someone else owns is the one outcome worse than the failure.
+   */
+  private resolveEstablishedGeneration(profileId: string, sessionGeneration: number): number {
+    if (this.coordination.generation() === sessionGeneration) {
+      this.assertGeneration(sessionGeneration);
+      return sessionGeneration;
+    }
+    const ownedGeneration = this.coordination.generationOwnedBy(profileId);
+    if (ownedGeneration === undefined) throw new Error('authSessionTransitionSuperseded');
+    return ownedGeneration;
   }
 
   private captureCurrentSession(): { generation: number; profile: UserProfileResponse } {
