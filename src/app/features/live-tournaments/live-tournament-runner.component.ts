@@ -669,16 +669,18 @@ export class LiveTournamentRunnerComponent implements OnDestroy {
       const version = this.serverVersion;
       const result = await this.liveRepo.finalizeLiveTournament(latestLive.id, version);
       await this.cache.invalidate('live-tournaments');
-      if (!result.leagueId) {
-        // Browser-local authority (ADR 0021): there is no League to write into, so the finished
-        // tournament is handed to the user as the JSON the server would have archived.
+      if (this.localMode) {
+        // Browser-local authority (ADR 0021): the finished tournament is handed to the user as the
+        // JSON the server would have archived. The mode flag decides this, not the empty leagueId —
+        // the server also returns '' when it archives a Season-less tournament standalone.
         const archived = finalizeLiveTournamentDocument({ ...latestLive, finalizedTournamentId: result.finalizedTournamentId });
         saveJsonFile(archived, `gones-live-tournament-${latestLive.tournamentDate}.json`);
         this.localFinalized.set(true);
         await this.load();
         return;
       }
-      // The finalize wrote an Archive Tournament into its Season, so the public catalog is stale too.
+      // The finalize wrote an Archive Tournament (into its Season, or standalone when no League was
+      // selected), so the public catalog is stale too.
       await this.archiveRepo.invalidateArchiveCaches();
       await this.router.navigate(['/archive', 'tournaments', result.finalizedTournamentId]);
     } catch (error) {

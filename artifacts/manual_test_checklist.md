@@ -2071,3 +2071,24 @@ python3 -c "import json;d=json.load(open('fixtures/archive-domain/v5/bundle.json
       under the Import control, the page adds no records, and re-starting the API
       (`docker compose start api`) followed by a retry succeeds. The failure path is unchanged by this
       slice: both routes reject through `firstValueFrom` into the existing classifier.
+
+## T4 server-standalone-finalize
+
+`finalize()` decided "this was a browser-local finalize" from an empty `leagueId`. That sentinel stopped
+being local-only at commit `4e3eafe`: the server now archives a Season-less Live Tournament as a
+standalone Archive Tournament and returns `leagueId: ""` too, so an Organizer finalizing without a League
+got a JSON download while the server had already archived the Tournament — and the Archive Tournaments
+tab kept serving its cached list until the 24h TTL lapsed. The discriminator is now the authority mode
+(`LIVE_BACKEND_MODE`), pinned by
+`src/app/features/live-tournaments/live-tournament-cache-invalidation.test.ts`. Those unit tests use
+hand-written fakes, so the download, the cache drop and the real navigation are what is left here. Run
+the stack with `docker compose up -d --wait frontend-development` (dev server `127.0.0.1:4200`, API
+`127.0.0.1:5080`). Authority follows the role: signed out or a plain `User` is `browser-local`, an
+Organizer or Admin is `aspnet-api` — resolved once at bootstrap, so switch accounts with a full reload.
+
+- [ ] **A Season-less server finalize lands in the Archive instead of the Downloads folder.** Signed in as an Organizer, create a Live Tournament and leave the League select on unassigned. Play it to standings, press Archive and confirm. The app navigates to `/archive/tournaments/<id>` and shows the finished Tournament; no file is written to the browser's download directory, and no "finalized locally" notice appears on the runner.
+- [ ] **The Archive Tournaments tab shows it immediately, not in 24 hours.** From that Result page, go to the Archive Tournaments tab. The new Tournament is listed on the first load — no hard refresh, no waiting out the cache. (Before this fix the tab kept serving its cached list; if the Tournament is missing here, `invalidateArchiveCaches()` did not run.)
+- [ ] **A finalize into a Season still behaves exactly as before.** Repeat with a League selected. The app navigates to the archived Tournament, it appears under its Season in the Archive, and again nothing is downloaded.
+- [ ] **The browser-local finalize still hands over the JSON.** Sign out (or sign in as a plain `User`) and reload so the authority re-resolves. Create a Live Tournament in the browser-local store, play it to standings and Archive it. A `gones-live-tournament-<date>.json` file is offered for download, the runner shows the local-finalized state, and the app stays on the runner — it must not navigate to `/archive/tournaments/…`.
+- [ ] **The downloaded file is still the real archived Tournament.** Open that JSON: it holds the finished Tournament document with its standings, matching what the server would have archived. This slice did not change the local adapter, so a regression here means the download payload broke, not the routing.
+- [ ] **A failed finalize still reports instead of navigating.** Signed in as the Organizer again, stop the API (`docker compose stop api`), then press Archive on a Live Tournament. An error appears on the runner, the page does not navigate, and no download is triggered; restart with `docker compose start api` and retry to confirm the tournament finalizes normally. The `catch` in `finalize()` is untouched by this slice — this checks the fix did not reroute a failure into the success path.

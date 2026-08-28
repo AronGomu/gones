@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Same rationale as `live-tournament-league-picker.test.ts`: no TestBed / zone.js in this repo, so
 // the component is built with a bare `Injector` and hand-written fakes and `effect()` is a no-op.
@@ -8,12 +8,17 @@ vi.mock('@angular/core', async (importOriginal) => {
   return { ...actual, effect: () => ({ destroy: () => {} }) };
 });
 
+// Same rationale as `app.component.export.test.ts`: jsdom has no `URL.createObjectURL`, so the
+// download the local finalize offers is mocked to record that it was reached.
+const { saveJsonFileMock } = vi.hoisted(() => ({ saveJsonFileMock: vi.fn() }));
+vi.mock('../../shared/save-json-file', () => ({ saveJsonFile: saveJsonFileMock }));
+
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
-import { LIVE_BACKEND_MODE, LiveFinalizeResult } from '../../backend/application-backend';
+import { LIVE_BACKEND_MODE, LiveBackendMode, LiveFinalizeResult } from '../../backend/application-backend';
 import { ServerReadCacheService } from '../../backend/server-read-cache.service';
 import { ArchiveRepository } from '../../data/archive-repository.service';
 import { GlobalStatsCatalogCacheService } from '../players/global-stats-catalog-cache.service';
@@ -48,7 +53,7 @@ function season(): ArchiveLeagueSeasonSummary {
   };
 }
 
-async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
+async function setup(mode: LiveBackendMode = 'aspnet-api', overrides: Partial<LiveTournamentDocument> = {}) {
   const live = createLiveTournament({ id: 'live-1', leagueId: LEAGUE_ID, paidTrackingEnabled: false, ...overrides });
   const invalidateArchiveCaches = vi.fn(async () => undefined);
   const archiveRepo = { listLeagueSeasons: vi.fn(async () => ({ items: [season()] })), invalidateArchiveCaches } as unknown as ArchiveRepository;
@@ -66,7 +71,7 @@ async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
   const injector = Injector.create({ providers: [
     { provide: AuthService, useValue: auth },
     { provide: OnlineStatusService, useValue: { isOnline: () => true } },
-    { provide: LIVE_BACKEND_MODE, useValue: 'server' },
+    { provide: LIVE_BACKEND_MODE, useValue: mode },
     { provide: ServerReadCacheService, useValue: cache },
     { provide: GlobalStatsCatalogCacheService, useValue: { load: vi.fn(async () => ({ items: [], fetchedAt: '', fromCache: false, stale: false, truncated: false })) } },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
@@ -85,6 +90,8 @@ async function setup(overrides: Partial<LiveTournamentDocument> = {}) {
  * listed at `/live-tournaments` for a day. Removing either `invalidate` fails one of these.
  */
 describe('Live Tournament runner cache invalidation', () => {
+  beforeEach(() => saveJsonFileMock.mockClear());
+
   it('invalidates the list after finalizing into a Season', async () => {
     const { component, cache } = await setup();
 
@@ -94,13 +101,32 @@ describe('Live Tournament runner cache invalidation', () => {
   });
 
   it('invalidates the list after a local finalize', async () => {
-    const { component, cache, liveRepo } = await setup();
+    const { component, cache, liveRepo, navigate } = await setup('browser-local');
     // Browser-local authority produces no Season to write into (ADR 0021).
     vi.mocked(liveRepo.finalizeLiveTournament).mockResolvedValue(finalizeResult(''));
 
     await component.finalize();
 
     expect(cache.invalidate).toHaveBeenCalledWith('live-tournaments');
+    expect(saveJsonFileMock).toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * F5: the server archives a Season-less Live Tournament as a standalone Archive Tournament and
+   * returns an empty leagueId — the same sentinel the local adapter uses. The authority flag, not
+   * the leagueId, decides local vs server, so this finalize must still navigate to the archive.
+   */
+  it('routes a server standalone finalize with an empty leagueId to the server path', async () => {
+    const { component, liveRepo, navigate, invalidateArchiveCaches } = await setup('aspnet-api');
+    vi.mocked(liveRepo.finalizeLiveTournament).mockResolvedValue(finalizeResult(''));
+
+    await component.finalize();
+
+    expect(invalidateArchiveCaches).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/archive', 'tournaments', 'archived-1']);
+    expect(component.localFinalized()).toBe(false);
+    expect(saveJsonFileMock).not.toHaveBeenCalled();
   });
 
   it('invalidates the list after a delete', async () => {
