@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plan the remaining 39 audit fixes</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 1 · Plan shape</span>
+    <h1>Plan the remaining 39 audit fixes</h1>
+    <p class="lede">The 2026-08-26 audit left 39 validated findings as open GitHub issues (#2–#40). F1 (high, auth refresh race) is already shipped. Before writing a make-plan-v2 plan, these 8 top-level decisions must be settled — they gate everything downstream (ticket count, ordering, per-finding contracts). Tick answers, add precision, click Copy, paste back.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <b>Goal: fix remaining audit findings</b>
+    <span class="arrow">→</span><span class="node active">Scope</span>
+    <span class="arrow">→</span><span class="node active">Process vehicle</span>
+    <span class="arrow">→</span><span class="node active">Decomposition</span>
+    <span class="arrow">→</span><span class="node active">Publish policy</span>
+    <span class="arrow">→</span><span class="node active">Outputs</span>
+    <span class="arrow">→</span><span class="node active">Residuals</span>
+    <span class="arrow">→</span><span class="node">Per-finding contracts (round 2+)</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure role="img" aria-labelledby="fig1-title fig1-desc">
+      <figcaption><b id="fig1-title">Finding inventory at stake</b><span id="fig1-desc">39 open findings by severity and category. One dependency edge: F20 needs F19.</span></figcaption>
+      <svg viewBox="0 0 420 250">
+        <title>Findings by severity and category</title>
+        <desc>22 medium and 17 low findings, split across bug 13, ops 11, perf 7, security 4, test 2, refactor 2. F1 high already shipped.</desc>
+        <text x="10" y="20" class="svg-label" font-weight="700">Severity</text>
+        <rect x="10" y="30" width="220" height="18" rx="4" class="svg-node active"/>
+        <text x="16" y="43" class="svg-label">medium · 22 (F2–F19, F21–F23, F34)</text>
+        <rect x="10" y="54" width="170" height="18" rx="4" class="svg-node"/>
+        <text x="16" y="67" class="svg-label">low · 17 (F20, F24–F33, F35–F40)</text>
+        <rect x="10" y="78" width="90" height="18" rx="4" class="svg-node"/>
+        <text x="16" y="91" class="svg-note">high · F1 shipped ✓</text>
+        <text x="10" y="125" class="svg-label" font-weight="700">Category</text>
+        <rect x="10" y="135" width="130" height="16" rx="4" class="svg-node"/><text x="16" y="147" class="svg-note">bug · 13</text>
+        <rect x="10" y="156" width="110" height="16" rx="4" class="svg-node"/><text x="16" y="168" class="svg-note">ops · 11</text>
+        <rect x="10" y="177" width="70" height="16" rx="4" class="svg-node"/><text x="16" y="189" class="svg-note">perf · 7</text>
+        <rect x="10" y="198" width="50" height="16" rx="4" class="svg-node"/><text x="16" y="210" class="svg-note">security · 4</text>
+        <rect x="10" y="219" width="45" height="16" rx="4" class="svg-node"/><text x="16" y="231" class="svg-note">test 2 · refactor 2</text>
+        <rect x="250" y="135" width="60" height="26" rx="6" class="svg-node active"/><text x="260" y="152" class="svg-label">F19</text>
+        <line x1="310" y1="148" x2="345" y2="148" class="svg-line"/>
+        <polygon points="345,143 355,148 345,153" class="svg-arrow"/>
+        <rect x="355" y="135" width="60" height="26" rx="6" class="svg-node"/><text x="365" y="152" class="svg-label">F20</text>
+        <text x="250" y="180" class="svg-note">only dependency edge in the set</text>
+      </svg>
+    </figure>
+    <figure role="img" aria-labelledby="fig2-title fig2-desc">
+      <figcaption><b id="fig2-title">Round 1 frontier</b><span id="fig2-desc">Eight independent decisions; scope gates the per-finding contract rounds.</span></figcaption>
+      <svg viewBox="0 0 420 250">
+        <title>Decision frontier graph</title>
+        <desc>Goal node branches to scope, vehicle, decomposition, publish, outputs, residuals. Scope feeds per-finding contract rounds.</desc>
+        <rect x="140" y="10" width="140" height="28" rx="8" class="svg-node active"/>
+        <text x="155" y="29" class="svg-label" font-weight="700">Fix audit findings</text>
+        <line x1="210" y1="38" x2="70" y2="80" class="svg-line"/>
+        <line x1="210" y1="38" x2="210" y2="80" class="svg-line"/>
+        <line x1="210" y1="38" x2="350" y2="80" class="svg-line"/>
+        <rect x="15" y="80" width="110" height="26" rx="6" class="svg-node active"/><text x="25" y="97" class="svg-label">Q1 Scope</text>
+        <rect x="155" y="80" width="110" height="26" rx="6" class="svg-node active"/><text x="165" y="97" class="svg-label">Q2 Vehicle</text>
+        <rect x="295" y="80" width="115" height="26" rx="6" class="svg-node active"/><text x="305" y="97" class="svg-label">Q3–Q4 Tickets</text>
+        <line x1="70" y1="106" x2="70" y2="145" class="svg-line"/>
+        <polygon points="65,145 70,155 75,145" class="svg-arrow"/>
+        <rect x="15" y="155" width="180" height="26" rx="6" class="svg-node"/><text x="25" y="172" class="svg-label">Round 2+: per-finding contracts</text>
+        <rect x="230" y="130" width="110" height="26" rx="6" class="svg-node active"/><text x="240" y="147" class="svg-label">Q5 Publish</text>
+        <rect x="230" y="165" width="110" height="26" rx="6" class="svg-node active"/><text x="240" y="182" class="svg-label">Q6 Outputs</text>
+        <rect x="230" y="200" width="150" height="26" rx="6" class="svg-node active"/><text x="240" y="217" class="svg-label">Q7–Q8 Issues + residual</text>
+        <text x="15" y="215" class="svg-note">gated by Q1: contract depth is</text>
+        <text x="15" y="228" class="svg-note">per in-scope finding (level 5)</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="Which findings does this plan cover?">
+      <legend>1. Which findings does this plan cover?</legend>
+      <p class="why">Scope decides ticket count (each finding ≈ 1+ tickets), grill depth (level 5 contracts per in-scope finding), and how long implementation runs.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="All 22 mediums first (F2–F19, F21–F23, F34); lows deferred to a later plan"><span><b>All 22 mediums first (F2–F19, F21–F23, F34); lows deferred to a later plan</b><span class="rank">Recommended</span><span class="detail">Highest impact per effort; keeps the plan reviewable; F20 waits with the lows unless F19 lands.</span></span></label>
+        <label class="choice"><input type="checkbox" value="All 39 findings in one plan"><span><b>All 39 findings in one plan</b><span class="rank">Second</span><span class="detail">One artifact covers everything, but ~40+ tickets makes red-team and coherence review heavy and slow.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Security + user-facing bugs only (F2, F3, F32, F33 + bug mediums F4–F10, F16)"><span><b>Security + user-facing bugs only (F2, F3, F32, F33 + bug mediums F4–F10, F16)</b><span class="rank">Third</span><span class="detail">Smallest high-value slice; leaves ops/perf/docs drift open longer.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Custom subset — list finding IDs in precision"><span><b>Custom subset — list finding IDs in precision</b><span class="rank">Fourth</span><span class="detail">You pick; I need the exact F-ids.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. F2–F10 + F16 + F34 only, lows never"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="One master plan, or per-finding plans via the audit loop?">
+      <legend>2. One master plan, or per-finding plans via the audit loop?</legend>
+      <p class="why">The handoff's proven loop (make-audit-aron resume) plans each issue separately; make-plan-v2 builds one plan with cross-ticket coherence review. They are different vehicles — pick one.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="One make-plan-v2 master plan covering the in-scope findings; it supersedes the per-issue audit loop for those findings"><span><b>One make-plan-v2 master plan covering the in-scope findings; it supersedes the per-issue audit loop for those findings</b><span class="rank">Recommended</span><span class="detail">You invoked make-plan-v2; one plan gets red-team + coherence review across findings (catches shared-file collisions the per-issue loop cannot).</span></span></label>
+        <label class="choice"><input type="checkbox" value="Master plan = queue orchestration only (order, batching, gates); per-finding plans still made just-in-time by the audit loop"><span><b>Master plan = queue orchestration only (order, batching, gates); per-finding plans still made just-in-time by the audit loop</b><span class="rank">Second</span><span class="detail">Thin plan now, detail later; loses cross-finding contract review, keeps the proven F1 loop.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. master plan, but keep PROGRESS.md updated per row"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Ticket granularity?">
+      <legend>3. Ticket granularity?</legend>
+      <p class="why">make-plan-v2 requires each ticket = 1 commit-sized slice, app compiles after each. 22+ findings can map 1:1 or cluster where they touch the same file.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="1 finding = 1 ticket by default; split only where the F1 precedent showed a finding needs 2 commits; merge only same-file trivial pairs"><span><b>1 finding = 1 ticket by default; split only where a finding needs 2 commits; merge only same-file trivial pairs</b><span class="rank">Recommended</span><span class="detail">Keeps issue↔ticket↔commit traceability (evidence comment per issue stays clean).</span></span></label>
+        <label class="choice"><input type="checkbox" value="Cluster by subsystem (auth, archive/import, rate-limit/ops, perf, docs) — fewer, bigger tickets"><span><b>Cluster by subsystem (auth, archive/import, rate-limit/ops, perf, docs) — fewer, bigger tickets</b><span class="rank">Second</span><span class="detail">Less overhead, but multi-issue commits blur evidence trails and violate commit-sized-slice spirit.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. 1:1 but F21+F22+F23 (doc drift) may merge"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Ticket order?">
+      <legend>4. Ticket order?</legend>
+      <p class="why">Order determines what ships first and how early risk is retired. Only hard constraint: F20 after F19.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Severity desc, then category: security → bug → ops → perf → test/refactor; F-id order within a group"><span><b>Severity desc, then category: security → bug → ops → perf → test/refactor; F-id order within a group</b><span class="rank">Recommended</span><span class="detail">Retires user-facing and security risk first; deterministic.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Cheapest first (quick wins), hardest last"><span><b>Cheapest first (quick wins), hardest last</b><span class="rank">Second</span><span class="detail">Fast visible progress; risk stays open longest.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Cluster by touched subsystem to minimize context switching, order clusters by max severity"><span><b>Cluster by touched subsystem to minimize context switching, order clusters by max severity</b><span class="rank">Third</span><span class="detail">Fewer rebuild/re-read cycles; ordering less legible.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. F2 and F3 absolutely first"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Publish policy for implementation commits?">
+      <legend>5. Publish policy for implementation commits?</legend>
+      <p class="why">The audit skill authorized direct additive commits to main + push (F1 shipped that way). Global rule J2 defaults to feature branches. The plan's tickets must state one policy verbatim.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Keep audit precedent: additive commits directly on main, push after each ticket's gates pass (typecheck, lint, full vitest, backend:test)"><span><b>Keep audit precedent: additive commits directly on main, push after each ticket's gates pass</b><span class="rank">Recommended</span><span class="detail">Matches F1; gates = typecheck 0, lint 0, full vitest, backend:test; e2e stays human-only.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Feature branch per plan (e.g. audit-fixes-batch-1), you merge manually"><span><b>Feature branch per plan (e.g. audit-fixes-batch-1), you merge manually</b><span class="rank">Second</span><span class="detail">Safer review point; delays issue evidence comments until merge.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Commit locally on main, never push — you push manually"><span><b>Commit locally on main, never push — you push manually</b><span class="rank">Third</span><span class="detail">You control publication; issues can't get evidence links until pushed.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. main direct, but batch pushes every 5 tickets"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Which make-plan-v2 outputs to produce?">
+      <legend>6. Which make-plan-v2 outputs to produce?</legend>
+      <p class="why">Full skill emits: md index + ticket files + HTML plan + ADRs + architecture HTML docs. The F1 precedent ran markdown-only. Caller may skip outputs.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Markdown only: index + ticket files. No HTML plan, no ADRs, no architecture docs"><span><b>Markdown only: index + ticket files. No HTML plan, no ADRs, no architecture docs</b><span class="rank">Recommended</span><span class="detail">Fixes are bug/drift repairs, not new architecture; matches F1 precedent; ADR only if a fix makes a real design decision.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Markdown + HTML plan (readable overview), skip ADR/architecture docs unless a fix changes a contract"><span><b>Markdown + HTML plan, skip ADR/architecture docs unless a fix changes a contract</b><span class="rank">Second</span><span class="detail">Nice overview of a big plan; small extra cost.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Full skill output: md + HTML + ADRs + architecture docs"><span><b>Full skill output: md + HTML + ADRs + architecture docs</b><span class="rank">Third</span><span class="detail">Complete but heavy; most findings don't warrant an ADR.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. ADR only for F16 tiebreak contract decision"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="GitHub issue lifecycle per implemented finding?">
+      <legend>7. GitHub issue lifecycle per implemented finding?</legend>
+      <p class="why">F1's issue got an evidence comment and stayed open (audit skill default). 39 more issues will accumulate unless the plan states close-on-implement.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Comment evidence (commits + test output) then close the issue"><span><b>Comment evidence (commits + test output) then close the issue</b><span class="rank">Recommended</span><span class="detail">Keeps the issue list = open work; evidence preserved in the closed issue.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Comment evidence, leave open (audit skill default) — you close manually"><span><b>Comment evidence, leave open — you close manually</b><span class="rank">Second</span><span class="detail">You verify before closing; 40 open issues linger meanwhile.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. close lows automatically, mediums manually"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Include the F1 bootstrap-generation-race residual?">
+      <legend>8. Include the F1 bootstrap-generation-race residual?</legend>
+      <p class="why">F1 left a deliberate residual: establishProfile() calls advanceGeneration() outside the lock hold, so two tabs restoring concurrently can leave one tab bootstrapFailed. Not tracked by any issue yet.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Open a new GitHub issue for it and add it as a ticket in this plan (auth area, alongside F36 logout-hang)"><span><b>Open a new issue for it and add it as a ticket in this plan (auth area, alongside F36)</b><span class="rank">Recommended</span><span class="detail">Same code region as F36; fixing both together avoids touching auth.service.ts twice.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Open the issue only; fix out of scope for this plan"><span><b>Open the issue only; fix out of scope for this plan</b><span class="rank">Second</span><span class="detail">Tracked but deferred; auth lock code gets revisited later anyway.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Ignore for now — no issue, no ticket"><span><b>Ignore for now — no issue, no ticket</b><span class="rank">Third</span><span class="detail">Zero effort; known race stays untracked.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 1 · Plan shape — Plan the remaining 39 audit fixes\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

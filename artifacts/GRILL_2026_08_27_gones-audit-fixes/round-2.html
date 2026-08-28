@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resolve contradictions + gated findings</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 2 · Contradictions + gated findings</span>
+    <h1>Resolve contradictions + gated findings</h1>
+    <p class="lede">Round 1 settled scope (all 39 + F1 residual = 40 tickets), granularity (1:1), order (severity → category), publish (additive commits on main, gates per ticket), outputs (markdown only). Two of your answers contradict each other, and two findings can't be validated by the normal gates. 4 questions.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <b>Goal: fix 39 findings + residual</b>
+    <span class="arrow">→</span><span class="node">Scope ✓</span>
+    <span class="arrow">→</span><span class="node">Order ✓</span>
+    <span class="arrow">→</span><span class="node">Publish ✓</span>
+    <span class="arrow">→</span><span class="node active">Ticket depth</span>
+    <span class="arrow">→</span><span class="node active">GitHub surface</span>
+    <span class="arrow">→</span><span class="node active">F19 direction</span>
+    <span class="arrow">→</span><span class="node active">Human-gated validation</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure role="img" aria-labelledby="fig1-title fig1-desc">
+      <figcaption><b id="fig1-title">Contradiction 1: ticket depth</b><span id="fig1-desc">Your Q2 answer picked a thin orchestration plan; your Q7 precision asked for a normal implementation plan. These produce very different artifacts.</span></figcaption>
+      <svg viewBox="0 0 420 220">
+        <title>Two plan depths compared</title>
+        <desc>Option A: 40 full level-5 ticket files written now. Option B: thin index of 40 rows, detailed plan made just-in-time per finding during implementation.</desc>
+        <rect x="10" y="10" width="190" height="30" rx="8" class="svg-node active"/>
+        <text x="20" y="30" class="svg-label" font-weight="700">A · full tickets now</text>
+        <rect x="10" y="50" width="190" height="150" rx="8" class="svg-node"/>
+        <text x="20" y="72" class="svg-note">40 × level-5 ticket files</text>
+        <text x="20" y="90" class="svg-note">40 ticket-writer children</text>
+        <text x="20" y="108" class="svg-note">+ red-team + coherence review</text>
+        <text x="20" y="126" class="svg-note">catches same-file collisions now</text>
+        <text x="20" y="144" class="svg-note">big upfront cost, plan may go</text>
+        <text x="20" y="162" class="svg-note">stale as early tickets land</text>
+        <rect x="220" y="10" width="190" height="30" rx="8" class="svg-node active"/>
+        <text x="230" y="30" class="svg-label" font-weight="700">B · thin index, JIT detail</text>
+        <rect x="220" y="50" width="190" height="150" rx="8" class="svg-node"/>
+        <text x="230" y="72" class="svg-note">1 index: 40 rows + gates + order</text>
+        <text x="230" y="90" class="svg-note">detailed plan per finding made</text>
+        <text x="230" y="108" class="svg-note">right before implementing it</text>
+        <text x="230" y="126" class="svg-note">(proven F1 loop shape)</text>
+        <text x="230" y="144" class="svg-note">always fresh vs repo state,</text>
+        <text x="230" y="162" class="svg-note">no cross-finding review upfront</text>
+      </svg>
+    </figure>
+    <figure role="img" aria-labelledby="fig2-title fig2-desc">
+      <figcaption><b id="fig2-title">Findings the normal gates can't prove</b><span id="fig2-desc">Ticket gates are typecheck/lint/vitest/backend:test. Two findings live outside them.</span></figcaption>
+      <svg viewBox="0 0 420 220">
+        <title>Gated findings</title>
+        <desc>F37 fix is a Cypress spec; e2e:ci is human-only because teardown destroys DB volumes. F19/F20 fix is the Pages workflow; proof is a GitHub-side deploy.</desc>
+        <rect x="10" y="20" width="120" height="28" rx="8" class="svg-node active"/>
+        <text x="20" y="39" class="svg-label" font-weight="700">F37 cypress</text>
+        <line x1="130" y1="34" x2="185" y2="34" class="svg-line"/>
+        <polygon points="185,29 195,34 185,39" class="svg-arrow"/>
+        <rect x="195" y="20" width="215" height="28" rx="8" class="svg-node"/>
+        <text x="205" y="39" class="svg-label">proof needs e2e run (human-only)</text>
+        <text x="195" y="66" class="svg-note">scripts/full-stack-ci.mjs:126 → down --volumes</text>
+        <rect x="10" y="90" width="120" height="28" rx="8" class="svg-node active"/>
+        <text x="20" y="109" class="svg-label" font-weight="700">F19 + F20 Pages</text>
+        <line x1="130" y1="104" x2="185" y2="104" class="svg-line"/>
+        <polygon points="185,99 195,104 185,109" class="svg-arrow"/>
+        <rect x="195" y="90" width="215" height="28" rx="8" class="svg-node"/>
+        <text x="205" y="109" class="svg-label">proof = deploy observed on GitHub</text>
+        <text x="195" y="136" class="svg-note">artifact ships visitor-localhost API origin today —</text>
+        <text x="195" y="150" class="svg-note">fix direction (repair vs retire) is a product call, F20 fate follows</text>
+        <text x="10" y="190" class="svg-note">All 38 other tickets are provable by the standard four commands.</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="Ticket depth — full level-5 tickets now, or thin orchestration index with just-in-time planning?">
+      <legend>1. Ticket depth — full tickets now, or thin index + just-in-time planning?</legend>
+      <p class="why">Round 1 Q2 said "orchestration only, per-finding plans just-in-time"; Q7 precision said "just make normal implementation plan". Can't do both — this decides whether 40 ticket files get written before any implementation starts.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="A: Normal make-plan-v2 — 40 self-contained level-5 ticket files written now, red-team + coherence review across the whole set, then implementation runs ticket by ticket"><span><b>A: Normal make-plan-v2 — 40 self-contained level-5 ticket files written now</b><span class="rank">Recommended</span><span class="detail">Matches "normal implementation plan"; cross-finding review catches same-file collisions (auth, caches, docs) before any commit; cost is ~40 writer children upfront.</span></span></label>
+        <label class="choice"><input type="checkbox" value="B: Thin orchestration index — 40 rows with order, gates, fix-direction one-liners; the detailed level-5 plan for each finding is produced just-in-time right before implementing it"><span><b>B: Thin orchestration index — 40 rows; detailed plan made just-in-time per finding</b><span class="rank">Second</span><span class="detail">Matches your Q2 pick and the proven F1 loop; each plan is fresh against the repo; no upfront cross-finding review.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="e.g. A but only mediums get full tickets, lows stay thin"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="GitHub surface — any GitHub interaction in this plan at all?">
+      <legend>2. GitHub surface — any GitHub interaction at all?</legend>
+      <p class="why">Q7 precision said "ignore github part", but your Q8 pick includes "open a new GitHub issue" for the F1 residual. Need one consistent rule for all 40 tickets.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Zero GitHub: no issue creation, no comments, no closing anywhere in the plan; the F1 residual becomes a plan ticket only (no new issue)"><span><b>Zero GitHub: nothing created, commented, or closed; residual = plan ticket only</b><span class="rank">Recommended</span><span class="detail">Consistent with "ignore github part"; existing issues #2–#40 just stay as they are.</span></span></label>
+        <label class="choice"><input type="checkbox" value="One exception: open a single new issue for the F1 residual (so it's tracked like the other 39), otherwise zero GitHub in the plan"><span><b>One exception: open one issue for the residual, otherwise zero GitHub</b><span class="rank">Second</span><span class="detail">Keeps the audit issue set complete; one gh call total.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="F19 fix direction — repair the Pages deploy or retire it?">
+      <legend>3. F19 fix direction — repair the Pages deploy or retire it?</legend>
+      <p class="why">The Pages workflow publishes on every push to main an artifact whose API origin is the visitor's own localhost — unusable, and its runbook describes a retired product. Repair vs retire is a product decision only you can make; F20 (legacy redirect → 404) follows it.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Retire: delete the Pages workflow (and the legacy redirect requirement with it) — F20 becomes removal of the dead redirect + build check"><span><b>Retire: delete the Pages workflow; F20 becomes removing the dead redirect + build check</b><span class="rank">Recommended</span><span class="detail">Artifact is unusable today and the runbook says the product it served is retired; least ongoing maintenance.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Repair: keep Pages publishing, point the artifact at a real API origin (you provide the origin), fix the redirect target — F20 stays a redirect fix"><span><b>Repair: keep Pages, point artifact at a real API origin, fix the redirect</b><span class="rank">Second</span><span class="detail">Keeps a public static deploy; needs you to name the real API origin, and deploy verification is GitHub-side.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Pause: disable the workflow trigger (manual dispatch only), defer the repair-vs-retire call"><span><b>Pause: workflow on manual dispatch only, defer the call</b><span class="rank">Third</span><span class="detail">Stops publishing broken artifacts now; decision debt remains, F20 deferred too.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="if Repair: the real API origin URL"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Validation for human-gated tickets (F37 cypress; anything needing e2e)?">
+      <legend>4. Validation for human-gated tickets (F37 cypress; anything needing e2e)?</legend>
+      <p class="why">Per-ticket gates are typecheck/lint/full vitest/backend:test. F37's deliverable is a Cypress spec change — only a real e2e run proves it, and `npm run e2e:ci` is human-only (teardown destroys local DB volumes). The plan must say what "done" means for such tickets.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Implement + static verification (spec compiles, waits replaced by deterministic cy commands); ticket marks an explicit human follow-up: you run e2e once at the end of the whole plan"><span><b>Implement + static verification; one human e2e run at the very end covers all such tickets</b><span class="rank">Recommended</span><span class="detail">One human gate total instead of per-ticket; risk: a broken spec is found late.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Implement + static verification; you run e2e immediately after each such ticket before the queue continues"><span><b>Human e2e run immediately after each such ticket</b><span class="rank">Second</span><span class="detail">Earliest detection; you get interrupted mid-queue.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Skip F37 (and any e2e-only finding) — drop from plan scope"><span><b>Skip F37 and any e2e-only finding</b><span class="rank">Third</span><span class="detail">No unverifiable tickets, but the flaky spec stays flaky.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 2 · Contradictions + gated findings — Resolve contradictions + gated findings\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

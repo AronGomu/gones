@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Per-finding forks only you can pick</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 3 · Per-finding forks</span>
+    <h1>Per-finding forks only you can pick</h1>
+    <p class="lede">Plan shape is fully settled. I read all relevant finding specs: 36 of the 40 tickets have exactly one validated fix direction — no question needed. Four findings have a genuine fork where both branches are sound and the pick is a product/ops preference, not a technical fact. These are the last open decisions before the shared-understanding closeout.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress">
+    <b>Goal: fix 39 findings + residual</b>
+    <span class="arrow">→</span><span class="node">Plan shape ✓ (rounds 1–2)</span>
+    <span class="arrow">→</span><span class="node">36 tickets: fix per spec ✓</span>
+    <span class="arrow">→</span><span class="node active">F16 tiebreak</span>
+    <span class="arrow">→</span><span class="node active">F22 var naming</span>
+    <span class="arrow">→</span><span class="node active">F23 repair path</span>
+    <span class="arrow">→</span><span class="node active">F33 backup compat</span>
+  </nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure role="img" aria-labelledby="fig1-title fig1-desc">
+      <figcaption><b id="fig1-title">F16: two comparator chains, one contract</b><span id="fig1-desc">Live inserts a fifth tiebreak (match wins) before the name; the contract in docs/CONTEXT.md:722 defines only four keys. Finalize copies Live rounds into Archive, so the same rounds get ranked by both chains.</span></figcaption>
+      <svg viewBox="0 0 420 220">
+        <title>Live versus Archive tiebreak chains</title>
+        <desc>Both chains share points, opponents match win percent, game win percent, opponents game win percent. Live adds match wins before the player-name tiebreak; Archive goes straight to player name.</desc>
+        <text x="10" y="20" class="svg-label" font-weight="700">shared keys 1–4</text>
+        <rect x="10" y="30" width="400" height="26" rx="6" class="svg-node"/>
+        <text x="18" y="47" class="svg-note">points → opp match win % → game win % → opp game win %</text>
+        <line x1="110" y1="56" x2="60" y2="95" class="svg-line"/>
+        <line x1="310" y1="56" x2="360" y2="95" class="svg-line"/>
+        <rect x="10" y="95" width="150" height="52" rx="6" class="svg-node active"/>
+        <text x="18" y="113" class="svg-label" font-weight="700">Live</text>
+        <text x="18" y="130" class="svg-note">→ match wins → name</text>
+        <rect x="260" y="95" width="150" height="52" rx="6" class="svg-node"/>
+        <text x="268" y="113" class="svg-label" font-weight="700">Archive + contract</text>
+        <text x="268" y="130" class="svg-note">→ name</text>
+        <text x="10" y="175" class="svg-note">Reachable: two players equal on all 4 keys, differing on match wins (via draws)</text>
+        <text x="10" y="192" class="svg-note">→ different order on Live page vs Archive page of the same tournament.</text>
+        <text x="10" y="209" class="svg-note">TS↔C# parity is test-pinned; Live↔Archive is pinned by nothing.</text>
+      </svg>
+    </figure>
+    <figure role="img" aria-labelledby="fig2-title fig2-desc">
+      <figcaption><b id="fig2-title">F22 + F33 forks</b><span id="fig2-desc">F22: compose stacks shadow the four documented env vars with differently named ones. F33: adding a MAC to backups makes old archives fail strict verification.</span></figcaption>
+      <svg viewBox="0 0 420 220">
+        <title>F22 variable shadowing and F33 backup compatibility</title>
+        <desc>F22: operator edits documented vars in .env, compose assigns from different names, edit silently ignored. F33: new MAC-verified restore must decide what to do with archives taken before the MAC existed.</desc>
+        <text x="10" y="20" class="svg-label" font-weight="700">F22 today</text>
+        <rect x="10" y="30" width="115" height="26" rx="6" class="svg-node"/>
+        <text x="18" y="47" class="svg-note">.env (documented)</text>
+        <line x1="125" y1="43" x2="160" y2="43" class="svg-line"/>
+        <polygon points="160,38 170,43 160,48" class="svg-arrow"/>
+        <rect x="170" y="30" width="130" height="26" rx="6" class="svg-node active"/>
+        <text x="178" y="47" class="svg-note">compose: other names</text>
+        <line x1="300" y1="43" x2="335" y2="43" class="svg-line"/>
+        <polygon points="335,38 345,43 335,48" class="svg-arrow"/>
+        <rect x="345" y="30" width="65" height="26" rx="6" class="svg-node"/>
+        <text x="353" y="47" class="svg-note">ignored</text>
+        <text x="10" y="80" class="svg-note">Fix = pick one naming: wire documented names through compose,</text>
+        <text x="10" y="94" class="svg-note">or rename .env.example + docs to the names the stacks actually read.</text>
+        <text x="10" y="130" class="svg-label" font-weight="700">F33 after MAC fix</text>
+        <rect x="10" y="140" width="140" height="26" rx="6" class="svg-node"/>
+        <text x="18" y="157" class="svg-note">old backup (no MAC)</text>
+        <line x1="150" y1="153" x2="185" y2="153" class="svg-line"/>
+        <polygon points="185,148 195,153 185,158" class="svg-arrow"/>
+        <rect x="195" y="140" width="215" height="26" rx="6" class="svg-node active"/>
+        <text x="203" y="157" class="svg-note">restore: reject? or accept + warn?</text>
+        <text x="10" y="195" class="svg-note">Strict reject = strongest guarantee, but pre-fix archives become</text>
+        <text x="10" y="209" class="svg-note">unrestorable until you take one fresh backup after the fix lands.</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="F16 — codify the Live match-wins tiebreak, or drop it?">
+      <legend>1. F16 — codify the Live match-wins tiebreak, or drop it?</legend>
+      <p class="why">Same rounds can rank differently on Live vs Archive pages. Both fixes are sound; which order players see is your product call.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Codify: document the Live-only match-wins tiebreak next to the ranking contract (docs/CONTEXT.md) and add one cross-surface test pinning both chains as-is"><span><b>Codify: document Live's match-wins tiebreak in the contract + pin both chains with a cross-surface test</b><span class="rank">Recommended</span><span class="detail">Spec's low-risk default: zero behavior change, divergence becomes documented + test-guarded.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Unify: drop match wins from both Live comparators (TS live-tournament.ts + C# LiveRules.cs) so all four chains match the 4-key contract; add the same cross-surface pin"><span><b>Unify: drop match wins from Live so all four comparators match the 4-key contract</b><span class="rank">Second</span><span class="detail">One ranking everywhere; changes visible Live standings order in tied-on-4-keys cases.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="F22 — which naming wins for the runtime-injection variables?">
+      <legend>2. F22 — which naming wins for the runtime-injection variables?</legend>
+      <p class="why">Operator edits the four documented vars in .env; compose stacks assign from differently named vars, silently ignoring the edit (can even drop route groups → sign-in resolves to 404). You operate these stacks — your naming preference wins.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Documented names win: make compose stacks (compose.yaml + release-test + release-candidate) pass the documented .env.example names through to the frontend service"><span><b>Documented names win: wire the documented names through all compose stacks</b><span class="rank">Recommended</span><span class="detail">.env.example + OPERATIONS.md + DEPLOYMENT.md stay as written; the operator surface you already documented becomes real.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Stack names win: rename keys + comments in .env.example, OPERATIONS.md and DEPLOYMENT.md to the variable names the stacks actually read"><span><b>Stack names win: rename docs + example env to the names the stacks actually read</b><span class="rank">Second</span><span class="detail">No compose changes; doc-only; existing deployments keep their working var names.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="F23 — doc-only cleanup, or also rebuild a counts repair path?">
+      <legend>3. F23 — doc-only cleanup, or also rebuild a counts repair path?</legend>
+      <p class="why">The documented startup repair of archive catalog counts was deleted (commit 4e3eafe); stale-formula rows now repair only on write. After a future counts-formula bump there is no operator-facing repair path at all. Validation left "does the missing path deserve rebuilding" open — that's an ops-investment call.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Doc-only: remove the dead key from .env.example, restate in docs what repairs counts now (write-time repair), mark ADR 0042 superseded"><span><b>Doc-only: remove dead key, restate current repair behavior, mark ADR 0042 superseded</b><span class="rank">Recommended</span><span class="detail">Closes the finding as validated; write-time repair keeps working; no new code.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Doc cleanup + rebuild: additionally add an on-demand counts recompute (admin endpoint or startup flag) as a second commit in the F23 ticket"><span><b>Doc cleanup + rebuild an on-demand counts recompute path</b><span class="rank">Second</span><span class="detail">Restores an operator repair path before the next formula bump; new backend surface to build + test.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="F33 — after the MAC fix, what happens to old un-MACed backups on restore?">
+      <legend>4. F33 — after the MAC fix, what happens to old un-MACed backups on restore?</legend>
+      <p class="why">Fix adds an HMAC (second key derived from same passphrase) over the ciphertext, verified before decrypt. Archives taken before the fix have no MAC — restore policy for them is your ops call.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Strict: restore refuses any archive without a valid MAC; you take one fresh backup right after the fix lands (plan marks this human follow-up)"><span><b>Strict: refuse un-MACed archives; take one fresh backup right after the fix lands</b><span class="rank">Recommended</span><span class="detail">Strongest guarantee, no downgrade path an attacker can force; needs the one manual backup.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Grace: restore accepts un-MACed archives with a loud warning + explicit --allow-legacy flag; flag removal is a later manual step"><span><b>Grace: accept un-MACed archives only behind an explicit --allow-legacy flag with a loud warning</b><span class="rank">Second</span><span class="detail">Old archives stay restorable; the flag is a permanent downgrade lever until you remove it.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder=""></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 3 · Per-finding forks — Per-finding forks only you can pick\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>
