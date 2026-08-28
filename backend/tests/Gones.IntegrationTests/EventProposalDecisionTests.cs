@@ -556,15 +556,18 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         output.WriteLine($"statuses -> {string.Join(",", statuses.Select(status => (int)status))}");
         Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
 
-        // The rejection path names the operation in an audit row: it must name the route, never the
-        // token that was presented.
+        // Per ADR 0017 the rejection audit is best-effort and only the auth surface earns a durable row,
+        // so this review-link route is metered but never audited: a token-guessing flood must not append
+        // permanently retained rows. The redaction guard below is consequently vacuous — there is no row
+        // left for it to inspect — and is kept only to record the invariant it once proved ("name the
+        // route, never the token that was presented"). Do not read it as live coverage.
         await using var database = CreateContext();
         var audits = await database.AuditRecords.AsNoTracking()
             .Where(record => record.Action.EndsWith("rate_limited"))
             .Select(record => record.Action)
             .ToListAsync();
         output.WriteLine($"rate-limit audit actions -> {string.Join(",", audits.Distinct(StringComparer.Ordinal))}");
-        Assert.NotEmpty(audits);
+        Assert.Empty(audits);
         foreach (var action in audits)
         {
             Assert.DoesNotContain(attempted, guess => action.Contains(guess, StringComparison.Ordinal));

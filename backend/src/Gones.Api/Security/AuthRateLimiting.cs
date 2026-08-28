@@ -132,7 +132,11 @@ public static class AuthRateLimiting
             {
                 var operation = Operation(RouteKey(context.HttpContext));
                 context.HttpContext.RequestServices.GetRequiredService<OperationalMetrics>().RecordAuthRejection(operation);
-                await WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, cancellationToken);
+                if (ShouldAuditRejection(context.HttpContext.Request.Path))
+                {
+                    await WriteRateLimitAuditAsync(context.HttpContext.RequestServices, operation, cancellationToken);
+                }
+
                 context.HttpContext.Response.Headers.RetryAfter = context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter)
                     ? Math.Max(1, Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture)
                     : ((int)Window.TotalSeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -237,21 +241,33 @@ public static class AuthRateLimiting
         Window = window
     };
 
+    /// <summary>Only the auth surface earns a durable rejection audit row (ADR 0017: best-effort, auth-value partitions only).</summary>
+    internal static bool ShouldAuditRejection(PathString path) => path.StartsWithSegments("/api/auth");
+
     internal static async Task WriteRateLimitAuditAsync(IServiceProvider services, string operation, CancellationToken cancellationToken)
     {
-        // Public-read rejections can happen before persistence is configured; auditing is best-effort there.
+        // Best-effort per ADR 0017: a rejection must return 429 even when persistence is down or absent.
         var database = services.GetService<GonesDbContext>();
         if (database is null) return;
-        var clock = services.GetRequiredService<IClock>();
-        database.AuditRecords.Add(new AuditRecord
+        try
         {
-            Action = $"auth.{operation}.rate_limited",
-            EntityType = "user",
-            EntityId = "unknown",
-            RedactedDiff = "{\"outcome\":\"rate_limited\"}",
-            OccurredAt = clock.GetCurrentInstant()
-        });
-        await database.SaveChangesAsync(cancellationToken);
+            var clock = services.GetRequiredService<IClock>();
+            database.AuditRecords.Add(new AuditRecord
+            {
+                Action = $"auth.{operation}.rate_limited",
+                EntityType = "user",
+                EntityId = "unknown",
+                RedactedDiff = "{\"outcome\":\"rate_limited\"}",
+                OccurredAt = clock.GetCurrentInstant()
+            });
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            services.GetService<ILoggerFactory>()
+                ?.CreateLogger("Gones.Api.Security.AuthRateLimiting")
+                .LogWarning(exception, "Rate-limit audit write failed for operation {Operation}; rejection still returned", operation);
+        }
     }
 }
 

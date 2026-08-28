@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Api.Security;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -234,6 +235,45 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         }
     }
 
+    [Fact]
+    public async Task Rate_limit_rejection_still_returns_429_when_the_audit_write_fails()
+    {
+        // Auth runs against an unreachable DSN, so the rejection audit write cannot succeed. ADR 0017
+        // declares that write best-effort, so the documented 429 contract must survive its failure.
+        using var authFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.UseSetting("GONES_FEATURES:AUTH_V1", "true");
+            builder.UseSetting("GONES_AUTH_SIGNING_KEY", "integration-only-signing-key-for-rate-limit-audit");
+            builder.UseSetting("GONES_DB_CONNECTION", "Host=127.0.0.1;Port=1;Database=gones;Username=none;Password=none");
+            builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
+            builder.UseSetting("GONES_PUBLIC_APP_ORIGIN", "https://app.example");
+            builder.UseSetting("GONES_AUTH_PROVIDER", "Local");
+            builder.UseSetting(RateLimitSettings.AuthKey, "1");
+        });
+        using var client = authFactory.CreateClient();
+
+        // The first call spends the single permit; its own status depends on the dead database and is not the subject here.
+        using var spent = await PostLoginAsync(client);
+        using var rejected = await PostLoginAsync(client);
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, rejected.StatusCode);
+        Assert.Equal("rate_limited", await ProblemCode(rejected));
+        var retryAfter = Assert.Single(rejected.Headers.GetValues("Retry-After"));
+        Assert.True(int.TryParse(retryAfter, out var seconds) && seconds > 0, $"Retry-After must be positive seconds, was '{retryAfter}'.");
+    }
+
+    [Fact]
+    public void Only_the_auth_surface_earns_a_rejection_audit()
+    {
+        Assert.True(AuthRateLimiting.ShouldAuditRejection(new PathString("/api/auth/login")));
+        Assert.True(AuthRateLimiting.ShouldAuditRejection(new PathString("/api/auth/refresh")));
+        Assert.False(AuthRateLimiting.ShouldAuditRejection(new PathString("/api/_contract/public-read")));
+        Assert.False(AuthRateLimiting.ShouldAuditRejection(new PathString("/api/admin/x")));
+        Assert.False(AuthRateLimiting.ShouldAuditRejection(new PathString("/api/leagues")));
+        Assert.False(AuthRateLimiting.ShouldAuditRejection(new PathString("/health/live")));
+    }
+
     private HttpClient CreateClient(params (string Key, string Value)[] settings) =>
         factory.WithWebHostBuilder(builder =>
         {
@@ -260,6 +300,9 @@ public sealed class RateLimitPolicyTests : IClassFixture<WebApplicationFactory<P
         using var response = await client.SendAsync(request);
         return response.StatusCode;
     }
+
+    private static async Task<HttpResponseMessage> PostLoginAsync(HttpClient client) =>
+        await client.PostAsync("/api/auth/login", JsonContent.Create(new { email = "limit@example.test", password = "irrelevant-password-1!" }));
 
     private static async Task<HttpResponseMessage> GetAuthenticatedReadAsync(HttpClient client, string userId)
     {
