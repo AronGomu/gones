@@ -5,7 +5,7 @@
 > `/archive/league-seasons/:seasonId` and a Tournament at `/archive/tournaments/:tournamentId`. The
 > retired `/leagues` and `/leagues-archive/**` URLs are not aliased and render the 404 page. The
 > components live in `src/app/features/archive/`. The `leagues.html` references below are the
-> historical static prototype in `src/legacy-pages/`, not a live route; the app homepage is now `/`.
+> historical static prototype (since removed from the repo), not a live route; the app homepage is now `/`.
 > The layout direction below is unchanged; only the routes and file paths moved.
 
 This document captures the agreed layout direction for the Gones Leagues page. It is intentionally limited to layout and information hierarchy. It does not define visual style, colors, typography, or final component styling.
