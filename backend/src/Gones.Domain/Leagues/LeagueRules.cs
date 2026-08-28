@@ -169,7 +169,7 @@ public static class LeagueRules
         {
             var name = LeagueNormalizer.TrimPlayerName(playerName);
             if (accumulators.TryGetValue(name, out var accumulator)) return accumulator;
-            accumulator = new StatisticsAccumulator(name);
+            accumulator = new StatisticsAccumulator(name, trackMatches: false);
             accumulators.Add(name, accumulator);
             return accumulator;
         }
@@ -411,7 +411,7 @@ public static class LeagueRules
         opponent.MatchCount++;
         var archetype = SelectedArchetype(match, side, tournament, accumulator.PlayerName);
         if (archetype.Length > 0) accumulator.Archetypes[archetype] = accumulator.Archetypes.GetValueOrDefault(archetype) + 1;
-        accumulator.Matches.Add(new PlayerMatch("match", league, tournament, roundIndex, opponentName, ownScore, opponentScore));
+        if (accumulator.TrackMatches) accumulator.Matches.Add(new PlayerMatch("match", league, tournament, roundIndex, opponentName, ownScore, opponentScore));
     }
 
     private static PlayerStatistics FinalizeStatistics(StatisticsAccumulator accumulator)
@@ -722,9 +722,16 @@ public static class LeagueRules
         value.ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US"))
             .Contains(search.Trim().ToLower(System.Globalization.CultureInfo.GetCultureInfo("en-US")), StringComparison.Ordinal);
 
-    private sealed class StatisticsAccumulator(string playerName)
+    private sealed class StatisticsAccumulator(string playerName, bool trackMatches = true)
     {
         public string PlayerName { get; } = playerName;
+
+        /// <summary>
+        /// Whether <see cref="Matches"/> is filled. The global pass projects to
+        /// <see cref="GlobalPlayerStatistics"/>, which has no match history, so recording one there costs a
+        /// walk of the whole archive and is then thrown away; the per-player pass serves it and keeps it.
+        /// </summary>
+        public bool TrackMatches { get; } = trackMatches;
         public int PlayedMatchCount { get; set; }
         public int ByeCount { get; set; }
         public int MatchWins { get; set; }

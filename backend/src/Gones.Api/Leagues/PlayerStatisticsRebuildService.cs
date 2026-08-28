@@ -17,9 +17,9 @@ namespace Gones.Api.Leagues;
 /// scope, one scope per League, one scope per LeagueSeason. Each scope is recomputed from its own
 /// Tournaments — rating, matches, tournaments played and winrate are all replayed inside the scope
 /// and are never a global number filtered down. A standalone Tournament belongs to no League and no
-/// Season, so it feeds the global scope only. The cost is roughly three passes over the archive
-/// instead of one, because every attached Tournament is walked once for its Season, once for its
-/// League and once globally.</para>
+/// Season, so it feeds the global scope only. Each Tournament document is parsed once and the parsed
+/// document is shared across the scopes that contain it, so the extra scopes cost a walk of shared
+/// objects, not extra parses.</para>
 /// </summary>
 internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsRebuildService> logger)
 {
@@ -34,10 +34,11 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
         var started = Stopwatch.GetTimestamp();
         await LockAsync(database, cancellationToken);
 
-        var scopes = await ArchiveScopeSource.LoadAsync(database, cancellationToken);
         var rows = new List<PlayerStatisticsRow>();
-        foreach (var scope in scopes)
+        var scopeCount = 0;
+        await foreach (var scope in ArchiveScopeSource.LoadAsync(database, cancellationToken))
         {
+            scopeCount++;
             foreach (var statistics in LeagueRules.CalculateGlobalPlayerStatistics(scope.Data))
             {
                 rows.Add(PlayerStatisticsRow.From(statistics, scope.ScopeKind, scope.ScopeId));
@@ -54,7 +55,7 @@ internal sealed class PlayerStatisticsRebuildService(ILogger<PlayerStatisticsReb
         logger.LogInformation(
             "Player statistics rebuilt: {RowCount} rows across {ScopeCount} scopes in {ElapsedMilliseconds} ms.",
             rows.Count,
-            scopes.Count,
+            scopeCount,
             Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 

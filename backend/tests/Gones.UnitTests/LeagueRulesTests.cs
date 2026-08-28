@@ -46,6 +46,41 @@ public sealed class LeagueRulesTests
         Assert.Equal(2, alice.PlayedGameCount);
     }
 
+    /// <summary>
+    /// The global counting pass and the per-player one are the same maths over the same accumulator, and
+    /// only the per-player one publishes a match history. This pins that every counted field agrees, so
+    /// dropping the history from the global path stays invisible in the numbers.
+    /// </summary>
+    [Fact]
+    public void Global_statistics_match_the_per_player_counting_path()
+    {
+        var data = Data(League(
+            "mixed-league",
+            "active",
+            Tournament("t1", "completed", Match("Alice", "Bob", 2, 1), Match("Carol", "Alice", 0, 2)),
+            Tournament("t2", "completed", Match("Bob", "Carol", 2, 2))));
+
+        var rows = LeagueRules.CalculateGlobalPlayerStatistics(data);
+
+        Assert.Equal(["Alice", "Bob", "Carol"], rows.Select(row => row.PlayerName));
+        foreach (var row in rows)
+        {
+            var expected = LeagueRules.CalculatePlayerStatistics(data, row.PlayerName);
+            Assert.Equal(expected.PlayedMatchCount, row.PlayedMatchCount);
+            Assert.Equal(expected.MatchWins, row.MatchWins);
+            Assert.Equal(expected.MatchLosses, row.MatchLosses);
+            Assert.Equal(expected.MatchDraws, row.MatchDraws);
+            Assert.Equal(expected.PlayedGameCount, row.PlayedGameCount);
+            Assert.Equal(expected.GameWins, row.GameWins);
+            Assert.Equal(expected.GameLosses, row.GameLosses);
+            Assert.Equal(expected.MatchWinrate, row.MatchWinrate);
+            Assert.Equal(expected.GameWinrate, row.GameWinrate);
+            Assert.Equal(expected.Nemesis, row.Nemesis);
+            Assert.Equal(expected.Rival, row.Rival);
+            Assert.Equal(expected.MostPlayedArchetype, row.MostPlayedArchetype);
+        }
+    }
+
     private static GonesData Data(params LeagueDocument[] leagues) => new(LeagueNormalizer.GonesDataVersion, leagues, []);
 
     private static LeagueDocument League(string id, string status, params TournamentDocument[] tournaments) =>

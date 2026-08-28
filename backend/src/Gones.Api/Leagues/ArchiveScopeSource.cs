@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Gones.Domain.Leagues;
 using Gones.Infrastructure.Persistence;
@@ -49,19 +50,36 @@ internal static class ArchiveScopeSource
     private const string SeasonTable = "archive_league_seasons";
     private const string TournamentTable = "archive_tournaments";
 
-    public static async Task<IReadOnlyList<ArchiveStatisticsScope>> LoadAsync(
+    /// <summary>
+    /// The League id stamped into every shared <see cref="TournamentDocument"/>. The rebuild maths never
+    /// reads a Tournament's League id, so one value serves every scope and the document stays shareable.
+    /// </summary>
+    private const string SharedContainerId = "archive";
+
+    /// <summary>One Tournament, parsed once, alongside the Season that decides which scopes it joins.</summary>
+    private sealed record ParsedArchiveTournament(string? SeasonId, TournamentDocument Document);
+
+    /// <summary>
+    /// Streams the scopes rather than materializing them, so the caller holds one scope's wrapper at a
+    /// time. The yield order is part of the contract: global, then Leagues, then Seasons, each ordered
+    /// by scope id.
+    /// </summary>
+    public static async IAsyncEnumerable<ArchiveStatisticsScope> LoadAsync(
         GonesDbContext database,
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var seasons = await LoadSeasonsAsync(database, cancellationToken);
-        var tournaments = await LoadTournamentsAsync(database, cancellationToken);
+        var tournaments = (await LoadTournamentsAsync(database, cancellationToken))
+            .OrderBy(tournament => tournament.DocumentId, StringComparer.Ordinal)
+            .Select(tournament => new ParsedArchiveTournament(tournament.SeasonId, Parse(tournament)))
+            .ToList();
 
-        var scopes = new List<ArchiveStatisticsScope>
-        {
-            // The global scope carries every live Tournament, standalone ones included. The legacy
-            // aggregates it also carried are retired (T19), so this is the whole archive.
-            Scope(PlayerStatisticsScope.Global, PlayerStatisticsScope.GlobalScopeId, tournaments)
-        };
+        // The global scope carries every live Tournament, standalone ones included. The legacy
+        // aggregates it also carried are retired (T19), so this is the whole archive.
+        yield return Scope(
+            PlayerStatisticsScope.Global,
+            PlayerStatisticsScope.GlobalScopeId,
+            tournaments.Select(tournament => tournament.Document).ToList());
 
         var attached = tournaments
             .Where(tournament => tournament.SeasonId is not null && seasons.ContainsKey(tournament.SeasonId))
@@ -71,43 +89,45 @@ internal static class ArchiveScopeSource
             .GroupBy(tournament => seasons[tournament.SeasonId!], StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            scopes.Add(Scope(PlayerStatisticsScope.League, group.Key, group.ToList()));
+            yield return Scope(PlayerStatisticsScope.League, group.Key, group.Select(tournament => tournament.Document).ToList());
         }
 
         foreach (var group in attached
             .GroupBy(tournament => tournament.SeasonId!, StringComparer.Ordinal)
             .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
-            scopes.Add(Scope(PlayerStatisticsScope.Season, group.Key, group.ToList()));
+            yield return Scope(PlayerStatisticsScope.Season, group.Key, group.Select(tournament => tournament.Document).ToList());
         }
+    }
 
-        return scopes;
+    /// <summary>
+    /// One Tournament parsed exactly once. The document is immutable, so the same instance is shared
+    /// by every scope that contains it; <see cref="SharedContainerId"/> stands in for the League id
+    /// because the statistics maths never reads a Tournament's League id.
+    /// </summary>
+    private static TournamentDocument Parse(ArchiveTournamentSource tournament)
+    {
+        using var parsed = JsonDocument.Parse(tournament.Document);
+        return new TournamentDocument(
+            tournament.DocumentId,
+            SharedContainerId,
+            tournament.Name,
+            tournament.TournamentDate,
+            tournament.Status,
+            ReadArray<RoundDocument>(parsed.RootElement, "rounds"),
+            ReadArray<PlayerArchetypeDocument>(parsed.RootElement, "playerArchetypes"));
     }
 
     private static ArchiveStatisticsScope Scope(
         string scopeKind,
         string scopeId,
-        IReadOnlyList<ArchiveTournamentSource> tournaments)
+        IReadOnlyList<TournamentDocument> documents)
     {
         // The synthetic League exists because the domain walks data.Leagues[].Tournaments[]. It is a
         // container, never a scope: the statistics maths reads a Tournament's status and date and
-        // never the League around it.
+        // never the League around it — except the League id, which keys the tournamentsPlayed dedup, so
+        // it keeps the exact per-scope value it always had.
         var containerId = $"{scopeKind}:{scopeId}";
-        var documents = tournaments
-            .OrderBy(tournament => tournament.DocumentId, StringComparer.Ordinal)
-            .Select(tournament =>
-            {
-                using var parsed = JsonDocument.Parse(tournament.Document);
-                return new TournamentDocument(
-                    tournament.DocumentId,
-                    containerId,
-                    tournament.Name,
-                    tournament.TournamentDate,
-                    tournament.Status,
-                    ReadArray<RoundDocument>(parsed.RootElement, "rounds"),
-                    ReadArray<PlayerArchetypeDocument>(parsed.RootElement, "playerArchetypes"));
-            })
-            .ToList();
         var leagues = new List<LeagueDocument> { new(containerId, containerId, "completed", documents) };
         return new ArchiveStatisticsScope(
             scopeKind,
@@ -117,7 +137,7 @@ internal static class ArchiveScopeSource
 
     private static IReadOnlyList<T> ReadArray<T>(JsonElement root, string property) =>
         root.TryGetProperty(property, out var element) && element.ValueKind == JsonValueKind.Array
-            ? LeagueJson.Deserialize<List<T>>(element)
+            ? element.Deserialize<List<T>>(LeagueJson.Options) ?? []
             : [];
 
     /// <summary>Season document id → League document id, for every live Season.</summary>

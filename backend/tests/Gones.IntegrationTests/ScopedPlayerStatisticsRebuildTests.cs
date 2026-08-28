@@ -125,6 +125,100 @@ public sealed class ScopedPlayerStatisticsRebuildTests : IAsyncLifetime
         Assert.Equal(first, Projection(await RowsAsync()));
     }
 
+    /// <summary>
+    /// Every column the seed produces, spelled out. The rebuild is free to get cheaper, never to get
+    /// different: this pins the bytes so a refactor of how the archive is parsed and scoped has to keep
+    /// the same rows, and is expected to be green on both sides of that change.
+    /// </summary>
+    [Fact]
+    public async Task Pins_every_row_the_seed_produces()
+    {
+        await RebuildAsync();
+
+        var rows = await RowsAsync();
+        Assert.Equal(14, rows.Count);
+        Assert.Equal(
+            [
+                ("global", "", "Alice"), ("global", "", "Bob"), ("global", "", "Carol"), ("global", "", "Dana"),
+                ("league", "L1", "Alice"), ("league", "L1", "Bob"),
+                ("league", "L2", "Alice"), ("league", "L2", "Carol"),
+                ("season", "S1", "Alice"), ("season", "S1", "Bob"),
+                ("season", "S2", "Alice"), ("season", "S2", "Bob"),
+                ("season", "S3", "Alice"), ("season", "S3", "Carol")
+            ],
+            rows.Select(row => (row.ScopeKind, row.ScopeId, row.PlayerName)).ToArray());
+
+        var aliceGlobal = Row(rows, "global", "", "Alice");
+        Assert.Equal(5, aliceGlobal.PlayedMatchCount);
+        Assert.Equal(4, aliceGlobal.MatchWins);
+        Assert.Equal(1, aliceGlobal.MatchLosses);
+        Assert.Equal(0, aliceGlobal.MatchDraws);
+        Assert.Equal(0.8, aliceGlobal.MatchWinrate);
+        Assert.Equal(11, aliceGlobal.PlayedGameCount);
+        Assert.Equal(8, aliceGlobal.GameWins);
+        Assert.Equal(3, aliceGlobal.GameLosses);
+        Assert.Equal(8.0 / 11.0, aliceGlobal.GameWinrate);
+        Assert.Equal(new OpponentRecord("Bob", 2, 1), aliceGlobal.Nemesis);
+        Assert.Equal(new OpponentRecord("Bob", 2, 1), aliceGlobal.Rival);
+        Assert.Null(aliceGlobal.MostPlayedArchetype);
+        Assert.Equal(5, aliceGlobal.TournamentsPlayed);
+        Assert.Equal("2030-05-05", aliceGlobal.LastPlayedDate);
+
+        var aliceL1 = Row(rows, "league", "L1", "Alice");
+        Assert.Equal(3, aliceL1.PlayedMatchCount);
+        Assert.Equal(2, aliceL1.MatchWins);
+        Assert.Equal(1, aliceL1.MatchLosses);
+        Assert.Equal(0, aliceL1.MatchDraws);
+        Assert.Equal(2.0 / 3.0, aliceL1.MatchWinrate);
+        Assert.Equal(7, aliceL1.PlayedGameCount);
+        Assert.Equal(4, aliceL1.GameWins);
+        Assert.Equal(3, aliceL1.GameLosses);
+        Assert.Equal(4.0 / 7.0, aliceL1.GameWinrate);
+        Assert.Equal(3, aliceL1.TournamentsPlayed);
+        Assert.Equal("2030-03-05", aliceL1.LastPlayedDate);
+
+        var aliceS1 = Row(rows, "season", "S1", "Alice");
+        Assert.Equal(2, aliceS1.PlayedMatchCount);
+        Assert.Equal(2, aliceS1.MatchWins);
+        Assert.Equal(0, aliceS1.MatchLosses);
+        Assert.Equal(1.0, aliceS1.MatchWinrate);
+        Assert.Equal(4, aliceS1.GameWins);
+        Assert.Equal(1, aliceS1.GameLosses);
+        Assert.Equal(2, aliceS1.TournamentsPlayed);
+        Assert.Equal("2030-02-05", aliceS1.LastPlayedDate);
+
+        var aliceS2 = Row(rows, "season", "S2", "Alice");
+        Assert.Equal(1, aliceS2.PlayedMatchCount);
+        Assert.Equal(0, aliceS2.MatchWins);
+        Assert.Equal(1, aliceS2.MatchLosses);
+        Assert.Equal(0.0, aliceS2.MatchWinrate);
+        Assert.Equal(0, aliceS2.GameWins);
+        Assert.Equal(2, aliceS2.GameLosses);
+        Assert.Equal(1, aliceS2.TournamentsPlayed);
+        Assert.Equal("2030-03-05", aliceS2.LastPlayedDate);
+
+        var bobGlobal = Row(rows, "global", "", "Bob");
+        Assert.Equal(3, bobGlobal.PlayedMatchCount);
+        Assert.Equal(1, bobGlobal.MatchWins);
+        Assert.Equal(2, bobGlobal.MatchLosses);
+        Assert.Equal(1.0 / 3.0, bobGlobal.MatchWinrate);
+        Assert.Equal(7, bobGlobal.PlayedGameCount);
+        Assert.Equal(3, bobGlobal.GameWins);
+        Assert.Equal(4, bobGlobal.GameLosses);
+        Assert.Equal(new OpponentRecord("Alice", 1, 2), bobGlobal.Nemesis);
+        Assert.Equal(new OpponentRecord("Alice", 1, 2), bobGlobal.Rival);
+        Assert.Equal(3, bobGlobal.TournamentsPlayed);
+        Assert.Equal("2030-03-05", bobGlobal.LastPlayedDate);
+
+        var danaGlobal = Row(rows, "global", "", "Dana");
+        Assert.Equal(1, danaGlobal.PlayedMatchCount);
+        Assert.Equal(0, danaGlobal.MatchWins);
+        Assert.Equal(1, danaGlobal.MatchLosses);
+        Assert.Equal(new OpponentRecord("Alice", 0, 1), danaGlobal.Nemesis);
+        Assert.Equal(1, danaGlobal.TournamentsPlayed);
+        Assert.Equal("2030-05-05", danaGlobal.LastPlayedDate);
+    }
+
     private static (string ScopeKind, string ScopeId, GlobalPlayerStatistics Statistics)[] Projection(
         IReadOnlyList<PlayerStatisticsRow> rows) =>
         [.. rows.Select(row => (row.ScopeKind, row.ScopeId, row.ToGlobalPlayerStatistics()))];
