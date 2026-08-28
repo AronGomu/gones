@@ -627,7 +627,7 @@ public static partial class MigrationPlanner
     {
         var leagueHashes = leaguesToCreate.ToDictionary(
             league => league.Id,
-            league => DocumentHash(LeagueJson.Serialize(league)),
+            CanonicalLeagueHash,
             StringComparer.Ordinal);
         var liveHashes = liveToCreate.ToDictionary(
             live => live.Id,
@@ -678,6 +678,17 @@ public static partial class MigrationPlanner
             string.Empty);
         return report.WithComputedHash();
     }
+
+    /// <summary>
+    /// Canonical League hash ordering rule (frozen): before serializing a LeagueDocument for
+    /// hashing, its Tournaments list is sorted ascending by Tournament Id with
+    /// StringComparer.Ordinal; every other field and all nested content are untouched. Both the
+    /// planner (expected hash) and the import verifier (stored hash) must obtain League hashes
+    /// through this method, so tournament order in the source bundle can never affect the hash.
+    /// </summary>
+    public static string CanonicalLeagueHash(LeagueDocument league) =>
+        DocumentHash(LeagueJson.Serialize(
+            league with { Tournaments = [.. league.Tournaments.OrderBy(tournament => tournament.Id, StringComparer.Ordinal)] }));
 
     public static string DocumentHash(string serializedDocument)
     {

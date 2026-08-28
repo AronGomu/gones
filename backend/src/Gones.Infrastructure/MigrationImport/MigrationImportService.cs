@@ -286,7 +286,7 @@ public sealed class MigrationImportService(GonesDbContext database, IClock clock
             // The League document is reassembled from its Season row plus the Tournament rows beneath
             // it, so the hash and the derived result still compare against exactly what the source said.
             var rebuilt = RebuildLeagueDocument(stored.DocumentId, stored.Name, stored.Status, storedTournaments);
-            var storedHash = MigrationPlanner.DocumentHash(LeagueJson.Serialize(rebuilt));
+            var storedHash = MigrationPlanner.CanonicalLeagueHash(rebuilt);
             if (report.EntityHashes.Leagues.TryGetValue(league.Id, out var expectedHash) && !string.Equals(storedHash, expectedHash, StringComparison.Ordinal))
             {
                 failures.Add($"league {league.Id} canonical hash differs: expected {expectedHash} but stored {storedHash}");

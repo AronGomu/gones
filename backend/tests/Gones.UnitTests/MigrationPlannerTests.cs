@@ -288,6 +288,20 @@ public sealed class MigrationPlannerTests
         Assert.Equal("cancelled", Assert.Single(evaluation.Plan.ScheduledTournaments).StatusPolicy);
     }
 
+    [Fact]
+    public void Canonical_league_hash_ignores_tournament_order()
+    {
+        var first = new TournamentDocument("tournament-1", "league-1", "Round One", "2026-01-10", "completed", [], []);
+        var second = new TournamentDocument("tournament-2", "league-1", "Round Two", "2026-01-17", "completed", [], []);
+        var ascending = new LeagueDocument("league-1", "Legacy League", "active", [first, second]);
+        var descending = new LeagueDocument("league-1", "Legacy League", "active", [second, first]);
+
+        var hash = MigrationPlanner.CanonicalLeagueHash(ascending);
+
+        Assert.StartsWith("sha256:", hash);
+        Assert.Equal(hash, MigrationPlanner.CanonicalLeagueHash(descending));
+    }
+
     private static CalendarEventMapping DefaultEventMapping() => new(
         Slug: null,
         StartTime: null,

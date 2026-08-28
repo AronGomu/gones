@@ -126,6 +126,24 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Verification_passes_when_bundle_tournaments_are_listed_in_descending_id_order()
+    {
+        await using var db = await CreateMigratedContextAsync();
+        var seed = await SeedAsync(db);
+        var inputs = WriteInputs(seed, tournamentsDescending: true);
+        var dryRun = await new MigrationImportService(db, new FixedClock(Now)).RunAsync(Options(inputs, dryRun: true));
+
+        await using var importContext = CreateContext();
+        var outcome = await new MigrationImportService(importContext, new FixedClock(Now))
+            .RunAsync(Options(inputs, dryRun: false, acceptReportHash: dryRun.Report!.ReportHash));
+
+        Assert.Equal(0, outcome.ExitCode);
+        Assert.NotNull(outcome.Verification);
+        Assert.True(outcome.Verification!.Passed, string.Join("; ", outcome.Verification.Failures));
+        Assert.Equal(1, outcome.Verification.LeaguesVerified);
+    }
+
+    [Fact]
     public async Task Rerunning_the_same_batch_returns_the_stored_result_without_duplicating_rows()
     {
         await using var db = await CreateMigratedContextAsync();
@@ -322,7 +340,8 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         SeedRows seed,
         bool mapEvents = true,
         bool tamperBundle = false,
-        string? extraArchetype = null)
+        string? extraArchetype = null,
+        bool tournamentsDescending = false)
     {
         var directory = Directory.CreateTempSubdirectory("gones-migration-").FullName;
         var archetypes = new JsonArray("Tempo", "Control");
@@ -341,12 +360,12 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
             ["counts"] = new JsonObject
             {
                 ["leagues"] = 1,
-                ["tournaments"] = 1,
+                ["tournaments"] = tournamentsDescending ? 2 : 1,
                 ["calendarEvents"] = 1,
                 ["liveTournaments"] = 1,
                 ["deckArchetypes"] = archetypes.Count
             },
-            ["leagues"] = new JsonArray(LeagueNode()),
+            ["leagues"] = new JsonArray(LeagueNode(tournamentsDescending)),
             ["calendarEvents"] = new JsonArray(CalendarEventNode()),
             ["liveTournaments"] = new JsonArray(new JsonObject
             {
@@ -415,38 +434,42 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         return paths;
     }
 
-    private static JsonObject LeagueNode() => new()
+    private static JsonObject LeagueNode(bool tournamentsDescending = false) => new()
     {
         ["id"] = "league-1",
         ["name"] = "Legacy League",
         ["status"] = "active",
-        ["tournaments"] = new JsonArray(new JsonObject
+        ["tournaments"] = tournamentsDescending
+            ? new JsonArray(TournamentNode("tournament-2", "Round Two", "2026-01-17", "round-2", "entry-2"), TournamentNode("tournament-1", "Round One", "2026-01-10", "round-1", "entry-1"))
+            : new JsonArray(TournamentNode("tournament-1", "Round One", "2026-01-10", "round-1", "entry-1"))
+    };
+
+    private static JsonObject TournamentNode(string id, string name, string tournamentDate, string roundId, string entryId) => new()
+    {
+        ["id"] = id,
+        ["leagueId"] = "league-1",
+        ["name"] = name,
+        ["tournamentDate"] = tournamentDate,
+        ["rounds"] = new JsonArray(new JsonObject
         {
-            ["id"] = "tournament-1",
-            ["leagueId"] = "league-1",
-            ["name"] = "Round One",
-            ["tournamentDate"] = "2026-01-10",
-            ["rounds"] = new JsonArray(new JsonObject
+            ["id"] = roundId,
+            ["entries"] = new JsonArray(new JsonObject
             {
-                ["id"] = "round-1",
-                ["entries"] = new JsonArray(new JsonObject
-                {
-                    ["kind"] = "match",
-                    ["id"] = "entry-1",
-                    ["table"] = "1",
-                    ["player1Name"] = "Alice",
-                    ["player2Name"] = "Bob",
-                    ["player1Score"] = 2,
-                    ["player2Score"] = 1,
-                    ["player1DeckArchetype"] = "Tempo",
-                    ["player2DeckArchetype"] = "Control"
-                })
-            }),
-            ["playerArchetypes"] = new JsonArray(new JsonObject
-            {
-                ["playerName"] = "Alice",
-                ["archetype"] = "Tempo"
+                ["kind"] = "match",
+                ["id"] = entryId,
+                ["table"] = "1",
+                ["player1Name"] = "Alice",
+                ["player2Name"] = "Bob",
+                ["player1Score"] = 2,
+                ["player2Score"] = 1,
+                ["player1DeckArchetype"] = "Tempo",
+                ["player2DeckArchetype"] = "Control"
             })
+        }),
+        ["playerArchetypes"] = new JsonArray(new JsonObject
+        {
+            ["playerName"] = "Alice",
+            ["archetype"] = "Tempo"
         })
     };
 

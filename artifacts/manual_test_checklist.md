@@ -2092,3 +2092,57 @@ Organizer or Admin is `aspnet-api` — resolved once at bootstrap, so switch acc
 - [ ] **The browser-local finalize still hands over the JSON.** Sign out (or sign in as a plain `User`) and reload so the authority re-resolves. Create a Live Tournament in the browser-local store, play it to standings and Archive it. A `gones-live-tournament-<date>.json` file is offered for download, the runner shows the local-finalized state, and the app stays on the runner — it must not navigate to `/archive/tournaments/…`.
 - [ ] **The downloaded file is still the real archived Tournament.** Open that JSON: it holds the finished Tournament document with its standings, matching what the server would have archived. This slice did not change the local adapter, so a regression here means the download payload broke, not the routing.
 - [ ] **A failed finalize still reports instead of navigating.** Signed in as the Organizer again, stop the API (`docker compose stop api`), then press Archive on a Live Tournament. An error appears on the runner, the page does not navigate, and no download is triggered; restart with `docker compose start api` and retry to confirm the tournament finalizes normally. The `catch` in `finalize()` is untouched by this slice — this checks the fix did not reroute a failure into the success path.
+
+## T5 migration-verify-order
+
+The migration importer hashed each League **as the bundle listed it** but re-hashed it after import
+**sorted by Tournament id**, so any legacy bundle whose `leagues[].tournaments` array was not already
+ascending-ordinal — newest-first is the obvious one — got `league <id> canonical hash differs` and exit
+code 4 (`imported-verification-failed`) *after* the single import transaction had already committed. On a
+one-way-door tool that reads as "your migration is corrupt" when nothing is wrong. Both sides now go
+through one method, `MigrationPlanner.CanonicalLeagueHash`, which sorts `Tournaments` ascending by id
+with `StringComparer.Ordinal` on a copy before serializing. A League whose tournaments were already in
+order hashes byte-identically to before, so stored data and previously-accepted ordered reports are
+unaffected. `backend/tests/Gones.IntegrationTests/MigrationImportServiceTests.cs`
+(`Verification_passes_when_bundle_tournaments_are_listed_in_descending_id_order`) and
+`backend/tests/Gones.UnitTests/MigrationPlannerTests.cs`
+(`Canonical_league_hash_ignores_tournament_order`) pin it. The automated fixtures use a synthetic bundle
+written by the test itself, so the real CLI against the real database is what is left here. `npm run
+migration:smoke` still builds a **single**-tournament league, so it does not exercise this path — the
+descending bundle below has to be hand-made. Bring the stack up with
+`docker compose up -d --wait api` and run the migrator as the smoke script does:
+`docker compose run --rm -v <fixtures-dir>:/fixtures:ro migrator import --bundle /fixtures/<file> --manifest /fixtures/manifest.json --mapping /fixtures/mapping.json [--dry-run|--accept-report-hash <hash>]`.
+
+- [ ] **A newest-first bundle imports and verifies cleanly.** Take a private-migration-bundle fixture and
+      give one League two tournaments listed **descending** by id (`tournament-2` before `tournament-1`),
+      with `counts.tournaments: 2` and a recomputed `bundleChecksum`. Run the import with `--dry-run`,
+      copy the `Report hash:` line, then rerun with `--accept-report-hash <that hash>`. The command exits
+      **0** and the report says verification passed with 1 League verified. Before this fix the same
+      bundle exited 4 with `league <id> canonical hash differs` even though every row imported correctly.
+- [ ] **Both tournaments are actually there, not just hash-equal.** After that import, query the database:
+      `docker compose exec db psql -U gones -d gones -c "select document_id, season_id from archive_tournaments where season_id = '<leagueId>' order by document_id"`.
+      Both `tournament-1` and `tournament-2` are present under the League. An order-insensitive hash must
+      not be able to hide a missing Tournament — if only one row is listed, the fix is masking a real bug.
+- [ ] **An already-ordered bundle produces the exact same report hash as before the fix.** With the
+      unmodified single-tournament smoke fixture, run `--dry-run` on this commit and note the
+      `Report hash:`. Check out the previous commit, rebuild the migrator, run the identical `--dry-run`,
+      and compare. The two hashes are **identical**. This is the compatibility claim: operators holding an
+      accepted report for an ordered bundle do not have to redo their dry run.
+- [ ] **A genuine mismatch still fails loudly.** Import a bundle successfully, then edit one imported
+      Tournament's stored document directly in the database (change a player name in
+      `archive_tournaments.document`), and re-run verification by importing the same bundle into a fresh
+      database that you then tamper with the same way. Verification must still report
+      `league <id> canonical hash differs` and exit **4**. The fix removes a false positive only; it must
+      not blunt the detector.
+- [ ] **Known, accepted — a dry run taken with the pre-fix binary against an *unordered* bundle is stale
+      after upgrading.** For unordered bundles only, the report hash changes with this fix (it was
+      computed over the wrong order before). If an operator runs `--dry-run` on the old binary and then
+      `--accept-report-hash` on the new one, the import stops at exit **3** with the `--accept-report-hash`
+      message and writes nothing. That is the designed safe-fail: re-run the dry run on the new binary and
+      accept the fresh hash. Ordered bundles and already-imported batches are unaffected — the batch
+      identity comes from `ComputeBatchHash(bundles, manifest, mapping)`
+      (`backend/src/Gones.Application/Migration/MigrationPlanner.cs:69`), which this change does not touch,
+      so a batch already imported still returns its stored result instead of re-importing.
+- [ ] **The full migration smoke still passes.** Run `npm run migration:smoke`. It is green end to end.
+      Note its teardown tears down the Docker stack and destroys local DB volumes — run it when you are
+      ready to lose local data, not mid-session.
