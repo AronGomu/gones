@@ -2309,3 +2309,46 @@ second) in every step below — waiting for the debounce to fire tests the old p
 - [ ] **Tab close is still not covered — confirm the known gap.** Type a score and close the browser tab
       outright (no navigation). Re-open the tournament: the score may be **lost**. This is expected and
       out of scope for this change; note it if it bothers you, but it is not a regression.
+
+## T10 codify-live-tiebreak
+
+Documentation-and-tests only — **zero behavior change**. The Live standings comparator
+(`compareLiveStandingRows` in `src/app/domain/live-tournament.ts`, `LiveRules.CompareStandingRows` in
+`backend/src/Gones.Domain/Live/LiveRules.cs`) has always carried one tiebreak the Archive comparator
+(`compareRankingRows` in `src/app/domain/results.ts`, `LeagueRules.CompareRankingRows`) does not: more
+**Match Wins** ranks higher, applied after Opponents' Game Win Percentage and before Player Name.
+Because Finalize copies the validated Live Rounds verbatim into an Archive Tournament, the same Rounds
+can legitimately rank differently on the Live standings page and on the archived Tournament Result.
+That divergence is now written down in `docs/CONTEXT.md` and pinned by one cross-surface test per
+language. No comparator logic was touched — the only edits to the two comparator files are single
+comment lines. These steps confirm the documentation matches the shipped behavior.
+
+- [ ] **The ranking contract states the Live exception.** Open `docs/CONTEXT.md` and find the bullet
+      beginning "Ties in a **Tournament Result** are broken by…". The bullet immediately after it
+      describes the Live Tournament standings' extra Match Wins tiebreak and says the divergence is
+      intentional. Both bullets read as one coherent contract, not as a contradiction.
+- [ ] **The domain Q&A carries the matching entry.** Still in `docs/CONTEXT.md`, find the Q&A exchange
+      "If two Player Names have equal **Tournament Points**, what decides the order?". The Q&A directly
+      after it asks "Do Live Tournament standings use the same tiebreak chain?" and answers that Live
+      inserts Match Wins between Opponents' Game Win Percentage and Player Name. The wording agrees with
+      the bullet from the previous step.
+- [ ] **The comments in the code point at the documentation.** Open `src/app/domain/live-tournament.ts`
+      at `compareLiveStandingRows` and `backend/src/Gones.Domain/Live/LiveRules.cs` at
+      `CompareStandingRows`. Each has a one-line comment above it naming the divergence and pointing at
+      `docs/CONTEXT.md` and at its pin test. The comparator bodies themselves are unchanged — the extra
+      match-wins key was already there.
+- [ ] **Both pin tests run and pass.** Run `npm run test -- live-tournament` and confirm the test named
+      *"breaks live ties by match wins where the finalized archive falls through to player name (pinned
+      divergence)"* is listed and green. Then run
+      `dotnet test backend/Gones.sln --configuration Release --filter LiveArchiveTiebreakTests` and
+      confirm `Live_match_wins_tiebreak_diverges_from_archive_ranking_on_finalize` passes.
+- [ ] **The documented divergence is real in the browser (optional, slower).** Run a Live Swiss
+      tournament to the end, validating every Round, and note the exact order of the standings table.
+      Finalize it, then open the resulting Tournament in the Archive and compare its Ranking Table to
+      what you noted. Rows that differ on Points or on any of the four shared tiebreakers must appear in
+      the same order on both pages. Only a pair tied on all four shared keys but differing on Match Wins
+      may swap — and if it does, the Live page must be the one that puts the player with more Match Wins
+      first. Any other reordering is a real bug and must be reported.
+- [ ] **Nothing else moved.** Browse the Live standings page and an archived Tournament Result page for
+      an existing tournament you already know. The ranking numbers, tiebreaker columns and row order are
+      exactly what they were before this change — this slice added documentation and tests only.

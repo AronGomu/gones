@@ -723,6 +723,7 @@ public static class LiveRules
         opponents.Add(opponentId);
     }
 
+    // Live-only extra tiebreak: MatchWins before PlayerName. Intentional divergence from LeagueRules.CompareRankingRows — see docs/CONTEXT.md ranking contract; pinned by LiveArchiveTiebreakTests.
     private static int CompareStandingRows(LiveStandingRow left, LiveStandingRow right)
     {
         var result = right.Points.CompareTo(left.Points);

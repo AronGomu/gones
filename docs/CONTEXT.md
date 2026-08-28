@@ -511,6 +511,7 @@ _Avoid_: Migration, deployment
 - Multiple Byes in one Round create a **Pairing Warning** but still count
 - Each **Tournament** contributes equally to a **League Result**
 - Ties in a **Tournament Result** are broken by **Opponents' Match Win Percentage**, then **Game Win Percentage**, then **Opponents' Game Win Percentage**, then Player Name
+- Ties in **Live Tournament** standings add one extra tiebreak: after **Opponents' Game Win Percentage** and before Player Name, more Match Wins ranks higher. Live standings and the finalized Tournament Result may therefore order the same Rounds differently; this divergence is intentional and pinned by cross-surface tests
 - Ties in a **League Result** use league-wide **Opponents' Match Win Percentage**, **Game Win Percentage**, and **Opponents' Game Win Percentage** calculated across all Tournaments in that League
 - A **Ranking Table** presents calculated Tournament Result or League Result rows
 - A **Ranking Table** does not calculate results from Rounds
@@ -720,6 +721,9 @@ _Avoid_: Migration, deployment
 >
 > **Dev:** "If two Player Names have equal **Tournament Points**, what decides the order?"
 > **Domain expert:** "Use **Opponents' Match Win Percentage** first, then **Game Win Percentage**, then **Opponents' Game Win Percentage**, then Player Name."
+>
+> **Dev:** "Do Live Tournament standings use the same tiebreak chain?"
+> **Domain expert:** "Almost - Live standings insert one extra tiebreak, more **Match Wins** first, between **Opponents' Game Win Percentage** and Player Name. The finalized **Tournament Result** does not, so the two pages may order the same Rounds differently. This is intentional and pinned by tests."
 >
 > **Dev:** "Should League tiebreakers add together each Tournament's percentages?"
 > **Domain expert:** "No - **League Result** tiebreakers are recalculated across all Tournaments in the League."

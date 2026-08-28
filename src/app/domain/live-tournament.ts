@@ -303,6 +303,7 @@ function percentage(numerator: number, denominator: number): number | null {
   return denominator ? numerator / denominator : null;
 }
 
+// Live-only extra tiebreak: matchWins before playerName. Intentional divergence from the Archive chain in results.ts — see docs/CONTEXT.md ranking contract; pinned by live-tournament.test.ts.
 function compareLiveStandingRows(a: LiveStandingRow, b: LiveStandingRow): number {
   return b.points - a.points || b.opponentsMatchWinPercentage - a.opponentsMatchWinPercentage || b.gameWinPercentage - a.gameWinPercentage || b.opponentsGameWinPercentage - a.opponentsGameWinPercentage || b.matchWins - a.matchWins || a.playerName.localeCompare(b.playerName);
 }

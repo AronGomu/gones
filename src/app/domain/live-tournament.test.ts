@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculateLiveStandings, calculateLiveStandingsThroughRound, cancelCurrentSwissRound, createLiveTournament, createLiveTournamentPlayer, currentRoundComplete, finalizeLiveTournament, generateNextSwissRound, liveMatchScoreIssue, LiveTournamentDocument, regenerateCurrentSwissRound, restoreLiveTournamentCheckpoint, updateLiveRoundEntryResult, validateCurrentSwissRound } from './live-tournament';
+import { calculateTournamentResult } from './results';
+import { createMatchRoundEntry } from './models';
 
 function pairKey(left: string, right: string): string {
   return [left, right].sort((a, b) => a.localeCompare(b)).join('::');
@@ -309,5 +311,41 @@ describe('live tournament', () => {
       { playerName: 'Bob', archetype: 'Ice' }
     ]);
     expect(tournament.rounds[0].entries[0]).toMatchObject({ kind: 'match', player1Name: 'Alice', player2Name: 'Bob', player1Score: 2, player2Score: 0, player1DeckArchetype: 'Fire', player2DeckArchetype: 'Ice' });
+  });
+
+  it('breaks live ties by match wins where the finalized archive falls through to player name (pinned divergence)', () => {
+    const ids = idFactory();
+    const players = ['Amy', 'Zoe', 'Ben', 'Cal', 'Dev', 'Eli', 'Fay', 'Gus', 'Hal']
+      .map((name) => createLiveTournamentPlayer({ name, paid: true }, { idFactory: ids }));
+    const match = (player1Name: string, player2Name: string, player1Score: number, player2Score: number) =>
+      ({ entry: createMatchRoundEntry({ player1Name, player2Name, player1Score, player2Score }, { idFactory: ids }), resultEntered: true });
+    const rounds = [
+      [match('Zoe', 'Ben', 2, 1), match('Amy', 'Dev', 1, 1), match('Gus', 'Eli', 2, 0)],
+      [match('Cal', 'Zoe', 2, 1), match('Amy', 'Eli', 1, 1), match('Gus', 'Dev', 2, 0), match('Hal', 'Fay', 2, 0)],
+      [match('Amy', 'Fay', 1, 1), match('Gus', 'Cal', 2, 0)],
+      [match('Hal', 'Cal', 2, 0)]
+    ].map((entries, index) => ({ id: ids(), roundNumber: index + 1, entries, validated: true }));
+    const tournament = createLiveTournament({ players, rounds, roundCount: 4, stage: 'standings', currentRoundNumber: 4 }, { idFactory: ids });
+
+    const live = calculateLiveStandings(tournament);
+    const amyLive = live.find((row) => row.playerName === 'Amy')!;
+    const zoeLive = live.find((row) => row.playerName === 'Zoe')!;
+    // Guard: all four shared tiebreak keys tie exactly; only matchWins differs.
+    expect(amyLive.points).toBe(3);
+    expect(zoeLive.points).toBe(3);
+    expect(amyLive.gameWinPercentage).toBe(0.5);
+    expect(zoeLive.gameWinPercentage).toBe(0.5);
+    expect(amyLive.opponentsMatchWinPercentage).toBe(zoeLive.opponentsMatchWinPercentage);
+    expect(amyLive.opponentsGameWinPercentage).toBe(zoeLive.opponentsGameWinPercentage);
+    expect(amyLive.matchWins).toBe(0);
+    expect(zoeLive.matchWins).toBe(1);
+    // Live-only tiebreak: more match wins ranks higher.
+    expect(zoeLive.rank).toBeLessThan(amyLive.rank);
+
+    const archive = calculateTournamentResult({ ...finalizeLiveTournament(tournament, { idFactory: ids }), seasonId: null });
+    const amyArchive = archive.rows.find((row) => row.playerName === 'Amy')!;
+    const zoeArchive = archive.rows.find((row) => row.playerName === 'Zoe')!;
+    // Archive chain has no match-wins key: the same rounds fall through to player name.
+    expect(amyArchive.rank).toBeLessThan(zoeArchive.rank);
   });
 });
