@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * ADR 0028 — the header's Gones Export is the browser-local store's one bridge out. It carries the
@@ -31,12 +31,14 @@ import { Subject } from 'rxjs';
 import { AppComponent } from './app.component';
 import { AuthService } from './auth/auth.service';
 import { LastVisitedUrlService } from './auth/last-visited-url.service';
+import { ArchiveImportService } from './data/archive-import.service';
 import { ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { buildArchiveBundle } from './domain/archive-export-schemas';
 import { createArchiveLeague, createArchiveTournament, createLeagueSeason } from './domain/archive-models';
 import { verifyExportChecksum } from './domain/export-schemas';
 import { I18nService } from './i18n/i18n.service';
+import { catalogs } from './i18n/messages';
 import { DeckArchetypeSettingsService } from './shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from './shared/power-user-settings.service';
 
@@ -136,5 +138,77 @@ describe('AppComponent header import affordance', () => {
     const block = source.slice(start, source.indexOf('</div>', start));
     expect(block).toMatch(/@if \(power\.enabled\(\)\) \{[\s\S]*data-cy="app-leagues-import-button"[\s\S]*data-cy="header-import-input"[\s\S]*\}[\s\S]*data-cy="app-full-data-export-button"/);
     expect(source).not.toContain('canManageLeagueData');
+  });
+});
+
+describe('AppComponent import refusal messages', () => {
+  // `DeckArchetypeSettingsService` defaults to fr; the refusal copy is asserted in English, so the
+  // language is seeded from storage the way `app.component.breadcrumb-language.test.ts` does.
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('gones.settings.language', 'en');
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  /** Same fakes as `setup()`, plus the v5 import gate refusing with the error string under test. */
+  function importSetup(thrownMessage: string): AppComponent {
+    const repo = { exportBundle: vi.fn(async () => localBundle()), getTournament: vi.fn(async () => null) } as unknown as ArchiveRepository;
+    const router = { url: '/archive/league-seasons', events: new Subject<unknown>(), navigate: vi.fn(async () => true) } as unknown as Router;
+    const auth = { enabled: true, profile: signal(null) } as unknown as AuthService;
+    const injector = Injector.create({ providers: [
+      { provide: ArchiveRepository, useValue: repo },
+      { provide: LiveTournamentRepository, useValue: { get: vi.fn(async () => null) } },
+      { provide: Router, useValue: router },
+      { provide: AuthService, useValue: auth },
+      { provide: MatDialog, useValue: { open: vi.fn() } },
+      { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
+      // `Injector.create` does not resolve `providedIn: 'root'`, so the dynamic `injector.get` in
+      // `importLeague` needs the gate provided explicitly.
+      { provide: ArchiveImportService, useValue: { readBundle: vi.fn(async () => { throw new Error(thrownMessage); }) } },
+      LastVisitedUrlService,
+      DeckArchetypeSettingsService,
+      I18nService
+    ] });
+    return runInInjectionContext(injector, () => new AppComponent());
+  }
+
+  /** What the header's `<input data-cy="header-import-input">` change event hands `importLeague`. */
+  function importEvent(): Event {
+    return { target: { files: [new File(['{}'], 'bundle.json')], value: '' } } as unknown as Event;
+  }
+
+  it('renders the legacy-version refusal for a v1–v4 export', async () => {
+    const component = importSetup('legacyArchiveBundleVersion');
+
+    await component.importLeague(importEvent());
+
+    expect(component.importError()).toBe(catalogs.en['msg.importLegacyBundleUnsupported']);
+  });
+
+  it('renders the unsupported-bundle refusal for a malformed v5 file', async () => {
+    const component = importSetup('unsupportedArchiveBundle');
+
+    await component.importLeague(importEvent());
+
+    expect(component.importError()).toBe(catalogs.en['msg.importUnsupported']);
+  });
+
+  it('renders the record-ceiling refusal when a collection exceeds its cap', async () => {
+    const component = importSetup('gonesImportTooManyRecords');
+
+    await component.importLeague(importEvent());
+
+    expect(component.importError()).toBe(catalogs.en['msg.importTooManyRecords']);
+  });
+
+  it('still falls through to the generic message for an unknown error', async () => {
+    const component = importSetup('somethingElse');
+
+    await component.importLeague(importEvent());
+
+    expect(component.importError()).toBe(catalogs.en['msg.importFailed']);
   });
 });

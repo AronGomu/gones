@@ -2146,3 +2146,56 @@ descending bundle below has to be hand-made. Bring the stack up with
 - [ ] **The full migration smoke still passes.** Run `npm run migration:smoke`. It is green end to end.
       Note its teardown tears down the Docker stack and destroys local DB volumes — run it when you are
       ready to lose local data, not mid-session.
+
+## T6 v5-import-refusal-messages
+
+Every v5 import refusal used to render the generic `msg.importFailed` line ("Could not import that
+Gones Export. Please try again.") because `importErrorMessage` still matched the retired v1–v4 error
+strings. It now matches what the v5 gate actually throws. Nothing else on the import path moved: the
+gate, the repository and the template binding are untouched, so the control for every check below is
+that the *same* header error line renders — only its text changes.
+
+Setup for all of them: `npm start`, open the app, Settings → turn **Power User** on (`data-cy="settings-power-user-card"`),
+then go to `/archive/league-seasons` and use the header **Import** button (`data-cy="app-leagues-import-button"`,
+file input `data-cy="header-import-input"`). Build each fixture as a plain `.json` file on disk. A
+bundle with **no `checksum` key at all** is accepted by the checksum step on purpose
+(`verifyArchiveChecksum` returns true when the field is absent), so none of the fixtures below needs a
+recomputed hash — which is what makes them hand-writable.
+
+- [ ] **A v1–v4 Gones Export is refused as legacy, not as "try again".** Import a file containing
+      `{"kind":"fullData"}`, then repeat with `{"version":4}` and with `{"version":1,"league":{}}`.
+      Each time the header shows *"That file is a Gones Export from an older data version (1 to 4).
+      Only version 5 archive bundles can be imported, and there is no converter."* Before this fix all
+      three showed "Could not import that Gones Export. Please try again." This message existed in both
+      catalogs but rendered nowhere.
+- [ ] **A malformed v5 file is refused as unsupported.** Import
+      `{"version":5,"leagues":[{"id":1}],"leagueSeasons":[],"tournaments":[],"calendarEvents":[]}`
+      (the League row's `id` is a number and its `name`/`createdAt` are missing). The header shows
+      *"That file is not a supported Gones Export."*
+- [ ] **A bundle over a record ceiling says so.** Import a file whose `leagues` array holds **101**
+      entries — each `{"id":"l-<n>","name":"L <n>","createdAt":"2026-08-09T10:00:00.000Z"}` — with
+      `"version":5` and empty `leagueSeasons`/`tournaments`/`calendarEvents`. The cap is 100 Leagues
+      (also 100 LeagueSeasons, 2000 Tournaments, 500 CalendarEvents). The header shows *"That Gones
+      Export contains too many records for browser import."* Note the copy is new: the old key
+      `msg.importTooManyLeagues` ("That Full Data Export contains too many Leagues…") is gone, because
+      the ceiling applies to four collections, not just Leagues.
+- [ ] **The two refusals that already worked still work.** (a) Import any file larger than 2 MiB →
+      *"That Gones Export is too large to import in the browser."* (b) Take a real export from the
+      header's **Full Data Export** button, edit one League `name` inside it while leaving its
+      `checksum` line untouched, and import it → *"This Gones Export checksum does not match its
+      content. The file is corrupted or was modified."*
+- [ ] **The non-bundle failure paths are unchanged.** Import a file containing `not json at all` →
+      *"That file is not valid JSON."* This one matters because `SyntaxError` is an `Error`: if the new
+      branches were ordered wrongly it would have been swallowed by one of them.
+- [ ] **A good import still imports.** Export with **Full Data Export**, then import that exact file
+      back. It succeeds, the error line stays empty, and the Leagues/Seasons/Tournaments you had are
+      still listed. The refusal mapping must not have made a valid bundle refusable.
+- [ ] **French renders the same six outcomes.** Switch the language to French in Settings and repeat at
+      least the legacy, malformed and over-cap fixtures. Expect *"Ce fichier est un export Gones d’une
+      version de données antérieure (1 à 4)…"*, *"Ce fichier n’est pas un export Gones pris en
+      charge."* and *"Cet export Gones contient trop d’enregistrements pour l’import navigateur."* No
+      English fallback and no raw key text such as `msg.importTooManyRecords` may appear — the rename
+      landed in both catalogs in the same commit, so a missing French line would show up here.
+- [ ] **The file input recovers after a refusal.** Right after any refusal above, pick the *same* file
+      again. The error line re-renders rather than staying stale/silent (`importLeague` clears
+      `input.value` in its `finally`), and picking a valid bundle afterwards clears the error.

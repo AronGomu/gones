@@ -353,8 +353,9 @@ function importErrorMessage(error: unknown, i18n: I18nService): string {
   if (error instanceof DOMException && error.name === 'QuotaExceededError') return i18n.t('msg.importQuota');
   if (error instanceof Error) {
     if (error.message === 'gonesImportFileTooLarge') return i18n.t('msg.importTooLarge');
-    if (error.message === 'gonesImportTooManyLeagues') return i18n.t('msg.importTooManyLeagues');
-    if (error.message === 'unsupportedGonesExport' || error.message === 'wrongExportKind') return i18n.t('msg.importUnsupported');
+    if (error.message === 'legacyArchiveBundleVersion') return i18n.t('msg.importLegacyBundleUnsupported');
+    if (error.message === 'unsupportedArchiveBundle') return i18n.t('msg.importUnsupported');
+    if (error.message === 'gonesImportTooManyRecords') return i18n.t('msg.importTooManyRecords');
     if (error.message === 'gonesExportChecksumMismatch') return i18n.t('msg.importChecksumMismatch');
   }
   if (error instanceof SyntaxError) return i18n.t('msg.importBadJson');
