@@ -6,6 +6,13 @@ import { globSync } from 'node:fs';
 const root = process.cwd();
 const agent = readFileSync(join(root, 'AGENT.md'), 'utf8');
 
+function newestAdrIds(count: number): string[] {
+  return globSync('docs/adr/[0-9][0-9][0-9][0-9]-*.md', { cwd: root })
+    .map((file) => file.slice('docs/adr/'.length, 'docs/adr/'.length + 4))
+    .sort()
+    .slice(-count);
+}
+
 describe('agent-rules', () => {
   it('states the cache rule', () => {
     expect(agent).toMatch(/24.hour|24h|CATALOG_TTL_MS/i);
@@ -25,15 +32,15 @@ describe('agent-rules', () => {
     expect(agent).toMatch(/\/login/);
   });
 
-  it('names the four new ADRs', () => {
-    expect(agent).toMatch(/0038/);
-    expect(agent).toMatch(/0039/);
-    expect(agent).toMatch(/0040/);
-    expect(agent).toMatch(/0041/);
+  it('names the four newest ADRs on disk', () => {
+    for (const num of newestAdrIds(4)) {
+      expect(agent, `AGENT.md must mention ADR ${num}`).toMatch(new RegExp(num));
+    }
   });
 
-  it('the four ADR files exist and are Accepted', () => {
-    const adrs = ['0038', '0039', '0040', '0041'];
+  it('the four newest ADR files exist and are Accepted', () => {
+    const adrs = newestAdrIds(4);
+    expect(adrs, 'docs/adr/ must hold at least four numbered ADRs').toHaveLength(4);
     for (const num of adrs) {
       const matches = globSync(`docs/adr/${num}-*.md`, { cwd: root });
       expect(matches.length, `ADR ${num} must exist`).toBeGreaterThan(0);
