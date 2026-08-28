@@ -711,4 +711,43 @@ describe('IndexedDbServerReadCacheStore production lifecycle', () => {
     await expect(store.read('u1:settings')).resolves.toEqual(cached([2]));
     expect(deletedDatabaseNames).toEqual([]);
   });
+
+  it('rejects a delete blocked past the hold deadline so the purge settles and stays retryable', async () => {
+    vi.useFakeTimers();
+    try {
+      const store = new IndexedDbServerReadCacheStore();
+      await store.write('u1:leagues', cached([1]));
+      const state = fakeDatabases.get('gones-cache')!;
+      // A frozen or back-forward-cached tab: holds a connection, never runs versionchange.
+      const frozenPeer = { onversionchange: null, close: () => undefined } as unknown as FakeDatabase;
+      state.connections.add(frozenPeer);
+      const pending = store.clear();
+      const settled = expect(pending).rejects.toThrow('indexedDbDeleteBlocked');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await settled;
+      expect(fakeDatabases.has('gones-cache')).toBe(true); // delete never completed; a later purge retries it
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('completes a briefly blocked delete when the peer closes before the deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const store = new IndexedDbServerReadCacheStore();
+      await store.write('u1:leagues', cached([1]));
+      const state = fakeDatabases.get('gones-cache')!;
+      const frozenPeer = { onversionchange: null, close: () => undefined } as unknown as FakeDatabase;
+      state.connections.add(frozenPeer);
+      const pending = store.clear();
+      await vi.advanceTimersByTimeAsync(1_000);
+      state.connections.delete(frozenPeer);
+      for (const check of [...state.deletionChecks]) check();
+      await expect(pending).resolves.toBeUndefined();
+      await vi.advanceTimersByTimeAsync(10_000); // deadline timer was cleared; must not throw late
+      expect(fakeDatabases.has('gones-cache')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

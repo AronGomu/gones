@@ -268,9 +268,18 @@ export class IndexedDbServerReadCacheStore implements ServerReadCacheStore {
 }
 
 /**
+ * Ceiling on how long a blocked database delete may keep the purge — and the origin-wide auth
+ * lock held above it during logout — waiting. It bounds the wait, never the delete: the browser
+ * keeps the delete queued, and the purge marker stays set so a later establishment retries it.
+ */
+const DELETE_BLOCK_HOLD_MS = 10_000;
+
+/**
  * The one call `indexed-db.ts` does not wrap, because this is the only store that is ever dropped
- * whole. A blocked request stays pending: every same-app connection closes on `versionchange`, then
- * the browser completes deletion instead of turning a temporary block into a permanent failure.
+ * whole. Same-app connections close on `versionchange`, so a block normally lifts on its own; a
+ * peer that never runs its handler (frozen or back-forward-cached tab) would otherwise pin this
+ * promise — and the auth lock a logout holds above it — forever, so a blocked delete rejects at
+ * the hold deadline and the purge marker keeps the retry alive.
  */
 function deleteDatabase(name: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
@@ -280,8 +289,13 @@ function deleteDatabase(name: string): Promise<void> {
       return;
     }
     const request = factory.deleteDatabase(name);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error ?? new Error('indexedDbDeleteFailed'));
-    request.onblocked = () => undefined;
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearDeadline = () => { if (deadlineTimer !== undefined) clearTimeout(deadlineTimer); };
+    request.onsuccess = () => { clearDeadline(); resolve(); };
+    request.onerror = () => { clearDeadline(); reject(request.error ?? new Error('indexedDbDeleteFailed')); };
+    request.onblocked = () => {
+      if (deadlineTimer !== undefined) return;
+      deadlineTimer = setTimeout(() => reject(new Error('indexedDbDeleteBlocked')), DELETE_BLOCK_HOLD_MS);
+    };
   });
 }
