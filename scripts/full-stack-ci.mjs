@@ -5,6 +5,10 @@ import { join } from 'node:path';
 const composeEnv = {
   ...process.env,
   GONES_FRONTEND_DATA_MODE: 'server',
+  GONES_FRONTEND_AUTH_V1: 'true',
+  GONES_FRONTEND_ADMIN_V1: 'true',
+  GONES_AUTH_V1: 'true',
+  GONES_ADMIN_V1: 'true',
   GONES_FEATURES__AUTH_V1: 'true',
   GONES_FEATURES__ADMIN_V1: 'true',
   GONES_FEATURES__CALENDAR_V1: 'true',
