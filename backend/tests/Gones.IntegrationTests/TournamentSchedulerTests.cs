@@ -1,3 +1,4 @@
+using System.Data.Common;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
@@ -7,6 +8,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using NodaTime;
 
 namespace Gones.IntegrationTests;
@@ -213,6 +215,56 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         await AssertStatus(deleted.Id, ScheduledTournamentStatus.Published);
     }
 
+    [Fact]
+    public async Task Daily_planner_pages_tournaments_with_the_configured_batch_ceiling()
+    {
+        var first = await CreateTournamentAsync(new LocalDate(2030, 5, 15));
+        var second = await CreateTournamentAsync(new LocalDate(2030, 5, 16));
+        var third = await CreateTournamentAsync(new LocalDate(2030, 5, 17));
+        var firstRegistration = await RegisterAsync(first.Id, seed.User.Id);
+        var secondRegistration = await RegisterAsync(second.Id, seed.User.Id);
+        var thirdRegistration = await RegisterAsync(third.Id, seed.User.Id);
+
+        var pagedOptions = new TournamentSchedulerOptions(2, Duration.FromMinutes(1), Duration.FromHours(24), "https://app.example/");
+        var lockCounter = new AdvisoryLockCounter();
+        await using (var paged = CreateContext(lockCounter))
+        {
+            Assert.True(await new TournamentScheduleReconciler(paged, clock, pagedOptions, new TournamentSchedulerMetrics()).RefreshDailyAsync(CancellationToken.None));
+        }
+        Assert.Equal(2, lockCounter.Count);
+
+        await using (var verification = CreateContext())
+        {
+            foreach (var registrationId in new[] { firstRegistration.Id, secondRegistration.Id, thirdRegistration.Id })
+            {
+                Assert.Contains(
+                    await verification.ScheduledNotifications.Where(item => item.RegistrationAttemptId == registrationId).ToListAsync(),
+                    item => item.Status == ScheduledNotificationStatus.Planned);
+            }
+        }
+
+        await using (var mutation = CreateContext())
+        {
+            (await mutation.EventRegistrationAttempts.SingleAsync(item => item.Id == thirdRegistration.Id)).CancelByUser(seed.User.Id, clock.GetCurrentInstant());
+            await mutation.SaveChangesAsync();
+        }
+        await using (var sweep = CreateContext())
+        {
+            Assert.True(await new TournamentScheduleReconciler(sweep, clock, pagedOptions, new TournamentSchedulerMetrics()).RefreshDailyAsync(CancellationToken.None));
+        }
+
+        await using var sweepVerification = CreateContext();
+        var thirdRows = await sweepVerification.ScheduledNotifications.Where(item => item.RegistrationAttemptId == thirdRegistration.Id).ToListAsync();
+        Assert.NotEmpty(thirdRows);
+        Assert.All(thirdRows, item => Assert.Equal(ScheduledNotificationStatus.Cancelled, item.Status));
+        foreach (var registrationId in new[] { firstRegistration.Id, secondRegistration.Id })
+        {
+            Assert.Contains(
+                await sweepVerification.ScheduledNotifications.Where(item => item.RegistrationAttemptId == registrationId).ToListAsync(),
+                item => item.Status == ScheduledNotificationStatus.Planned);
+        }
+    }
+
     private TournamentScheduleReconciler Reconciler(GonesDbContext database) => new(database, clock, Options, new TournamentSchedulerMetrics());
     private TournamentReminderDispatcher Dispatcher(GonesDbContext database) => new(database, new NotificationOutbox(database, clock), clock, Options, new TournamentSchedulerMetrics());
     private TournamentLifecyclePoller Poller(GonesDbContext database) => new(database, clock, Options, new TournamentSchedulerMetrics());
@@ -302,8 +354,9 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
         };
     }
 
-    private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>()
+    private GonesDbContext CreateContext(params IInterceptor[] interceptors) => new(new DbContextOptionsBuilder<GonesDbContext>()
         .ConfigureGones(postgres.GetConnectionString())
+        .AddInterceptors(interceptors)
         .Options);
 
     private static readonly TournamentSchedulerOptions Options = new(
@@ -318,5 +371,17 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
     {
         public Instant GetCurrentInstant() => current;
         public void Set(Instant value) => current = value;
+    }
+
+    private sealed class AdvisoryLockCounter : DbCommandInterceptor
+    {
+        private int count;
+        public int Count => count;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("pg_try_advisory_xact_lock", StringComparison.Ordinal)) Interlocked.Increment(ref count);
+            return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
+        }
     }
 }

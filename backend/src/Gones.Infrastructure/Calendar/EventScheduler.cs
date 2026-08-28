@@ -75,43 +75,84 @@ public sealed class TournamentScheduleReconciler(
 {
     private const long PlannerAdvisoryLock = 0x474F4E4553433237;
 
-    public Task<bool> RefreshDailyAsync(CancellationToken cancellationToken) =>
-        RefreshWithLockAsync(requirePendingLifecycleEvent: false, cancellationToken);
+    public async Task<bool> RefreshDailyAsync(CancellationToken cancellationToken)
+    {
+        Guid? cursor = null;
+        while (true)
+        {
+            var (acquired, count, lastTournamentId) = await RefreshDailyPageAsync(cursor, cancellationToken);
+            if (!acquired) return false;
+            if (count < options.BatchSize) return true;
+            cursor = lastTournamentId;
+        }
+    }
 
-    public Task<bool> RefreshPendingChangesAsync(CancellationToken cancellationToken) =>
-        RefreshWithLockAsync(requirePendingLifecycleEvent: true, cancellationToken);
-
-    private async Task<bool> RefreshWithLockAsync(bool requirePendingLifecycleEvent, CancellationToken cancellationToken)
+    public async Task<bool> RefreshPendingChangesAsync(CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var acquired = await database.Database
-            .SqlQueryRaw<bool>($"SELECT pg_try_advisory_xact_lock({PlannerAdvisoryLock}) AS \"Value\"")
-            .SingleAsync(cancellationToken);
-        if (!acquired)
+        if (!await TryAcquirePlannerLockAsync(cancellationToken))
         {
             await transaction.RollbackAsync(cancellationToken);
             return false;
         }
 
-        List<EventLifecycleEntry> pendingEvents = [];
-        if (requirePendingLifecycleEvent)
+        var pendingEvents = await database.EventLifecycleEntries
+            .Where(item => item.ReminderPlanAction != TournamentReminderPlanAction.None && item.ReminderPlanProcessedAt == null)
+            .OrderBy(item => item.OccurredAt)
+            .ThenBy(item => item.Id)
+            .Take(options.BatchSize)
+            .ToListAsync(cancellationToken);
+        if (pendingEvents.Count == 0)
         {
-            pendingEvents = await database.EventLifecycleEntries
-                .Where(item => item.ReminderPlanAction != TournamentReminderPlanAction.None && item.ReminderPlanProcessedAt == null)
-                .OrderBy(item => item.OccurredAt)
-                .ThenBy(item => item.Id)
-                .Take(options.BatchSize)
-                .ToListAsync(cancellationToken);
-            if (pendingEvents.Count == 0)
-            {
-                await transaction.CommitAsync(cancellationToken);
-                return true;
-            }
+            await transaction.CommitAsync(cancellationToken);
+            return true;
         }
 
+        await PlanTournamentsAsync(pendingEvents.Select(item => item.EventId).Distinct().ToArray(), pendingEvents, now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private async Task<(bool Acquired, int Count, Guid LastTournamentId)> RefreshDailyPageAsync(Guid? cursor, CancellationToken cancellationToken)
+    {
+        var now = clock.GetCurrentInstant();
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        if (!await TryAcquirePlannerLockAsync(cancellationToken))
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            return (false, 0, Guid.Empty);
+        }
+
+        var page = database.Events.AsNoTracking()
+            .Where(item =>
+                (item.Status == ScheduledTournamentStatus.Published && item.DeletedAt == null && item.StartsAtUtc > now)
+                || database.ScheduledNotifications.Any(notification => notification.EventId == item.Id && notification.ScheduledAtUtc > now));
+        if (cursor is { } after) page = page.Where(item => item.Id.CompareTo(after) > 0);
+        var tournamentIds = await page
+            .OrderBy(item => item.Id)
+            .Select(item => item.Id)
+            .Take(options.BatchSize)
+            .ToArrayAsync(cancellationToken);
+        if (tournamentIds.Length == 0)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return (true, 0, Guid.Empty);
+        }
+
+        await PlanTournamentsAsync(tournamentIds, [], now, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return (true, tournamentIds.Length, tournamentIds[^1]);
+    }
+
+    private async Task<bool> TryAcquirePlannerLockAsync(CancellationToken cancellationToken) =>
+        await database.Database
+            .SqlQueryRaw<bool>($"SELECT pg_try_advisory_xact_lock({PlannerAdvisoryLock}) AS \"Value\"")
+            .SingleAsync(cancellationToken);
+
+    private async Task PlanTournamentsAsync(Guid[] tournamentIds, List<EventLifecycleEntry> pendingEvents, Instant now, CancellationToken cancellationToken)
+    {
         using var activity = GonesTelemetry.Activities.StartActivity("scheduler.plan", ActivityKind.Internal);
-        var affectedTournamentIds = pendingEvents.Select(item => item.EventId).Distinct().ToArray();
         var candidates = await (
             from registration in database.EventRegistrationAttempts.AsNoTracking()
             join tournament in database.Events.AsNoTracking() on registration.EventId equals tournament.Id
@@ -124,7 +165,7 @@ public sealed class TournamentScheduleReconciler(
                 && user.EmailConfirmed
                 && user.Email != null
                 && profile.ClosedAt == null
-                && (!requirePendingLifecycleEvent || affectedTournamentIds.Contains(tournament.Id))
+                && tournamentIds.Contains(tournament.Id)
             select new PlanCandidate(
                 tournament.Id,
                 registration.Id,
@@ -134,8 +175,7 @@ public sealed class TournamentScheduleReconciler(
         ).ToListAsync(cancellationToken);
 
         var existing = await database.ScheduledNotifications
-            .Where(item => item.ScheduledAtUtc > now
-                && (!requirePendingLifecycleEvent || affectedTournamentIds.Contains(item.EventId)))
+            .Where(item => item.ScheduledAtUtc > now && tournamentIds.Contains(item.EventId))
             .ToListAsync(cancellationToken);
         var existingByDedupe = existing.ToDictionary(item => item.DedupeKey, StringComparer.Ordinal);
         var expectedDedupe = new HashSet<string>(StringComparer.Ordinal);
@@ -177,11 +217,9 @@ public sealed class TournamentScheduleReconciler(
         foreach (var lifecycleEvent in pendingEvents) lifecycleEvent.MarkReminderPlanProcessed(now);
 
         await database.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         metrics.RecordPlan(planned, cancelled);
         activity?.SetTag("scheduler.planned", planned);
         activity?.SetTag("scheduler.cancelled", cancelled);
-        return true;
     }
 
     private sealed record PlanCandidate(
