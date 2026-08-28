@@ -23,7 +23,7 @@ function setup(refresh: () => Observable<AccessTokenResponse>) {
   };
   const catalogSync = { adopt: vi.fn(async () => undefined) };
   const injector = Injector.create({ providers: [AuthService, AuthSessionCoordinationService, ApiAccessTokenStore, SessionScopeService, { provide: Client, useValue: client }, { provide: SessionCatalogSyncService, useValue: catalogSync }] });
-  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), client, catalogSync };
+  return { service: injector.get(AuthService), store: injector.get(ApiAccessTokenStore), sessionScope: injector.get(SessionScopeService), coordination: injector.get(AuthSessionCoordinationService), client, catalogSync };
 }
 
 describe('AuthService.bootstrap', () => {
@@ -149,5 +149,57 @@ describe('AuthService.bootstrap', () => {
     expect(secondTab.client.refresh).toHaveBeenCalledTimes(1);
     expect(firstTab.service.bootstrapped()).toBe(true);
     expect(secondTab.service.bootstrapped()).toBe(true);
+  });
+
+  it('a restore superseded by a concurrent tab keeps no access token it cannot justify', async () => {
+    installFakeWebLocks(new SharedFakeWebLocks());
+    const firstResult = new Subject<AccessTokenResponse>();
+    const secondResult = new Subject<AccessTokenResponse>();
+    const firstTab = setup(() => firstResult);
+    const secondTab = setup(() => secondResult);
+
+    const firstBootstrap = firstTab.service.bootstrap();
+    await vi.waitFor(() => expect(firstTab.client.refresh).toHaveBeenCalledTimes(1));
+    const secondBootstrap = secondTab.service.bootstrap();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    firstResult.next(token);
+    firstResult.complete();
+    await vi.waitFor(() => expect(secondTab.client.refresh).toHaveBeenCalledTimes(1));
+    secondResult.next(token);
+    secondResult.complete();
+    await Promise.all([firstBootstrap, secondBootstrap]);
+
+    // Each tab spent its own rotated cookie once, so neither presented the other's as a replay.
+    expect(firstTab.client.refresh).toHaveBeenCalledTimes(1);
+    expect(secondTab.client.refresh).toHaveBeenCalledTimes(1);
+    expect(firstTab.service.bootstrapped()).toBe(true);
+    expect(secondTab.service.bootstrapped()).toBe(true);
+    // The generation counter is origin-wide and every establishment advances it, so two concurrent
+    // restores leave the tab that publishes first superseded by the one that publishes last.
+    expect(secondTab.service.bootstrapFailed()).toBe(false);
+    expect(secondTab.service.profile()?.username).toBe('user');
+    expect(secondTab.store.token).toBe('memory-token');
+    // A superseded tab reports a signed-out session, so it may not keep the token it published.
+    expect(firstTab.service.bootstrapFailed()).toBe(true);
+    expect(firstTab.service.profile()).toBeNull();
+    expect(firstTab.store.token).toBeUndefined();
+  });
+
+  it('advances the session generation inside the same lock hold that spends the cookie', async () => {
+    const result = new Subject<AccessTokenResponse>();
+    const { service, coordination, client } = setup(() => result);
+
+    const bootstrap = service.bootstrap();
+    await vi.waitFor(() => expect(client.refresh).toHaveBeenCalledTimes(1));
+    // Queued behind the hold that spends the cookie, so it reads the generation the hold left behind.
+    const probe = coordination.withLock(() => coordination.generation());
+    await new Promise(resolve => setTimeout(resolve, 0));
+    result.next(token);
+    result.complete();
+    await bootstrap;
+
+    await expect(probe).resolves.toBe(1);
+    expect(service.bootstrapFailed()).toBe(false);
   });
 });

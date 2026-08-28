@@ -74,15 +74,18 @@ export class AuthService {
   private async restoreSession(): Promise<void> {
     let profileEstablishmentStarted = false;
     try {
-      const restored = await this.spendRefreshCookie((response, generation) => ({ response, generation }));
-      profileEstablishmentStarted = true;
-      await this.establishProfile(restored.response, restored.generation);
+      const sessionGeneration = await this.spendRefreshCookie((response, generation) => {
+        this.assertGeneration(generation);
+        profileEstablishmentStarted = true;
+        return this.advanceAndPublishSession(response);
+      });
+      await this.completeProfileEstablishment(sessionGeneration);
     } catch (error) {
       this.bootstrapFailed.set(true);
       if (error instanceof AuthCoordinationUnavailableError) {
         // `spendRefreshCookie` purges its own unavailable-coordination path. An establishment that
         // already started published the access token, so losing coordination there still has to
-        // purge here — `establishProfile()` cannot, it needs the lock it just lost.
+        // purge here — `completeProfileEstablishment()` cannot, it needs the lock it just lost.
         if (profileEstablishmentStarted) await this.invalidateAndPurgeIgnoringFailure();
         throw error;
       }
@@ -273,14 +276,30 @@ export class AuthService {
     });
   }
 
+  /** Caller already holds the auth lock. Generation advance and token publication are one atomic step. */
+  private advanceAndPublishSession(response: AccessTokenResponse): number {
+    const sessionGeneration = this.coordination.advanceGeneration();
+    this.tokens.set(response.accessToken);
+    return sessionGeneration;
+  }
+
   private async establishProfile(response: AccessTokenResponse, generation: number): Promise<UserProfileResponse> {
     let sessionGeneration = generation;
     try {
       await this.coordination.withAvailableLock(() => {
         this.assertGeneration(generation);
-        sessionGeneration = this.coordination.advanceGeneration();
-        this.tokens.set(response.accessToken);
+        sessionGeneration = this.advanceAndPublishSession(response);
       });
+    } catch (error) {
+      await this.clearFailedEstablishment(sessionGeneration);
+      throw error;
+    }
+    return await this.completeProfileEstablishment(sessionGeneration);
+  }
+
+  /** Session generation already advanced and token published under the lock. */
+  private async completeProfileEstablishment(sessionGeneration: number): Promise<UserProfileResponse> {
+    try {
       const profile = await firstValueFrom(this.client.meGET());
       await this.coordination.withAvailableLock(() => {
         this.assertGeneration(sessionGeneration);
@@ -331,7 +350,13 @@ export class AuthService {
 
   /** Caller already holds the auth lock. */
   private async clearFailedEstablishmentLocked(generation: number): Promise<void> {
-    if (this.coordination.generation() !== generation) return;
+    if (this.coordination.generation() !== generation) {
+      // A newer establishment owns the session now, and tearing that down origin-wide is not this
+      // failure's call. No bound profile means this tab holds no newer session to protect, so the
+      // token the failed establishment published goes with it instead of outliving it.
+      if (!this.profile()) this.tokens.clear();
+      return;
+    }
     await this.invalidateAndPurgeIgnoringFailure();
   }
 
