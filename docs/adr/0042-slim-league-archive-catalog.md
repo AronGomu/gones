@@ -2,7 +2,15 @@
 
 ## Status
 
-Accepted. Implemented by T9–T12 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md` — T9 the
+Superseded by [ADR 0045](./0045-three-tier-archive.md) and
+[ADR 0050](./0050-retire-the-legacy-archive-surface.md): the legacy `leagues-archive` surface this
+ADR slimmed was deleted, including the `LeagueArchiveCatalogCountsBackfill` startup repair and its
+`Gones:Leagues:BackfillCatalogCountsOnStartup` key. The denormalized-counts pattern survives on the
+three-tier archive, where counts are repaired at write time only: `ArchiveLeagueSeason.RefreshCatalogCounts`
+restamps a row when its stored `CountsVersion` differs from `ArchiveCatalogCounts.Version`, on every
+Tournament write. No startup or operator-facing repair path exists.
+
+Originally: Accepted. Implemented by T9–T12 in `artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md` — T9 the
 denormalized counts, T10 the two routes, T11 the frontend summary path and the `.v2` cache key, T12
 response compression. Extends ADR 0039 (TTL cache contract) and lives alongside ADR 0028
 (dual-source League Archive).
