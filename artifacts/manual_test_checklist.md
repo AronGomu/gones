@@ -2935,3 +2935,68 @@ Work **signed out** on the server-backed archive (the cached catalogs are the pu
 - [ ] **Confirm the configured bound is still the only knob, and still clamped.** `GONES_SCHEDULER_BATCH_SIZE` is read by `TournamentSchedulerOptions.Load` as `ReadInt(configuration, "GONES_SCHEDULER_BATCH_SIZE", 100, 1, 500)`. No new env var was introduced and no new constant was added. Verify the clamp still rejects out-of-range values: `docker compose run --rm -e GONES_SCHEDULER_BATCH_SIZE=0 worker` must fail fast at startup with `GONES_SCHEDULER_BATCH_SIZE must be between 1 and 500.`, and `=501` likewise. This matters more than it looks: the paging loop terminates on "page shorter than `BatchSize`", so a batch size of `0` would spin forever — the startup clamp is what makes that unreachable.
 - [ ] **The commit is the two files the ticket names plus this checklist.** `git show --stat HEAD` → `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs`, `backend/tests/Gones.IntegrationTests/TournamentSchedulerTests.cs`, `artifacts/manual_test_checklist.md`. Nothing else moved: `git show HEAD -- src/ cypress/ ops/ deploy/ backend/src/Gones.Worker/ backend/src/Gones.Api/ compose.yaml package.json` must print nothing — in particular `Worker.cs` is untouched, which is the point: the public signatures and the `true`/`false` return semantics of `RefreshDailyAsync` and `RefreshPendingChangesAsync` did not change, so the caller did not have to. `npm run e2e:ci` and `npm run cy:run` were deliberately not run for this slice (plan Scope Out; their teardown destroys local database volumes); no Cypress spec exercises the worker.
 - [ ] **When you are done, stop the stack without destroying data.** Use `docker compose down` on its own. Do not add `--volumes` and do not run `npm run db:reset` — either wipes the local database volumes and forces a full reseed.
+
+## T35 private-cache-bound
+
+- [ ] **Know what you are testing before you touch anything.** `ServerReadCacheService` (`src/app/backend/server-read-cache.service.ts`) keeps the per-user offline read cache in IndexedDB database `gones-cache`, object store `reads`, key path `key`, one row per key of shape `<userId>:<resource>`. Admin screens build their resource from the filter values (`adminCacheKey` in `src/app/features/admin/admin-query.ts` joins the sorted `key=value` pairs after a `?`), so every distinct filter combination minted a distinct, **permanent** row: before this commit nothing ever removed a row except an explicit `invalidate()`/`invalidateFamily()` or the whole-database drop at logout. This commit adds `export const PRIVATE_CACHE_MAX_KEYS = 200;` and a private `evictOverflow()` that runs at the end of every successful cache write. What you are confirming below is (a) the ceiling holds, (b) it holds at exactly 200 and not at 199, and (c) it did not weaken the logout purge.
+- [ ] **Start the stack and sign in as an admin.** `npm run dev`, open `http://127.0.0.1:4200`, sign in as `admin-empty@gones.test` / `Gones-dev-pass-123!`. Navigate once to `http://127.0.0.1:4200/admin/audit` and let the table load — this first real cached read is what creates the `gones-cache` database and its `reads` store. Every console snippet below assumes that store already exists; run them against a database that was never opened and `transaction('reads')` throws `NotFoundError`.
+- [ ] **Read your own user id out of the cache, because every key is prefixed with it.** In the DevTools console on the app's origin:
+
+  ```js
+  const readKeys = () => new Promise((res, rej) => {
+    const open = indexedDB.open('gones-cache', 1);
+    open.onerror = () => rej(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const req = db.transaction('reads').objectStore('reads').getAllKeys();
+      req.onsuccess = () => { db.close(); res(req.result); };
+      req.onerror = () => { db.close(); rej(req.error); };
+    };
+  });
+  const keys = await readKeys();
+  console.log(keys.length, keys[0]);
+  ```
+
+  Expect one key shaped `<uuid>:admin-audit?action=&actorId=&entityId=&entityType=&from=&page=1&pageSize=20&to=`. Keep the uuid before the first `:` — that is `USER_ID` below. **Always `db.close()`** as these snippets do: an open console connection blocks the whole-database delete that logout performs, and a blocked delete now rejects after ten seconds (`DELETE_BLOCK_HOLD_MS`) instead of hanging, which would make the last step of this section look like a failure when it is really your own console holding the database.
+- [ ] **Install the seeder.** Paste this once; every later step reuses it. `hours` is how old the seeded row should look, so `hours: 25` produces a row past the 24h `PRIVATE_CACHE_TTL_MS`.
+
+  ```js
+  const USER_ID = '<paste the uuid you just read>';
+  const seed = (prefix, count, hours) => new Promise((res, rej) => {
+    const open = indexedDB.open('gones-cache', 1);
+    open.onerror = () => rej(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('reads', 'readwrite');
+      const store = tx.objectStore('reads');
+      for (let i = 0; i < count; i++) {
+        store.put({
+          key: `${USER_ID}:${prefix}?page=${i}`,
+          value: [i],
+          cachedAt: new Date(Date.now() - hours * 3600e3 - i * 1000).toISOString()
+        });
+      }
+      tx.oncomplete = () => { db.close(); res(); };
+      tx.onerror = () => { db.close(); rej(tx.error); };
+    };
+  });
+  ```
+
+  Row `i` is seeded one second older than row `i-1`, so `page=<count-1>` is always the oldest seeded row and the first non-expired eviction victim.
+- [ ] **Confirm nothing is evicted at exactly the bound — this is the off-by-one that matters.** Wipe to a known state (`await seed('probe', 0, 1)` does nothing; instead log out and back in, or delete the rows you created), then get the store to exactly 199 rows and perform one real cached read that mints a **new** key: `await seed('probe', 198, 1)` on top of the single `admin-audit` row leaves 199. Now navigate to `http://127.0.0.1:4200/admin/audit?entityId=probe-a` and let it load. `(await readKeys()).length` must be exactly **200**, and every `probe?page=…` key must still be present — landing *on* the cap evicts nothing. If you see 199 rows here, the sweep is firing one write too early and that is a bug in this commit.
+- [ ] **Now go one over and confirm exactly one row dies, and that it is the oldest.** From the 200-row state you just reached, navigate to `http://127.0.0.1:4200/admin/audit?entityId=probe-b` (a **different, never-used** `entityId`) and let it load. `(await readKeys()).length` must be back to **200**, `${USER_ID}:probe?page=197` (the oldest seeded row) must be gone, and the new `admin-audit?…entityId=probe-b…` key must be present. One key over the cap costs exactly one eviction, and the row the write just created is never its own victim.
+- [ ] **Understand why the `entityId` must be new every time, or you will conclude the fix does not work.** A row younger than the 24h TTL is served from cache and the loader is never called, so **no write happens and no sweep runs**. Revisiting `?entityId=probe-a` therefore leaves the row count exactly where it was — that is correct behaviour, not a missed eviction. Only a filter combination that has no fresh row (or a hard reload with the page's refresh control, which passes `force`) reaches the server, writes a row, and triggers the bound.
+- [ ] **Confirm expired rows are dropped wholesale, even below the cap — this looks wrong and is correct.** Log out and back in to clear the store, load `/admin/audit` once, then `await seed('fresh', 194, 1)` and `await seed('stale', 5, 25)`. That is 200 rows, five of them past the TTL. Navigate to `http://127.0.0.1:4200/admin/audit?entityId=probe-c`. Expect `(await readKeys()).length` to be **196**, not 200: the sweep deletes *every* expired row first, even though removing just one would have satisfied the cap, and only then falls back to oldest-first. No `stale?page=…` key may survive. A count of 200 with stale keys still present means the expired pass did not run.
+- [ ] **Confirm a lone expired row under the cap is deliberately left alone.** With a nearly empty store (log out, back in, load `/admin/audit` once), `await seed('stale', 1, 25)` then navigate to `?entityId=probe-d`. The stale row is **still there** and the count is 3. The sweep is over-cap-only by design, so a normal write costs one `getAllKeys()` call and nothing else; the expired row is never *served* (the TTL check refuses it) and it disappears at the next sweep or at logout. Do not report this as a leak.
+- [ ] **Confirm a broken store cannot break a working page.** With the store over the cap (repeat the 200-row setup), stub the delete so the sweep fails: in DevTools, the simplest reliable trigger is to open the Application → Storage pane and delete the `gones-cache` database *while* a navigation is in flight, or throttle to Offline and back. Whatever you use, the requirement is: the admin audit table still renders its rows, and the console shows an error line containing `server-read-cache.write`. A cache that cannot evict must never turn a successful server read into a failure — if the table shows the error state instead of data, that is a hard failure of this commit.
+- [ ] **Confirm the bound did not weaken the logout purge — the most important check in this section.** Get the store to the bounded 200-row state again and verify with `(await readKeys()).length === 200`. Close the DevTools Application → Storage pane (it holds a connection), then click Logout in the app. Now run:
+
+  ```js
+  console.log((await indexedDB.databases()).map(d => d.name));
+  ```
+
+  `gones-cache` must **not** appear. Logout drops the entire database, not a bounded subset of it: `purge()` calls `store.clear()`, which closes the connection and deletes `gones-cache` outright, and `evictOverflow` is not on that path at all. If `gones-cache` survives a logout, stop and report it — a bounded cache that stops being fully cleared on logout is a privacy regression, not a perf one, because the next user on that browser would inherit rows.
+- [ ] **Confirm the next sign-in starts from zero.** Sign in as a *different* account (`user-two-registrations@gones.test`, same password), open `/registrations`, and run `readKeys()`. Every key must be prefixed with the new account's uuid; not one `admin-empty` row may appear. This is the pre-existing "a row belongs to exactly one user" rule — the cap must not have introduced a way for an old row to outlive the purge.
+- [ ] **Confirm the read semantics are untouched.** Nothing about how a row is *served* changed: `/registrations` still serves a row under 24h without hitting the server, still falls back to a stale row when the server is unreachable (throttle to Offline and reload — the page renders with its stale marker), still refetches on the page's refresh control, and cancelling or creating a registration still drops every `registrations?page=…` row at once via `invalidateFamily`. The only new behaviour is deletion on write past 200 keys.
+- [ ] **The commit is the two files the ticket names plus this checklist.** `git show --stat HEAD` → `src/app/backend/server-read-cache.service.ts`, `src/app/backend/server-read-cache.service.test.ts`, `artifacts/manual_test_checklist.md`. Nothing else moved: `git show HEAD -- backend/ cypress/ ops/ deploy/ compose.yaml package.json src/app/shared/ src/app/features/` must print nothing. In particular the localStorage caches (`catalog-cache.ts`, `player-detail-cache.service.ts`, `public-event.service.ts`) were bounded by an earlier slice and their caps are untouched here, and there is no IndexedDB schema change and no database version bump — `SERVER_READ_CACHE_DB_VERSION` is still `1`, so an existing browser keeps its rows and simply starts obeying the cap on the next write.
+- [ ] **No stack teardown is needed for this section** — it is frontend-only. `npm run e2e:ci` and `npm run cy:run` were deliberately not run for this slice (plan Scope Out). If you stopped the stack, use `docker compose down` on its own: do not add `--volumes` and do not run `npm run db:reset`, either wipes the local database volumes and forces a full reseed.

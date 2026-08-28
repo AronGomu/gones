@@ -7,7 +7,7 @@ import { AuthService } from '../auth/auth.service';
 import { installFakeWebLocks } from '../auth/fake-web-locks';
 import { SessionScopeService } from '../auth/session-scope.service';
 import { REGISTRATIONS_CACHE_FAMILY, registrationsCacheKey } from '../features/events/my-registrations';
-import { CachedRead, IndexedDbServerReadCacheStore, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
+import { CachedRead, IndexedDbServerReadCacheStore, PRIVATE_CACHE_MAX_KEYS, SERVER_READ_CACHE_STORE_PORT, ServerReadCacheService } from './server-read-cache.service';
 
 /**
  * ADR 0031 — the cache answers a failed server read and nothing else. No TestBed in this repo, so the
@@ -316,6 +316,65 @@ describe('ServerReadCacheService failure containment', () => {
     const { service } = setup({ userId: 'u1', store });
 
     await expect(service.read('leagues', () => Promise.reject(new Error('offline')))).rejects.toThrowError('offline');
+  });
+});
+
+/**
+ * F39 — the freshness check only decides whether a row is served; without eviction every distinct
+ * query string mints one permanent key until logout. Writes past the cap sweep: expired rows first,
+ * then oldest-first back to the cap. The sweep is over-cap-only, so a normal write stays one keys()
+ * call, and a broken sweep is swallowed like any other cache write failure.
+ */
+describe('ServerReadCacheService eviction', () => {
+  function seedFresh(count: number): Record<string, CachedRead<unknown>> {
+    const seed: Record<string, CachedRead<unknown>> = {};
+    for (let i = 0; i < count; i++) seed[`u1:audit?page=${i}`] = cachedHoursAgo([i], 1 + i / 1000);
+    return seed;
+  }
+
+  it('evicts the oldest row once the key count passes the cap', async () => {
+    const store = fakeStore(seedFresh(PRIVATE_CACHE_MAX_KEYS));
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.read('audit?page=new', () => Promise.resolve(['new']));
+
+    expect(store.rows.size).toBe(PRIVATE_CACHE_MAX_KEYS);
+    expect(store.rows.has(`u1:audit?page=${PRIVATE_CACHE_MAX_KEYS - 1}`)).toBe(false);
+    expect(store.rows.has('u1:audit?page=new')).toBe(true);
+  });
+
+  it('drops every expired row when a write triggers the sweep', async () => {
+    const seed = seedFresh(PRIVATE_CACHE_MAX_KEYS - 5);
+    for (let i = 0; i < 5; i++) seed[`u1:stale?page=${i}`] = cachedHoursAgo([i], 25);
+    const store = fakeStore(seed);
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.read('audit?page=new', () => Promise.resolve(['new']));
+
+    expect([...store.rows.keys()].filter((key) => key.startsWith('u1:stale'))).toEqual([]);
+    expect(store.rows.size).toBe(PRIVATE_CACHE_MAX_KEYS - 4);
+  });
+
+  it('never sweeps a store at or under the cap', async () => {
+    const store = fakeStore({ 'u1:audit?page=0': cachedHoursAgo([0], 25) });
+    const { service } = setup({ userId: 'u1', store });
+
+    await service.read('audit?page=1', () => Promise.resolve([1]));
+
+    expect(store.delete).not.toHaveBeenCalled();
+    expect(store.rows.size).toBe(2);
+  });
+
+  it('a broken sweep never breaks the working server read', async () => {
+    const store = fakeStore(seedFresh(PRIVATE_CACHE_MAX_KEYS));
+    store.delete.mockRejectedValueOnce(new Error('indexedDbUnavailable'));
+    const { service } = setup({ userId: 'u1', store });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(service.read('audit?page=new', () => Promise.resolve(['new']))).resolves.toEqual({ value: ['new'], stale: false });
+
+    expect(logged.mock.calls.map(([line]) => String(line)).join()).toContain('server-read-cache.write');
+    logged.mockRestore();
   });
 });
 

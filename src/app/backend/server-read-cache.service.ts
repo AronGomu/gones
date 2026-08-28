@@ -33,6 +33,9 @@ const SERVER_READ_CACHE_DB_VERSION = 1;
 /** Same 24h TTL as the public catalog cache: one contract, two stores (ADR 0039). */
 export const PRIVATE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+/** Hard key-count bound (F39). One row per distinct query string is minted forever otherwise. */
+export const PRIVATE_CACHE_MAX_KEYS = 200;
+
 export interface CachedRead<T> { value: T; cachedAt: string; }
 export interface ServerReadResult<T> { value: T; stale: boolean; cachedAt?: string; }
 export interface PrivateCacheResult<T> { value: T; fetchedAt: string; fromCache: boolean; stale: boolean; }
@@ -202,10 +205,36 @@ export class ServerReadCacheService {
       await this.coordination.withAvailableLock(async () => {
         if (!this.isCurrentUnlocked(scope)) return;
         await this.store.write(key, { value, cachedAt: new Date().toISOString() });
+        await this.evictOverflow();
         if (!this.isCurrentUnlocked(scope)) await this.store.clear();
       });
     } catch (error) {
       logBoundaryError('server-read-cache.write', error);
+    }
+  }
+
+  /**
+   * Bounds the store on write (F39): the freshness check alone never removes a row, so distinct
+   * query strings would otherwise accumulate one permanent key each until logout. Only a store past
+   * the cap is swept, so the common write costs one `keys()` call and nothing more. Expired rows go
+   * first (all of them), then oldest-first until the count is back at the cap.
+   */
+  private async evictOverflow(): Promise<void> {
+    const keys = await this.store.keys();
+    if (keys.length <= PRIVATE_CACHE_MAX_KEYS) return;
+    const rows = await Promise.all(keys.map(async (rowKey) => ({ key: rowKey, row: await this.cached(rowKey) })));
+    const rank = (age: number): number => (Number.isNaN(age) ? Number.NEGATIVE_INFINITY : age);
+    const dated = rows
+      .filter((entry): entry is { key: string; row: CachedRead<unknown> } => entry.row !== null)
+      .map((entry) => ({ key: entry.key, age: Date.parse(entry.row.cachedAt) }))
+      .sort((a, b) => rank(a.age) - rank(b.age));
+    const now = Date.now();
+    let remaining = dated.length;
+    for (const entry of dated) {
+      const expired = Number.isNaN(entry.age) || now - entry.age >= PRIVATE_CACHE_TTL_MS;
+      if (!expired && remaining <= PRIVATE_CACHE_MAX_KEYS) break;
+      await this.store.delete(entry.key);
+      remaining -= 1;
     }
   }
 }
