@@ -2012,3 +2012,62 @@ endpoint policy of its own, so the global bucket is the only thing metering it.
       6th call onward answers `429`. Unset it again afterwards. Note that `compose.yaml` does not
       pass this key through by default — its rate-limit passthrough list is deliberately partial —
       so add it to the `api` service's `environment:` block for the duration of this check only.
+
+## T3 organizer-archive-import-route
+
+`ArchiveRepository.restoreBundle` used to send every server-bound import to `/api/archive/restore-full`,
+which the API gates behind `AuthorizationPolicies.Admin`
+(`backend/src/Gones.Api/Archive/ArchiveTournamentCommandEndpoints.cs:48-51`), so an Organizer's import
+answered `403` and wrote nothing anywhere while the Organizer-legal sibling `/api/archive/restore` had
+no caller in `src/`. Three vitest tests in `src/app/data/archive-repository.service.test.ts` now pin the
+routing decision at the repository seam (Organizer → `archiveRestore`, Admin → `archiveRestoreFull`,
+everyone else → the browser-local store), but they stub the generated client, so nothing automated in
+this run proves the real request reaches a route the Organizer's session is allowed on. The composed
+flow is browser-only and `npm run e2e:ci` is banned for this run — its teardown destroys the local DB
+volumes. What is here is what the vitest tests cannot see.
+
+Run the stack with `docker compose up -d --wait frontend-development` (dev server `127.0.0.1:4200`,
+API `127.0.0.1:5080`). Turn Power User mode on in Settings ("Enable Power User mode") — `importLeague`
+returns silently without it — and note the Import control only renders on `/archive/league-seasons`.
+The repo fixture cannot be imported as-is: `parseArchiveBundle` rejects any top-level key outside
+`version`/`checksum`/`leagues`/`leagueSeasons`/`tournaments`/`calendarEvents`, and
+`fixtures/archive-domain/v5/bundle.json` carries `"kind": "fullArchive"` and no `calendarEvents`. Make
+an importable copy once (no checksum needed — `verifyArchiveChecksum` accepts an artifact that carries
+none):
+
+```bash
+python3 -c "import json;d=json.load(open('fixtures/archive-domain/v5/bundle.json'));d.pop('kind');d['calendarEvents']=[];json.dump(d,open('/tmp/gones-v5-bundle.json','w'))"
+```
+
+- [ ] **An Organizer's import lands instead of answering 403.** Signed in as an Organizer with DevTools
+      Network open, go to `/archive/league-seasons` and import `/tmp/gones-v5-bundle.json` through the
+      header Import control. Exactly one `POST` to `/api/archive/restore` answering `201`, no request to
+      `/api/archive/restore-full`, and no red *"Your account is not allowed to change League or Result
+      data."* Before this fix that message was the only possible outcome.
+- [ ] **The body's `kind` matches the route it was sent to.** In that request's payload, `kind` is
+      `"archive"` and `version` is `5`, and the request carries an `Idempotency-Key` header. The two move
+      together: a `fullArchive` body on `/restore` answers `400` with `Expected archive export.`, so that
+      reply means the discriminator and the route came apart.
+- [ ] **The imported records land server-side and the page repaints on its own.** The 8 Leagues and 12
+      Seasons of the fixture appear without a manual reload (the restore runs through `mutating`, which
+      fires `gones-archive-updated`). Confirm the write really reached Postgres, not just the UI:
+      `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select count(*) from archive_leagues;"`
+      grew by 8, and
+      `docker compose exec -T postgres psql -U gones_migration -d gones -Atc "select action, count(*) from audit_records where action like 'archive.%.restored' group by action;"`
+      prints `archive.league.restored`, `archive.league-season.restored` and `archive.tournament.restored` rows.
+- [ ] **An Admin still takes the Admin-only route.** Sign in as a platform Admin and import the same file.
+      The request goes to `/api/archive/restore-full` with `kind: "fullArchive"` and answers `201`; nothing
+      hits `/api/archive/restore`. This path is the one that already worked — it must not have moved.
+- [ ] **A signed-out browser still writes locally and asks the server nothing.** Sign out, import the same
+      file, and confirm the records appear in both archive tabs with `local-` prefixed ids while the Network
+      tab shows no `/api/archive/**` request at all. A plain `User` behaves the same way: only an Organizer
+      or an Admin resolves to the server (`createArchiveTarget`), so no other role can reach either route.
+- [ ] **A second import duplicates rather than replays — that is expected, not a regression.** Import the
+      same file twice as the Organizer. A fresh `Idempotency-Key` is minted per click, so the second import
+      creates a second set of records whose names carry a uniqueness suffix. Only a replay of the *same*
+      key deduplicates.
+- [ ] **A server rejection still surfaces to the user instead of being swallowed.** With the Organizer
+      signed in, stop the API (`docker compose stop api`), then import the file. An error message appears
+      under the Import control, the page adds no records, and re-starting the API
+      (`docker compose start api`) followed by a retry succeeds. The failure path is unchanged by this
+      slice: both routes reject through `firstValueFrom` into the existing classifier.

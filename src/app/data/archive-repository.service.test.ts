@@ -16,6 +16,7 @@ import type {
 } from '../backend/archive-cache.service';
 import { LocalArchiveBackend } from '../backend/local-archive-backend.service';
 import { ServerArchiveBackend } from '../backend/server-archive-backend.service';
+import { buildArchiveBundle } from '../domain/archive-export-schemas';
 import { createArchiveTournament, createLeagueSeason } from '../domain/archive-models';
 import { PowerUserSettingsService } from '../shared/power-user-settings.service';
 import type { PersistedArchiveTournament, PersistedLeagueSeason, RoundEntry } from '../domain/archive-models';
@@ -92,6 +93,7 @@ function build(parts: {
   queue?: ReturnType<typeof queueStub>;
   client?: object;
   local?: object;
+  auth?: object;
 } = {}) {
   const cache = parts.cache ?? cacheStub();
   const queue = parts.queue ?? queueStub();
@@ -108,7 +110,7 @@ function build(parts: {
       // has to be able to answer them. `AuthService` decides the restore destination (ADR 0028).
       { provide: PowerUserSettingsService, useValue: { requireEnabled: () => undefined } },
       { provide: ServerArchiveBackend, useValue: {} },
-      { provide: AuthService, useValue: { profile: () => null } }
+      { provide: AuthService, useValue: parts.auth ?? { profile: () => null } }
     ]
   });
   return { repo: injector.get(ArchiveRepository), cache, queue, local };
@@ -805,5 +807,61 @@ describe('archive repository — the browser-local union (ADR 0028)', () => {
     const result = await repo.listSeasonTournaments({ id: 'server-1', firstTournamentDate: '2026-01-05', lastTournamentDate: '2026-06-06' });
 
     expect(result).toMatchObject({ fromCache: false, truncated: true });
+  });
+});
+
+describe('archive repository — bundle restore routing (F4)', () => {
+  const bundle = () => buildArchiveBundle({ leagues: [], leagueSeasons: [], tournaments: [] });
+  const restored = () => of({ leagues: [{ id: 'L1' }], leagueSeasons: [], tournaments: [] });
+
+  it('an Organizer bundle posts to /api/archive/restore, never restore-full', async () => {
+    const archiveRestore = vi.fn(restored);
+    const archiveRestoreFull = vi.fn(restored);
+    const { repo, cache } = build({
+      auth: { profile: () => ({ globalRole: 'Organizer' }) },
+      client: { archiveRestore, archiveRestoreFull }
+    });
+
+    const summary = await repo.restoreBundle(bundle(), 'key-1');
+
+    expect(archiveRestore).toHaveBeenCalledTimes(1);
+    expect(archiveRestore).toHaveBeenCalledWith('key-1', expect.objectContaining({ kind: 'archive', version: 5 }));
+    expect(archiveRestoreFull).not.toHaveBeenCalled();
+    expect(summary).toEqual({ leagueIds: ['L1'], leagueSeasonIds: [], tournamentIds: [] });
+    expect(cache.clearAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('an Admin bundle still posts to /api/archive/restore-full with kind fullArchive', async () => {
+    const archiveRestore = vi.fn(restored);
+    const archiveRestoreFull = vi.fn(restored);
+    const { repo } = build({
+      auth: { profile: () => ({ globalRole: 'Admin' }) },
+      client: { archiveRestore, archiveRestoreFull }
+    });
+
+    const summary = await repo.restoreBundle(bundle(), 'key-1');
+
+    expect(archiveRestoreFull).toHaveBeenCalledTimes(1);
+    expect(archiveRestoreFull).toHaveBeenCalledWith('key-1', expect.objectContaining({ kind: 'fullArchive', version: 5 }));
+    expect(archiveRestore).not.toHaveBeenCalled();
+    expect(summary).toEqual({ leagueIds: ['L1'], leagueSeasonIds: [], tournamentIds: [] });
+  });
+
+  it('a plain User restores into the browser-local store with no request', async () => {
+    const archiveRestore = vi.fn(restored);
+    const archiveRestoreFull = vi.fn(restored);
+    const restoreArchiveBundle = vi.fn(async () => ({ leagues: [{ id: 'local-1' }], leagueSeasons: [], tournaments: [] }));
+    const { repo } = build({
+      auth: { profile: () => ({ globalRole: 'User' }) },
+      client: { archiveRestore, archiveRestoreFull },
+      local: { ...localStub(), restoreArchiveBundle }
+    });
+
+    const summary = await repo.restoreBundle(bundle(), 'key-1');
+
+    expect(restoreArchiveBundle).toHaveBeenCalledTimes(1);
+    expect(archiveRestore).not.toHaveBeenCalled();
+    expect(archiveRestoreFull).not.toHaveBeenCalled();
+    expect(summary).toEqual({ leagueIds: ['local-1'], leagueSeasonIds: [], tournamentIds: [] });
   });
 });

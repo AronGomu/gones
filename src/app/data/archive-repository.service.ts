@@ -88,6 +88,7 @@ export interface ArchiveReadClient {
   getArchiveTournamentYearCatalog(year: string | undefined): Observable<RawCatalog<RawArchiveTournament>>;
   getArchiveYears(): Observable<RawArchiveYears>;
   archiveSeasonTournaments(seasonId: string): Observable<RawCatalog<RawArchiveTournament>>;
+  archiveRestore(idempotencyKey: string | undefined, body: ArchiveRestoreRequest): Observable<RawArchiveRestore>;
   archiveRestoreFull(idempotencyKey: string | undefined, body: ArchiveRestoreRequest): Observable<RawArchiveRestore>;
 }
 
@@ -379,16 +380,21 @@ export class ArchiveRepository {
   /**
    * Persist a parsed v5 bundle. `ArchiveImportService` reads and validates but injects no store, so
    * this is the method its doc comment names. The destination is ADR 0028's rule and nothing else:
-   * an Organizer or Admin restores onto the server, everyone else into this browser.
+   * an Organizer or Admin restores onto the server, everyone else into this browser. An Admin restores
+   * through `/restore-full`; an Organizer through the Organizer-gated `/restore` — the Admin-only route
+   * was the F4 dead path.
    */
   restoreBundle(bundle: ArchiveBundle, idempotencyKey = newArchiveIdempotencyKey()): Promise<ArchiveRestoreSummary> {
     return this.mutating(async () => {
       this.power.requireEnabled();
-      if (createArchiveTarget(this.auth.profile()?.globalRole) === 'local') {
+      const role = this.auth.profile()?.globalRole;
+      if (createArchiveTarget(role) === 'local') {
         const restored = await this.local.restoreArchiveBundle(bundle, idempotencyKey);
         return toRestoreSummary(restored.leagues, restored.leagueSeasons, restored.tournaments);
       }
-      const response = await firstValueFrom(this.client.archiveRestoreFull(idempotencyKey, toRestoreRequest(bundle)));
+      const response = await firstValueFrom(role === 'Admin'
+        ? this.client.archiveRestoreFull(idempotencyKey, toRestoreRequest(bundle, 'fullArchive'))
+        : this.client.archiveRestore(idempotencyKey, toRestoreRequest(bundle, 'archive')));
       return toRestoreSummary(response.leagues, response.leagueSeasons, response.tournaments);
     });
   }
@@ -537,13 +543,14 @@ function newArchiveIdempotencyKey(): string {
 }
 
 /**
- * The wire body for `/api/archive/restore-full`. `kind` is the server's bundle discriminator, and
+ * The wire body for `/api/archive/restore` and `/api/archive/restore-full`; `kind` must match the
+ * route or the server answers 400. `kind` is the server's bundle discriminator, and
  * `seasonId` crosses as `undefined` rather than `null` because that is what the generated client
  * declares — both serialize to an absent Season, which is what standalone means.
  */
-function toRestoreRequest(bundle: ArchiveBundle): ArchiveRestoreRequest {
+function toRestoreRequest(bundle: ArchiveBundle, kind: 'archive' | 'fullArchive'): ArchiveRestoreRequest {
   return {
-    kind: 'fullArchive',
+    kind,
     version: bundle.version,
     leagues: bundle.leagues,
     leagueSeasons: bundle.leagueSeasons,
