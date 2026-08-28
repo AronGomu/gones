@@ -16,8 +16,18 @@ const CATALOG_PATH = 'src/app/i18n/messages.ts';
  */
 const DYNAMIC_KEY_PREFIXES = [/^eventManage\.major\./, /^eventManage\.field\./];
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * Every quote-delimited token in `blob`, collected in one pass. The lookahead leaves the closing
+ * quote unconsumed so it also opens the next token, which splits a run like `'a'b'` into `a` and
+ * `b` — exactly the occurrences a per-key `['"`]key['"`]` search would find. Same answer as one
+ * regex scan per key, without scanning the 18 MB blob 1168 times.
+ */
+function quotedTokens(blob: string): Set<string> {
+  const tokens = new Set<string>();
+  for (const match of blob.matchAll(/['"`]([^'"`]*)(?=['"`])/g)) {
+    tokens.add(match[1]);
+  }
+  return tokens;
 }
 
 function orphanMessageKeys(): string[] {
@@ -33,9 +43,10 @@ function orphanMessageKeys(): string[] {
       }
     })
     .join('\n');
+  const referenced = quotedTokens(blob);
   return Object.keys(en)
     .filter(key => !DYNAMIC_KEY_PREFIXES.some(prefix => prefix.test(key)))
-    .filter(key => !new RegExp(`['"\`]${escapeRegExp(key)}['"\`]`).test(blob))
+    .filter(key => !referenced.has(key))
     .sort();
 }
 
@@ -61,7 +72,10 @@ describe('message namespace', () => {
     );
   });
 
+  // Reads every tracked file, so it is I/O bound and slows down with the machine, not with the
+  // code under test. The default 5s timeout made it flake on a loaded runner; this is headroom,
+  // not an expected duration.
   it('every key is referenced outside the catalog', () => {
     expect(orphanMessageKeys()).toEqual([]);
-  });
+  }, 30_000);
 });
