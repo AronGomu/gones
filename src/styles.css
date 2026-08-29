@@ -187,10 +187,16 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .home-destinations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 /* Last card takes the whole row only when it would sit alone on it; with an even count every card stays half width. */
 .home-destinations > :last-child:nth-child(odd) { grid-column: 1 / -1; }
-.home-destination { min-height: 13rem; display: grid; align-content: end; gap: .7rem; padding: clamp(1rem, 2.2vw, 1.5rem); border: 1px solid var(--soot); background: var(--iron); color: var(--ash); text-decoration: none; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
-.home-destination:hover, .home-destination:focus-visible { transform: translateY(-3px); border-color: var(--hot-blood); background: oklch(14% 0.052 29); box-shadow: 0 18px 44px oklch(4% 0.012 29 / 0.36); outline: 2px solid color-mix(in oklch, var(--hot-blood) 70%, transparent); outline-offset: 3px; }
-.home-destination strong { font-size: clamp(1.45rem, 3vw, 2.35rem); line-height: 1; letter-spacing: -.035em; }
-.home-destination p { max-width: 48ch; margin: 0; color: var(--dim-ash); line-height: 1.55; }
+.home-destination { position: relative; isolation: isolate; overflow: hidden; min-height: 13rem; display: grid; align-content: end; gap: .7rem; padding: clamp(1rem, 2.2vw, 1.5rem); border: 1px solid var(--soot); background: var(--iron); color: var(--ash); text-decoration: none; transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+.home-destination::after { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(color-mix(in oklch, var(--black-metal) 72%, transparent), color-mix(in oklch, var(--black-metal) 72%, transparent)), linear-gradient(to right, color-mix(in oklch, var(--black-metal) 96%, transparent) 0 34%, color-mix(in oklch, var(--black-metal) 82%, transparent) 58%, transparent 88%); pointer-events: none; }
+.home-destination__art { position: absolute; z-index: -2; inset: 0 0 0 28%; width: 72%; height: 100%; object-fit: cover; object-position: center; opacity: .68; pointer-events: none; -webkit-mask-image: linear-gradient(to right, transparent, #000 42%); mask-image: linear-gradient(to right, transparent, #000 42%); }
+.home-destination__art--fire-left { inset: 0 auto 0 0; width: 58%; object-position: left; opacity: .42; -webkit-mask-image: linear-gradient(to right, #000, transparent 92%); mask-image: linear-gradient(to right, #000, transparent 92%); }
+.home-destination__art--fire-right { inset: 0 0 0 auto; width: 58%; object-position: right; -webkit-mask-image: linear-gradient(to right, transparent, #000 36%); mask-image: linear-gradient(to right, transparent, #000 36%); }
+.home-destination:not(.home-destination--disabled):hover, .home-destination:not(.home-destination--disabled):focus-visible { transform: translateY(-3px); border-color: var(--hot-blood); background-color: oklch(14% 0.052 29); box-shadow: 0 18px 44px oklch(4% 0.012 29 / 0.36); outline: 2px solid color-mix(in oklch, var(--hot-blood) 70%, transparent); outline-offset: 3px; }
+.home-destination--disabled { cursor: not-allowed; filter: grayscale(.75); opacity: .62; }
+.home-destination strong, .home-destination p { position: relative; z-index: 1; }
+.home-destination strong { font-size: clamp(1.45rem, 3vw, 2.35rem); line-height: 1; letter-spacing: -.035em; text-shadow: 0 2px 12px var(--black-metal); }
+.home-destination p { max-width: 48ch; margin: 0; color: var(--dim-ash); line-height: 1.55; text-shadow: 0 2px 10px var(--black-metal); }
 .home-destination--leagues { background: radial-gradient(circle at 88% 0%, color-mix(in oklch, var(--create-green) 18%, transparent), transparent 12rem), var(--iron); }
 .home-destination--running-active { border-color: color-mix(in oklch, var(--create-green) 72%, var(--ash)); background: radial-gradient(circle at 88% 0%, color-mix(in oklch, var(--create-green) 42%, transparent), transparent 13rem), linear-gradient(145deg, color-mix(in oklch, var(--create-green) 24%, var(--iron)), var(--black-metal)); box-shadow: 0 18px 44px color-mix(in oklch, var(--create-green) 20%, transparent), inset 0 0 0 1px color-mix(in oklch, var(--create-green) 30%, transparent); }
 .home-destination--running-active:hover, .home-destination--running-active:focus-visible { border-color: var(--create-green-hot); background: radial-gradient(circle at 88% 0%, color-mix(in oklch, var(--create-green) 52%, transparent), transparent 13rem), linear-gradient(145deg, color-mix(in oklch, var(--create-green) 30%, var(--iron)), var(--black-metal)); box-shadow: 0 20px 50px color-mix(in oklch, var(--create-green) 28%, transparent); }
@@ -391,9 +397,9 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 /* Scoped override: the app-wide h1 clamp tops out at 4rem, which dwarfs a hero that now carries four more rows under it (feedback round 6). */
 .event-hero h1 { font-size: clamp(1.6rem, 3.5vw, 2.25rem); }
 .event-when, .event-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; margin: 0; }
-.event-hero-topline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.event-hero-topline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: .75rem; }
 .event-hero-topline .kicker { margin: 0; }
-.event-player-count { color: var(--dim-ash); font-size: .82rem; font-weight: 700; white-space: nowrap; }
+.event-player-count { color: var(--dim-ash); font-size: 1.1rem; font-weight: 800; white-space: nowrap; }
 .event-hero-ics { margin-top: .75rem; }
 .event-hero-organizers { margin-top: .6rem; color: var(--dim-ash); font-size: .82rem; font-style: italic; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
@@ -1209,8 +1215,9 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
    stretch to fill the pin and every gap on the page widens as the results narrow. */
 .public-calendar-page { gap: 1rem; align-content: start; }
 .public-calendar-page, .public-calendar-page * { min-width: 0; }
-.calendar-view-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
-.calendar-view-tabs button { min-height: 44px; }
+.public-calendar-page > .section-header { display: flex; align-items: center; justify-content: flex-start; }
+.calendar-view-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.calendar-view-tabs > button { width: auto; height: 44px; }
 .calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
 .calendar-search-row { display: flex; width: 100%; margin: .35rem 0 .5rem; }
 .calendar-search-input { width: 100%; min-height: 44px; padding: .7rem .8rem; border: 1px solid var(--steel); border-radius: 0; background: var(--black-metal); color: var(--ash); font: inherit; }
@@ -1238,11 +1245,12 @@ gones-sync-bar { display: flex; flex-direction: column; align-items: flex-end; g
 .public-month-day--muted { background: color-mix(in oklch, var(--forge) 58%, var(--iron)); color: var(--steel); }
 /* Past days read as recessed through a darker cell and a muted day number. Never a blanket opacity:
    that composites the event chips too and drops their text under the WCAG AA contrast bar. */
-.public-month-day--past { background: color-mix(in oklch, var(--forge) 45%, var(--iron)); }
+.public-month-day--past { background: color-mix(in oklch, var(--forge) 45%, var(--iron)); cursor: default; }
 .public-month-day--past.public-month-day--muted { background: color-mix(in oklch, var(--forge) 80%, var(--iron)); }
 .public-month-day--past > time { color: var(--steel); font-weight: 700; }
 .public-month-event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .3rem; align-items: baseline; padding: .18rem .3rem; border-left: 3px solid var(--hot-blood); background: color-mix(in oklch, var(--blood) 18%, transparent); color: var(--ash); font-size: .78rem; line-height: 1.25; text-decoration: none; }
-.public-month-event:hover, .public-month-event:focus-visible { background: color-mix(in oklch, var(--blood) 32%, transparent); outline: 2px solid var(--hot-blood); outline-offset: 1px; }
+.public-month-day--past .public-month-event--disabled { border-left-color: var(--steel); background: color-mix(in oklch, var(--forge) 72%, transparent); color: var(--steel); cursor: default; }
+a.public-month-event:hover, a.public-month-event:focus-visible { background: color-mix(in oklch, var(--blood) 32%, transparent); outline: 2px solid var(--hot-blood); outline-offset: 1px; }
 .public-month-event__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .public-month-event__time { color: var(--dim-ash); font-variant-numeric: tabular-nums; }
 .public-month-more { color: var(--dim-ash); font-size: .74rem; }
@@ -1270,6 +1278,9 @@ gones-sync-bar { display: flex; flex-direction: column; align-items: flex-end; g
 .registration-action p { margin: 0; }
 .registration-actions { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
 .public-participants__header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.public-participants__title-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: .75rem; }
+.public-participants__title-row h2, .public-participants__title-row p { margin: 0; }
+.public-participants__title-row p { color: var(--dim-ash); font-weight: 800; }
 .public-participants__header-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .6rem; }
 .public-participants > p { margin: 0; }
 /* --create-green-hot, not --create-green: the label is 14px, so it needs 4.5:1, and forge on

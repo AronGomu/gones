@@ -12390,6 +12390,7 @@
         "required": [
           "userId",
           "username",
+          "playerName",
           "firstName",
           "lastName",
           "location",
@@ -12404,6 +12405,12 @@
           },
           "username": {
             "type": "string"
+          },
+          "playerName": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "firstName": {
             "type": [

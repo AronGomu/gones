@@ -42,7 +42,10 @@ const PARTICIPANTS_PAGE_SIZE = 100;
 
         <section class="panel event-section public-participants" data-cy="public-participants-section" aria-labelledby="participants-title">
           <div class="public-participants__header" data-cy="public-participants-header">
-            <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
+            <div class="public-participants__title-row" data-cy="public-participants-title-row">
+              <h2 id="participants-title" data-cy="public-participants-title">{{ i18n.t('registration.participants') }}</h2>
+              @if (participantCapacityStatus(item.capacity); as status) { <p data-cy="registration-capacity-status">{{ status }}</p> }
+            </div>
             <div class="public-participants__header-actions" data-cy="public-participants-header-actions">
               <a mat-stroked-button [href]="service.icsUrl(item.slug)" type="text/calendar" data-cy="registration-ics">{{ i18n.t('event.addToCalendar') }}</a>
               @if (auth.enabled && !auth.profile()) {
@@ -62,7 +65,6 @@ const PARTICIPANTS_PAGE_SIZE = 100;
             } @else if (capabilityLoading()) {
               <p aria-busy="true" data-cy="registration-capability-loading">{{ i18n.t('common.loading') }}</p>
             } @else if (capability(); as state) {
-              <p data-cy="registration-capacity-status">{{ i18n.t('registration.capacityStatus', { count: state.activeParticipantCount, capacity: state.capacity ?? i18n.t('registration.unlimited') }) }}</p>
               @if (!state.canRegister && !state.canUnregister) {
                 <p class="warning" data-cy="registration-reason">{{ reasonMessage(state.reason) }}</p>
               }
@@ -73,17 +75,16 @@ const PARTICIPANTS_PAGE_SIZE = 100;
             @if (!online()) { <p class="warning" data-cy="registration-offline">{{ i18n.t('registration.offline') }}</p> }
             <p #registrationStatus class="registration-live-status" tabindex="-1" role="status" aria-live="polite" data-cy="registration-status">{{ mutationStatus() }}</p>
           }
-          @if (!participantsRequested()) { <button mat-stroked-button type="button" data-cy="public-participants-show" (click)="showParticipants()">{{ i18n.t('registration.showParticipants') }}</button> }
-          @else if (participantsLoading() && !participants().length) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
+          @if (participantsLoading() && !participants().length) { <p aria-busy="true" data-cy="public-participants-loading">{{ i18n.t('common.loading') }}</p> }
           @else if (participantsError()) { <div role="alert" data-cy="public-participants-error"><p data-cy="public-participants-error-text">{{ i18n.t('registration.participantsLoadFailed') }}</p><button mat-stroked-button type="button" data-cy="public-participants-retry" (click)="loadParticipants()">{{ i18n.t('common.retry') }}</button></div> }
           @else if (!participants().length) { <p data-cy="public-participants-empty">{{ i18n.t('registration.noParticipants') }}</p> }
           @else {
             <ul class="participant-list" data-cy="public-participants">
               @for (participant of participants(); track participant.userId) {
-                <li data-cy="public-participant"><strong [attr.data-cy]="'public-participant-name-' + participant.userId">{{ participant.username }}</strong>@if (optionalParticipantFields(participant); as fields) { @if (fields) { <span [attr.data-cy]="'public-participant-fields-' + participant.userId">{{ fields }}</span> } }</li>
+                <li data-cy="public-participant">@if (participant.playerName; as playerName) { <a [routerLink]="['/players', playerName]" [attr.data-cy]="'public-participant-name-' + participant.userId">{{ participant.username }}</a> } @else { <strong [attr.data-cy]="'public-participant-name-' + participant.userId">{{ participant.username }}</strong> }@if (optionalParticipantFields(participant); as fields) { @if (fields) { <span [attr.data-cy]="'public-participant-fields-' + participant.userId">{{ fields }}</span> } }</li>
               }
             </ul>
-            @if (participants().length < participantsTotal()) { <button mat-stroked-button type="button" data-cy="public-participants-more" [disabled]="participantsLoading()" (click)="loadMoreParticipants()">{{ i18n.t('registration.moreParticipants') }}</button> }
+            @if (hasMoreParticipants()) { <button mat-stroked-button type="button" data-cy="public-participants-more" [disabled]="participantsLoading()" (click)="loadMoreParticipants()">{{ i18n.t('registration.moreParticipants') }}</button> }
           }
         </section>
       </div>
@@ -101,8 +102,7 @@ export class PublicEventDetailComponent implements OnInit {
   @ViewChild('registrationStatus') private registrationStatus?: ElementRef<HTMLElement>;
   readonly event = signal<PublicEventDetailResponse | null>(null);
   readonly participants = signal<PublicEventParticipantResponse[]>([]);
-  readonly participantsRequested = signal(false);
-  readonly participantsTotal = signal(0);
+  readonly participantsTotal = signal<number | null>(null);
   private readonly participantsPage = signal(0);
   readonly capability = signal<EventRegistrationCapabilityResponse | null>(null);
   readonly loading = signal(true);
@@ -133,7 +133,8 @@ export class PublicEventDetailComponent implements OnInit {
       this.event.set(result.data);
       this.stale.set(result.stale);
       this.cachedAt.set(result.cachedAt);
-      await Promise.all([this.participantsRequested() ? this.loadParticipants() : Promise.resolve(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
+      this.loading.set(false);
+      await Promise.all([this.loadParticipants(), this.auth.profile() ? this.loadCapability() : Promise.resolve()]);
     } catch (error) {
       this.event.set(null);
       this.stale.set(false);
@@ -145,13 +146,8 @@ export class PublicEventDetailComponent implements OnInit {
     }
   }
 
-  async showParticipants(): Promise<void> {
-    this.participantsRequested.set(true);
-    await this.loadParticipants();
-  }
-
   async loadParticipants(): Promise<void> {
-    if (!this.participantsRequested()) return;
+    if (!this.participants().length) this.participantsTotal.set(null);
     const slug = this.route.snapshot.paramMap.get('slug') ?? '';
     this.participantsLoading.set(true);
     this.participantsError.set(false);
@@ -229,6 +225,19 @@ export class PublicEventDetailComponent implements OnInit {
     if (reason === 'registered') return this.i18n.t('registration.alreadyActive');
     if (reason === 'available') return '';
     return this.i18n.t(registrationErrorKey(reason));
+  }
+
+  hasMoreParticipants(): boolean {
+    const total = this.participantsTotal();
+    return total !== null && this.participants().length < total;
+  }
+
+  participantCapacityStatus(capacity: number | undefined): string | null {
+    const count = this.participantsTotal();
+    return count === null ? null : this.i18n.t('registration.capacityStatus', {
+      count,
+      capacity: capacity ?? this.i18n.t('registration.unlimited')
+    });
   }
 
   optionalParticipantFields(participant: PublicEventParticipantResponse): string {

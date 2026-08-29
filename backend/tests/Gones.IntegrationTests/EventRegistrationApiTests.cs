@@ -119,6 +119,26 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
                 "France", "Rhône", "Lyon", new LocalDate(1990, 4, 17),
                 "en", true, false, false, false, false,
                 clock.GetCurrentInstant().InUtc().Date, clock.GetCurrentInstant());
+            database.PlayerStatistics.Add(new PlayerStatisticsRow
+            {
+                ScopeKind = PlayerStatisticsScope.Global,
+                ScopeId = string.Empty,
+                PlayerName = "RenamedUser",
+                PlayedMatchCount = 1,
+                MatchWins = 1,
+                MatchLosses = 0,
+                MatchDraws = 0,
+                PlayedGameCount = 2,
+                GameWins = 2,
+                GameLosses = 0,
+                Rating = 1500,
+                RatingDeviation = 350,
+                RatingVolatility = 0.06,
+                PreviousRating = 1500,
+                LastRatingDelta = 0,
+                TournamentsPlayed = 1,
+                DecayedRating = 1500
+            });
             await database.SaveChangesAsync();
         }
 
@@ -126,6 +146,7 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         var participants = await publicParticipants.Content.ReadFromJsonAsync<JsonElement>();
         var participant = Assert.Single(participants.GetProperty("items").EnumerateArray());
         Assert.Equal("RenamedUser", participant.GetProperty("username").GetString());
+        Assert.Equal("RenamedUser", participant.GetProperty("playerName").GetString());
         Assert.Equal("Current", participant.GetProperty("firstName").GetString());
         Assert.Equal(JsonValueKind.Null, participant.GetProperty("lastName").ValueKind);
 

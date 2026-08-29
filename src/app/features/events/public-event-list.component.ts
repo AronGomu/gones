@@ -62,6 +62,13 @@ const SEARCH_DEBOUNCE_MS = 300;
     <section #calendarPage class="info-page public-calendar-page" [style.min-height.px]="pageMinHeight()" aria-labelledby="public-calendar-title" data-cy="public-calendar">
       <header class="section-header" data-cy="event-list-header">
         <div data-cy="event-list-header-text"><h1 id="public-calendar-title" data-cy="event-list-title">{{ i18n.t('event.publicTitle') }}</h1></div>
+        <div class="calendar-view-tabs" role="group" [attr.aria-label]="i18n.t('event.viewAria')" data-cy="event-list-view-tabs">
+          <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="event-list-view" (click)="setView('calendar')">{{ i18n.t('event.tabCalendar') }}</button>
+          <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('event.listView') }}</button>
+          @if (canCreateEvent()) {
+            <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/events/new" data-cy="event-list-create-event">{{ i18n.t('event.createEvent') }}</a>
+          }
+        </div>
       </header>
 
       <form class="calendar-search-row" data-cy="event-list-search-row" (ngSubmit)="$event.preventDefault()">
@@ -70,14 +77,6 @@ const SEARCH_DEBOUNCE_MS = 300;
                [attr.placeholder]="i18n.t('event.searchPlaceholder')"
                [ngModel]="searchDraft()" (ngModelChange)="setSearchDraft($event)">
       </form>
-
-      <div class="calendar-view-tabs" role="group" [attr.aria-label]="i18n.t('event.viewAria')" data-cy="event-list-view-tabs">
-        <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="event-list-view" (click)="setView('calendar')">{{ i18n.t('event.tabCalendar') }}</button>
-        <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('event.listView') }}</button>
-        @if (canCreateEvent()) {
-          <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/events/new" data-cy="event-list-create-event">{{ i18n.t('event.createEvent') }}</a>
-        }
-      </div>
 
       @if (registrationMessageKey(); as messageKey) { <p class="registration-live-status" role="status" aria-live="polite" data-cy="event-list-registration-message">{{ i18n.t(messageKey) }}</p> }
       @if (error()) {
@@ -97,13 +96,19 @@ const SEARCH_DEBOUNCE_MS = 300;
             @for (week of monthWeeks(); track week[0].date) {
               <div class="public-month-row" role="row" data-cy="event-list-month-row">
                 @for (day of week; track day.date) {
-                  <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" [class.public-month-day--past]="isPast(day.date)" [attr.data-cy]="isPast(day.date) ? 'event-list-month-day-past' : 'event-list-month-day'">
+                  @let dayIsPast = isPast(day.date);
+                  <article class="public-month-day" role="gridcell" [class.public-month-day--muted]="!day.inMonth" [class.public-month-day--past]="dayIsPast" [attr.aria-disabled]="dayIsPast" [attr.data-cy]="dayIsPast ? 'event-list-month-day-past' : 'event-list-month-day'">
                     <time [attr.datetime]="day.date" data-cy="event-list-month-day-date">{{ day.day }}</time>
                     @for (event of visibleDayEvents(day.date); track event.id) {
-                      <a class="public-month-event" [routerLink]="['/events', event.slug]" [attr.data-cy]="'event-list-month-day-event-' + event.slug" [attr.title]="event.title">
-                        <span class="public-month-event__time" data-cy="event-list-month-day-event-time">{{ event.venueStartTime.slice(0, 5) }}</span>
-                        <span class="public-month-event__title" data-cy="event-list-month-day-event-title">@for (part of highlightParts(event.title); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-month-day-event-title-part-' + event.slug + '-' + $index">{{ part.text }}</span> }</span>
-                      </a>
+                      @if (dayIsPast) {
+                        <span class="public-month-event public-month-event--disabled" aria-disabled="true" [attr.data-cy]="'event-list-month-day-event-' + event.slug" [attr.title]="event.title">
+                          <ng-container *ngTemplateOutlet="monthEventBody; context: { $implicit: event }" />
+                        </span>
+                      } @else {
+                        <a class="public-month-event" [routerLink]="['/events', event.slug]" [attr.data-cy]="'event-list-month-day-event-' + event.slug" [attr.title]="event.title">
+                          <ng-container *ngTemplateOutlet="monthEventBody; context: { $implicit: event }" />
+                        </a>
+                      }
                     }
                     @if (hiddenDayEventCount(day.date); as hidden) {
                       <span class="public-month-more" data-cy="event-list-month-day-more">{{ i18n.t('event.moreEvents', { count: hidden }) }}</span>
@@ -135,9 +140,10 @@ const SEARCH_DEBOUNCE_MS = 300;
       }
 
       <ng-template #emptyState><section class="panel calendar-state" data-cy="event-list-empty"><h2 data-cy="event-list-empty-title">{{ i18n.t('event.emptyTitle') }}</h2><p data-cy="event-list-empty-body">{{ i18n.t('event.emptyBody') }}</p></section></ng-template>
+      <ng-template #monthEventBody let-event><span class="public-month-event__time" data-cy="event-list-month-day-event-time">{{ event.venueStartTime.slice(0, 5) }}</span><span class="public-month-event__title" data-cy="event-list-month-day-event-title">@for (part of highlightParts(event.title); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-month-day-event-title-part-' + event.slug + '-' + $index">{{ part.text }}</span> }</span></ng-template>
       <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.displayTitle" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
         <div data-cy="event-list-card-body"><div class="calendar-card-heading" data-cy="event-list-card-heading"><h3 data-cy="event-list-card-title"><a [routerLink]="['/events', item.slug]" data-cy="event-list-card-link" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">@for (part of highlightParts(item.displayTitle); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-title-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></h3><time [attr.datetime]="item.startsAtUtc" data-cy="event-list-card-start-time">{{ item.venueStartTime.slice(0, 5) }}</time></div>@if (date(item).secondary; as secondary) { <p class="viewer-date" data-cy="event-list-card-viewer-date">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }@if (cardMapsUrl(item); as mapsUrl) { <p [attr.data-cy]="'event-list-card-venue'"><a class="event-card-venue-link" [attr.data-cy]="'event-list-card-venue-link-' + item.slug" [href]="mapsUrl" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue(item) })" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</a></p> } @else { <p [attr.data-cy]="'event-list-card-venue'">@for (part of highlightParts(venue(item)); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-venue-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }@if (item.summary) { <p class="muted" data-cy="event-list-card-summary">@for (part of highlightParts(item.summary); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-card-summary-part-' + item.slug + '-' + $index">{{ part.text }}</span> }</p> }</div>
-        <div class="calendar-event__actions" data-cy="event-list-card-actions">@if (showCardRegister(item)) { <button mat-flat-button type="button" class="registration-register-button" data-cy="event-list-card-register" [disabled]="pendingEventId() === item.id" (click)="registerFromCard(item, $event)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ pendingEventId() === item.id ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button> }@if (showCardIcs(item)) { <a mat-stroked-button [href]="service.icsUrl(item.slug)" type="text/calendar" data-cy="event-list-card-ics" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('event.addToCalendar') }}</a> }</div>
+        <div class="calendar-event__actions" data-cy="event-list-card-actions">@if (cardActionsDisabled(item) || showCardRegister(item)) { <button mat-flat-button type="button" class="registration-register-button" data-cy="event-list-card-register" [disabled]="cardActionsDisabled(item) || pendingEventId() === item.id" (click)="registerFromCard(item, $event)" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ pendingEventId() === item.id ? i18n.t('registration.pending') : i18n.t('registration.register') }}</button> }<a mat-stroked-button [href]="service.icsUrl(item.slug)" type="text/calendar" data-cy="event-list-card-ics" [disabled]="cardActionsDisabled(item)" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()">{{ i18n.t('event.addToCalendar') }}</a></div>
       </article></ng-template>
     </section>
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="bottom" data-cy="event-list-back-bottom" />
@@ -286,7 +292,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   showCardRegister(item: PublicEventView): boolean {
     return this.auth.profile() === null || this.registrationCapabilities()[item.id]?.canRegister === true;
   }
-  showCardIcs(item: PublicEventView): boolean { return !hasEventStarted(item, new Date()); }
+  cardActionsDisabled(item: PublicEventView): boolean { return hasEventStarted(item, new Date()); }
   async registerFromCard(item: PublicEventView, event: Event): Promise<void> {
     event.preventDefault();
     event.stopPropagation();

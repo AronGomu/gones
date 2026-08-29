@@ -267,7 +267,7 @@ internal static partial class PublicEventEndpoints
     {
         var pageNumber = page is null or < 1 ? 1 : page.Value;
         var size = pageSize is null or < 1 ? DefaultPageSize : Math.Min(pageSize.Value, MaximumPageSize);
-        var tournament = await LoadDetailAsync(database, slug, cancellationToken);
+        var tournament = await LoadParticipantScopeAsync(database, slug, cancellationToken);
         var query =
             from attempt in database.EventRegistrationAttempts.AsNoTracking()
             join profile in database.UserProfiles.AsNoTracking() on attempt.UserId equals profile.UserId
@@ -281,13 +281,25 @@ internal static partial class PublicEventEndpoints
             .Skip((pageNumber - 1) * size)
             .Take(size)
             .ToListAsync(cancellationToken);
-        var etag = HashETag($"participants:{tournament.Id:N}:{tournament.Version}:{total}:{pageNumber}:{size}:{string.Join('|', profiles.Select(profile => $"{profile.UserId:N}:{profile.UpdatedAt.ToUnixTimeTicks()}"))}");
+        var participantIdentities = profiles
+            .SelectMany(profile => new[] { profile.UserId.ToString(), profile.Username })
+            .ToList();
+        var playerNames = await database.PlayerStatistics.AsNoTracking()
+            .Where(row => row.ScopeKind == PlayerStatisticsScope.Global
+                && row.ScopeId == PlayerStatisticsScope.GlobalScopeId
+                && participantIdentities.Contains(row.PlayerName))
+            .Select(row => row.PlayerName)
+            .ToListAsync(cancellationToken);
+        var playerNameSet = playerNames.ToHashSet(StringComparer.Ordinal);
+        var etag = HashETag($"participants:{tournament.Id:N}:{tournament.Version}:{total}:{pageNumber}:{size}:{string.Join('|', profiles.Select(profile => $"{profile.UserId:N}:{profile.UpdatedAt.ToUnixTimeTicks()}"))}:{string.Join('|', playerNames.Order(StringComparer.Ordinal))}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
         var participants = profiles
             .Select(profile => new PublicEventParticipantResponse(
                 profile.UserId,
                 profile.Username,
+                playerNameSet.Contains(profile.UserId.ToString()) ? profile.UserId.ToString()
+                    : playerNameSet.Contains(profile.Username) ? profile.Username : null,
                 profile.IsFirstNamePublic ? profile.FirstName : null,
                 profile.IsLastNamePublic ? profile.LastName : null,
                 profile.IsLocationPublic ? JoinLocation(profile) : null,
@@ -318,6 +330,17 @@ internal static partial class PublicEventEndpoints
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
         response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline") { FileNameStar = $"{row.Slug}.ics" }.ToString();
         return Results.Text(BuildIcs(row), "text/calendar; charset=utf-8", Encoding.UTF8);
+    }
+
+    private static async Task<EventParticipantScope> LoadParticipantScopeAsync(GonesDbContext database, string slug, CancellationToken cancellationToken)
+    {
+        var normalizedSlug = TournamentSlug.Normalize(slug);
+        return await (
+            from item in VisibleEvents(database)
+            where item.Tournament.Slug == normalizedSlug
+            select new EventParticipantScope(item.Tournament.Id, item.Tournament.Version))
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new ResourceNotFoundException();
     }
 
     private static async Task<EventRow> LoadDetailAsync(GonesDbContext database, string slug, CancellationToken cancellationToken)
@@ -537,6 +560,8 @@ internal static partial class PublicEventEndpoints
         string? LiveTournamentUrl = null,
         string? ArchiveTournamentUrl = null);
 
+    private sealed record EventParticipantScope(Guid Id, long Version);
+
     private sealed class EventQueryItem
     {
         public required Event Tournament { get; init; }
@@ -626,6 +651,7 @@ internal sealed record PublicEventParticipantListResponse(
 internal sealed record PublicEventParticipantResponse(
     Guid UserId,
     string Username,
+    string? PlayerName,
     string? FirstName,
     string? LastName,
     string? Location,

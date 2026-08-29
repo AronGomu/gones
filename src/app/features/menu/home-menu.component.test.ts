@@ -9,19 +9,11 @@ import { catalogs } from '../../i18n/messages';
 const source = readFileSync(join(__dirname, 'home-menu.component.ts'), 'utf8');
 
 describe('HomeMenuComponent template', () => {
-  it('shows the registrations card only when signed in', () => {
-    const ifMatch = source.match(/@if \(auth\.profile\(\)\) \{[\s\S]*?\n\s*\}/);
-    expect(ifMatch).not.toBeNull();
-    const block = ifMatch![0];
-    expect(block).toContain('data-cy="menu-registrations-card"');
-    expect(block).toContain('routerLink="/registrations"');
-  });
-
-  // No separate DOM test is possible without TestBed; the @if guard above is what hides the
-  // card for anonymous visitors, so this is the same assertion from the other direction.
-  it('does not render the registrations card outside the signed-in guard', () => {
-    const outsideGuard = source.replace(/@if \(auth\.profile\(\)\) \{[\s\S]*?\n\s*\}/, '');
-    expect(outsideGuard).not.toContain('data-cy="menu-registrations-card"');
+  it('shows an enabled registrations link when signed in and a disabled card when anonymous', () => {
+    expect(source).toContain('@if (auth.profile())');
+    expect(source).toContain('routerLink="/registrations" data-cy="menu-registrations-card"');
+    expect(source).toContain('aria-disabled="true" data-cy="menu-registrations-card-disabled"');
+    expect(source).toContain('home-destination--disabled');
   });
 
   it('the home menu no longer carries a login card', () => {
@@ -37,11 +29,31 @@ describe('HomeMenuComponent template', () => {
     expect(source).toContain('menu-about-link');
   });
 
+  it('hides unreleased destinations from User and Organizer roles only', () => {
+    expect(source).toContain('@if (showUnreleasedCards())');
+    expect(source).toContain("role !== 'User' && role !== 'Organizer'");
+  });
+
+  it('assigns the requested Scryfall art crop to every home card', () => {
+    for (const artPath of [
+      '/assets/card-art/snapcaster-mage.jpg',
+      '/assets/card-art/scroll-rack.jpg',
+      '/assets/card-art/force-of-will.jpg',
+      '/assets/card-art/library-of-alexandria.jpg',
+      '/assets/card-art/lightning-bolt.jpg',
+      '/assets/card-art/fire-ice.jpg',
+      '/assets/card-art/grim-monolith.jpg',
+    ]) expect(source).toContain(artPath);
+    expect(source).toContain('loading="lazy"');
+    expect(source).toContain('home-destination__art--fire-left');
+    expect(source).toContain('home-destination__art--fire-right');
+  });
+
   it('Global Stats card links to /global-stats', () => {
     expect(source).toContain('routerLink="/global-stats"');
   });
 
-  it('signed-in order is Calendar, My Reg, Global Stats, Leagues, Live, About, Settings (7 cards)', () => {
+  it('template order is Calendar, My Reg, Global Stats, Leagues, Live, About, Settings', () => {
     // Extract unique identifiers in appearance order (the @if block cards appear once each)
     const identifiers = [...source.matchAll(/data-cy="(menu-[a-z-]+(?:-card|-link)(?:-title|-desc)?)"/g)]
       .map((m) => m[1])

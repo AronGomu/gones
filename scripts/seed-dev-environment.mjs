@@ -50,26 +50,31 @@ const bulk = name === STRESS_ENVIRONMENT;
  * (`AuthRateLimiting.PermitLimit`), and the local stack does not relax it: compose runs the API with
  * `ASPNETCORE_ENVIRONMENT=Production`. A seven-account environment makes thirteen auth calls in a
  * row and would be answered 429 from the sixth, so the reset starts the API with the same relaxed
- * permit limit `scripts/full-stack-ci.mjs` uses. An explicitly exported value still wins, and
- * nothing outside this local Compose stack reads it.
+ * permit limit `scripts/full-stack-ci.mjs` uses. Authenticated reads are a second bucket, 120 a
+ * minute per user (`AuthRateLimiting.AuthenticatedReadPermitLimit`), and seeding reads back every
+ * organization roster it writes, so it is relaxed alongside the writes. An explicitly exported value
+ * still wins, and nothing outside this local Compose stack reads any of these names.
  */
 function seedComposeEnv() {
   const relaxed = {
     ...devComposeEnv(),
     GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '1000',
-    GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '1000'
+    GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '1000',
+    GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT || '1000'
   };
   if (!bulk) return relaxed;
 
   // The stress environment registers 700 accounts and then creates 400 formats and 200 organizations
-  // through the API, which is well past the thousand permits above on both limiters. The admin bucket
-  // is a third one: everything under `/api/admin` is 60 calls a minute per user by default, which is
-  // exactly where a 400-format catalog stops. An explicitly exported value still wins, and nothing
-  // outside this local Compose stack reads any of these names.
+  // through the API, which is well past the thousand permits above on all three limiters — its 200
+  // roster reads alone stop dead on the 121st organization at the default authenticated-read limit.
+  // The admin bucket is a fourth one: everything under `/api/admin` is 60 calls a minute per user by
+  // default, which is exactly where a 400-format catalog stops. An explicitly exported value still
+  // wins, and nothing outside this local Compose stack reads any of these names.
   return {
     ...relaxed,
     GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: process.env.GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT || '100000',
     GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT || '100000',
+    GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT || '100000',
     GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT: process.env.GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT || '100000'
   };
 }

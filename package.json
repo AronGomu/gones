@@ -51,6 +51,7 @@
     "country-region-data": "^4.1.0",
     "cypress": "^15.0.0",
     "eslint": "^10.3.0",
+    "impeccable": "^3.6.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.9.3",
     "typescript-eslint": "8.59.2",

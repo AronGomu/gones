@@ -119,13 +119,12 @@ describe('PublicEventDetailComponent registration actions', () => {
     expect(participants).toContain('data-cy="registration-status"');
   });
 
-  it('loads participants only after the visitor asks', async () => {
+  it('always loads participants with the event detail', async () => {
     const { component, registrations } = build();
     await component.load();
-    expect(registrations.participants).not.toHaveBeenCalled();
-    await component.showParticipants();
     expect(registrations.participants).toHaveBeenCalledWith('lyon-legacy', 1, 100);
-    expect(component.participantsRequested()).toBe(true);
+    expect(source).not.toContain('data-cy="public-participants-show"');
+    expect(source).not.toContain('participantsRequested');
   });
 
   it('show more appends the next participants page', async () => {
@@ -135,16 +134,34 @@ describe('PublicEventDetailComponent registration actions', () => {
     registrations.participants
       .mockResolvedValueOnce({ items: [pageOne], page: 1, pageSize: 100, totalCount: 2 })
       .mockResolvedValueOnce({ items: [pageTwo], page: 2, pageSize: 100, totalCount: 2 });
-    await component.showParticipants();
+    await component.loadParticipants();
     await component.loadMoreParticipants();
     expect(registrations.participants).toHaveBeenLastCalledWith('lyon-legacy', 2, 100);
     expect(component.participants()).toEqual([pageOne, pageTwo]);
     expect(component.participantsTotal()).toBe(2);
   });
 
-  it('participants section is click-gated with a pager', () => {
-    expect(source).toContain('data-cy="public-participants-show"');
+  it('puts registered count and capacity beside the Participants title', () => {
+    const titleRowStart = source.indexOf('data-cy="public-participants-title-row"');
+    const titleRow = source.slice(titleRowStart, source.indexOf('</div>', titleRowStart));
+    expect(titleRowStart).toBeGreaterThan(-1);
+    expect(titleRow).toContain('data-cy="public-participants-title"');
+    expect(titleRow).toContain('data-cy="registration-capacity-status"');
+    expect(titleRow).toContain('participantCapacityStatus(item.capacity)');
+    expect(translate('en', 'registration.capacityStatus', { count: 12, capacity: 32 })).toBe('12 / 32 registered');
     expect(source).toContain('data-cy="public-participants-more"');
+  });
+
+  it('links participants carrying a matched Player Statistics name', () => {
+    expect(source).toContain('@if (participant.playerName; as playerName)');
+    expect(source).toContain("[routerLink]=\"['/players', playerName]\"");
+  });
+
+  it('shows capacity only after participant count succeeds, including zero', () => {
+    const { component } = build();
+    expect(component.participantCapacityStatus(2)).toBeNull();
+    component.participantsTotal.set(0);
+    expect(component.participantCapacityStatus(2)).toBe(translate('fr', 'registration.capacityStatus', { count: 0, capacity: 2 }));
   });
 
   it('successful registration opens the success dialog', async () => {

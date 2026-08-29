@@ -7,7 +7,7 @@ const event = {
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 const profile = { id: 'user', email: 'user@example.test', emailVerified: true, globalRole: 'User', username: 'CurrentUser', firstName: 'Current', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false, isLastNamePublic: false, isLocationPublic: false, isBirthYearPublic: false, isPreferredLanguagePublic: false };
-const participants = { items: [{ userId: 'other', username: 'PublicUser', firstName: 'Visible', lastName: undefined, location: undefined, birthYear: undefined, preferredLanguage: undefined }], page: 1, pageSize: 100, totalCount: 1 };
+const participants = { items: [{ userId: 'other', username: 'PublicUser', playerName: 'other', firstName: 'Visible', lastName: undefined, location: undefined, birthYear: undefined, preferredLanguage: undefined }], page: 1, pageSize: 100, totalCount: 1 };
 
 function common() {
   cy.intercept('GET', '**/api/events/lyon-legacy', event).as('detail');
@@ -133,8 +133,9 @@ describe('public participant registration', () => {
     cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401 });
     visit('/events/lyon-legacy');
     cy.get('[data-cy="registration-login"]').should('be.visible');
-    cy.get('[data-cy="public-participants-show"]').click();
+    cy.get('[data-cy="registration-capacity-status"]').should('contain.text', '1 / 2 inscrit(s)');
     cy.get('[data-cy="public-participant"]').should('contain.text', 'PublicUser').and('contain.text', 'Visible').and('not.contain.text', 'user@example.test');
+    cy.get('[data-cy="public-participant-name-other"]').should('have.attr', 'href').and('include', '/players/other');
     cy.get('[data-cy="public-event-detail"]').should('not.contain.text', '@example.test');
   });
 
@@ -251,6 +252,31 @@ function clearRegistrationsCache() {
     req.onblocked = resolve;
   }));
 }
+
+describe('home menu role visibility', () => {
+  beforeEach(() => { cy.viewport(1280, 800); common(); });
+
+  it('shows disabled My Registrations plus unreleased cards to Visitors', () => {
+    cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401 });
+    visit('/');
+    cy.get('[data-cy="menu-registrations-card-disabled"]').should('be.visible').and('have.attr', 'aria-disabled', 'true').and('not.have.attr', 'href');
+    cy.get('[data-cy="menu-global-stats-card"]').should('exist');
+    cy.get('[data-cy="menu-archive-card"]').should('exist');
+    cy.get('[data-cy="menu-running-tournaments-card"]').should('exist');
+  });
+
+  for (const role of ['User', 'Organizer']) {
+    it(`shows enabled My Registrations and hides unreleased cards for ${role}`, () => {
+      authenticated({ globalRole: role });
+      visit('/');
+      cy.get('[data-cy="menu-registrations-card"]').should('be.visible').and('have.attr', 'href', '/registrations');
+      cy.get('[data-cy="menu-registrations-card-disabled"]').should('not.exist');
+      cy.get('[data-cy="menu-global-stats-card"]').should('not.exist');
+      cy.get('[data-cy="menu-archive-card"]').should('not.exist');
+      cy.get('[data-cy="menu-running-tournaments-card"]').should('not.exist');
+    });
+  }
+});
 
 describe('My Registrations', () => {
   it('retries loading and separates upcoming from history with venue times and statuses', () => {

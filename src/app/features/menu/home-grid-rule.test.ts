@@ -34,9 +34,9 @@ describe('home menu grid rule', () => {
     expect(homeDestinationsBlock).toContain('repeat(2, minmax(0, 1fr))');
   });
 
-  it('signed out renders 6 cards (even — every row fills completely)', () => {
-    const withoutAuthOnlyCard = homeMenuComponent.replace(/@if \(auth\.profile\(\)\) \{[\s\S]*?\n\s*\}\n/, '');
-    const matches = withoutAuthOnlyCard.match(/class="home-destination(?!s)/g) ?? [];
-    expect(matches.length).toBe(6);
+  it('signed out keeps My Registrations as a disabled card', () => {
+    expect(homeMenuComponent).toContain('@if (auth.profile())');
+    expect(homeMenuComponent).toContain('data-cy="menu-registrations-card-disabled"');
+    expect(homeMenuComponent).toContain('aria-disabled="true"');
   });
 });

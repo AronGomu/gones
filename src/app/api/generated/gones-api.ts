@@ -11538,6 +11538,7 @@ export interface PublicEventParticipantListResponse {
 export interface PublicEventParticipantResponse {
     userId: string;
     username: string;
+    playerName: string | undefined;
     firstName: string | undefined;
     lastName: string | undefined;
     location: string | undefined;

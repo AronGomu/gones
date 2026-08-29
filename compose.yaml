@@ -30,7 +30,9 @@ services:
       dockerfile: backend/src/Gones.Migrator/Dockerfile
     command: ["database", "update"]
     environment:
-      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only
+      # Npgsql negotiates GSS encryption by default; the runtime image ships no libgssapi_krb5, so the
+      # probe only prints a load error before falling back. Nothing here uses Kerberos.
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_migration;Password=local-migration-only;Gss Encryption Mode=Disable
       GONES_ALLOW_TEST_NOTIFICATION: "true"
     depends_on:
       postgres: { condition: service_healthy }
@@ -68,7 +70,7 @@ services:
       dockerfile: backend/src/Gones.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only;Gss Encryption Mode=Disable
       GONES_ALLOWED_ORIGINS: http://localhost:4200,http://127.0.0.1:4200,http://localhost:8081,http://127.0.0.1:8081
       GONES_ALLOW_TEST_NOTIFICATION: "true"
       GONES_FEATURES__AUTH_V1: ${GONES_FEATURES__AUTH_V1:-false}
@@ -76,6 +78,7 @@ services:
       GONES_AUTH_PROVIDER: ${GONES_AUTH_PROVIDER:-Local}
       GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: ${GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT:-}
       GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT: ${GONES_RATE_LIMIT_WRITE_PERMIT_LIMIT:-}
+      GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT: ${GONES_RATE_LIMIT_AUTHENTICATED_READ_PERMIT_LIMIT:-}
       GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT: ${GONES_RATE_LIMIT_ADMIN_PERMIT_LIMIT:-}
       GONES_AUTH_SIGNING_KEY: ${GONES_AUTH_SIGNING_KEY:-local-development-only-signing-key-change-me}
       GONES_PUBLIC_APP_ORIGIN: ${GONES_PUBLIC_APP_ORIGIN:-https://localhost:4200}
@@ -102,7 +105,7 @@ services:
       dockerfile: backend/src/Gones.Worker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Production
-      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only
+      GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only;Gss Encryption Mode=Disable
       GONES_EMAIL_TRANSPORT: File
       GONES_EMAIL_SINK_PATH: /tmp/gones-email-sink
       GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS: ${GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS:-false}

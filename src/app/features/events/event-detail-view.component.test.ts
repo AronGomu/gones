@@ -212,7 +212,7 @@ describe('EventDetailViewComponent hero', () => {
     }
   });
 
-  it('player count sits on the kicker row', () => {
+  it('player count sits left beside the organization with larger type', () => {
     const hero = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>', source.indexOf('<section class="event-hero panel"')));
     const toplineEnd = hero.indexOf('</div>', hero.indexOf('data-cy="event-detail-topline"'));
     const toplineContent = hero.slice(0, toplineEnd);
@@ -220,6 +220,10 @@ describe('EventDetailViewComponent hero', () => {
     const h1End = hero.indexOf('</h1>', hero.indexOf('<h1'));
     const h1Content = hero.slice(hero.indexOf('<h1'), h1End);
     expect(h1Content).not.toContain('data-cy="event-detail-player-count"');
+    const toplineRule = stylesheet.match(/\.event-hero-topline \{[^}]*\}/)?.[0] ?? '';
+    expect(toplineRule).toContain('justify-content: flex-start');
+    const countRule = stylesheet.match(/\.event-player-count \{[^}]*\}/)?.[0] ?? '';
+    expect(countRule).toContain('font-size: 1.1rem');
   });
 
   it('title holds only the title text', () => {

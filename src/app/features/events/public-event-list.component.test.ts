@@ -485,15 +485,15 @@ describe('PublicEventListComponent search row layout', () => {
   const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
   const stylesheet = readFileSync(join(__dirname, '..', '..', '..', 'styles.css'), 'utf8');
 
-  it('the search row sits between the title and the view tabs', () => {
+  it('the title and view tabs sit above the search row', () => {
     const titleIndex = source.indexOf('data-cy="event-list-title"');
-    const searchRowIndex = source.indexOf('data-cy="event-list-search-row"');
     const viewTabsIndex = source.indexOf('data-cy="event-list-view-tabs"');
+    const searchRowIndex = source.indexOf('data-cy="event-list-search-row"');
     expect(titleIndex).toBeGreaterThan(-1);
-    expect(searchRowIndex).toBeGreaterThan(-1);
     expect(viewTabsIndex).toBeGreaterThan(-1);
-    expect(titleIndex).toBeLessThan(searchRowIndex);
-    expect(searchRowIndex).toBeLessThan(viewTabsIndex);
+    expect(searchRowIndex).toBeGreaterThan(-1);
+    expect(titleIndex).toBeLessThan(viewTabsIndex);
+    expect(viewTabsIndex).toBeLessThan(searchRowIndex);
   });
 
   it('the search input has no visible label', () => {
@@ -533,11 +533,23 @@ describe('PublicEventListComponent search row layout', () => {
     expect(rule).toContain('outline');
   });
 
-  it('the view tabs are on their own row', () => {
+  it('the view tabs share the title header row', () => {
     const headerStart = source.indexOf('data-cy="event-list-header"');
     const headerEnd = source.indexOf('</header>', headerStart);
     const header = source.slice(headerStart, headerEnd);
-    expect(header).not.toContain('calendar-view-tabs');
+    expect(header).toContain('calendar-view-tabs');
+    expect(header).toContain('data-cy="event-list-title"');
+  });
+
+  it('left-aligns the Calendar and List buttons with the title at equal heights', () => {
+    const headerRule = stylesheet.match(/\.public-calendar-page > \.section-header \{[^}]*\}/)?.[0] ?? '';
+    expect(headerRule).toContain('display: flex');
+    expect(headerRule).toContain('justify-content: flex-start');
+    expect(headerRule).toContain('align-items: center');
+
+    const buttonRule = stylesheet.match(/\.calendar-view-tabs > button \{[^}]*\}/)?.[0] ?? '';
+    expect(buttonRule).toContain('width: auto');
+    expect(buttonRule).toContain('height: 44px');
   });
 
   it('filtering removes non-matching events from both views', async () => {
@@ -582,13 +594,12 @@ describe('PublicEventListComponent toolbar row', () => {
     expect(tabs).toContain('data-cy="event-list-create-event"');
   });
 
-  it('the create button is not in the page header any more', () => {
-    expect(source).not.toContain('data-cy="event-list-header-actions"');
-    const createIndex = source.indexOf('data-cy="event-list-create-event"');
-    const tabsIndex = source.indexOf('data-cy="event-list-view-tabs"');
-    expect(createIndex).toBeGreaterThan(-1);
-    expect(tabsIndex).toBeGreaterThan(-1);
-    expect(createIndex).toBeGreaterThan(tabsIndex);
+  it('the view controls live in the page header', () => {
+    const headerStart = source.indexOf('data-cy="event-list-header"');
+    const headerEnd = source.indexOf('</header>', headerStart);
+    const header = source.slice(headerStart, headerEnd);
+    expect(header).toContain('data-cy="event-list-view-tabs"');
+    expect(header).toContain('data-cy="event-list-create-event"');
   });
 
   it('the create button wears the success green', () => {
@@ -1157,31 +1168,34 @@ describe('PublicEventListComponent list card', () => {
     expect(hoverRule).toContain('border-color: var(--hot-blood)');
   });
 
-  it('future card keeps the ics button', async () => {
+  it('future card keeps its actions enabled', async () => {
     const futureEvent: PublicEventView = { ...event, startsAtUtc: '2099-01-01T00:00:00Z' };
     const { component } = setup({ params: { view: 'list' }, result: { items: [futureEvent] } });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(component.showCardIcs(component.allItems()[0])).toBe(true);
+    expect(component.cardActionsDisabled(component.allItems()[0])).toBe(false);
   });
 
-  it('started card drops the ics button', async () => {
+  it('started card keeps Register and Add to Calendar visible but disabled', async () => {
     const pastEvent: PublicEventView = { ...event, startsAtUtc: '2020-01-01T00:00:00Z' };
     const { component } = setup({ params: { view: 'list' }, result: { items: [pastEvent] } });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(component.showCardIcs(component.allItems()[0])).toBe(false);
-  });
+    expect(component.cardActionsDisabled(component.allItems()[0])).toBe(true);
+    expect(cardActions).not.toContain('@if (showCardIcs(item))');
+    expect(cardActions).toContain('@if (cardActionsDisabled(item) || showCardRegister(item))');
 
-  it('started card keeps its actions container outside the ics guard', () => {
-    const actionsIndex = source.indexOf('data-cy="event-list-card-actions"');
-    const icsGuardIndex = source.indexOf('@if (showCardIcs(item))');
-    expect(actionsIndex).toBeGreaterThan(-1);
-    expect(icsGuardIndex).toBeGreaterThan(actionsIndex);
+    const registerMarker = cardActions.indexOf('data-cy="event-list-card-register"');
+    const registerButton = cardActions.slice(cardActions.lastIndexOf('<button', registerMarker), cardActions.indexOf('</button>', registerMarker));
+    expect(registerButton).toContain('[disabled]="cardActionsDisabled(item) || pendingEventId() === item.id"');
+
+    const icsMarker = cardActions.indexOf('data-cy="event-list-card-ics"');
+    const icsAnchor = cardActions.slice(cardActions.lastIndexOf('<a', icsMarker), cardActions.indexOf('</a>', icsMarker));
+    expect(icsAnchor).toContain('[disabled]="cardActionsDisabled(item)"');
   });
 });
 
@@ -1214,22 +1228,41 @@ describe('PublicEventListComponent past day cells', () => {
     }
   });
 
-  it('the day cell binds the past class and the past marker', () => {
+  it('the day cell binds the past class, marker, and disabled semantics', () => {
     const cellStart = source.indexOf('class="public-month-day"');
     expect(cellStart).toBeGreaterThan(-1);
     const cell = source.slice(cellStart, source.indexOf('>', cellStart));
 
-    expect(cell).toContain('[class.public-month-day--past]="isPast(day.date)"');
-    expect(cell).toContain(`[attr.data-cy]="isPast(day.date) ? 'event-list-month-day-past' : 'event-list-month-day'"`);
+    expect(source).toContain('@let dayIsPast = isPast(day.date);');
+    expect(cell).toContain('[class.public-month-day--past]="dayIsPast"');
+    expect(cell).toContain('[attr.aria-disabled]="dayIsPast"');
+    expect(cell).toContain(`[attr.data-cy]="dayIsPast ? 'event-list-month-day-past' : 'event-list-month-day'"`);
+  });
+
+  it('keeps past events visible but disables their links', () => {
+    const cellStart = source.indexOf('class="public-month-day"');
+    const cell = source.slice(cellStart, source.indexOf('</article>', cellStart));
+
+    const pastBlock = templateBlock(cell, '@if (dayIsPast) {');
+    expect(pastBlock).toContain('class="public-month-event public-month-event--disabled"');
+    expect(pastBlock).toContain('[attr.data-cy]="\'event-list-month-day-event-\' + event.slug"');
+    expect(pastBlock).not.toContain('[routerLink]');
+    expect(cell).toContain("@for (event of visibleDayEvents(day.date); track event.id)");
+    expect(cell).toContain("@else {");
+    expect(cell).toContain("[routerLink]=\"['/events', event.slug]\"");
   });
 
   // Blanket `opacity` on the cell dragged every descendant below the AA contrast bar (axe
   // color-contrast, 2.06:1 on the day number). The past state is a darker cell plus a muted-but-AA
   // day number instead, and the event chips stay at full strength.
   it('the past cell is a darker tint with a muted day number, never a blanket opacity', () => {
-    expect(stylesheet).toContain('.public-month-day--past { background: color-mix(in oklch, var(--forge) 45%, var(--iron)); }');
+    expect(stylesheet).toContain('.public-month-day--past { background: color-mix(in oklch, var(--forge) 45%, var(--iron)); cursor: default; }');
     expect(stylesheet).toContain('.public-month-day--past.public-month-day--muted { background: color-mix(in oklch, var(--forge) 80%, var(--iron)); }');
     expect(stylesheet).toContain('.public-month-day--past > time { color: var(--steel); font-weight: 700; }');
+    const disabledEventRule = stylesheet.match(/\.public-month-day--past \.public-month-event--disabled \{[^}]*\}/)?.[0] ?? '';
+    expect(disabledEventRule).toContain('cursor: default');
+    expect(stylesheet).toContain('a.public-month-event:hover, a.public-month-event:focus-visible');
+    expect(stylesheet).not.toContain('.public-month-event:hover, .public-month-event:focus-visible');
 
     const pastRules = stylesheet.split('\n').filter(line => line.startsWith('.public-month-day--past'));
     expect(pastRules.length).toBeGreaterThan(0);

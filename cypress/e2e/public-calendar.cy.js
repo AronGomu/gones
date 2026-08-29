@@ -21,7 +21,7 @@ const event = {
   formats: [{ id: '33333333-3333-3333-3333-333333333333', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]
 };
 
-// Four events on every day of August and September 2026: each cell renders three links plus the
+// Four events on every day of August and September 2026: each cell renders three events plus the
 // overflow line, which makes both grids far taller than the viewport used by the scroll-anchor test.
 const busyMonthItems = ['2026-08', '2026-09'].flatMap(month =>
   Array.from({ length: 28 }, (_, dayIndex) =>
@@ -77,6 +77,35 @@ describe('public Calendar V1', () => {
     cy.intercept('GET', '**/api/events/all*', { items: [event], generatedAt: '2026-08-08T10:00:00Z', count: 1, truncated: false }).as('allEvents');
   });
 
+  it('left-aligns equal-height view buttons with the calendar title', () => {
+    visit('/events?month=2026-08&view=calendar');
+    cy.wait('@allEvents');
+
+    cy.get('[data-cy="event-list-title"]').then(($title) => {
+      cy.get('[data-cy="event-list-view-tabs"]').then(($tabs) => {
+        const titleRect = $title[0].getBoundingClientRect();
+        const tabsRect = $tabs[0].getBoundingClientRect();
+        expect(tabsRect.left - titleRect.right, 'title-to-controls gap').to.be.closeTo(16, 1);
+        expect(tabsRect.top + tabsRect.height / 2, 'controls vertical center').to.be.closeTo(titleRect.top + titleRect.height / 2, 1);
+      });
+    });
+
+    cy.get('[data-cy="event-list-view"], [data-cy="list-view"]').then(($buttons) => {
+      const heights = [...$buttons].map(button => button.getBoundingClientRect().height);
+      expect(heights).to.deep.equal([44, 44]);
+    });
+
+    cy.viewport(700, 800);
+    cy.get('[data-cy="event-list-title"]').then(($title) => {
+      cy.get('[data-cy="event-list-view-tabs"]').then(($tabs) => {
+        const titleRect = $title[0].getBoundingClientRect();
+        const tabsRect = $tabs[0].getBoundingClientRect();
+        expect(tabsRect.left, 'wrapped controls left edge').to.be.closeTo(titleRect.left, 1);
+        expect(tabsRect.top, 'wrapped controls follow title').to.be.at.least(titleRect.bottom);
+      });
+    });
+  });
+
   it('defaults to month view, restores URL filters, persists list view, and filters locally without a network call', () => {
     visit('/events?month=2026-08&q=Lyon');
     cy.wait('@allEvents');
@@ -87,7 +116,8 @@ describe('public Calendar V1', () => {
       cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]')
         .should('contain.text', '23:30')
         .and('contain.text', 'Lyon Legacy')
-        .and('have.attr', 'href', '/events/lyon-legacy');
+        .and('have.attr', 'aria-disabled', 'true')
+        .and('not.have.attr', 'href');
     });
     cy.get('[data-cy="event-list-search"]').clear().type('does-not-match');
     cy.get('[data-cy="event-list-month-day-event-lyon-legacy"]').should('not.exist');
@@ -311,7 +341,8 @@ describe('public Calendar V1', () => {
     visit('/events?month=2026-08&view=calendar');
     cy.wait('@sameDay');
     cy.get('[data-cy="event-list-month-day-date"][datetime="2026-08-01"]').parents('[data-cy^="event-list-month-day"]').within(() => {
-      cy.get('a.public-month-event').should('have.length', 3);
+      cy.get('.public-month-event').should('have.length', 3).and('have.attr', 'aria-disabled', 'true');
+      cy.get('a.public-month-event').should('not.exist');
       cy.get('[data-cy="event-list-month-day-more"]').should('contain.text', '+1');
     });
   });
@@ -506,7 +537,7 @@ describe('public Calendar V1', () => {
     cy.location('search', { timeout: 5000 }).should('not.contain', 'page=');
   });
 
-  it('past event card hides the ics button and future event card keeps it', () => {
+  it('past event card keeps Register and Add to Calendar disabled while future actions stay enabled', () => {
     const pastEvent = {
       ...event,
       id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -527,9 +558,12 @@ describe('public Calendar V1', () => {
     cy.wait('@icsEvents');
 
     cy.get('[data-cy="event-past-event"]').within(() => {
-      cy.get('[data-cy="event-list-card-ics"]').should('not.exist');
-      cy.get('[data-cy="event-list-card-actions"]').should('exist');
+      cy.get('[data-cy="event-list-card-register"]').should('be.disabled');
+      cy.get('[data-cy="event-list-card-ics"]').should('have.attr', 'aria-disabled', 'true');
     });
-    cy.get('[data-cy="event-future-event"] [data-cy="event-list-card-ics"]').should('exist');
+    cy.get('[data-cy="event-future-event"]').within(() => {
+      cy.get('[data-cy="event-list-card-register"]').should('not.be.disabled');
+      cy.get('[data-cy="event-list-card-ics"]').should('not.have.attr', 'aria-disabled', 'true');
+    });
   });
 });

@@ -15,6 +15,8 @@ colors:
   create-green: "#1f8f4d"
   create-green-hot: "#2fbf68"
   rust-plate: "#4a2720"
+  fire-ember: "#ff7a45"
+  ice-glacier: "#7ab8ff"
 typography:
   display:
     fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
@@ -126,6 +128,8 @@ The palette is a restrained dark product palette: black metal neutrals carry mos
 ### Secondary
 
 - **Rust Plate** (`#4a2720`): Muted warm panel, badge, or border support when a surface needs subtle material character.
+- **Fire Ember** (`#ff7a45`): Fire tournament identity accent. Reserved exclusively for surfaces about the Fire tournament (headings, edition labels, chips). Never a general warm accent.
+- **Ice Glacier** (`#7ab8ff`): Ice tournament identity accent. Reserved exclusively for surfaces about the Ice tournament. Never a general cool accent, and no other teal/blue enters Gones surfaces through it.
 
 ### Neutral
 
@@ -144,6 +148,8 @@ The palette is a restrained dark product palette: black metal neutrals carry mos
 **The Card-Game Before SaaS Rule.** The first impression should not be generic dashboard software. Use dark card-like planes, strong rectangular borders, and old-school title typography to make the surface recognizable.
 
 **The Metal Before Ornament Rule.** Rust and metal character should come from restrained borders, tonal layers, and muted warmth, not texture overlays or fantasy decoration.
+
+**The Fire & Ice Rule.** The Fire and Ice flagship tournaments are the one sanctioned exception to the no-card-art rule: their sections may use the *Fire // Ice* art crop (`src/assets/card-art/fire-ice.jpg`) as a split backdrop — Fire from the left half, Ice from the right half — dimmed enough that text on top stays at AA contrast. Fire Ember and Ice Glacier are the only colors allowed to brand these two events, and both the art crop and the two accents are forbidden anywhere else in the product.
 
 ## 3. Typography
 
