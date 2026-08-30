@@ -15,6 +15,7 @@ import { PublicEventView } from '../events/public-event-list';
 import { AboutComponent } from './about.component';
 
 const source = readFileSync(join(__dirname, 'about.component.ts'), 'utf8');
+const stylesSource = readFileSync(join(__dirname, '../../../styles.css'), 'utf8');
 const routesSource = readFileSync(join(__dirname, '../../app.routes.ts'), 'utf8');
 const guardSource = readFileSync(join(__dirname, '../../shared/first-visit.guard.ts'), 'utf8');
 const homeMenuSource = readFileSync(join(__dirname, 'home-menu.component.ts'), 'utf8');
@@ -217,7 +218,7 @@ describe('AboutComponent live Next Up behavior', () => {
 
     expect(load).toHaveBeenCalledWith();
     expect(component.loading()).toBe(true);
-    expect(fixture.nativeElement.querySelectorAll('[data-cy="about-next-up-skeleton"]').length).toBe(3);
+    expect(fixture.nativeElement.querySelectorAll('.about-next-up__skeleton').length).toBe(3);
 
     first.resolve(result([event('one'), event('two'), event('three'), event('four')]));
     await settle(fixture);
@@ -423,6 +424,69 @@ describe('AboutComponent roster and asset contract', () => {
   });
 });
 
+describe('AboutComponent approved layout contract', () => {
+  it('keeps approved landing order and semantic hierarchy', () => {
+    const anchors = ['about-hero', 'about-next-up', 'association', 'tournaments', 'staff', 'about-contact'];
+    const positions = anchors.map(anchor => source.indexOf(anchor === 'association' || anchor === 'tournaments' || anchor === 'staff' ? `id="${anchor}"` : `data-cy="${anchor}"`));
+    expect(positions.every(position => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect((source.match(/<h1\b/g) ?? []).length).toBe(1);
+    expect((source.match(/<h2\b/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    expect(source).toContain('id="association"');
+    expect(source).toContain('id="tournaments"');
+    expect(source).toContain('id="staff"');
+  });
+
+  it('renders five ordered tournament articles with one combined Fire/Ice section', () => {
+    const ids = ['weekly', 'monthly', 'salty', 'leagues'];
+    const dataStart = source.indexOf('export const aboutTournamentBands');
+    const dataEnd = source.indexOf('];', dataStart);
+    const dataSource = source.slice(dataStart, dataEnd);
+    const positions = ids.map(id => dataSource.indexOf(`id: '${id}'`));
+    expect(positions.every(position => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(source).toContain('[attr.data-cy]="\'about-\' + band.id"');
+    const template = source.slice(source.indexOf('template: `'));
+    expect(template.indexOf('tournamentBands.slice(0, 3)')).toBeLessThan(template.indexOf('data-cy="about-fire-ice"'));
+    expect(template.indexOf('data-cy="about-fire-ice"')).toBeLessThan(template.indexOf('tournamentBands.slice(3)'));
+    expect((source.match(/about-fire-ice/g) ?? []).length).toBeGreaterThanOrEqual(1);
+    expect(source).toContain('assets/card-art/fire-ice.jpg');
+    expect(stylesSource).toContain('--fire-ember');
+    expect(stylesSource).toContain('--ice-glacier');
+  });
+
+  it('declares inspected image dimensions and bounded lazy content media', () => {
+    for (const declaration of [
+      'assets/images/2025-01-ice-mtgones-10-years.jpeg',
+      'assets/images/2019-10-mtglyon-mtgones-gathering.jpeg',
+      'assets/images/2024-01-gones-legacy-brindas-01.jpeg',
+      'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg',
+      'assets/images/2023-05-gones-legacy-fact-top-8.jpeg',
+      'assets/images/2025-06-fire-team-orga.jpeg',
+      'assets/images/2026-01-ice-01.jpeg',
+      'assets/images/2025-01-mtgones-10-years-top-2.jpeg'
+    ]) expect(source).toContain(declaration);
+    expect(stylesSource).toContain('aspect-ratio: 3 / 2');
+    expect(stylesSource).toContain('max-height: 380px');
+    expect(source).toContain('loading="lazy"');
+    expect(source).toContain('decoding="async"');
+    expect(stylesSource).toContain('object-position: center top');
+  });
+
+  it('keeps complete staff dimensions aligned with inspected source assets', () => {
+    expect(blockFor('gregory')).toContain('imageWidth: 1152, imageHeight: 2048');
+    expect(blockFor('alex')).toContain('imageWidth: 672, imageHeight: 936');
+    expect(blockFor('loic')).toContain('imageWidth: 1080, imageHeight: 1920');
+    expect(blockFor('luka')).toContain('imageWidth: 720, imageHeight: 719');
+    expect(source).toContain('aboutContributors: readonly AboutContributor[]');
+  });
+
+  it('does not duplicate static data-cy hooks', () => {
+    const hooks = [...source.matchAll(/data-cy="([^"]+)"/g)].map(match => match[1]);
+    expect(new Set(hooks).size).toBe(hooks.length);
+  });
+});
+
 describe('AboutComponent i18n contract', () => {
   it('binds host language to active locale without forced French', () => {
     expect(source).toContain("'[attr.lang]': 'i18n.language()'");
@@ -433,8 +497,8 @@ describe('AboutComponent i18n contract', () => {
     for (const key of [
       'about.hero.title',
       'about.intro.paragraph1',
-      'about.weekly.body',
-      'about.events.fireSeason',
+      'about.tournament.weekly.body',
+      'about.fireIce.fire',
       'about.team.roleOrganizer',
       'about.team.bioPending',
       'about.team.bioGregory',
