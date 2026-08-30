@@ -200,17 +200,19 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .info-page { display: grid; gap: clamp(1.25rem, 4vw, 3rem); }
 .info-hero { display: grid; gap: 1rem; padding: clamp(1rem, 3vw, 2rem); border: 1px solid color-mix(in oklch, var(--blood) 26%, var(--soot)); background: radial-gradient(circle at 84% 0%, color-mix(in oklch, var(--blood) 20%, transparent), transparent 18rem), var(--iron); }
 .settings-panel { border: 1px solid var(--soot); background: var(--iron); }
-.about-route { --about-ease: cubic-bezier(.16, 1, .3, 1); display: block; overflow-x: clip; }
+.about-route { --about-breadcrumb-height: 2.75rem; --about-nav-height: 3.25rem; --about-scroll-offset: calc(var(--app-toolbar-height) + var(--about-breadcrumb-height) + var(--about-nav-height) + 1rem); --about-ease: cubic-bezier(.16, 1, .3, 1); display: block; overflow-x: clip; }
+.about-route [id] { scroll-margin-top: var(--about-scroll-offset); }
 .about-route.about-motion-ready [data-reveal] { --reveal-x: 0; --reveal-y: 1.75rem; --reveal-scale: 1; opacity: 0; translate: var(--reveal-x) var(--reveal-y); scale: var(--reveal-scale); transition: opacity .72s var(--about-ease), translate .72s var(--about-ease), scale .72s var(--about-ease); transition-delay: var(--reveal-delay, 0ms); }
 .about-route.about-motion-ready [data-reveal="left"] { --reveal-x: -2.25rem; --reveal-y: 0; }
 .about-route.about-motion-ready [data-reveal="right"] { --reveal-x: 2.25rem; --reveal-y: 0; }
 .about-route.about-motion-ready [data-reveal="scale"] { --reveal-y: .85rem; --reveal-scale: .94; }
 .about-route.about-motion-ready [data-reveal].is-visible, .about-route.about-motion-ready [data-reveal]:focus, .about-route.about-motion-ready [data-reveal]:focus-within { opacity: 1; translate: 0 0; scale: 1; transition-delay: 0ms; }
+.about-route :focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 3px; }
 .about-route .about-page { display: grid; gap: clamp(3rem, 7vw, 6rem); max-width: 1100px; margin: 0 auto; padding: 0 20px 4rem; }
 .about-route h2 { font-size: clamp(2rem, 5vw, 3.6rem); line-height: 1.04; letter-spacing: -.035em; }
 .about-route h3 { margin: 0; font-size: clamp(1.35rem, 3vw, 2rem); line-height: 1.15; }
 .about-route p { overflow-wrap: anywhere; }
-.about-route .about-internal-nav { position: sticky; top: var(--app-toolbar-height); z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; padding: .75rem max(20px, calc((100% - 1100px) / 2)); border-bottom: 1px solid var(--soot); background: color-mix(in oklch, var(--black-metal) 94%, transparent); backdrop-filter: blur(12px); }
+.about-route .about-internal-nav { position: sticky; top: calc(var(--app-toolbar-height) + var(--about-breadcrumb-height)); z-index: 10; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.25rem; padding: .75rem max(20px, calc((100% - 1100px) / 2)); border-bottom: 1px solid var(--soot); background: color-mix(in oklch, var(--black-metal) 94%, transparent); backdrop-filter: blur(12px); }
 .about-route .about-internal-nav a { color: var(--dim-ash); font-weight: 800; text-decoration: none; }
 .about-route .about-internal-nav a:hover, .about-route .about-internal-nav a:focus-visible { color: var(--hot-blood); }
 .about-route .about-hero { position: relative; isolation: isolate; min-height: min(42rem, calc(100dvh - 10rem)); max-height: 820px; display: grid; align-items: end; overflow: hidden; border: 1px solid color-mix(in oklch, var(--blood) 55%, var(--soot)); }
@@ -234,9 +236,8 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .about-intro { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); align-items: start; }
 .about-route .about-intro__copy { display: grid; gap: 1.15rem; }
 .about-route .about-intro__copy p { margin: 0; color: var(--dim-ash); font-size: 1.08rem; line-height: 1.8; }
-.about-route .about-content-image, .about-route .about-tournament-band__image, .about-route .about-fire-ice__photos img { width: 100%; aspect-ratio: 3 / 2; max-height: 380px; object-fit: cover; border: 1px solid var(--soot); border-radius: 4px; }
+.about-route .about-content-image, .about-route .about-tournament-band__image, .about-route .about-fire-ice__photos img { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: 380px; object-fit: cover; border: 1px solid var(--soot); border-radius: 4px; transition: transform .24s var(--about-ease); }
 .about-route .about-intro__image { grid-column: 1 / -1; }
-.about-route .about-tournaments { scroll-margin-top: calc(var(--app-toolbar-height) + 3rem); }
 .about-route .about-tournament-band { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(1.5rem, 5vw, 4rem); align-items: center; padding: clamp(1.5rem, 5vw, 3rem) 0; border-top: 1px solid var(--soot); }
 .about-route .about-tournament-band__copy { display: grid; gap: 1rem; min-width: 0; }
 .about-route .about-tournament-band__slots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: 0; }
@@ -262,7 +263,6 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .about-fire-ice__editions span { color: var(--ash); }
 .about-route .about-fire-ice__photos { margin-top: .25rem; }
 .about-route .about-fire-ice__photos img { margin: 0; }
-.about-route .about-team { scroll-margin-top: calc(var(--app-toolbar-height) + 3rem); }
 .about-route .about-team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .about-route .about-team-grid > h3 { grid-column: 1 / -1; padding-bottom: .75rem; border-bottom: 1px solid var(--soot); color: var(--dim-ash); }
 .about-route .about-person { display: grid; grid-template-columns: minmax(7rem, .7fr) minmax(0, 1.3fr); min-width: 0; border: 1px solid var(--soot); background: var(--black-metal); }
@@ -295,8 +295,9 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .home-primary-action:active, .about-route .secondary-action:active { transform: translateY(0) scale(.97); }
 @media (hover: hover) and (pointer: fine) {
   .about-route .home-primary-action:hover, .about-route .secondary-action:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0, 0, 0, .22); }
-  .about-route .about-next-up__row:hover, .about-route .about-person:hover, .about-route .about-contributor:hover { transform: translateY(-2px); }
-  .about-route .about-person, .about-route .about-contributor, .about-route .about-next-up__row { transition: transform .24s var(--about-ease), border-color .24s var(--about-ease), background-color .24s var(--about-ease); }
+  .about-route .about-next-up__row:hover, .about-route .about-tournament-band:hover, .about-route .about-person:hover, .about-route .about-contributor:hover { transform: translateY(-2px); }
+  .about-route .about-content-image:hover, .about-route .about-fire-ice__photos img:hover { transform: scale(1.02); }
+  .about-route .about-tournament-band, .about-route .about-person, .about-route .about-contributor, .about-route .about-next-up__row { transition: transform .24s var(--about-ease), border-color .24s var(--about-ease), background-color .24s var(--about-ease); }
 }
 @media (max-width: 860px) {
   .about-route .about-intro, .about-route .about-contact { grid-template-columns: 1fr; }
@@ -305,6 +306,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
   .about-route .about-contributor-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 600px) {
+  .about-route { --about-nav-height: 5rem; }
   .about-route .about-page { padding-inline: 12px; }
   .about-route .about-internal-nav { gap: .55rem .9rem; padding-inline: 12px; }
   .about-route .about-internal-nav a { font-size: .88rem; }
@@ -319,8 +321,10 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
   .about-route .about-contact { padding: 1.25rem; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .about-route *, .about-route *::before, .about-route *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0ms !important; scroll-behavior: auto !important; }
-  .about-motion-ready [data-reveal] { opacity: 1; translate: none; scale: 1; transition: none; }
+  html:has(.about-route) { scroll-behavior: auto !important; }
+  .about-route *, .about-route *::before, .about-route *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .about-route.about-motion-ready [data-reveal] { opacity: 1 !important; translate: 0 0 !important; scale: 1 !important; transition: none !important; transition-delay: 0ms !important; }
+  .about-route .home-primary-action, .about-route .secondary-action, .about-route .about-next-up__row, .about-route .about-tournament-band, .about-route .about-person, .about-route .about-contributor, .about-route .about-content-image, .about-route .about-fire-ice__photos img { transform: none !important; scale: 1 !important; }
 }
 .calendar-page { gap: .55rem; }
 .calendar-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: .75rem; margin-bottom: -.25rem; }

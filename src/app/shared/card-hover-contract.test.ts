@@ -14,10 +14,7 @@ const cardSelectors = [
   '.organization-card',
   '.live-registration-player-card',
   '.live-round-card',
-  '.match-card',
-  '.about-event',
-  '.about-person',
-  '.about-contributor'
+  '.match-card'
 ];
 
 function ruleContaining(marker: string): string {

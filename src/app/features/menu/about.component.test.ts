@@ -7,7 +7,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nService } from '../../i18n/i18n.service';
 import { catalogs, MessageKey } from '../../i18n/messages';
 import { EventCatalogCacheService, EventCatalogResult } from '../events/event-catalog-cache.service';
@@ -484,6 +484,147 @@ describe('AboutComponent approved layout contract', () => {
   it('does not duplicate static data-cy hooks', () => {
     const hooks = [...source.matchAll(/data-cy="([^"]+)"/g)].map(match => match[1]);
     expect(new Set(hooks).size).toBe(hooks.length);
+  });
+});
+
+describe('AboutComponent motion and responsive contract', () => {
+  class IntersectionObserverMock {
+    static instances: IntersectionObserverMock[] = [];
+    readonly observe = vi.fn();
+    readonly unobserve = vi.fn();
+    readonly disconnect = vi.fn();
+    readonly root = null;
+    readonly rootMargin: string;
+    readonly thresholds: readonly number[];
+
+    constructor(
+      readonly callback: IntersectionObserverCallback,
+      readonly options?: IntersectionObserverInit
+    ) {
+      this.rootMargin = options?.rootMargin ?? '0px';
+      this.thresholds = Array.isArray(options?.threshold) ? options.threshold : [options?.threshold ?? 0];
+      IntersectionObserverMock.instances.push(this);
+    }
+
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+    IntersectionObserverMock.instances = [];
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps content visible when IntersectionObserver is unavailable', () => {
+    Reflect.deleteProperty(window, 'IntersectionObserver');
+    const { fixture } = createAboutFixture(() => Promise.resolve(result([])));
+
+    expect(fixture.nativeElement.classList.contains('about-motion-ready')).toBe(false);
+  });
+
+  it('uses exact observer options, reveals once, and disconnects on destroy', () => {
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+    const { fixture } = createAboutFixture(() => Promise.resolve(result([])));
+    const observer = IntersectionObserverMock.instances[0];
+    const target = fixture.nativeElement.querySelector('[data-reveal]') as HTMLElement;
+
+    expect(fixture.nativeElement.classList.contains('about-motion-ready')).toBe(true);
+    expect(observer.options).toEqual({ rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+    expect(observer.observe).toHaveBeenCalledTimes(fixture.nativeElement.querySelectorAll('[data-reveal]').length);
+
+    const targetRect = target.getBoundingClientRect();
+    const entry: IntersectionObserverEntry = {
+      time: 0,
+      rootBounds: null,
+      boundingClientRect: targetRect,
+      intersectionRect: targetRect,
+      isIntersecting: true,
+      intersectionRatio: 1,
+      target
+    };
+    observer.callback([entry], observer);
+
+    expect(target.classList.contains('is-visible')).toBe(true);
+    expect(observer.unobserve).toHaveBeenCalledOnce();
+    expect(observer.unobserve).toHaveBeenCalledWith(target);
+
+    fixture.destroy();
+    expect(observer.disconnect).toHaveBeenCalledOnce();
+  });
+
+  it('observes Next Up reveal rows rendered after the initial view', async () => {
+    vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+    const initial = deferred<EventCatalogResult>();
+    const { fixture } = createAboutFixture(() => initial.promise);
+    const observer = IntersectionObserverMock.instances[0];
+
+    initial.resolve(result([event('late-row')]));
+    await settle(fixture);
+
+    const row = fixture.nativeElement.querySelector('[data-cy="about-next-up-event-late-row"]') as HTMLElement;
+    expect(observer.observe).toHaveBeenCalledWith(row);
+  });
+
+  it('maps approved reveals and 70ms group staggers to final DOM', () => {
+    expect(source).toContain('data-cy="about-next-up-heading" data-reveal');
+    expect(source).toContain('[attr.data-cy]="\'about-next-up-event-\' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + \'ms\'"');
+    expect(source).toContain('class="about-tournament-band__copy" [attr.data-cy]="\'about-\' + band.id + \'-copy\'" [attr.data-reveal]="$index % 2 === 0 ? \'left\' : \'right\'"');
+    expect(source).toContain('class="about-content-image about-tournament-band__image" [src]="band.image"');
+    expect(source).toContain('[attr.data-reveal]="$index % 2 === 0 ? \'right\' : \'left\'"');
+    expect(source).toContain('data-cy="about-fire-ice-fire-image" data-reveal="scale"');
+    expect(source).toContain('data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms"');
+    expect(source.match(/\[style\.--reveal-delay\]="\$index \* 70 \+ 'ms'"/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(source).not.toContain('($index + 3) * 70');
+    expect(source).toContain('data-cy="about-contact-copy" data-reveal="left"');
+    expect(source).toContain('data-cy="about-contact-details" data-reveal="right" style="--reveal-delay: 70ms"');
+  });
+
+  it('makes focused reveal targets visible immediately and keeps focus rings visible', () => {
+    expect(stylesSource).toContain('.about-route.about-motion-ready [data-reveal]:focus');
+    expect(stylesSource).toContain('.about-route.about-motion-ready [data-reveal]:focus-within');
+    expect(stylesSource).toMatch(/\[data-reveal\]:focus-within[^}]+transition-delay:\s*0ms/s);
+    expect(stylesSource).toMatch(/\.about-route :focus-visible\s*\{[^}]*outline:\s*2px solid var\(--hot-blood\)/s);
+  });
+
+  it('uses specificity-safe reduced-motion resets for reveal, hover, photos, and smooth scroll', () => {
+    const reducedStart = stylesSource.indexOf('@media (prefers-reduced-motion: reduce)', stylesSource.indexOf('.about-route .home-primary-action'));
+    const reducedMotion = stylesSource.slice(reducedStart, stylesSource.indexOf('.calendar-page'));
+
+    expect(reducedMotion).toContain('html:has(.about-route)');
+    expect(reducedMotion).toContain('.about-route.about-motion-ready [data-reveal]');
+    expect(reducedMotion).toMatch(/\.about-route\.about-motion-ready \[data-reveal\][^{]*\{[^}]*opacity:\s*1\s*!important/s);
+    expect(reducedMotion).toMatch(/\.about-route\.about-motion-ready \[data-reveal\][^{]*\{[^}]*transition:\s*none\s*!important/s);
+    expect(reducedMotion).toContain('.about-route .about-content-image');
+    expect(reducedMotion).toContain('transform: none !important');
+    expect(reducedMotion).toContain('scale: 1 !important');
+  });
+
+  it('scopes bounded hover motion to fine pointers and never transitions all properties', () => {
+    const finePointer = stylesSource.slice(
+      stylesSource.indexOf('@media (hover: hover) and (pointer: fine) {\n  .about-route'),
+      stylesSource.indexOf('@media (max-width: 860px)', stylesSource.indexOf('@media (hover: hover) and (pointer: fine) {\n  .about-route'))
+    );
+
+    expect(finePointer).toContain('.about-route .about-tournament-band:hover');
+    expect(finePointer).toContain('translateY(-2px)');
+    expect(finePointer).toContain('transform: scale(1.02)');
+    expect(finePointer).not.toMatch(/translateY\(-(?:[6-9]|\d{2,})px\)/);
+    expect(stylesSource).not.toMatch(/transition:\s*all\b/);
+  });
+
+  it('offsets every About fragment below stacked sticky chrome and caps content images', () => {
+    expect(stylesSource).toMatch(/\.about-route \[id\]\s*\{\s*scroll-margin-top:\s*var\(--about-scroll-offset\)/);
+    expect(stylesSource).toContain('top: calc(var(--app-toolbar-height) + var(--about-breadcrumb-height))');
+    expect(stylesSource).toContain('--about-scroll-offset: calc(');
+    expect(stylesSource).toContain('--about-nav-height: 5rem');
+    expect(stylesSource).toMatch(/\.about-route \.about-content-image,[^{]+\.about-route \.about-fire-ice__photos img\s*\{[^}]*max-height:\s*380px/s);
+    expect(stylesSource).toContain('aspect-ratio: 3 / 2');
+    expect(stylesSource).toContain('overflow-x: clip');
   });
 });
 
