@@ -2,7 +2,43 @@ import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject } fro
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { I18nService } from '../../i18n/i18n.service';
+import type { MessageKey } from '../../i18n/messages';
 import { BackButtonComponent } from '../../shared/back-button.component';
+
+export interface AboutStaffMember {
+  readonly id: 'gregory' | 'ganesh' | 'edouart' | 'alex' | 'loic' | 'luka' | 'nathan' | 'yoan' | 'simon';
+  readonly name: string;
+  readonly image?: string;
+  readonly imageWidth?: number;
+  readonly imageHeight?: number;
+  readonly roleKey?: MessageKey;
+  readonly bioKey: MessageKey;
+  readonly complete: boolean;
+}
+
+export interface AboutContributor {
+  readonly id: 'contributor-1' | 'contributor-2' | 'contributor-3';
+  readonly nameKey: MessageKey;
+  readonly descriptionKey: MessageKey;
+}
+
+export const aboutStaff: readonly AboutStaffMember[] = [
+  { id: 'gregory', name: 'Gregory Millon', image: 'assets/images/greg-avatar.jpeg', imageWidth: 140, imageHeight: 140, roleKey: 'about.team.roleFounder', bioKey: 'about.team.bioGregory', complete: true },
+  { id: 'ganesh', name: 'Ganesh', roleKey: 'about.team.roleFounder', bioKey: 'about.team.bioPending', complete: false },
+  { id: 'edouart', name: 'Edouart', roleKey: 'about.team.roleFounder', bioKey: 'about.team.bioPending', complete: false },
+  { id: 'alex', name: 'Alex Noir', image: 'assets/images/alex-avatar-alpha-bolt.jpeg', imageWidth: 96, imageHeight: 96, bioKey: 'about.team.bioAlex', complete: true },
+  { id: 'loic', name: 'Loïc Chowchow', image: 'assets/images/chowchow-avatar.jpg', imageWidth: 140, imageHeight: 140, roleKey: 'about.team.roleCook', bioKey: 'about.team.bioLoic', complete: true },
+  { id: 'luka', name: 'Luka Mrakovcic', image: 'assets/images/lukas-avatar.jpg', imageWidth: 96, imageHeight: 96, roleKey: 'about.team.roleCommunityManager', bioKey: 'about.team.bioLuka', complete: true },
+  { id: 'nathan', name: 'Nathan Flachaire', bioKey: 'about.team.bioPending', complete: false },
+  { id: 'yoan', name: 'Yoan', roleKey: 'about.team.roleOrganizer', bioKey: 'about.team.bioPending', complete: false },
+  { id: 'simon', name: 'Simon', roleKey: 'about.team.roleOrganizer', bioKey: 'about.team.bioPending', complete: false }
+];
+
+export const aboutContributors: readonly AboutContributor[] = [
+  { id: 'contributor-1', nameKey: 'about.contributors.pendingName', descriptionKey: 'about.contributors.pendingDescription' },
+  { id: 'contributor-2', nameKey: 'about.contributors.pendingName', descriptionKey: 'about.contributors.pendingDescription' },
+  { id: 'contributor-3', nameKey: 'about.contributors.pendingName', descriptionKey: 'about.contributors.pendingDescription' }
+];
 
 @Component({
   standalone: true,
@@ -10,6 +46,12 @@ import { BackButtonComponent } from '../../shared/back-button.component';
   host: { '[attr.lang]': 'i18n.language()', class: 'about-route' },
   template: `
     <gones-back-button data-cy="about-back-top" [link]="['/']" [label]="i18n.t('about.back')" position="top" />
+    <nav class="about-internal-nav" data-cy="about-internal-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
+      <a href="#association" data-cy="about-nav-association">{{ i18n.t('about.nav.association') }}</a>
+      <a href="#tournaments" data-cy="about-nav-tournaments">{{ i18n.t('about.nav.tournaments') }}</a>
+      <a href="#staff" data-cy="about-nav-staff">{{ i18n.t('about.nav.staff') }}</a>
+      <a routerLink="/events" data-cy="about-nav-calendar">{{ i18n.t('about.nav.calendar') }}</a>
+    </nav>
     <div class="about-page" data-cy="about-page">
       <section class="about-hero" data-cy="about-hero" aria-labelledby="about-title">
         <div class="about-hero__copy" data-cy="about-hero-copy">
@@ -18,7 +60,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <p class="about-hero__lede" data-cy="about-hero-lede" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.hero.lede') }}</p>
           <div class="info-actions" data-cy="about-hero-actions" data-reveal style="--reveal-delay: 210ms">
             <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-hero-calendar-link">{{ i18n.t('about.hero.calendar') }}</a>
-            <a mat-stroked-button class="secondary-action" routerLink="/about" fragment="equipe" data-cy="about-hero-team-link">{{ i18n.t('about.hero.team') }}</a>
+            <a mat-stroked-button class="secondary-action" href="#tournaments" data-cy="about-hero-team-link">{{ i18n.t('about.hero.team') }}</a>
           </div>
         </div>
         <a class="about-hero__mark" routerLink="/" [attr.aria-label]="i18n.t('about.hero.logoAria')" data-cy="about-logo-link" data-reveal="scale" style="--reveal-delay: 210ms">
@@ -27,7 +69,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         </a>
       </section>
 
-      <section class="about-intro" data-cy="about-intro" aria-labelledby="association-title">
+      <section id="association" class="about-intro" data-cy="about-intro" aria-labelledby="association-title">
         <div data-cy="about-intro-heading" data-reveal="left">
           <p class="kicker" data-cy="about-intro-kicker">{{ i18n.t('about.intro.kicker') }}</p>
           <h2 id="association-title" data-cy="about-intro-title">{{ i18n.t('about.intro.title') }}</h2>
@@ -55,7 +97,7 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-weekly-calendar-link" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.weekly.calendar') }}</a>
       </section>
 
-      <section class="about-events" data-cy="about-events" aria-labelledby="events-title">
+      <section id="tournaments" class="about-events" data-cy="about-events" aria-labelledby="events-title">
         <header class="about-section-heading" data-cy="about-events-heading" data-reveal>
           <p class="kicker" data-cy="about-events-kicker">{{ i18n.t('about.events.kicker') }}</p>
           <h2 id="events-title" data-cy="about-events-title"><span class="about-events__fire" data-cy="about-events-title-fire">Fire</span> &amp; <span class="about-events__ice" data-cy="about-events-title-ice">Ice</span></h2>
@@ -84,31 +126,31 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         </ul>
       </section>
 
-      <section id="equipe" class="about-team" data-cy="about-team" aria-labelledby="team-title" tabindex="-1">
+      <section id="staff" class="about-team" data-cy="about-team" aria-labelledby="team-title" tabindex="-1">
         <header class="about-section-heading" data-cy="about-team-heading" data-reveal>
           <p class="kicker" data-cy="about-team-kicker">{{ i18n.t('about.team.kicker') }}</p>
           <h2 id="team-title" data-cy="about-team-title">{{ i18n.t('about.team.title') }}</h2>
           <p data-cy="about-team-body">{{ i18n.t('about.team.body') }}</p>
         </header>
         <div class="about-team-grid" data-cy="about-team-grid">
-          @for (group of memberGroups(); track group.id) {
-            <section class="about-team-group" [attr.data-cy]="'about-team-group-' + group.id" [attr.aria-labelledby]="group.id">
-              <h3 [id]="group.id" [attr.data-cy]="'about-team-group-title-' + group.id" data-reveal>{{ group.title }}</h3>
-              @for (member of group.members; track member.name) {
-                <article class="about-person" [attr.data-cy]="'about-person-' + group.id + '-' + $index" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
-                  <div class="about-person__portrait" [attr.data-cy]="'about-person-portrait-' + group.id + '-' + $index" aria-hidden="true">
-                    <span [attr.data-cy]="'about-person-initials-' + group.id + '-' + $index">{{ member.initials }}</span>
-                    <small [attr.data-cy]="'about-person-photo-pending-' + group.id + '-' + $index">{{ i18n.t('about.team.photoPending') }}</small>
-                  </div>
-                  <div class="about-person__copy" [attr.data-cy]="'about-person-copy-' + group.id + '-' + $index">
-                    <p class="about-person__role" [attr.data-cy]="'about-person-role-' + group.id + '-' + $index">{{ member.role }}</p>
-                    <h4 [attr.data-cy]="'about-person-name-' + group.id + '-' + $index">{{ member.name }}</h4>
-                    @if (member.detail) { <p class="about-person__detail" [attr.data-cy]="'about-person-detail-' + group.id + '-' + $index">{{ member.detail }}</p> }
-                    <p class="about-person__bio" [attr.data-cy]="'about-person-bio-' + group.id + '-' + $index">{{ i18n.t('about.team.bioPending') }}</p>
-                  </div>
-                </article>
+          @for (member of staff; track member.id) {
+            <article class="about-person" [attr.data-cy]="'about-person-' + member.id" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
+              @if (member.image; as image) {
+                <img class="about-person__portrait" [src]="image" [attr.width]="member.imageWidth" [attr.height]="member.imageHeight" [attr.alt]="member.name" [attr.data-cy]="'about-person-image-' + member.id">
+              } @else {
+                <div class="about-person__portrait about-person__portrait--pending" [attr.data-cy]="'about-person-portrait-' + member.id" aria-hidden="true">
+                  <small [attr.data-cy]="'about-person-photo-pending-' + member.id">{{ i18n.t('about.team.photoPending') }}</small>
+                </div>
               }
-            </section>
+              <div class="about-person__copy" [attr.data-cy]="'about-person-copy-' + member.id">
+                @if (member.roleKey; as roleKey) {
+                  <p class="about-person__role" [attr.data-cy]="'about-person-role-' + member.id">{{ i18n.t(roleKey) }}</p>
+                }
+                <h3 [attr.data-cy]="'about-person-name-' + member.id">{{ member.name }}</h3>
+                @if (!member.complete) { <p class="about-person__detail" [attr.data-cy]="'about-person-detail-' + member.id">{{ i18n.t('about.team.namePending') }}</p> }
+                <p class="about-person__bio" [attr.data-cy]="'about-person-bio-' + member.id">{{ i18n.t(member.bioKey) }}</p>
+              </div>
+            </article>
           }
         </div>
       </section>
@@ -120,10 +162,10 @@ import { BackButtonComponent } from '../../shared/back-button.component';
           <p data-cy="about-contributors-body">{{ i18n.t('about.contributors.body') }}</p>
         </header>
         <div class="about-contributor-grid" data-cy="about-contributor-grid">
-          @for (contributor of contributors(); track contributor.name) {
-            <article class="about-contributor" [attr.data-cy]="'about-contributor-' + $index" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
-              <div class="about-contributor__portrait" [attr.data-cy]="'about-contributor-portrait-' + $index" aria-hidden="true">?</div>
-              <div [attr.data-cy]="'about-contributor-copy-' + $index"><h3 [attr.data-cy]="'about-contributor-name-' + $index">{{ contributor.name }}</h3><p [attr.data-cy]="'about-contributor-description-' + $index">{{ contributor.description }}</p></div>
+          @for (contributor of contributors; track contributor.id) {
+            <article class="about-contributor" [attr.data-cy]="'about-contributor-' + contributor.id" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
+              <div class="about-contributor__portrait" [attr.data-cy]="'about-contributor-portrait-' + contributor.id" aria-hidden="true">?</div>
+              <div [attr.data-cy]="'about-contributor-copy-' + contributor.id"><h3 [attr.data-cy]="'about-contributor-name-' + contributor.id">{{ i18n.t(contributor.nameKey, { number: contributorNumber($index) }) }}</h3><p [attr.data-cy]="'about-contributor-description-' + contributor.id">{{ i18n.t(contributor.descriptionKey) }}</p></div>
             </article>
           }
         </div>
@@ -140,22 +182,23 @@ import { BackButtonComponent } from '../../shared/back-button.component';
         </div>
         <address class="about-contact__details" data-cy="about-contact-details">
           <p data-cy="about-contact-location" data-reveal="right"><span data-cy="about-contact-location-label">{{ i18n.t('about.contact.locationLabel') }}</span><strong data-cy="about-contact-location-value">{{ i18n.t('about.contact.locationValue') }}</strong></p>
-          <p data-cy="about-contact-email" data-reveal="right" style="--reveal-delay: 70ms"><span data-cy="about-contact-email-label">{{ i18n.t('about.contact.emailLabel') }}</span><strong data-cy="about-contact-email-value">{{ i18n.t('about.contact.emailPending') }}</strong></p>
+          <p data-cy="about-contact-email" data-reveal="right" style="--reveal-delay: 70ms"><span data-cy="about-contact-email-label">{{ i18n.t('about.contact.emailLabel') }}</span><strong data-cy="about-contact-email-value" aria-disabled="true" tabindex="-1">{{ i18n.t('about.contact.comingSoon') }}</strong></p>
           <div class="about-contact__socials" data-cy="about-contact-socials" data-reveal="right" style="--reveal-delay: 140ms">
             <span data-cy="about-contact-socials-label">{{ i18n.t('about.contact.socialsLabel') }}</span>
             <div class="about-social-links" data-cy="about-social-links">
               <a class="about-social-link" href="https://discord.gg/znGRG36Kz" target="_blank" rel="noopener noreferrer" data-cy="about-social-discord" [attr.aria-label]="i18n.t('about.contact.discordAria')">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.1 7.2a14 14 0 0 1 7.8 0l.8 1.1a8.4 8.4 0 0 1 2.1 6.1 10.6 10.6 0 0 1-3.3 1.7l-.8-1.1a5.7 5.7 0 0 0 1.2-.6 6.8 6.8 0 0 1-7.8 0c.4.3.8.5 1.2.6l-.8 1.1a10.6 10.6 0 0 1-3.3-1.7 8.4 8.4 0 0 1 2.1-6.1l.8-1.1Zm1.5 4.7c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Zm3.6 0c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Z"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-discord-icon"><path d="M8.1 7.2a14 14 0 0 1 7.8 0l.8 1.1a8.4 8.4 0 0 1 2.1 6.1 10.6 10.6 0 0 1-3.3 1.7l-.8-1.1a5.7 5.7 0 0 0 1.2-.6 6.8 6.8 0 0 1-7.8 0c.4.3.8.5 1.2.6l-.8 1.1a10.6 10.6 0 0 1-3.3-1.7 8.4 8.4 0 0 1 2.1-6.1l.8-1.1Zm1.5 4.7c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Zm3.6 0c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Z"/></svg>
                 <b data-cy="about-social-discord-label">Discord</b>
               </a>
               <a class="about-social-link" href="https://www.facebook.com/mtgones/" target="_blank" rel="noopener noreferrer" data-cy="about-social-facebook" [attr.aria-label]="i18n.t('about.contact.facebookAria')">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V4a22 22 0 0 0-2.4-.1c-2.4 0-4 1.5-4 4.2V10H8v3h2.6v8h3.1Z"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-facebook-icon"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V4a22 22 0 0 0-2.4-.1c-2.4 0-4 1.5-4 4.2V10H8v3h2.6v8h3.1Z"/></svg>
                 <b data-cy="about-social-facebook-label">Facebook</b>
               </a>
               <a class="about-social-link" href="https://x.com/MtgOnes" target="_blank" rel="noopener noreferrer" data-cy="about-social-x" [attr.aria-label]="i18n.t('about.contact.xAria')">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.3 3h3.4l-7.4 8.5L23 21h-6.8l-5.3-6.9L4.8 21H1.4l7.9-9.1L1 3h7l4.8 6.3L18.3 3Zm-1.2 16.3H19L6.9 4.6h-2l12.2 14.7Z"/></svg>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-x-icon"><path d="M18.3 3h3.4l-7.4 8.5L23 21h-6.8l-5.3-6.9L4.8 21H1.4l7.9-9.1L1 3h7l4.8 6.3L18.3 3Zm-1.2 16.3H19L6.9 4.6h-2l12.2 14.7Z"/></svg>
                 <b data-cy="about-social-x-label">X</b>
               </a>
+              <span class="about-social-link about-social-link--disabled" data-cy="about-social-instagram" aria-disabled="true" tabindex="-1">Instagram — {{ i18n.t('about.contact.comingSoon') }}</span>
             </div>
           </div>
         </address>
@@ -182,34 +225,12 @@ export class AboutComponent implements AfterViewInit, OnDestroy {
     { name: 'Duel Commander', theme: 'duel-commander', url: 'https://www.mtgdc.info/' }
   ] as const;
 
-  readonly memberGroups = computed(() => [
-    {
-      id: 'founders-title',
-      title: this.i18n.t('about.team.founders'),
-      members: [
-        { name: 'Gregory Millon', initials: 'GM', role: this.i18n.t('about.team.roleFounder'), detail: '' },
-        { name: 'Ganesh', initials: 'GA', role: this.i18n.t('about.team.roleFounder'), detail: `Antoine — ${this.i18n.t('about.team.namePending')}` },
-        { name: 'Edouart', initials: 'ED', role: this.i18n.t('about.team.roleFounder'), detail: this.i18n.t('about.team.namePending') }
-      ]
-    },
-    {
-      id: 'members-title',
-      title: this.i18n.t('about.team.members'),
-      members: [
-        { name: 'Alexandre Noir', initials: 'AN', role: this.i18n.t('about.team.roleOrganizer'), detail: '' },
-        { name: 'Chowchow', initials: 'CH', role: this.i18n.t('about.team.roleCook'), detail: '' },
-        { name: 'Lukas', initials: 'LU', role: this.i18n.t('about.team.roleCommunityManager'), detail: this.i18n.t('about.team.namePending') },
-        { name: 'Nathan Flachaire', initials: 'NF', role: this.i18n.t('about.team.roleMediaCreator'), detail: '' },
-        { name: 'Yoan', initials: 'YO', role: this.i18n.t('about.team.roleOrganizer'), detail: this.i18n.t('about.team.namePending') },
-        { name: 'Simon', initials: 'SI', role: this.i18n.t('about.team.roleOrganizer'), detail: this.i18n.t('about.team.namePending') }
-      ]
-    }
-  ]);
+  readonly staff = aboutStaff;
+  readonly contributors = aboutContributors;
 
-  readonly contributors = computed(() => [1, 2, 3].map(number => ({
-    name: this.i18n.t('about.contributors.pendingName', { number: String(number).padStart(2, '0') }),
-    description: this.i18n.t('about.contributors.pendingDescription')
-  })));
+  contributorNumber(index: number): string {
+    return String(index + 1).padStart(2, '0');
+  }
 
   ngAfterViewInit(): void {
     if (!('IntersectionObserver' in window)) return;
