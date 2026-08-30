@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, WritableSignal, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, ElementRef, Injector, OnDestroy, OnInit, WritableSignal, afterNextRender, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { I18nService } from '../../i18n/i18n.service';
@@ -104,7 +104,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
       </section>
 
       <section class="about-next-up" data-cy="about-next-up" aria-labelledby="about-next-up-title">
-        <header class="about-section-heading" data-cy="about-next-up-heading">
+        <header class="about-section-heading" data-cy="about-next-up-heading" data-reveal>
           <p class="kicker" data-cy="about-next-up-kicker">{{ i18n.t('about.nextUp.kicker') }}</p>
           <h2 id="about-next-up-title" data-cy="about-next-up-title">{{ i18n.t('about.nextUp.title') }}</h2>
           <gones-sync-bar cyPrefix="about-next-up" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" data-cy="about-next-up-sync-bar" />
@@ -123,7 +123,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
         } @else if (upcomingEvents().length) {
           <div class="about-next-up__list" data-cy="about-next-up-list">
             @for (event of upcomingEvents(); track event.id) {
-              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-event-' + event.slug">
+              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-event-' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
                 <span class="about-next-up__row-copy" [attr.data-cy]="'about-next-up-event-copy-' + event.slug">
                   <strong [attr.data-cy]="'about-next-up-event-title-' + event.slug">{{ event.displayTitle }}</strong>
                   <time [attr.datetime]="event.startsAtUtc" [attr.data-cy]="'about-next-up-event-date-' + event.slug">{{ upcomingDate(event).primary }}</time>
@@ -151,7 +151,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           <p data-cy="about-association-paragraph-1">{{ i18n.t('about.intro.paragraph1') }}</p>
           <p data-cy="about-association-paragraph-2">{{ i18n.t('about.intro.paragraph2') }}</p>
         </div>
-        <img class="about-content-image about-intro__image" src="assets/images/2019-10-mtglyon-mtgones-gathering.jpeg" alt="MTGones and MTGLyon players gathered together" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-association-image">
+        <img class="about-content-image about-intro__image" src="assets/images/2019-10-mtglyon-mtgones-gathering.jpeg" alt="MTGones and MTGLyon players gathered together" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-association-image" data-reveal="scale" style="--reveal-delay: 140ms">
       </section>
 
       <section id="tournaments" class="about-tournaments" data-cy="about-tournaments" aria-labelledby="tournaments-title">
@@ -161,8 +161,8 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           <p data-cy="about-tournaments-body">{{ i18n.t('about.tournaments.body') }}</p>
         </header>
         @for (band of tournamentBands.slice(0, 3); track band.id) {
-          <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
-            <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'">
+          <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id">
+            <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'" [attr.data-reveal]="$index % 2 === 0 ? 'left' : 'right'">
               <h3 [attr.data-cy]="'about-' + band.id + '-title'">{{ i18n.t(band.titleKey) }}</h3>
               <dl class="about-tournament-band__slots" [attr.data-cy]="'about-' + band.id + '-metadata'">
                 <div [attr.data-cy]="'about-' + band.id + '-when'"><dt [attr.data-cy]="'about-' + band.id + '-when-label'">{{ i18n.t('about.tournament.when') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-when-value'">{{ i18n.t(band.whenKey) }}</dd></div>
@@ -172,10 +172,10 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <p [attr.data-cy]="'about-' + band.id + '-body'">{{ i18n.t(band.bodyKey) }}</p>
               <a mat-stroked-button class="secondary-action" routerLink="/events" [attr.data-cy]="'about-' + band.id + '-calendar-link'">{{ i18n.t(band.actionKey) }}</a>
             </div>
-            <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'">
+            <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'" [attr.data-reveal]="$index % 2 === 0 ? 'right' : 'left'" style="--reveal-delay: 70ms">
           </article>
         }
-        <article class="about-fire-ice" data-cy="about-fire-ice" aria-labelledby="about-fire-ice-title" data-reveal="scale">
+        <article class="about-fire-ice" data-cy="about-fire-ice" aria-labelledby="about-fire-ice-title">
           <div class="about-fire-ice__art" aria-hidden="true" data-art="assets/card-art/fire-ice.jpg" data-cy="about-fire-ice-art">
             <div class="about-fire-ice__art-half about-fire-ice__art-half--fire" data-cy="about-fire-ice-art-fire"></div>
             <div class="about-fire-ice__art-half about-fire-ice__art-half--ice" data-cy="about-fire-ice-art-ice"></div>
@@ -188,14 +188,14 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <div data-cy="about-fire-ice-edition-ice"><strong class="about-fire-ice__ice" data-cy="about-fire-ice-edition-ice-title">{{ i18n.t('about.fireIce.iceEdition') }}</strong><span data-cy="about-fire-ice-edition-ice-body">{{ i18n.t('about.fireIce.iceEditionBody') }}</span></div>
             </div>
             <div class="about-fire-ice__photos" data-cy="about-fire-ice-photos">
-              <img src="assets/images/2025-06-fire-team-orga.jpeg" alt="The Fire 2025 organizing team behind the prize table" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image">
-              <img src="assets/images/2026-01-ice-01.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image">
+              <img src="assets/images/2025-06-fire-team-orga.jpeg" alt="The Fire 2025 organizing team behind the prize table" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image" data-reveal="scale">
+              <img src="assets/images/2026-01-ice-01.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms">
             </div>
           </div>
         </article>
         @for (band of tournamentBands.slice(3); track band.id) {
-          <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
-            <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'">
+          <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id">
+            <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'" data-reveal="right">
               <h3 [attr.data-cy]="'about-' + band.id + '-title'">{{ i18n.t(band.titleKey) }}</h3>
               <dl class="about-tournament-band__slots" [attr.data-cy]="'about-' + band.id + '-metadata'">
                 <div [attr.data-cy]="'about-' + band.id + '-when'"><dt [attr.data-cy]="'about-' + band.id + '-when-label'">{{ i18n.t('about.tournament.when') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-when-value'">{{ i18n.t(band.whenKey) }}</dd></div>
@@ -205,7 +205,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <p [attr.data-cy]="'about-' + band.id + '-body'">{{ i18n.t(band.bodyKey) }}</p>
               <a mat-stroked-button class="secondary-action" routerLink="/events" [attr.data-cy]="'about-' + band.id + '-calendar-link'">{{ i18n.t(band.actionKey) }}</a>
             </div>
-            <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'">
+            <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'" data-reveal="left" style="--reveal-delay: 70ms">
           </article>
         }
       </section>
@@ -235,7 +235,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           }
           <h3 data-cy="about-staff-members-title">{{ i18n.t('about.team.members') }}</h3>
           @for (member of members; track member.id) {
-            <article class="about-person" [attr.data-cy]="'about-person-' + member.id" data-reveal [style.--reveal-delay]="($index + 3) * 70 + 'ms'">
+            <article class="about-person" [attr.data-cy]="'about-person-' + member.id" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
               @if (member.image; as image) {
                 <img class="about-person__portrait" [src]="image" [attr.width]="member.imageWidth" [attr.height]="member.imageHeight" [attr.alt]="member.name" loading="lazy" decoding="async" [attr.data-cy]="'about-person-image-' + member.id">
               } @else {
@@ -275,10 +275,10 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           <p data-cy="about-contact-body">{{ i18n.t('about.contact.body') }}</p>
           <div class="info-actions" data-cy="about-contact-actions"><a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-contact-calendar-link">{{ i18n.t('about.contact.calendar') }}</a></div>
         </div>
-        <address class="about-contact__details" data-cy="about-contact-details">
-          <p data-cy="about-contact-location" data-reveal="right"><span data-cy="about-contact-location-label">{{ i18n.t('about.contact.locationLabel') }}</span><strong data-cy="about-contact-location-value">{{ i18n.t('about.contact.locationValue') }}</strong></p>
-          <p data-cy="about-contact-email" data-reveal="right" style="--reveal-delay: 70ms"><span data-cy="about-contact-email-label">{{ i18n.t('about.contact.emailLabel') }}</span><strong data-cy="about-contact-email-value" aria-disabled="true" tabindex="-1">{{ i18n.t('about.contact.comingSoon') }}</strong></p>
-          <div class="about-contact__socials" data-cy="about-contact-socials" data-reveal="right" style="--reveal-delay: 140ms">
+        <address class="about-contact__details" data-cy="about-contact-details" data-reveal="right" style="--reveal-delay: 70ms">
+          <p data-cy="about-contact-location"><span data-cy="about-contact-location-label">{{ i18n.t('about.contact.locationLabel') }}</span><strong data-cy="about-contact-location-value">{{ i18n.t('about.contact.locationValue') }}</strong></p>
+          <p data-cy="about-contact-email"><span data-cy="about-contact-email-label">{{ i18n.t('about.contact.emailLabel') }}</span><strong data-cy="about-contact-email-value" aria-disabled="true" tabindex="-1">{{ i18n.t('about.contact.comingSoon') }}</strong></p>
+          <div class="about-contact__socials" data-cy="about-contact-socials">
             <span data-cy="about-contact-socials-label">{{ i18n.t('about.contact.socialsLabel') }}</span>
             <div class="about-social-links" data-cy="about-social-links">
               <a class="about-social-link" href="https://discord.gg/znGRG36Kz" target="_blank" rel="noopener noreferrer" data-cy="about-social-discord" [attr.aria-label]="i18n.t('about.contact.discordAria')"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-discord-icon"><path d="M8.1 7.2a14 14 0 0 1 7.8 0l.8 1.1a8.4 8.4 0 0 1 2.1 6.1 10.6 10.6 0 0 1-3.3 1.7l-.8-1.1a5.7 5.7 0 0 0 1.2-.6 6.8 6.8 0 0 1-7.8 0c.4.3.8.5 1.2.6l-.8 1.1a10.6 10.6 0 0 1-3.3-1.7 8.4 8.4 0 0 1 2.1-6.1l.8-1.1Zm1.5 4.7c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Zm3.6 0c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4-1.1 1.4-1.1 1.4Z" data-cy="about-social-discord-path" /></svg><b data-cy="about-social-discord-label">Discord</b></a>
@@ -296,6 +296,8 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
 export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly i18n = inject(I18nService);
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly injector = inject(Injector);
   private readonly catalog = inject(EventCatalogCacheService);
   private revealObserver?: IntersectionObserver;
   private upcomingLoadId = 0;
@@ -339,7 +341,10 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
       this.stale.set(false);
       this.syncedAt.set(undefined);
     } finally {
-      if (loadId === this.upcomingLoadId) this.loading.set(false);
+      if (loadId === this.upcomingLoadId && !this.destroyRef.destroyed) {
+        this.loading.set(false);
+        this.observeRevealElementsAfterRender();
+      }
     }
   }
 
@@ -358,7 +363,6 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     if (!('IntersectionObserver' in window)) return;
 
-    const revealElements = this.hostElement.nativeElement.querySelectorAll<HTMLElement>('[data-reveal]');
     this.hostElement.nativeElement.classList.add('about-motion-ready');
     this.revealObserver = new IntersectionObserver(entries => {
       for (const entry of entries) {
@@ -368,6 +372,16 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
       }
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
 
+    this.observeRevealElements();
+  }
+
+  private observeRevealElementsAfterRender(): void {
+    if (!this.revealObserver) return;
+    afterNextRender(() => this.observeRevealElements(), { injector: this.injector });
+  }
+
+  private observeRevealElements(): void {
+    const revealElements = this.hostElement.nativeElement.querySelectorAll<HTMLElement>('[data-reveal]:not(.is-visible)');
     revealElements.forEach(element => this.revealObserver?.observe(element));
   }
 
