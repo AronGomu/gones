@@ -126,15 +126,15 @@ export const aboutContributors: readonly AboutContributor[] = [
           </div>
         } @else if (error()) {
           <div class="panel about-next-up__state" role="alert" data-cy="about-next-up-error">
-            <p>{{ i18n.t('about.nextUp.loadFailed') }}</p>
-            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
+            <p data-cy="about-next-up-error-body">{{ i18n.t('about.nextUp.loadFailed') }}</p>
+            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-error-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
             <button mat-stroked-button type="button" data-cy="about-next-up-retry" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button>
           </div>
         } @else if (upcomingEvents().length) {
           <div class="about-next-up__list" data-cy="about-next-up-list">
             @for (event of upcomingEvents(); track event.id) {
               <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-event-' + event.slug">
-                <span class="about-next-up__row-copy">
+                <span class="about-next-up__row-copy" data-cy="about-next-up-event-copy">
                   <strong data-cy="about-next-up-event-title">{{ event.displayTitle }}</strong>
                   <time [attr.datetime]="event.startsAtUtc" data-cy="about-next-up-event-date">{{ upcomingDate(event).primary }}</time>
                   @if (upcomingDate(event).secondary; as secondary) { <span class="viewer-date" data-cy="about-next-up-event-viewer-date">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</span> }
@@ -147,7 +147,7 @@ export const aboutContributors: readonly AboutContributor[] = [
           <div class="panel about-next-up__state" data-cy="about-next-up-empty">
             <p data-cy="about-next-up-empty-title">{{ i18n.t('about.nextUp.emptyTitle') }}</p>
             <p data-cy="about-next-up-empty-body">{{ i18n.t('about.nextUp.emptyBody') }}</p>
-            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
+            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-empty-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
           </div>
         }
       </section>
