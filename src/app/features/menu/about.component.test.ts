@@ -1,13 +1,105 @@
 import '@angular/compiler';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { RouterLink } from '@angular/router';
+import { RouterTestingModule } from '@angular/router/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { I18nService } from '../../i18n/i18n.service';
 import { catalogs, MessageKey } from '../../i18n/messages';
+import { EventCatalogCacheService, EventCatalogResult } from '../events/event-catalog-cache.service';
+import { PublicEventView } from '../events/public-event-list';
+import { AboutComponent } from './about.component';
 
 const source = readFileSync(join(__dirname, 'about.component.ts'), 'utf8');
 const routesSource = readFileSync(join(__dirname, '../../app.routes.ts'), 'utf8');
 const guardSource = readFileSync(join(__dirname, '../../shared/first-visit.guard.ts'), 'utf8');
 const homeMenuSource = readFileSync(join(__dirname, 'home-menu.component.ts'), 'utf8');
+
+TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+
+@Component({ selector: 'gones-back-button', standalone: true, template: '' })
+class BackButtonStub {
+  @Input() link: readonly string[] = [];
+  @Input() label = '';
+  @Input() position = '';
+}
+
+@Component({ selector: 'gones-sync-bar', standalone: true, template: '<button type="button" [attr.data-cy]="cyPrefix + \'-sync-button\'" [disabled]="loading" (click)="sync.emit()">Sync</button>' })
+class SyncBarStub {
+  @Input() cyPrefix = '';
+  @Input() syncedAt: string | undefined;
+  @Input() loading = false;
+  @Input() stale = false;
+  @Output() sync = new EventEmitter<void>();
+}
+
+type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void };
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
+function event(slug: string, startsAtUtc = new Date(Date.now() + 86_400_000).toISOString()): PublicEventView {
+  const date = startsAtUtc.slice(0, 10);
+  return {
+    id: slug,
+    title: slug,
+    displayTitle: `Display ${slug}`,
+    slug,
+    summary: undefined,
+    venue: { city: 'Lyon', country: 'FR' } as PublicEventView['venue'],
+    timeZoneId: 'Europe/Paris',
+    venueStartDate: date,
+    venueStartTime: '12:00:00',
+    venueEndDate: date,
+    venueEndTime: '18:00:00',
+    startsAtUtc,
+    endsAtUtc: new Date(new Date(startsAtUtc).getTime() + 3_600_000).toISOString(),
+    capacity: undefined,
+    status: 'published',
+    organization: undefined as unknown as PublicEventView['organization'],
+    formats: [] as PublicEventView['formats']
+  };
+}
+
+function result(items: PublicEventView[], stale = false): EventCatalogResult {
+  return { items, fetchedAt: '2026-08-30T12:00:00.000Z', fromCache: stale, stale, truncated: false };
+}
+
+function createAboutFixture(load: (options?: { force?: boolean }) => Promise<EventCatalogResult>) {
+  const catalog = { load: vi.fn(load) };
+  TestBed.configureTestingModule({
+    imports: [AboutComponent, RouterTestingModule.withRoutes([])],
+    providers: [
+      { provide: I18nService, useValue: {
+        language: () => 'en',
+        locale: () => 'en-US',
+        t: (key: string) => key,
+        formatDateTime: (value: string) => value
+      } },
+      { provide: EventCatalogCacheService, useValue: catalog },
+    ]
+  });
+  TestBed.overrideComponent(AboutComponent, { set: { imports: [RouterLink, BackButtonStub, SyncBarStub] } });
+  const fixture = TestBed.createComponent(AboutComponent);
+  fixture.detectChanges();
+  return { fixture, component: fixture.componentInstance, load: catalog.load };
+}
+
+async function settle<T>(fixture: { whenStable: () => Promise<T>; detectChanges: () => void }): Promise<void> {
+  await fixture.whenStable();
+  fixture.detectChanges();
+}
 
 const aboutKeys = [
   'about.back',
@@ -107,6 +199,125 @@ function blockFor(id: string): string {
   const end = source.indexOf("id: '", start + 5);
   return source.slice(start, end === -1 ? source.length : end);
 }
+
+describe('AboutComponent live Next Up behavior', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('keeps skeleton geometry and visual treatment scoped to About', () => {
+    expect(source).toContain(':host.about-route .about-next-up__skeleton');
+    expect(source).toContain('min-height: 5.5rem');
+    expect(source).toContain('background: linear-gradient');
+  });
+
+  it('renders three rows after initial cache success and settles loading', async () => {
+    const first = deferred<EventCatalogResult>();
+    const { fixture, component, load } = createAboutFixture(() => first.promise);
+
+    expect(load).toHaveBeenCalledWith();
+    expect(component.loading()).toBe(true);
+    expect(fixture.nativeElement.querySelectorAll('[data-cy="about-next-up-skeleton"]').length).toBe(3);
+
+    first.resolve(result([event('one'), event('two'), event('three'), event('four')]));
+    await settle(fixture);
+
+    expect(component.loading()).toBe(false);
+    expect(component.error()).toBe(false);
+    expect(component.stale()).toBe(false);
+    expect(component.syncedAt()).toBe('2026-08-30T12:00:00.000Z');
+    expect(fixture.nativeElement.querySelectorAll('.about-next-up__row').length).toBe(3);
+  });
+
+  it('keeps stale cache rows usable without showing error', async () => {
+    const { fixture, component } = createAboutFixture(() => Promise.resolve(result([event('stale-event')], true)));
+    await settle(fixture);
+
+    expect(component.stale()).toBe(true);
+    expect(component.error()).toBe(false);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-stale-event"]')).not.toBeNull();
+  });
+
+  it('renders empty state with calendar CTA when no future events exist', async () => {
+    const { fixture, component } = createAboutFixture(() => Promise.resolve(result([])));
+    await settle(fixture);
+
+    expect(component.loading()).toBe(false);
+    expect(component.upcomingEvents()).toEqual([]);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-empty"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-empty"] a')?.getAttribute('href')).toBe('/events');
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-one"]')).toBeNull();
+  });
+
+  it('renders failure recovery and retries with force', async () => {
+    const first = deferred<EventCatalogResult>();
+    const retry = deferred<EventCatalogResult>();
+    const load = vi.fn((options: { force?: boolean } = {}) => options.force ? retry.promise : first.promise);
+    const { fixture, component } = createAboutFixture(load);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    first.reject(new Error('offline'));
+    await settle(fixture);
+
+    expect(component.loading()).toBe(false);
+    expect(component.error()).toBe(true);
+    expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-retry"]')).not.toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('about.load-upcoming-events'));
+
+    (fixture.nativeElement.querySelector('[data-cy="about-next-up-retry"]') as HTMLButtonElement).click();
+    expect(load).toHaveBeenLastCalledWith({ force: true });
+    retry.resolve(result([event('recovered')]));
+    await settle(fixture);
+
+    expect(component.error()).toBe(false);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-recovered"]')).not.toBeNull();
+    errorSpy.mockRestore();
+  });
+
+  it('keeps latest forced load result when initial request finishes later', async () => {
+    const initial = deferred<EventCatalogResult>();
+    const forced = deferred<EventCatalogResult>();
+    const load = vi.fn((options: { force?: boolean } = {}) => options.force ? forced.promise : initial.promise);
+    const { fixture, component } = createAboutFixture(load);
+
+    component.syncUpcomingEvents();
+    expect(load).toHaveBeenNthCalledWith(2, { force: true });
+
+    forced.resolve(result([event('latest')]));
+    await settle(fixture);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-latest"]')).not.toBeNull();
+
+    initial.resolve(result([event('old')]));
+    await settle(fixture);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-latest"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-old"]')).toBeNull();
+  });
+
+  it('uses force load when sync button is activated', async () => {
+    const initial = deferred<EventCatalogResult>();
+    const forced = deferred<EventCatalogResult>();
+    const load = vi.fn((options: { force?: boolean } = {}) => options.force ? forced.promise : initial.promise);
+    const { fixture } = createAboutFixture(load);
+
+    initial.resolve(result([event('before-sync')]));
+    await settle(fixture);
+    (fixture.nativeElement.querySelector('[data-cy="about-next-up-sync-button"]') as HTMLButtonElement).click();
+    expect(load).toHaveBeenLastCalledWith({ force: true });
+
+    forced.resolve(result([event('after-sync')]));
+    await settle(fixture);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-after-sync"]')).not.toBeNull();
+  });
+
+  it('binds event row RouterLink to event detail segments', async () => {
+    const { fixture } = createAboutFixture(() => Promise.resolve(result([event('salty-2')])));
+    await settle(fixture);
+
+    const row = fixture.debugElement.query(By.css('[data-cy="about-next-up-event-salty-2"]'));
+    expect(row.nativeElement.getAttribute('href')).toBe('/events/salty-2');
+  });
+});
 
 describe('AboutComponent route and interaction contract', () => {
   it('keeps the root route, first-visit redirect, and home About entry boundary intact', () => {

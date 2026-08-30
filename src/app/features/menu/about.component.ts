@@ -49,6 +49,17 @@ export const aboutContributors: readonly AboutContributor[] = [
   standalone: true,
   imports: [RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
   host: { '[attr.lang]': 'i18n.language()', class: 'about-route' },
+  styles: [`
+    :host.about-route .about-next-up__skeleton {
+      display: block;
+      min-height: 5.5rem;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 0.75rem;
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
+    }
+  `],
   template: `
     <gones-back-button data-cy="about-back-top" [link]="['/']" [label]="i18n.t('about.back')" position="top" />
     <nav class="about-internal-nav" data-cy="about-internal-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
