@@ -1,9 +1,14 @@
-import { AfterViewInit, Component, ElementRef, OnDestroy, computed, inject } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, OnDestroy, OnInit, WritableSignal, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { I18nService } from '../../i18n/i18n.service';
 import type { MessageKey } from '../../i18n/messages';
 import { BackButtonComponent } from '../../shared/back-button.component';
+import { SyncBarComponent } from '../../shared/sync-bar.component';
+import { logBoundaryError } from '../../shared/app-logger';
+import { EventCatalogCacheService } from '../events/event-catalog-cache.service';
+import { EventDatePresentation, PublicEventView, eventDatePresentation } from '../events/public-event-list';
+import { selectUpcomingEvents } from './about-upcoming-events';
 
 export interface AboutStaffMember {
   readonly id: 'gregory' | 'ganesh' | 'edouart' | 'alex' | 'loic' | 'luka' | 'nathan' | 'yoan' | 'simon';
@@ -42,7 +47,7 @@ export const aboutContributors: readonly AboutContributor[] = [
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BackButtonComponent],
+  imports: [RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
   host: { '[attr.lang]': 'i18n.language()', class: 'about-route' },
   template: `
     <gones-back-button data-cy="about-back-top" [link]="['/']" [label]="i18n.t('about.back')" position="top" />
@@ -95,6 +100,45 @@ export const aboutContributors: readonly AboutContributor[] = [
           <p data-cy="about-weekly-body">{{ i18n.t('about.weekly.body') }}</p>
         </div>
         <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-weekly-calendar-link" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.weekly.calendar') }}</a>
+      </section>
+
+      <section class="about-next-up" data-cy="about-next-up" aria-labelledby="about-next-up-title">
+        <header class="about-section-heading" data-cy="about-next-up-heading">
+          <p class="kicker" data-cy="about-next-up-kicker">{{ i18n.t('about.nextUp.kicker') }}</p>
+          <h2 id="about-next-up-title" data-cy="about-next-up-title">{{ i18n.t('about.nextUp.title') }}</h2>
+          <gones-sync-bar cyPrefix="about-next-up" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" data-cy="about-next-up-sync-bar" />
+        </header>
+        @if (loading()) {
+          <div class="about-next-up__loading" aria-busy="true" aria-live="polite" data-cy="about-next-up-loading">
+            <span class="sr-only" data-cy="about-next-up-loading-label">{{ i18n.t('common.loading') }}</span>
+            @for (_ of upcomingSkeletons; track $index) { <div class="about-next-up__skeleton" data-cy="about-next-up-skeleton"></div> }
+          </div>
+        } @else if (error()) {
+          <div class="panel about-next-up__state" role="alert" data-cy="about-next-up-error">
+            <p>{{ i18n.t('about.nextUp.loadFailed') }}</p>
+            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
+            <button mat-stroked-button type="button" data-cy="about-next-up-retry" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button>
+          </div>
+        } @else if (upcomingEvents().length) {
+          <div class="about-next-up__list" data-cy="about-next-up-list">
+            @for (event of upcomingEvents(); track event.id) {
+              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-event-' + event.slug">
+                <span class="about-next-up__row-copy">
+                  <strong data-cy="about-next-up-event-title">{{ event.displayTitle }}</strong>
+                  <time [attr.datetime]="event.startsAtUtc" data-cy="about-next-up-event-date">{{ upcomingDate(event).primary }}</time>
+                  @if (upcomingDate(event).secondary; as secondary) { <span class="viewer-date" data-cy="about-next-up-event-viewer-date">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</span> }
+                </span>
+                <span class="about-next-up__venue" data-cy="about-next-up-event-venue">{{ event.venue.city }}, {{ event.venue.country }}</span>
+              </a>
+            }
+          </div>
+        } @else {
+          <div class="panel about-next-up__state" data-cy="about-next-up-empty">
+            <p data-cy="about-next-up-empty-title">{{ i18n.t('about.nextUp.emptyTitle') }}</p>
+            <p data-cy="about-next-up-empty-body">{{ i18n.t('about.nextUp.emptyBody') }}</p>
+            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
+          </div>
+        }
       </section>
 
       <section id="tournaments" class="about-events" data-cy="about-events" aria-labelledby="events-title">
@@ -207,10 +251,19 @@ export const aboutContributors: readonly AboutContributor[] = [
     <gones-back-button data-cy="about-back-bottom" [link]="['/']" [label]="i18n.t('about.back')" position="bottom" />
   `
 })
-export class AboutComponent implements AfterViewInit, OnDestroy {
+export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly i18n = inject(I18nService);
   private readonly hostElement = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly catalog = inject(EventCatalogCacheService);
   private revealObserver?: IntersectionObserver;
+  private upcomingLoadId = 0;
+
+  readonly upcomingEvents: WritableSignal<readonly PublicEventView[]> = signal<readonly PublicEventView[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal(false);
+  readonly stale = signal(false);
+  readonly syncedAt = signal<string | undefined>(undefined);
+  readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2];
 
   readonly featuredEvents = computed(() => [
     { name: 'Fire', theme: 'fire', season: this.i18n.t('about.events.fireSeason'), image: 'assets/fire-about.webp', width: 1000, height: 1324 },
@@ -230,6 +283,45 @@ export class AboutComponent implements AfterViewInit, OnDestroy {
 
   contributorNumber(index: number): string {
     return String(index + 1).padStart(2, '0');
+  }
+
+  ngOnInit(): void {
+    void this.loadUpcomingEvents();
+  }
+
+  async loadUpcomingEvents(force = false): Promise<void> {
+    const loadId = ++this.upcomingLoadId;
+    this.loading.set(true);
+    this.error.set(false);
+    try {
+      const result = force ? await this.catalog.load({ force: true }) : await this.catalog.load();
+      if (loadId !== this.upcomingLoadId) return;
+      this.upcomingEvents.set(selectUpcomingEvents(result.items, new Date()));
+      this.syncedAt.set(result.fetchedAt);
+      this.stale.set(result.stale);
+      this.error.set(false);
+    } catch (error) {
+      if (loadId !== this.upcomingLoadId) return;
+      logBoundaryError('about.load-upcoming-events', error);
+      this.upcomingEvents.set([]);
+      this.error.set(true);
+      this.stale.set(false);
+      this.syncedAt.set(undefined);
+    } finally {
+      if (loadId === this.upcomingLoadId) this.loading.set(false);
+    }
+  }
+
+  retryUpcomingEvents(): void {
+    void this.loadUpcomingEvents(true);
+  }
+
+  syncUpcomingEvents(): void {
+    void this.loadUpcomingEvents(true);
+  }
+
+  upcomingDate(event: PublicEventView): EventDatePresentation {
+    return eventDatePresentation(event, this.i18n.locale());
   }
 
   ngAfterViewInit(): void {

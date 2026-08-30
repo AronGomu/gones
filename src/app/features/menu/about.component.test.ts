@@ -16,6 +16,12 @@ const aboutKeys = [
   'about.nav.tournaments',
   'about.nav.staff',
   'about.nav.calendar',
+  'about.nextUp.kicker',
+  'about.nextUp.title',
+  'about.nextUp.emptyTitle',
+  'about.nextUp.emptyBody',
+  'about.nextUp.calendar',
+  'about.nextUp.loadFailed',
   'about.hero.kicker',
   'about.hero.title',
   'about.hero.lede',
@@ -120,6 +126,27 @@ describe('AboutComponent route and interaction contract', () => {
     expect(source.match(/<gones-back-button/g)?.length).toBe(2);
     expect(source.match(/\[link\]="\['\/']"/g)?.length).toBe(2);
     expect(source.match(/about\.back/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('covers live Next Up states, sync, retry, and detail navigation contract', () => {
+    expect(source).toContain("import { selectUpcomingEvents } from './about-upcoming-events';");
+    expect(source).toContain('EventCatalogCacheService');
+    expect(source).toContain('implements OnInit, AfterViewInit, OnDestroy');
+    expect(source).toContain('readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2]');
+    expect(source).toContain('<gones-sync-bar cyPrefix="about-next-up"');
+    expect(source).toContain('(sync)="syncUpcomingEvents()"');
+    expect(source).toContain('aria-busy="true"');
+    expect(source).toContain("i18n.t('common.loading')");
+    expect(source).toContain("i18n.t('about.nextUp.emptyTitle')");
+    expect(source).toContain("i18n.t('about.nextUp.loadFailed')");
+    expect(source).toContain('role="alert"');
+    expect(source).toContain('routerLink="/events"');
+    expect(source).toContain("[routerLink]=\"['/events', event.slug]\"");
+    expect(source).toContain('this.upcomingEvents.set([]);');
+    expect(source).toContain("logBoundaryError('about.load-upcoming-events', error)");
+    expect(source).toContain('if (loadId !== this.upcomingLoadId) return;');
+    expect(source).toContain('this.loading.set(false)');
+    expect(source).toContain('loadUpcomingEvents(true)');
   });
 
   it('keeps verified socials active and unknown contacts disabled without placeholder hrefs', () => {
