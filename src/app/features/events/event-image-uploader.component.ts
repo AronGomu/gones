@@ -18,6 +18,7 @@ export interface EventImageUploadCard {
   readonly srcset: string;
   readonly response?: EventImageUploadResponse;
   readonly error: string;
+  readonly retryUpload: boolean;
   readonly retryDelete: boolean;
   readonly retryPreview: boolean;
   readonly removePending: boolean;
@@ -51,18 +52,20 @@ export interface EventImageUploadCard {
           <li cdkDrag [attr.data-cy]="'event-image-card-' + card.localId">
             <img [src]="card.previewUrl" [attr.srcset]="card.srcset" sizes="(max-width: 480px) 100vw, 320px" alt="" [attr.data-cy]="'event-image-preview-' + card.localId" />
             <p [attr.data-cy]="'event-image-name-' + card.localId">{{ card.file.name }}</p>
-            @if (card.status === 'pending') {
+            @if (card.status === 'pending' && !card.removePending) {
               <progress max="100" [value]="card.progress" [attr.data-cy]="'event-image-progress-' + card.localId"></progress>
               <p role="status" [attr.data-cy]="'event-image-pending-' + card.localId">{{ i18n.t('eventImages.uploading', { progress: card.progress }) }}</p>
             }
             @if (card.status === 'error') {
               <p class="error" role="alert" [attr.data-cy]="'event-image-error-' + card.localId">{{ card.error }}</p>
-              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-retry-' + card.localId" (click)="retry(card.localId)">{{ i18n.t('common.retry') }}</button>
+              @if (card.retryUpload || card.retryDelete || card.retryPreview) {
+                <button mat-stroked-button type="button" [attr.data-cy]="'event-image-retry-' + card.localId" (click)="retry(card.localId)">{{ i18n.t('common.retry') }}</button>
+              }
             }
             <div class="actions" [attr.data-cy]="'event-image-actions-' + card.localId">
-              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-move-left-' + card.localId" [disabled]="index === 0" (click)="moveLeft(card.localId)">{{ i18n.t('eventImages.moveLeft') }}</button>
-              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-move-right-' + card.localId" [disabled]="index === cards().length - 1" (click)="moveRight(card.localId)">{{ i18n.t('eventImages.moveRight') }}</button>
-              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-remove-' + card.localId" [disabled]="card.removePending" (click)="remove(card.localId)">{{ card.removePending ? i18n.t('eventImages.removing') : i18n.t('eventImages.remove') }}</button>
+              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-move-left-' + card.localId" [attr.aria-label]="i18n.t('eventImages.moveLeftNamed', { name: card.file.name })" [disabled]="index === 0" (click)="moveLeft(card.localId)">{{ i18n.t('eventImages.moveLeft') }}</button>
+              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-move-right-' + card.localId" [attr.aria-label]="i18n.t('eventImages.moveRightNamed', { name: card.file.name })" [disabled]="index === cards().length - 1" (click)="moveRight(card.localId)">{{ i18n.t('eventImages.moveRight') }}</button>
+              <button mat-stroked-button type="button" [attr.data-cy]="'event-image-remove-' + card.localId" [attr.aria-label]="i18n.t('eventImages.removeNamed', { name: card.file.name })" [disabled]="card.removePending" (click)="remove(card.localId)">{{ card.removePending ? i18n.t('eventImages.removing') : i18n.t('eventImages.remove') }}</button>
             </div>
           </li>
         }
@@ -105,6 +108,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         previewUrl,
         srcset: '',
         error: '',
+        retryUpload: false,
         retryDelete: false,
         retryPreview: false,
         removePending: false,
@@ -147,7 +151,7 @@ export class EventImageUploaderComponent implements OnDestroy {
     if (!card || card.status !== 'error') return;
     if (card.retryDelete) void this.remove(localId);
     else if (card.retryPreview && card.response) this.loadPreviews(localId, card.response);
-    else this.upload(localId);
+    else if (card.retryUpload) this.upload(localId);
   }
 
   async remove(localId: string): Promise<void> {
@@ -157,7 +161,7 @@ export class EventImageUploaderComponent implements OnDestroy {
     this.requests.delete(localId);
     if (card.response)
     {
-      this.patch(localId, { status: 'pending', progress: 0, error: '', retryDelete: false, retryPreview: false, removePending: true });
+      this.patch(localId, { status: 'pending', progress: 0, error: '', retryUpload: false, retryDelete: false, retryPreview: false, removePending: true });
       try
       {
         await firstValueFrom(this.http.delete<void>(joinApiUrl(this.baseUrl, `/api/event-images/${card.response.id}`)));
@@ -167,6 +171,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         this.patch(localId, {
           status: 'error',
           error: this.i18n.t('eventImages.removeFailed'),
+          retryUpload: false,
           retryDelete: true,
           retryPreview: false,
           removePending: false
@@ -203,7 +208,7 @@ export class EventImageUploaderComponent implements OnDestroy {
     const card = this.find(localId);
     if (!card) return;
     this.requests.get(localId)?.unsubscribe();
-    this.patch(localId, { status: 'pending', progress: 0, error: '', retryDelete: false, retryPreview: false });
+    this.patch(localId, { status: 'pending', progress: 0, error: '', retryUpload: false, retryDelete: false, retryPreview: false });
     const form = new FormData();
     form.append('file', card.file, card.file.name);
     const request = this.http.request<EventImageUploadResponse>('POST', joinApiUrl(this.baseUrl, '/api/event-images'), {
@@ -224,6 +229,7 @@ export class EventImageUploaderComponent implements OnDestroy {
             progress: 100,
             response: event.body,
             error: '',
+            retryUpload: false,
             retryDelete: false,
             retryPreview: false
           });
@@ -233,7 +239,7 @@ export class EventImageUploaderComponent implements OnDestroy {
       },
       error: () => {
         this.requests.delete(localId);
-        this.fail(localId, this.i18n.t('eventImages.uploadFailed'));
+        this.fail(localId, this.i18n.t('eventImages.uploadFailed'), true);
       }
     });
     if (!request.closed) this.requests.set(localId, request);
@@ -241,7 +247,7 @@ export class EventImageUploaderComponent implements OnDestroy {
 
   private loadPreviews(localId: string, response: EventImageUploadResponse): void {
     const variants = [...response.variants].sort((left, right) => left.width - right.width);
-    this.patch(localId, { status: 'pending', error: '', retryDelete: false, retryPreview: false });
+    this.patch(localId, { status: 'pending', error: '', retryUpload: false, retryDelete: false, retryPreview: false });
     const request = forkJoin(variants.map(variant => this.http.get(
       joinApiUrl(this.baseUrl, variant.url),
       { responseType: 'blob' }
@@ -256,6 +262,7 @@ export class EventImageUploaderComponent implements OnDestroy {
           previewUrl: objectUrls.at(-1) ?? '',
           srcset: variants.map((variant, index) => `${objectUrls[index]} ${variant.width}w`).join(', '),
           error: '',
+          retryUpload: false,
           retryDelete: false,
           retryPreview: false,
           objectUrls
@@ -267,6 +274,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         this.patch(localId, {
           status: 'error',
           error: this.i18n.t('eventImages.previewFailed'),
+          retryUpload: false,
           retryDelete: false,
           retryPreview: true
         });
@@ -275,8 +283,8 @@ export class EventImageUploaderComponent implements OnDestroy {
     if (!request.closed) this.requests.set(localId, request);
   }
 
-  private fail(localId: string, error: string): void {
-    this.patch(localId, { status: 'error', error, retryDelete: false, retryPreview: false });
+  private fail(localId: string, error: string, retryUpload = false): void {
+    this.patch(localId, { status: 'error', error, retryUpload, retryDelete: false, retryPreview: false });
   }
 
   private move(localId: string, offset: number): void {

@@ -1,20 +1,43 @@
 import '@angular/compiler';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { Injector, runInInjectionContext } from '@angular/core';
+import axe from 'axe-core';
 import { HttpClient, HttpEvent, HttpEventType, HttpResponse } from '@angular/common/http';
+import { Injector, runInInjectionContext } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { BrowserTestingModule, platformBrowserTesting } from '@angular/platform-browser/testing';
 import { Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-vi.mock('@angular/core', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@angular/core')>();
-  return { ...actual, effect: () => ({ destroy: () => {} }) };
-});
-
-import { I18nService } from '../../i18n/i18n.service';
-import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { API_BASE_URL, EventImageUploadResponse } from '../../api/generated/gones-api';
+import { I18nService } from '../../i18n/i18n.service';
 import { EventImageUploaderComponent } from './event-image-uploader.component';
+
+TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
+
+const copy: Record<string, string> = {
+  'common.retry': 'Retry',
+  'eventImages.title': 'Event images',
+  'eventImages.help': 'Help',
+  'eventImages.choose': 'Choose images',
+  'eventImages.maximum': 'Maximum five images.',
+  'eventImages.typeUnsupported': 'Use a JPEG, PNG, or WebP image.',
+  'eventImages.tooLarge': 'Image must be 5 MiB or smaller.',
+  'eventImages.uploading': 'Uploading… {progress}%',
+  'eventImages.uploadFailed': 'Image upload failed.',
+  'eventImages.previewFailed': 'Processed image previews could not load.',
+  'eventImages.removeFailed': 'Image removal failed.',
+  'eventImages.moveLeft': 'Move left',
+  'eventImages.moveRight': 'Move right',
+  'eventImages.moveLeftNamed': 'Move {name} left',
+  'eventImages.moveRightNamed': 'Move {name} right',
+  'eventImages.remove': 'Remove',
+  'eventImages.removeNamed': 'Remove {name}',
+  'eventImages.removing': 'Removing…',
+  'eventImages.publishBlocked': 'Finish image uploads before publishing.'
+};
+
+const i18n = {
+  t: (key: string, params: Record<string, string | number> = {}) => Object.entries(params)
+    .reduce((value, [name, replacement]) => value.replace(`{${name}}`, String(replacement)), copy[key] ?? key)
+};
 
 const uploaded = (id: string): EventImageUploadResponse => ({
   id,
@@ -32,7 +55,7 @@ function file(name: string, type = 'image/png', size = 3): File {
   return new File([new Uint8Array(size)], name, { type });
 }
 
-function setup() {
+function httpHarness() {
   const requests: Subject<HttpEvent<EventImageUploadResponse>>[] = [];
   const http = {
     request: vi.fn(() => {
@@ -43,14 +66,33 @@ function setup() {
     get: vi.fn(() => of(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/webp' }))),
     delete: vi.fn(() => of(undefined))
   };
+  return { http, requests };
+}
+
+function setup() {
+  const { http, requests } = httpHarness();
   const injector = Injector.create({ providers: [
     { provide: HttpClient, useValue: http },
     { provide: API_BASE_URL, useValue: '' },
-    DeckArchetypeSettingsService,
-    I18nService
+    { provide: I18nService, useValue: i18n }
   ] });
   const component = runInInjectionContext(injector, () => new EventImageUploaderComponent());
   return { component, http, requests };
+}
+
+function setupDom() {
+  const { http, requests } = httpHarness();
+  TestBed.configureTestingModule({
+    imports: [EventImageUploaderComponent],
+    providers: [
+      { provide: HttpClient, useValue: http },
+      { provide: API_BASE_URL, useValue: '' },
+      { provide: I18nService, useValue: i18n }
+    ]
+  });
+  const fixture = TestBed.createComponent(EventImageUploaderComponent);
+  fixture.detectChanges();
+  return { fixture, component: fixture.componentInstance, http, requests };
 }
 
 function finish(subject: Subject<HttpEvent<EventImageUploadResponse>>, id: string): void {
@@ -61,7 +103,9 @@ function finish(subject: Subject<HttpEvent<EventImageUploadResponse>>, id: strin
 
 describe('EventImageUploaderComponent', () => {
   beforeEach(() => {
-    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn((value: File) => `blob:${value.name}`) });
+    TestBed.resetTestingModule();
+    let objectUrl = 0;
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => `blob:test-${++objectUrl}`) });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
   });
 
@@ -78,6 +122,18 @@ describe('EventImageUploaderComponent', () => {
     expect(http.get).toHaveBeenCalledWith('/api/event-images/one/variants/320', { responseType: 'blob' });
     expect(http.get).toHaveBeenCalledWith('/api/event-images/one/variants/960', { responseType: 'blob' });
     expect(component.publishBlocked()).toBe(true);
+  });
+
+  it('does not offer or execute retry for client-validation errors', () => {
+    const { fixture, component, http } = setupDom();
+    component.addFiles([file('bad.gif', 'image/gif')]);
+    fixture.detectChanges();
+    const localId = component.cards()[0].localId;
+
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-error-${localId}"]`)).not.toBeNull();
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-retry-${localId}"]`)).toBeNull();
+    component.retry(localId);
+    expect(http.request).not.toHaveBeenCalled();
   });
 
   it('retries a failed upload without discarding successful peers', () => {
@@ -116,6 +172,39 @@ describe('EventImageUploaderComponent', () => {
     expect(component.cards().map(card => card.localId)).toEqual([one, two, three]);
   });
 
+  it('renders image-specific accessible action names without basic axe violations', async () => {
+    const { fixture, component, requests } = setupDom();
+    component.addFiles([file('one.png')]);
+    finish(requests[0], 'one');
+    fixture.detectChanges();
+    const localId = component.cards()[0].localId;
+
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-move-left-${localId}"]`).getAttribute('aria-label')).toBe('Move one.png left');
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-move-right-${localId}"]`).getAttribute('aria-label')).toBe('Move one.png right');
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-remove-${localId}"]`).getAttribute('aria-label')).toBe('Remove one.png');
+    const audit = await axe.run(fixture.nativeElement, { rules: { 'color-contrast': { enabled: false } } });
+    expect(audit.violations.map(violation => violation.id)).toEqual([]);
+  });
+
+  it('does not announce uploading while an uploaded image is being removed', async () => {
+    const { fixture, component, http, requests } = setupDom();
+    const deletion = new Subject<undefined>();
+    http.delete.mockReturnValue(deletion.asObservable());
+    component.addFiles([file('one.png')]);
+    finish(requests[0], 'one');
+    const localId = component.cards()[0].localId;
+
+    const removal = component.remove(localId);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector(`[data-cy="event-image-pending-${localId}"]`)).toBeNull();
+    expect(fixture.nativeElement.textContent).not.toContain('Uploading');
+    expect(fixture.nativeElement.textContent).toContain('Removing');
+    deletion.next(undefined);
+    deletion.complete();
+    await removal;
+  });
+
   it('blocks duplicate removes while deletion is pending', async () => {
     const { component, http, requests } = setup();
     const deletion = new Subject<undefined>();
@@ -135,6 +224,21 @@ describe('EventImageUploaderComponent', () => {
     expect(component.cards()).toEqual([]);
   });
 
+  it('revokes local and processed blob URLs after replacement, removal, and destroy', async () => {
+    const { component, requests } = setup();
+    component.addFiles([file('one.png')]);
+    finish(requests[0], 'one');
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-1');
+    await component.remove(component.cards()[0].localId);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-2');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-3');
+
+    component.addFiles([file('bad.gif', 'image/gif')]);
+    component.ngOnDestroy();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-4');
+  });
+
   it('removes uploaded image through API and keeps remaining order', async () => {
     const { component, http, requests } = setup();
     component.addFiles([file('one.png'), file('two.png')]);
@@ -145,21 +249,5 @@ describe('EventImageUploaderComponent', () => {
 
     expect(http.delete).toHaveBeenCalledWith('/api/event-images/one');
     expect(component.cards().map(card => card.response?.id)).toEqual(['two']);
-  });
-
-  it('renders feature-prefixed hooks, responsive variants, retry/remove, and keyboard move controls', () => {
-    const source = readFileSync(resolve(process.cwd(), 'src/app/features/events/event-image-uploader.component.ts'), 'utf8');
-
-    for (const token of ['data-cy="event-image-uploader"', '[attr.srcset]="card.srcset"', '(cdkDropListDropped)="drop($event)"',
-      'event-image-retry-', 'event-image-remove-', 'event-image-move-left-', 'event-image-move-right-']) {
-      expect(source).toContain(token);
-    }
-  });
-
-  it('ships uploader copy in English and French', () => {
-    const messages = readFileSync(resolve(process.cwd(), 'src/app/i18n/messages.ts'), 'utf8');
-    expect(messages.match(/'eventImages\.title'/g)).toHaveLength(2);
-    expect(messages.match(/'eventImages\.moveLeft'/g)).toHaveLength(2);
-    expect(messages.match(/'eventImages\.moveRight'/g)).toHaveLength(2);
   });
 });

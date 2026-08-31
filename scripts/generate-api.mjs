@@ -19,6 +19,7 @@ const normalizeGenerated = value => value
   .replace(/export interface (EventType\d*) \{\n\n    \[key: string\]: any;\n\}/g, 'export type $1 = `${PublicCalendarEventType}`;')
   .replace(/export enum (EventPayloadRequestEventType|UpdateEventDetailsRequestEventType) \{\n    Weekly = "weekly",\n    Monthly = "monthly",\n    Major = "major",\n\}/g, 'export type $1 = "weekly" | "monthly" | "major";')
   .replace(/eventImagesPOST\(file: FileParameter \| undefined\)/g, 'eventImagesPOST(file: FileParameter)')
+  .replace('export interface EventImageUploadForm {\n    file: string;', 'export interface EventImageUploadForm {\n    file: Blob;')
   .replace('    state: EventImageUploadResponseState;', '    state: "Temporary";')
   .replace(/\nexport enum EventImageUploadResponseState \{\n    Temporary = "Temporary",\n\}\n/g, '\n');
 const listenUrl = 'http://127.0.0.1:0';

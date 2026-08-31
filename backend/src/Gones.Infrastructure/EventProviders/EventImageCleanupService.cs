@@ -135,4 +135,5 @@ public sealed class EventImageCleanupService(
 public static class EventImageCleanupLogEvents
 {
     public static readonly EventId ObjectDeleteFailed = new(5901, "EventImageObjectDeleteFailed");
+    public static readonly EventId PostCommitCleanupFailed = new(5903, "EventImagePostCommitCleanupFailed");
 }

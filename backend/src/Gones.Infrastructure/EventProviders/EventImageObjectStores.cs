@@ -1,3 +1,4 @@
+using System.Net;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -33,6 +34,10 @@ public sealed class S3EventImageObjectStore(IAmazonS3 client, EventImageStorageO
             var response = await client.GetObjectAsync(options.Bucket, key, cancellationToken);
             return new ResponseOwnedStream(response);
         }
+        catch (AmazonS3Exception exception) when (IsMissingObject(exception))
+        {
+            throw new KeyNotFoundException($"Event image object '{key}' was not found.", exception);
+        }
         catch (Exception exception) when (IsUnavailable(exception, cancellationToken))
         {
             throw new EventImageStorageUnavailableException();
@@ -61,6 +66,11 @@ public sealed class S3EventImageObjectStore(IAmazonS3 client, EventImageStorageO
             MaxErrorRetry = 0,
             Timeout = TimeSpan.FromSeconds(10)
         });
+
+    private static bool IsMissingObject(AmazonS3Exception exception) =>
+        string.Equals(exception.ErrorCode, "NoSuchKey", StringComparison.Ordinal)
+        || string.Equals(exception.ErrorCode, "NotFound", StringComparison.Ordinal)
+        || exception.StatusCode == HttpStatusCode.NotFound && string.IsNullOrWhiteSpace(exception.ErrorCode);
 
     private static bool IsUnavailable(Exception exception, CancellationToken cancellationToken) =>
         exception is AmazonServiceException or AmazonClientException or HttpRequestException

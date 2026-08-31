@@ -1,6 +1,11 @@
+using System.Net;
+using Amazon.Runtime;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Gones.Application.Events;
 using Gones.Domain.Calendar;
 using Gones.Infrastructure.EventProviders;
+using Microsoft.Extensions.Configuration;
 using NodaTime;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
@@ -133,6 +138,53 @@ public sealed class EventImageTests
             new ImageSharpEventImageProcessor().ProcessAsync(encoded, "image/webp", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Processor_rejects_hostile_multi_frame_WebP_before_full_frame_decode()
+    {
+        using var source = new Image<Rgba32>(512, 512);
+        for (var frame = 1; frame < 64; frame++) source.Frames.AddFrame(source.Frames.RootFrame);
+        await using var encoded = new MemoryStream();
+        await source.SaveAsWebpAsync(encoded, new WebpEncoder());
+        encoded.Position = 0;
+
+        await Assert.ThrowsAsync<EventImageAnimatedException>(() =>
+            new ImageSharpEventImageProcessor().ProcessAsync(encoded, "image/webp", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task S3_read_maps_missing_object_separately_from_storage_outage()
+    {
+        var options = StorageOptions();
+        using var missingClient = new FailingS3Client(new AmazonS3Exception(
+            "missing", ErrorType.Sender, "NoSuchKey", "request", HttpStatusCode.NotFound));
+        using var outageClient = new FailingS3Client(new AmazonS3Exception(
+            "outage", ErrorType.Receiver, "ServiceUnavailable", "request", HttpStatusCode.ServiceUnavailable));
+        using var missingBucketClient = new FailingS3Client(new AmazonS3Exception(
+            "missing bucket", ErrorType.Sender, "NoSuchBucket", "request", HttpStatusCode.NotFound));
+
+        await Assert.ThrowsAsync<KeyNotFoundException>(() =>
+            new S3EventImageObjectStore(missingClient, options).OpenReadAsync("missing", CancellationToken.None));
+        await Assert.ThrowsAsync<EventImageStorageUnavailableException>(() =>
+            new S3EventImageObjectStore(outageClient, options).OpenReadAsync("outage", CancellationToken.None));
+        await Assert.ThrowsAsync<EventImageStorageUnavailableException>(() =>
+            new S3EventImageObjectStore(missingBucketClient, options).OpenReadAsync("misconfigured", CancellationToken.None));
+    }
+
+    private static EventImageStorageOptions StorageOptions()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [EventImageStorageOptions.EndpointKey] = "http://127.0.0.1:9000",
+            [EventImageStorageOptions.BucketKey] = "event-images",
+            [EventImageStorageOptions.RegionKey] = "us-east-1",
+            [EventImageStorageOptions.AccessKeyFileKey] = "/run/secrets/event-images-access",
+            [EventImageStorageOptions.SecretKeyFileKey] = "/run/secrets/event-images-secret",
+            ["GONES_EVENT_IMAGES_S3_ACCESS_KEY"] = "access",
+            ["GONES_EVENT_IMAGES_S3_SECRET_KEY"] = "secret"
+        }).Build();
+        return EventImageStorageOptions.TryLoad(configuration)!;
+    }
+
     private static byte[] PngHeader(int width, int height)
     {
         var bytes = Convert.FromHexString("89504E470D0A1A0A0000000D4948445200000000000000000806000000000000000000000049454E44AE426082");
@@ -152,5 +204,16 @@ public sealed class EventImageTests
             for (var bit = 0; bit < 8; bit++) crc = (crc >> 1) ^ (0xedb88320u & (uint)-(int)(crc & 1));
         }
         return ~crc;
+    }
+
+    private sealed class FailingS3Client(Exception failure) : AmazonS3Client(
+        "access",
+        "secret",
+        new AmazonS3Config { ServiceURL = "http://127.0.0.1:9000", ForcePathStyle = true })
+    {
+        public override Task<GetObjectResponse> GetObjectAsync(
+            string bucketName,
+            string key,
+            CancellationToken cancellationToken) => Task.FromException<GetObjectResponse>(failure);
     }
 }

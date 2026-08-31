@@ -11065,7 +11065,7 @@ export interface EmailChangeRequest {
 }
 
 export interface EventImageUploadForm {
-    file: string;
+    file: Blob;
 
     [key: string]: any;
 }

@@ -127,6 +127,7 @@ public sealed class EventImageApiTests : IAsyncLifetime
         using var storageFailure = await UploadAsync(owner.Id, Multipart("file", [1, 2, 3]));
         Assert.Equal(HttpStatusCode.ServiceUnavailable, storageFailure.StatusCode);
         Assert.Empty(objects.Keys);
+        Assert.Equal(objects.PutKeys, objects.DeleteKeys);
         await using (var database = CreateContext()) Assert.Empty(await database.EventImages.ToListAsync());
 
         objects.Reset();
@@ -173,6 +174,25 @@ public sealed class EventImageApiTests : IAsyncLifetime
         await InsertOwnedStateAsync(proposalOwnedId, EventImageState.ProposalOwned, proposalId: Guid.NewGuid());
         using var proposalRead = await GetAsync(owner.Id, proposalOwnedId, 320);
         Assert.Equal(HttpStatusCode.NotFound, proposalRead.StatusCode);
+    }
+
+    [Fact]
+    public async Task Variant_missing_object_is_404_while_storage_outage_is_503()
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), owner.Id, 320, 180, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.Add(image);
+            await database.SaveChangesAsync();
+        }
+
+        using var missing = await GetAsync(owner.Id, image.Id, 320);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        objects.FailReads = true;
+        using var outage = await GetAsync(owner.Id, image.Id, 320);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, outage.StatusCode);
+        Assert.Equal("image_storage_unavailable", await ProblemCode(outage));
     }
 
     [Fact]
@@ -239,6 +259,28 @@ public sealed class EventImageApiTests : IAsyncLifetime
         }
         await using (var database = CreateContext()) Assert.Empty(await database.EventImageObjectDeletions.ToListAsync());
         Assert.Empty(objects.Keys);
+    }
+
+    [Fact]
+    public async Task Delete_returns_204_when_post_commit_cleanup_claim_fails()
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), owner.Id, 960, 540, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.Add(image);
+            await database.SaveChangesAsync();
+            await database.Database.ExecuteSqlRawAsync(
+                "CREATE FUNCTION fail_event_image_deletion_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced deletion retry update failure'; END $$;");
+            await database.Database.ExecuteSqlRawAsync(
+                "CREATE TRIGGER fail_event_image_deletion_update BEFORE UPDATE ON event_image_object_deletions FOR EACH ROW EXECUTE FUNCTION fail_event_image_deletion_update();");
+        }
+
+        using var response = await DeleteAsync(owner.Id, image.Id);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await using var verify = CreateContext();
+        Assert.False(await verify.EventImages.AnyAsync(item => item.Id == image.Id));
+        Assert.Equal(2, await verify.EventImageObjectDeletions.CountAsync(item => item.ImageId == image.Id));
     }
 
     [Fact]
@@ -390,26 +432,31 @@ public sealed class EventImageApiTests : IAsyncLifetime
         private int puts;
         public int? FailPutNumber { get; set; }
         public bool FailDeletes { get; set; }
+        public bool FailReads { get; set; }
         public IReadOnlyList<string> PutKeys { get; private set; } = [];
+        public IReadOnlyList<string> DeleteKeys { get; private set; } = [];
         public IReadOnlyCollection<string> Keys => objects.Keys.ToArray();
 
         public async Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken)
         {
             puts++;
             PutKeys = [.. PutKeys, key];
-            if (puts == FailPutNumber) throw new EventImageStorageUnavailableException();
             using var buffer = new MemoryStream();
             await content.CopyToAsync(buffer, cancellationToken);
             objects[key] = buffer.ToArray();
+            if (puts == FailPutNumber) throw new EventImageStorageUnavailableException();
         }
 
         public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken) =>
-            objects.TryGetValue(key, out var value)
-                ? Task.FromResult<Stream>(new MemoryStream(value, writable: false))
-                : Task.FromException<Stream>(new KeyNotFoundException());
+            FailReads
+                ? Task.FromException<Stream>(new EventImageStorageUnavailableException())
+                : objects.TryGetValue(key, out var value)
+                    ? Task.FromResult<Stream>(new MemoryStream(value, writable: false))
+                    : Task.FromException<Stream>(new KeyNotFoundException());
 
         public Task DeleteAsync(string key, CancellationToken cancellationToken)
         {
+            DeleteKeys = [.. DeleteKeys, key];
             if (FailDeletes) throw new EventImageStorageUnavailableException();
             objects.TryRemove(key, out _);
             return Task.CompletedTask;
@@ -421,9 +468,11 @@ public sealed class EventImageApiTests : IAsyncLifetime
         {
             objects.Clear();
             PutKeys = [];
+            DeleteKeys = [];
             puts = 0;
             FailPutNumber = null;
             FailDeletes = false;
+            FailReads = false;
         }
     }
 }

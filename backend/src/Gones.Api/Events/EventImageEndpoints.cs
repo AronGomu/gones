@@ -75,6 +75,7 @@ internal static class EventImageEndpoints
         ClaimsPrincipal principal,
         GonesDbContext database,
         EventImageCleanupService cleanup,
+        ILogger<EventImageCleanupService> cleanupLogger,
         IClock clock,
         CancellationToken cancellationToken)
     {
@@ -91,7 +92,20 @@ internal static class EventImageEndpoints
 
         await cleanup.EnqueueAndDeleteAsync(image, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        await cleanup.ProcessImageObjectDeletionsAsync(image.Id, cancellationToken);
+        using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await cleanup.ProcessImageObjectDeletionsAsync(image.Id, cleanupTimeout.Token);
+        }
+        catch (Exception exception)
+        {
+            cleanupLogger.LogWarning(
+                EventImageCleanupLogEvents.PostCommitCleanupFailed,
+                "Event image post-commit object cleanup deferred; Event={Event}; ImageId={ImageId}; ExceptionType={ExceptionType}",
+                "event_image.object_delete.post_commit_deferred",
+                image.Id,
+                exception.GetType().Name);
+        }
         return Results.NoContent();
     }
 
@@ -174,9 +188,9 @@ internal sealed class EventImageUploadService(
             foreach (var variant in processed.Variants)
             {
                 var key = EventImageObjectKeys.Variant(imageId, variant.Width);
+                uploadedKeys.Add(key);
                 await using var content = new MemoryStream(variant.WebP.ToArray(), writable: false);
                 await objects.PutAsync(key, content, "image/webp", cancellationToken);
-                uploadedKeys.Add(key);
             }
 
             var image = EventImage.CreateTemporary(imageId, userId, processed.Width, processed.Height, clock.GetCurrentInstant());
