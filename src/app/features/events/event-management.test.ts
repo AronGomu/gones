@@ -4,7 +4,7 @@ import { canCancelEvent, canEditEvent, majorEventChanges, managementToDraft } fr
 
 const event: EventManagementResponse = {
   id: 'event', organizationId: 'org', organizationName: 'Club', title: 'Legacy Open', slug: 'legacy-open',
-  summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France',
+  summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', eventType: 'weekly' as unknown as EventManagementResponse['eventType'],
   timeZoneId: 'Europe/Paris', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '18:00:00', startsAtUtc: '2027-08-01T08:00:00Z' as never, endsAtUtc: '2027-08-01T16:00:00Z' as never, capacity: 32,
   status: 'Published', deletedAt: undefined, deletedReason: undefined, formatIds: ['legacy'], version: 3, eTag: '"3"',
@@ -15,10 +15,17 @@ describe('Event management state', () => {
   it('hydrates edit draft from canonical management DTO', () => {
     expect(managementToDraft(event)).toEqual({
       organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street',
-      postalCode: '69001', city: 'Lyon', country: 'France', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
+      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '2027-08-01T18:00', capacity: 32, formatId: 'legacy', liveTournamentUrl: '/live/123',
       archiveTournamentUrl: 'https://example.test/archive/123'
     });
+  });
+
+  it('requires legacy rows to choose Event Type and treats that choice as major', () => {
+    const legacy = { ...event, eventType: undefined };
+    const draft = managementToDraft(legacy);
+    expect(draft.eventType).toBe('');
+    expect(majorEventChanges(legacy, { ...draft, eventType: 'weekly' })).toContain('Event Type');
   });
 
   it('classifies date and address edits as explicit major changes', () => {

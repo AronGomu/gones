@@ -15,7 +15,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
 import { OrganizerEventCreateComponent } from './organizer-event-create.component';
-import { eventPayload } from './organizer-event-create';
 import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
@@ -68,6 +67,8 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     postalCode: '',
     city: 'Lyon',
     country: 'France',
+    region: 'Auvergne-Rhône-Alpes',
+    eventType: 'weekly',
     timeZoneId: 'Europe/Paris',
     startsAtLocal: '2027-08-01T10:00',
     endsAtLocal: '',
@@ -117,7 +118,9 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
     fillValidForm(component);
     await component.submitForApproval();
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
-    expect(proposalsStub.submit).toHaveBeenCalledWith(eventPayload(component.form.getRawValue()), ['id1']);
+    expect(proposalsStub.submit).toHaveBeenCalledWith(expect.objectContaining({
+      region: 'Auvergne-Rhône-Alpes', eventType: 'weekly', country: 'France', city: 'Lyon', formatIds: ['fmt1']
+    }), ['id1']);
   });
 
   it('success shows the confirmation panel', async () => {
