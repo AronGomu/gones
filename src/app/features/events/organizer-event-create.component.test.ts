@@ -31,7 +31,7 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
+function setupHarness(globalRole: string, client: Partial<Client> = {}) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap() } } as unknown as ActivatedRoute;
@@ -48,7 +48,14 @@ function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEvent
     I18nService
   ] });
 
-  return runInInjectionContext(injector, () => new OrganizerEventCreateComponent());
+  return {
+    component: runInInjectionContext(injector, () => new OrganizerEventCreateComponent()),
+    destroy: () => injector.destroy()
+  };
+}
+
+function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
+  return setupHarness(globalRole, client).component;
 }
 
 function locationClient(extra: Record<string, unknown> = {}): Partial<Client> {
@@ -188,6 +195,27 @@ describe('OrganizerEventCreateComponent resolved location', () => {
     expect(component.locationError()).toBe('');
   });
 
+  it('reuses one UUID billing token for autocomplete and resolve during the editing session', async () => {
+    vi.useFakeTimers();
+    try {
+      const autocompleteEventLocations = vi.fn((_input: string, _sessionToken: string, _language: string) => of({ suggestions: [suggestion] }));
+      const resolveEventLocation = vi.fn((_request: { sessionToken: string }) => of(resolvedLocation));
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations, resolveEventLocation }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      await component.resolveLocation(suggestion);
+
+      const autocompleteSessionToken = autocompleteEventLocations.mock.calls[0]![1];
+      const resolveSessionToken = resolveEventLocation.mock.calls[0]![0].sessionToken;
+      expect(autocompleteSessionToken).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      expect(resolveSessionToken).toBe(autocompleteSessionToken);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ignores a stale resolve response after the user edits a location field', async () => {
     const pending = new Subject<typeof resolvedLocation>();
     const component = setup('Organizer', locationClient({ resolveEventLocation: () => pending }));
@@ -204,18 +232,64 @@ describe('OrganizerEventCreateComponent resolved location', () => {
     expect(component.form.controls.timeZoneId.value).toBe('');
   });
 
-  it('clears token, timezone, and coordinates synchronously after any visible location edit', async () => {
+  it('clears token, timezone, and coordinates synchronously after each visible location field edit', async () => {
     const component = setup('Organizer', locationClient({ resolveEventLocation: () => of(resolvedLocation) }));
     component.ngOnInit();
-    await component.resolveLocation(suggestion);
 
-    component.form.controls.region.setValue('Île-de-France');
+    for (const field of ['streetAddress', 'postalCode', 'city', 'country', 'region'] as const) {
+      await component.resolveLocation(suggestion);
 
-    expect(component.form.controls.locationToken.value).toBe('');
-    expect(component.form.controls.timeZoneId.value).toBe('');
-    expect(component.form.controls.latitude.value).toBeNull();
-    expect(component.form.controls.longitude.value).toBeNull();
-    expect(component.form.controls.locationToken.invalid).toBe(true);
+      component.form.controls[field].setValue(`${component.form.controls[field].value} edited`);
+
+      expect(component.form.controls.locationToken.value, field).toBe('');
+      expect(component.form.controls.timeZoneId.value, field).toBe('');
+      expect(component.form.controls.latitude.value, field).toBeNull();
+      expect(component.form.controls.longitude.value, field).toBeNull();
+      expect(component.form.controls.locationToken.invalid, field).toBe(true);
+    }
+  });
+
+  it('cancels pending debounce, subscriptions, and in-flight location HTTP work on destroy', async () => {
+    vi.useFakeTimers();
+    try {
+      const beforeDebounce = vi.fn(() => of({ suggestions: [suggestion] }));
+      const first = setupHarness('Organizer', locationClient({ autocompleteEventLocations: beforeDebounce }));
+      first.component.ngOnInit();
+      first.component.form.controls.streetAddress.setValue('Paris');
+
+      first.destroy();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(beforeDebounce).not.toHaveBeenCalled();
+
+      const pending = new Subject<{ suggestions: typeof suggestion[] }>();
+      const inFlight = vi.fn(() => pending);
+      const second = setupHarness('Organizer', locationClient({ autocompleteEventLocations: inFlight }));
+      second.component.ngOnInit();
+      second.component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      expect(pending.observed).toBe(true);
+
+      second.destroy();
+
+      expect(pending.observed).toBe(false);
+      pending.next({ suggestions: [suggestion] });
+      expect(second.component.locationSuggestions()).toEqual([]);
+
+      const pendingResolve = new Subject<typeof resolvedLocation>();
+      const third = setupHarness('Organizer', locationClient({ resolveEventLocation: () => pendingResolve }));
+      third.component.ngOnInit();
+      const resolving = third.component.resolveLocation(suggestion);
+      expect(pendingResolve.observed).toBe(true);
+
+      third.destroy();
+      await resolving;
+
+      expect(pendingResolve.observed).toBe(false);
+      expect(third.component.locationError()).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('keeps street input and retries autocomplete after provider outage', async () => {

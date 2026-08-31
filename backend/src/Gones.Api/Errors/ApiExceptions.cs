@@ -62,8 +62,10 @@ public sealed class OAuthProviderUnavailableException() : ApiException("oauth_pr
 
 public static class EventProviderProblemCatalog
 {
+    public const string LocationUnresolved = "location_unresolved";
     public const string LocationProviderUnavailable = "location_provider_unavailable";
     public const string ImageStorageUnavailable = "image_storage_unavailable";
+    public const string LocationUnresolvedMessage = "Choose a complete resolved location.";
     public const string LocationProviderUnavailableMessage = "Event location provider is unavailable.";
     public const string ImageStorageUnavailableMessage = "Event image storage is unavailable.";
 }

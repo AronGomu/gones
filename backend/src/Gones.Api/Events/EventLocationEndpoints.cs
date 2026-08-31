@@ -34,9 +34,9 @@ internal static class EventLocationEndpoints
     }
 
     private static async Task<IResult> AutocompleteAsync(
-        string input,
-        string sessionToken,
-        string language,
+        string? input,
+        string? sessionToken,
+        string? language,
         IEventLocationProvider provider,
         CancellationToken cancellationToken)
     {

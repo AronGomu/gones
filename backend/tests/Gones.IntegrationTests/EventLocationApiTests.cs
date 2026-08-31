@@ -78,6 +78,20 @@ public sealed class EventLocationApiTests : IDisposable
         Assert.Equal(("Paris", "640ec8a3-55f2-4a29-b8b6-b62c9fc3e46d", "fr"), provider.LastAutocomplete);
     }
 
+    [Theory]
+    [InlineData("input", "?sessionToken=640ec8a3-55f2-4a29-b8b6-b62c9fc3e46d&language=fr")]
+    [InlineData("sessionToken", "?input=Paris&language=fr")]
+    [InlineData("language", "?input=Paris&sessionToken=640ec8a3-55f2-4a29-b8b6-b62c9fc3e46d")]
+    public async Task Autocomplete_missing_query_parameter_returns_its_field_error(string field, string query)
+    {
+        using var response = await GetAsync($"/api/event-locations/autocomplete{query}");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty(field, out _));
+    }
+
     [Fact]
     public async Task Resolve_returns_canonical_location_and_thirty_minute_user_bound_token()
     {
@@ -107,10 +121,23 @@ public sealed class EventLocationApiTests : IDisposable
         Assert.InRange(expiresAt - issuedAt, Duration.FromMinutes(29), Duration.FromMinutes(30) + Duration.FromSeconds(1));
     }
 
-    [Fact]
-    public async Task Resolve_rejects_incomplete_provider_result_as_location_unresolved()
+    [Theory]
+    [InlineData("streetAddress")]
+    [InlineData("postalCode")]
+    [InlineData("city")]
+    [InlineData("country")]
+    [InlineData("region")]
+    public async Task Resolve_rejects_each_missing_required_component_as_location_unresolved(string component)
     {
-        provider.Resolved = provider.Resolved with { PostalCode = string.Empty };
+        provider.Resolved = component switch
+        {
+            "streetAddress" => provider.Resolved with { StreetAddress = string.Empty },
+            "postalCode" => provider.Resolved with { PostalCode = string.Empty },
+            "city" => provider.Resolved with { City = string.Empty },
+            "country" => provider.Resolved with { Country = string.Empty },
+            "region" => provider.Resolved with { Region = string.Empty },
+            _ => throw new ArgumentOutOfRangeException(nameof(component))
+        };
 
         using var response = await PostAsync("/api/event-locations/resolve", new
         {
@@ -193,28 +220,9 @@ public sealed class EventLocationApiTests : IDisposable
     [InlineData("postal_town", "Londres")]
     public async Task Google_mapping_uses_long_names_and_postal_town_fallback(string cityType, string city)
     {
-        var options = GoogleMapsOptions.Load(Configuration(new Dictionary<string, string?>
-        {
-            [GoogleMapsOptions.ApiKeyKey] = "test-google-key"
-        }));
-        var details = JsonSerializer.Serialize(new
-        {
-            id = "google-place",
-            addressComponents = new object[]
-            {
-                new { longText = "10", shortText = "10", types = new[] { "street_number" } },
-                new { longText = "Rue de la République", shortText = "R. République", types = new[] { "route" } },
-                new { longText = "69001", shortText = "69001", types = new[] { "postal_code" } },
-                new { longText = city, shortText = city, types = new[] { cityType } },
-                new { longText = "France", shortText = "FR", types = new[] { "country" } },
-                new { longText = "Auvergne-Rhône-Alpes", shortText = "ARA", types = new[] { "administrative_area_level_1" } }
-            },
-            location = new { latitude = 45.7640m, longitude = 4.8357m }
-        });
-        var transport = new GoogleLocationResponseHandler(details, """{"status":"OK","timeZoneId":"Europe/Paris"}""");
-        using var apiKeyHandler = new GoogleTimeZoneApiKeyHandler(options) { InnerHandler = transport };
-        using var http = new HttpClient(apiKeyHandler);
-        var google = new GoogleEventLocationProvider(http, options);
+        var details = CompleteGoogleDetails(cityType, city);
+        using var transport = new GoogleLocationResponseHandler(details, """{"status":"OK","timeZoneId":"Europe/Paris"}""");
+        var google = GoogleProvider(transport);
 
         var resolved = await google.ResolveAsync("google-place", "session", "fr", CancellationToken.None);
 
@@ -222,6 +230,149 @@ public sealed class EventLocationApiTests : IDisposable
         Assert.Equal(city, resolved.City);
         Assert.Equal("France", resolved.Country);
         Assert.Equal("Auvergne-Rhône-Alpes", resolved.Region);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Google_missing_place_location_or_required_components_maps_to_location_unresolved(bool missingLocation)
+    {
+        var details = JsonSerializer.Serialize(new
+        {
+            id = "google-place",
+            addressComponents = Array.Empty<object>(),
+            location = missingLocation ? null : new { latitude = 45.7640m, longitude = 4.8357m }
+        });
+        using var transport = new GoogleLocationResponseHandler(
+            details,
+            """{"status":"OK","timeZoneId":"Europe/Paris"}""");
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("google-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Equal("location_unresolved", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty("location.locationToken", out _));
+    }
+
+    [Fact]
+    public async Task Google_place_not_found_maps_to_location_unresolved()
+    {
+        using var transport = new GoogleLocationResponseHandler("{}", string.Empty, HttpStatusCode.NotFound);
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("missing-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Equal("location_unresolved", body.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task Google_time_zone_zero_results_maps_to_location_unresolved()
+    {
+        using var transport = new GoogleLocationResponseHandler(
+            CompleteGoogleDetails("locality", "Lyon"),
+            """{"status":"ZERO_RESULTS"}""");
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("google-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Equal("location_unresolved", body.GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData("INVALID_REQUEST")]
+    [InlineData("REQUEST_DENIED")]
+    [InlineData("OVER_DAILY_LIMIT")]
+    [InlineData("OVER_QUERY_LIMIT")]
+    [InlineData("UNKNOWN_ERROR")]
+    public async Task Google_time_zone_auth_quota_or_server_failure_stays_provider_unavailable(string providerStatus)
+    {
+        using var transport = new GoogleLocationResponseHandler(
+            CompleteGoogleDetails("locality", "Lyon"),
+            JsonSerializer.Serialize(new { status = providerStatus }));
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("google-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        Assert.Equal("location_provider_unavailable", body.GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.InternalServerError)]
+    public async Task Google_place_auth_quota_or_server_http_failure_stays_provider_unavailable(HttpStatusCode providerStatus)
+    {
+        using var transport = new GoogleLocationResponseHandler("{}", string.Empty, providerStatus);
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("google-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        Assert.Equal("location_provider_unavailable", body.GetProperty("code").GetString());
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Google_malformed_response_stays_provider_unavailable(bool malformedDetails)
+    {
+        using var transport = new GoogleLocationResponseHandler(
+            malformedDetails ? "{" : CompleteGoogleDetails("locality", "Lyon"),
+            malformedDetails ? string.Empty : "{");
+        var google = GoogleProvider(transport);
+
+        var exception = await Record.ExceptionAsync(() => google.ResolveAsync("google-place", "session", "fr", CancellationToken.None));
+        var (status, body) = await HandleAsync(Assert.IsAssignableFrom<Exception>(exception));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, status);
+        Assert.Equal("location_provider_unavailable", body.GetProperty("code").GetString());
+    }
+
+    private static GoogleEventLocationProvider GoogleProvider(HttpMessageHandler transport)
+    {
+        var options = GoogleMapsOptions.Load(Configuration(new Dictionary<string, string?>
+        {
+            [GoogleMapsOptions.ApiKeyKey] = "test-google-key"
+        }));
+        var apiKeyHandler = new GoogleTimeZoneApiKeyHandler(options) { InnerHandler = transport };
+        return new GoogleEventLocationProvider(new HttpClient(apiKeyHandler), options);
+    }
+
+    private static string CompleteGoogleDetails(string cityType, string city) => JsonSerializer.Serialize(new
+    {
+        id = "google-place",
+        addressComponents = new object[]
+        {
+            new { longText = "10", shortText = "10", types = new[] { "street_number" } },
+            new { longText = "Rue de la République", shortText = "R. République", types = new[] { "route" } },
+            new { longText = "69001", shortText = "69001", types = new[] { "postal_code" } },
+            new { longText = city, shortText = city, types = new[] { cityType } },
+            new { longText = "France", shortText = "FR", types = new[] { "country" } },
+            new { longText = "Auvergne-Rhône-Alpes", shortText = "ARA", types = new[] { "administrative_area_level_1" } }
+        },
+        location = new { latitude = 45.7640m, longitude = 4.8357m }
+    });
+
+    private static async Task<(HttpStatusCode Status, JsonElement Body)> HandleAsync(Exception exception)
+    {
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+        var handler = new ApiExceptionHandler(NullLogger<ApiExceptionHandler>.Instance);
+
+        Assert.True(await handler.TryHandleAsync(context, exception, CancellationToken.None));
+        context.Response.Body.Position = 0;
+        using var body = await JsonDocument.ParseAsync(context.Response.Body);
+        return ((HttpStatusCode)context.Response.StatusCode, body.RootElement.Clone());
     }
 
     private Task<HttpResponseMessage> GetAsync(string url)
@@ -285,16 +436,20 @@ public sealed class EventLocationApiTests : IDisposable
         }
     }
 
-    private sealed class GoogleLocationResponseHandler(string details, string timeZone) : HttpMessageHandler
+    private sealed class GoogleLocationResponseHandler(
+        string details,
+        string timeZone,
+        HttpStatusCode detailsStatus = HttpStatusCode.OK,
+        HttpStatusCode timeZoneStatus = HttpStatusCode.OK) : HttpMessageHandler
     {
         private int index;
 
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var body = index++ == 0 ? details : timeZone;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            var detailsRequest = index++ == 0;
+            return Task.FromResult(new HttpResponseMessage(detailsRequest ? detailsStatus : timeZoneStatus)
             {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
+                Content = new StringContent(detailsRequest ? details : timeZone, Encoding.UTF8, "application/json")
             });
         }
     }

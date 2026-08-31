@@ -1,4 +1,5 @@
-import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -234,6 +235,7 @@ const MaximumLocationSuggestions = 5;
 export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly i18n = inject(I18nService);
   private readonly client = inject(Client);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
@@ -319,7 +321,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   });
 
   ngOnInit(): void {
-    this.form.valueChanges.subscribe(() => {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncSelectedOrganization();
       this.fieldErrors.set({});
       this.submitError.set(null);
@@ -336,7 +338,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.form.controls.city.valueChanges,
       this.form.controls.country.valueChanges,
       this.form.controls.region.valueChanges
-    ).subscribe(() => this.invalidateResolvedLocation());
+    ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.invalidateResolvedLocation());
     merge(
       this.form.controls.streetAddress.valueChanges.pipe(
         map(value => {
@@ -376,7 +378,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
             return of([] as EventLocationSuggestionResponse[]);
           })
         );
-      })
+      }),
+      takeUntilDestroyed(this.destroyRef)
     ).subscribe(suggestions => {
       this.locationSuggestions.set(suggestions);
       this.locationLoading.set(false);
@@ -438,7 +441,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         placeId: suggestion.placeId,
         sessionToken: this.locationSessionToken,
         language: this.i18n.language()
-      }));
+      }).pipe(takeUntilDestroyed(this.destroyRef)));
       if (revision !== this.locationRevision) return;
       this.form.patchValue({
         streetAddress: resolved.streetAddress,
@@ -455,9 +458,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.locationError.set('');
       this.retryLocation.set(null);
     } catch (error) {
-      if (revision === this.locationRevision) this.locationError.set(this.locationErrorMessage(error));
+      if (!this.destroyRef.destroyed && revision === this.locationRevision) this.locationError.set(this.locationErrorMessage(error));
     } finally {
-      this.locationResolving.set(false);
+      if (!this.destroyRef.destroyed) this.locationResolving.set(false);
     }
   }
 

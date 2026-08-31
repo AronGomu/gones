@@ -17,6 +17,7 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             LocationTokenInvalidException invalid => (invalid.StatusCode, invalid.Code, invalid.SafeMessage, LocationTokenErrors(invalid.SafeMessage)),
             LocationTokenExpiredException expired => (expired.StatusCode, expired.Code, expired.SafeMessage, LocationTokenErrors(expired.SafeMessage)),
             ApiException known => (known.StatusCode, known.Code, known.SafeMessage, null),
+            EventLocationUnresolvedException => (StatusCodes.Status400BadRequest, EventProviderProblemCatalog.LocationUnresolved, EventProviderProblemCatalog.LocationUnresolvedMessage, LocationTokenErrors(EventProviderProblemCatalog.LocationUnresolvedMessage)),
             EventLocationProviderUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.LocationProviderUnavailable, EventProviderProblemCatalog.LocationProviderUnavailableMessage, null),
             EventImageStorageUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.ImageStorageUnavailable, EventProviderProblemCatalog.ImageStorageUnavailableMessage, null),
             _ when IsLostLockRace(exception) => (StatusCodes.Status409Conflict, "conflict", "Request conflicts with current resource state.", null),

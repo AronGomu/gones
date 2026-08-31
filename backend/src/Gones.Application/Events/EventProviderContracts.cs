@@ -62,6 +62,9 @@ public interface IEventImageProcessor
 public sealed record ProcessedEventImage(int Width, int Height, IReadOnlyList<ProcessedEventImageVariant> Variants);
 public sealed record ProcessedEventImageVariant(int Width, int Height, ReadOnlyMemory<byte> WebP);
 
+public sealed class EventLocationUnresolvedException()
+    : Exception("Event location could not be resolved.");
+
 public sealed class EventLocationProviderUnavailableException(Exception? innerException = null)
     : Exception("Event location provider is unavailable.", innerException);
 

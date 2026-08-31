@@ -74,6 +74,18 @@ try {
   // expiry on the documented RFC 3339 string contract instead of generating it as `any`.
   const locationExpiry = document.components?.schemas?.ResolvedEventLocationResponse?.properties?.expiresAt;
   if (locationExpiry) Object.assign(locationExpiry, { type: 'string', format: 'date-time' });
+  // Runtime accepts omissions so endpoint can return per-field errors instead of framework-level
+  // malformed_request. They remain required in public contract plus generated callers.
+  const locationAutocompleteParameters = document.paths?.['/api/event-locations/autocomplete']?.get?.parameters ?? [];
+  for (const name of ['input', 'sessionToken', 'language']) {
+    const index = locationAutocompleteParameters.findIndex(candidate => candidate.name === name && candidate.in === 'query');
+    if (index >= 0) {
+      const parameter = { ...locationAutocompleteParameters[index] };
+      delete parameter.required;
+      delete parameter.schema;
+      locationAutocompleteParameters[index] = { ...parameter, required: true, schema: { type: 'string' } };
+    }
+  }
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [

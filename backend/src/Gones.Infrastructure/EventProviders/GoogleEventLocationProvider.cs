@@ -60,29 +60,43 @@ public sealed class GoogleEventLocationProvider(HttpClient client, GoogleMapsOpt
             using var detailsRequest = CreateRequest(HttpMethod.Get, detailsUri);
             detailsRequest.Headers.Add("X-Goog-FieldMask", "id,formattedAddress,addressComponents,location");
             using var detailsResponse = await client.SendAsync(detailsRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (detailsResponse.StatusCode is System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.NotFound)
+            {
+                throw new EventLocationUnresolvedException();
+            }
             if (!detailsResponse.IsSuccessStatusCode) throw new EventLocationProviderUnavailableException();
             var place = await detailsResponse.Content.ReadFromJsonAsync<PlaceDetailsResponse>(JsonOptions, cancellationToken)
                 ?? throw new EventLocationProviderUnavailableException();
-            var location = place.Location ?? throw new EventLocationProviderUnavailableException();
+            var location = place.Location ?? throw new EventLocationUnresolvedException();
 
             var timeZoneUri = $"https://maps.googleapis.com/maps/api/timezone/json?location={location.Latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}%2C{location.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}&timestamp={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}&language={Uri.EscapeDataString(language)}";
             using var timeZoneRequest = new HttpRequestMessage(HttpMethod.Get, timeZoneUri);
             using var timeZoneResponse = await client.SendAsync(timeZoneRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (!timeZoneResponse.IsSuccessStatusCode) throw new EventLocationProviderUnavailableException();
-            var timeZone = await timeZoneResponse.Content.ReadFromJsonAsync<TimeZoneResponse>(JsonOptions, cancellationToken);
-            if (timeZone?.Status != "OK" || string.IsNullOrWhiteSpace(timeZone.TimeZoneId)) throw new EventLocationProviderUnavailableException();
+            var timeZone = await timeZoneResponse.Content.ReadFromJsonAsync<TimeZoneResponse>(JsonOptions, cancellationToken)
+                ?? throw new EventLocationProviderUnavailableException();
+            if (timeZone.Status == "ZERO_RESULTS") throw new EventLocationUnresolvedException();
+            if (timeZone.Status != "OK" || string.IsNullOrWhiteSpace(timeZone.TimeZoneId)) throw new EventLocationProviderUnavailableException();
 
             var components = place.AddressComponents ?? [];
             var streetNumber = Component(components, "street_number");
             var route = Component(components, "route");
             var streetAddress = string.Join(' ', new[] { streetNumber, route }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            var postalCode = Component(components, "postal_code");
+            var city = Component(components, "locality", "postal_town");
+            var country = Component(components, "country");
+            var region = Component(components, "administrative_area_level_1");
+            if (new[] { streetAddress, postalCode, city, country, region }.Any(string.IsNullOrWhiteSpace))
+            {
+                throw new EventLocationUnresolvedException();
+            }
             return new ResolvedEventLocation(
                 place.Id ?? placeId,
                 streetAddress,
-                Component(components, "postal_code"),
-                Component(components, "locality", "postal_town"),
-                Component(components, "country"),
-                Component(components, "administrative_area_level_1"),
+                postalCode,
+                city,
+                country,
+                region,
                 location.Latitude,
                 location.Longitude,
                 timeZone.TimeZoneId);
