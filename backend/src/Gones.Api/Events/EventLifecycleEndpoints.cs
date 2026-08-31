@@ -559,6 +559,8 @@ internal sealed class EventLifecycleService(
         item.PostalCode,
         item.City,
         item.Country,
+        item.Region,
+        EventPublicationService.EventTypeWire(item.EventType),
         item.TimeZoneId,
         LocalDatePattern.Iso.Format(item.VenueStartDate),
         LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(item.VenueStartTime),
@@ -588,7 +590,9 @@ internal sealed class EventLifecycleService(
         string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
         request.Capacity,
         request.LiveTournamentUrl,
-        request.ArchiveTournamentUrl);
+        request.ArchiveTournamentUrl,
+        request.Region,
+        EventPublicationService.ToDomainEventType(request.EventType));
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
@@ -635,6 +639,8 @@ internal sealed record UpdateEventDetailsRequest(
     [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
     [property: Required, MaxLength(Event.MaximumCityLength)] string City,
     [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
+    [property: Required, MaxLength(Event.MaximumRegionLength)] string Region,
+    [property: Required] PublicCalendarEventType? EventType,
     [property: Required, MaxLength(Event.MaximumTimeZoneLength)] string TimeZoneId,
     [property: Required] string StartsAtLocal,
     string? EndsAtLocal,
@@ -675,6 +681,8 @@ internal sealed record EventManagementResponse(
     string? PostalCode,
     string City,
     string Country,
+    string? Region,
+    PublicCalendarEventType? EventType,
     string TimeZoneId,
     string VenueStartDate,
     string VenueStartTime,
@@ -707,6 +715,8 @@ internal sealed record EventAuditSnapshot(
     string? PostalCode,
     string City,
     string Country,
+    string? Region,
+    PublicCalendarEventType? EventType,
     string TimeZoneId,
     string StartsAt,
     string EndsAt,
@@ -723,6 +733,8 @@ internal sealed record EventAuditSnapshot(
         tournament.PostalCode,
         tournament.City,
         tournament.Country,
+        tournament.Region,
+        EventPublicationService.EventTypeWire(tournament.EventType),
         tournament.TimeZoneId,
         tournament.StartsAtUtc.ToString(),
         tournament.EndsAtUtc.ToString(),
@@ -744,6 +756,8 @@ internal sealed record EventAuditSnapshot(
         if (PostalCode != other.PostalCode) fields.Add("postalCode");
         if (City != other.City) fields.Add("city");
         if (Country != other.Country) fields.Add("country");
+        if (Region != other.Region) fields.Add("region");
+        if (EventType != other.EventType) fields.Add("eventType");
         if (TimeZoneId != other.TimeZoneId) fields.Add("timeZoneId");
         if (StartsAt != other.StartsAt) fields.Add("startsAt");
         if (EndsAt != other.EndsAt) fields.Add("endsAt");
@@ -781,6 +795,8 @@ internal sealed record EventAuditSnapshot(
                 "postalCode" => PostalCode,
                 "city" => City,
                 "country" => Country,
+                "region" => Region,
+                "eventType" => EventType,
                 "timeZoneId" => TimeZoneId,
                 "startsAt" => StartsAt,
                 "endsAt" => EndsAt,

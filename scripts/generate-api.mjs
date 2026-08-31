@@ -8,7 +8,13 @@ const backend = join(root, 'backend');
 const snapshot = join(backend, 'openapi', 'gones.json');
 const generated = join(root, 'src', 'app', 'api', 'generated', 'gones-api.ts');
 const check = process.argv.includes('--check');
-const normalizeGenerated = value => value.replaceAll('\r\n', '\n').replace(/[ \t]+$/gm, '');
+const normalizeGenerated = value => value
+  .replaceAll('\r\n', '\n')
+  .replace(/[ \t]+$/gm, '')
+  // NSwag 14 emits nullable enum `oneOf` refs as empty interfaces. Keep generated DTOs typed to
+  // OpenAPI's canonical Event Type enum instead of forcing every consumer through unsafe casts.
+  .replace(/export interface (EventType\d*) \{\n\n    \[key: string\]: any;\n\}/g, 'export type $1 = `${PublicCalendarEventType}`;')
+  .replace(/export enum (EventPayloadRequestEventType|UpdateEventDetailsRequestEventType) \{\n    Weekly = "weekly",\n    Monthly = "monthly",\n    Major = "major",\n\}/g, 'export type $1 = "weekly" | "monthly" | "major";');
 const listenUrl = 'http://127.0.0.1:0';
 const temp = mkdtempSync(join(tmpdir(), 'gones-api-'));
 const tempSnapshot = join(temp, 'gones.json');
@@ -52,6 +58,18 @@ try {
   }
   if (!document) throw new Error(`API OpenAPI endpoint did not start.\n${output}`);
   document.servers = [{ url: '' }];
+  // ASP.NET OpenAPI currently drops `AllowedValuesAttribute` from query-string schemas. Preserve
+  // server's explicit Event Type allowlist in published contract plus generated client.
+  const eventTypeValues = ['weekly', 'monthly', 'major'];
+  const eventTypeParameter = document.paths?.['/api/events']?.get?.parameters
+    ?.find(parameter => parameter.name === 'eventType' && parameter.in === 'query');
+  if (eventTypeParameter) eventTypeParameter.schema = { type: 'string', enum: eventTypeValues };
+  const eventTypeSchema = document.components?.schemas?.PublicCalendarEventType;
+  if (eventTypeSchema) Object.assign(eventTypeSchema, { type: 'string', enum: eventTypeValues });
+  for (const schemaName of ['EventPayloadRequest', 'UpdateEventDetailsRequest']) {
+    const property = document.components?.schemas?.[schemaName]?.properties?.eventType;
+    if (property) document.components.schemas[schemaName].properties.eventType = { type: 'string', enum: eventTypeValues };
+  }
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [

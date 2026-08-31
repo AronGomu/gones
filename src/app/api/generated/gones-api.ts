@@ -122,6 +122,8 @@ export interface IClient {
      * @param to (optional)
      * @param city (optional)
      * @param country (optional)
+     * @param region (optional)
+     * @param eventType (optional)
      * @param organization (optional)
      * @param format (optional)
      * @param status (optional)
@@ -132,7 +134,7 @@ export interface IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse>;
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, region: string | undefined, eventType: EventType | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse>;
     /**
      * @return Created
      */
@@ -2057,6 +2059,8 @@ export class Client implements IClient {
      * @param to (optional)
      * @param city (optional)
      * @param country (optional)
+     * @param region (optional)
+     * @param eventType (optional)
      * @param organization (optional)
      * @param format (optional)
      * @param status (optional)
@@ -2067,7 +2071,7 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse> {
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, region: string | undefined, eventType: EventType | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse> {
         let url_ = this.baseUrl + "/api/events?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
@@ -2085,6 +2089,14 @@ export class Client implements IClient {
             throw new globalThis.Error("The parameter 'country' cannot be null.");
         else if (country !== undefined)
             url_ += "country=" + encodeURIComponent("" + country) + "&";
+        if (region === null)
+            throw new globalThis.Error("The parameter 'region' cannot be null.");
+        else if (region !== undefined)
+            url_ += "region=" + encodeURIComponent("" + region) + "&";
+        if (eventType === null)
+            throw new globalThis.Error("The parameter 'eventType' cannot be null.");
+        else if (eventType !== undefined)
+            url_ += "eventType=" + encodeURIComponent("" + eventType) + "&";
         if (organization === null)
             throw new globalThis.Error("The parameter 'organization' cannot be null.");
         else if (organization !== undefined)
@@ -10820,6 +10832,8 @@ export interface EventManagementResponse {
     postalCode: string | undefined;
     city: string;
     country: string;
+    region: string | undefined;
+    eventType: PublicCalendarEventType | undefined;
     timeZoneId: string;
     venueStartDate: string;
     venueStartTime: string;
@@ -10857,6 +10871,8 @@ export interface EventPayloadRequest {
     postalCode: string | undefined;
     city: string;
     country: string;
+    region: string;
+    eventType: EventPayloadRequestEventType;
     timeZoneId: string;
     startsAtLocal: string;
     endsAtLocal: string | undefined;
@@ -10886,6 +10902,7 @@ export interface EventPreviewRenderResponse {
     endsAtUtc: Instant;
     capacity: number | undefined;
     status: string;
+    eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
 
@@ -11465,6 +11482,12 @@ export interface ProposalApproverResponse {
     [key: string]: any;
 }
 
+export enum PublicCalendarEventType {
+    Weekly = "weekly",
+    Monthly = "monthly",
+    Major = "major",
+}
+
 export interface PublicDeckArchetypeResponse {
     id: string;
     name: string;
@@ -11500,6 +11523,7 @@ export interface PublicEventDetailResponse {
     endsAtUtc: Instant;
     capacity: number | undefined;
     status: string;
+    eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
 
@@ -11564,6 +11588,7 @@ export interface PublicEventSummaryResponse {
     endsAtUtc: Instant;
     capacity: number | undefined;
     status: string;
+    eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
 
@@ -11575,6 +11600,7 @@ export interface PublicEventVenueResponse {
     postalCode: string | undefined;
     city: string;
     country: string;
+    region?: string | undefined;
 
     [key: string]: any;
 }
@@ -11833,6 +11859,8 @@ export interface UpdateEventDetailsRequest {
     postalCode: string | undefined;
     city: string;
     country: string;
+    region: string;
+    eventType: UpdateEventDetailsRequestEventType;
     timeZoneId: string;
     startsAtLocal: string;
     endsAtLocal: string | undefined;
@@ -11926,6 +11954,14 @@ export interface VerifyOAuthEmailRequest {
     [key: string]: any;
 }
 
+export enum EventType {
+    Weekly = "weekly",
+    Monthly = "monthly",
+    Major = "major",
+}
+
+export type EventPayloadRequestEventType = "weekly" | "monthly" | "major";
+
 export enum RoundEntryByeRoundEntryKind {
     Bye = "bye",
 }
@@ -11937,6 +11973,8 @@ export enum RoundEntryInvalidRoundEntryKind {
 export enum RoundEntryMatchRoundEntryKind {
     Match = "match",
 }
+
+export type UpdateEventDetailsRequestEventType = "weekly" | "monthly" | "major";
 
 export interface FileResponse {
     data: Blob;

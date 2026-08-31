@@ -391,9 +391,13 @@ internal static class EventProposalEndpoints
             Convert.FromHexString(storedHash),
             Convert.FromHexString(computedHash));
 
-    private static EventPayloadRequest Payload(EventProposal proposal) =>
-        JsonSerializer.Deserialize<EventPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
-            ?? throw new InvalidOperationException("Stored tournament proposal payload is invalid.");
+    private static EventPayloadRequest Payload(EventProposal proposal)
+    {
+        var payload = JsonSerializer.Deserialize<EventPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
+            ?? throw new ResourceConflictException();
+        if (string.IsNullOrWhiteSpace(payload.Region) || payload.EventType is null) throw new ResourceConflictException();
+        return payload;
+    }
 
     private static async Task<string> UsernameAsync(GonesDbContext database, Guid userId, CancellationToken cancellationToken) =>
         await database.UserProfiles.AsNoTracking()
@@ -593,6 +597,7 @@ internal sealed class EventProposalService(
         {
             payload.StreetAddress,
             string.IsNullOrWhiteSpace(payload.PostalCode) ? payload.City : $"{payload.PostalCode} {payload.City}",
+            payload.Region,
             payload.Country
         }.Where(part => !string.IsNullOrWhiteSpace(part)));
 

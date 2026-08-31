@@ -24,6 +24,8 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength);
         builder.Property(tournament => tournament.City).HasMaxLength(Event.MaximumCityLength);
         builder.Property(tournament => tournament.Country).HasMaxLength(Event.MaximumCountryLength);
+        builder.Property(tournament => tournament.Region).HasMaxLength(Event.MaximumRegionLength);
+        builder.Property(tournament => tournament.EventType).HasConversion<string>().HasMaxLength(20).HasColumnName("event_type");
         builder.Property(tournament => tournament.TimeZoneId).HasMaxLength(Event.MaximumTimeZoneLength);
         builder.Property(tournament => tournament.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(tournament => tournament.DeletedReason).HasMaxLength(Event.MaximumDeletedReasonLength);
@@ -36,6 +38,9 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.HasIndex(tournament => new { tournament.Status, tournament.StartsAtUtc });
         builder.HasIndex(tournament => new { tournament.Status, tournament.EndsAtUtc });
         builder.HasIndex(tournament => new { tournament.City, tournament.Country });
+        builder.HasIndex(tournament => new { tournament.Country, tournament.Region, tournament.City });
+        builder.HasIndex(tournament => tournament.Region);
+        builder.HasIndex(tournament => tournament.EventType);
         builder.HasIndex(tournament => tournament.OrganizationId);
         builder.HasIndex(tournament => tournament.NormalizedSearchText);
         builder.HasOne<Organization>().WithMany().HasForeignKey(tournament => tournament.OrganizationId).OnDelete(DeleteBehavior.Cascade);
@@ -48,6 +53,7 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
             table.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
             table.HasCheckConstraint("ck_scheduled_tournament_time_order", "ends_at_utc >= starts_at_utc");
             table.HasCheckConstraint("ck_scheduled_tournament_status", "status IN ('Published', 'InProgress', 'Completed', 'Cancelled')");
+            table.HasCheckConstraint("ck_event_type", "event_type IS NULL OR event_type IN ('Weekly', 'Monthly', 'Major')");
             table.HasCheckConstraint("ck_scheduled_tournament_deleted_metadata", "(deleted_at IS NULL AND deleted_by_user_id IS NULL) OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL)");
         });
     }

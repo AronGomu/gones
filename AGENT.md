@@ -58,10 +58,12 @@ violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
 
 ADRs live in `docs/adr/` (lowercase — tests and cross-references point there). The four newest
 (`ops/agent-rules.test.ts` derives this list from `docs/adr/` and fails when it goes stale) bind the
-next shape of the app: **0047** the Archive is rebuilt without a migration path, amending ADR 0020;
-**0048** archive catalogs live in IndexedDB with year partitions, amending ADR 0039; **0049** player
-ratings are per-scope Glicko-2, amending ADR 0040; **0050** the legacy archive surface is retired
-without aliases, superseding ADR 0022. Still binding for today's code: **0038** `/calendar` routes
+next shape of the app: **0051** Google-resolved Event locations use signed server tokens; **0052**
+Event imgs use private S3 objects with DB ownership states; **0053** Markdown is Event-description
+source; **0054** Event publication is direct with live local preview. Still binding for today's code:
+**0047** the Archive rebuild has no migration path; **0048** archive catalogs use IndexedDB year
+partitions; **0049** ratings are per-scope Glicko-2; **0050** legacy Archive surface retires without
+aliases; **0038** `/calendar` routes
 are deleted with no redirect (supersedes the redirect clause of ADR 0035); **0039** the one
 TTL-cache contract — 24h, two stores, mutation-invalidates; **0040** materialized
 `player_statistics` / `player_statistics_meta`; **0041** `OrganizationRoles` has one role

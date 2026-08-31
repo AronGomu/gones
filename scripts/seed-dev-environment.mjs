@@ -326,6 +326,8 @@ async function seedEvents(environment, tokens, organizationIds, formatIds, forma
       postalCode: entry.postalCode,
       city: entry.city,
       country: entry.country,
+      region: entry.region,
+      eventType: entry.eventType,
       timeZoneId: entry.timeZoneId,
       // `:00` because the server parses these with NodaTime's extended ISO pattern, which wants
       // seconds; the fixtures and `localDateTime` stay at minute precision, which is what a person

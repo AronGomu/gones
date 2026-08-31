@@ -60,6 +60,8 @@ interface StressEvent {
   tier: string;
   city: string;
   country: string;
+  region: string;
+  eventType: 'weekly' | 'monthly' | 'major';
 }
 
 interface StressDataset {
@@ -180,6 +182,14 @@ describe('the stress environment generator', () => {
       resetDatabase: true,
       ...data
     })).toEqual([]);
+  });
+
+  it('maps every circuit tier to app-owned Region and Event Type', () => {
+    const events = generate(1).events;
+    expect(events.every((event) => typeof event.region === 'string' && event.region.length > 0)).toBe(true);
+    expect(events.filter((event) => event.tier === 'local').every((event) => event.eventType === 'weekly')).toBe(true);
+    expect(events.filter((event) => event.tier === 'monthly').every((event) => event.eventType === 'monthly')).toBe(true);
+    expect(events.filter((event) => event.tier === 'regional' || event.tier === 'national').every((event) => event.eventType === 'major')).toBe(true);
   });
 
   it('runs the four tiers of the French circuit at their own cadence', () => {

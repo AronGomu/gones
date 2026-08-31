@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Gones.Api.Errors;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
@@ -20,6 +21,38 @@ using NodaTime.Text;
 using Npgsql;
 
 namespace Gones.Api.Events;
+
+[JsonConverter(typeof(PublicCalendarEventTypeJsonConverter))]
+internal enum PublicCalendarEventType
+{
+    [JsonStringEnumMemberName("weekly")] Weekly,
+    [JsonStringEnumMemberName("monthly")] Monthly,
+    [JsonStringEnumMemberName("major")] Major
+}
+
+internal sealed class PublicCalendarEventTypeJsonConverter : JsonConverter<PublicCalendarEventType>
+{
+    public override PublicCalendarEventType Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.String) throw new JsonException("Event Type must be a string.");
+        return reader.GetString() switch
+        {
+            "weekly" => PublicCalendarEventType.Weekly,
+            "monthly" => PublicCalendarEventType.Monthly,
+            "major" => PublicCalendarEventType.Major,
+            _ => throw new JsonException("Event Type must be weekly, monthly, or major.")
+        };
+    }
+
+    public override void Write(Utf8JsonWriter writer, PublicCalendarEventType value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value switch
+        {
+            PublicCalendarEventType.Weekly => "weekly",
+            PublicCalendarEventType.Monthly => "monthly",
+            PublicCalendarEventType.Major => "major",
+            _ => throw new JsonException("Event Type is invalid.")
+        });
+}
 
 internal static class EventPublicationEndpoints
 {
@@ -303,6 +336,7 @@ internal sealed class EventPublicationService(
         CancellationToken cancellationToken,
         bool requireMembership = true)
     {
+        ValidatePayloadShape(request);
         if (request.OrganizationId == Guid.Empty) throw Validation("organizationId", "Organization ID is required.");
         var organization = requireMembership
             ? (await access.RequireMemberAsync(request.OrganizationId, userId, isAdmin, cancellationToken)).Organization
@@ -337,7 +371,7 @@ internal sealed class EventPublicationService(
                 tournament.BodyHtml,
                 tournament.LiveTournamentUrl,
                 tournament.ArchiveTournamentUrl,
-                new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country),
+                new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country, tournament.Region),
                 tournament.TimeZoneId,
                 LocalDatePattern.Iso.Format(tournament.VenueStartDate),
                 LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(tournament.VenueStartTime),
@@ -347,6 +381,7 @@ internal sealed class EventPublicationService(
                 tournament.EndsAtUtc,
                 tournament.Capacity,
                 tournament.Status.ToString(),
+                EventTypeWire(tournament.EventType),
                 new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail, []),
                 formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray());
             var canonical = new CanonicalEventPayload(
@@ -361,6 +396,8 @@ internal sealed class EventPublicationService(
                 tournament.PostalCode,
                 tournament.City,
                 tournament.Country,
+                tournament.Region,
+                EventTypeWire(tournament.EventType),
                 tournament.TimeZoneId,
                 tournament.StartsAtUtc.ToUnixTimeTicks(),
                 tournament.EndsAtUtc.ToUnixTimeTicks(),
@@ -393,7 +430,26 @@ internal sealed class EventPublicationService(
         string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
         request.Capacity,
         request.LiveTournamentUrl,
-        request.ArchiveTournamentUrl);
+        request.ArchiveTournamentUrl,
+        request.Region,
+        ToDomainEventType(request.EventType));
+
+    internal static CalendarEventType? ToDomainEventType(PublicCalendarEventType? value) => value switch
+    {
+        PublicCalendarEventType.Weekly => CalendarEventType.Weekly,
+        PublicCalendarEventType.Monthly => CalendarEventType.Monthly,
+        PublicCalendarEventType.Major => CalendarEventType.Major,
+        null => null,
+        _ => throw Validation("eventType", "Event Type must be weekly, monthly, or major.")
+    };
+
+    internal static PublicCalendarEventType? EventTypeWire(CalendarEventType? value) => value switch
+    {
+        CalendarEventType.Weekly => PublicCalendarEventType.Weekly,
+        CalendarEventType.Monthly => PublicCalendarEventType.Monthly,
+        CalendarEventType.Major => PublicCalendarEventType.Major,
+        _ => null
+    };
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
@@ -432,6 +488,25 @@ internal sealed class EventPublicationService(
             && CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
     }
 
+    internal static void ValidatePayloadShape(EventPayloadRequest? payload)
+    {
+        if (payload is null) throw Validation("payload", "Payload is required.");
+        var results = new List<ValidationResult>();
+        if (Validator.TryValidateObject(payload, new ValidationContext(payload), results, validateAllProperties: true)) return;
+        var failures = results
+            .SelectMany(result => result.MemberNames.DefaultIfEmpty("payload").Select(member => new
+            {
+                Field = JsonNamingPolicy.CamelCase.ConvertName(member),
+                Message = result.ErrorMessage ?? "Invalid value."
+            }))
+            .GroupBy(item => item.Field, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Message).Distinct(StringComparer.Ordinal).ToArray(),
+                StringComparer.Ordinal);
+        throw new ApiValidationException(failures);
+    }
+
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 
@@ -453,6 +528,8 @@ internal sealed class EventPublicationService(
         string? PostalCode,
         string City,
         string Country,
+        string? Region,
+        PublicCalendarEventType? EventType,
         string TimeZoneId,
         long StartsAtUtcTicks,
         long EndsAtUtcTicks,
@@ -510,6 +587,8 @@ internal sealed record EventPayloadRequest(
     [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
     [property: Required, MaxLength(Event.MaximumCityLength)] string City,
     [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
+    [property: Required, MaxLength(Event.MaximumRegionLength)] string Region,
+    [property: Required] PublicCalendarEventType? EventType,
     [property: Required, MaxLength(Event.MaximumTimeZoneLength)] string TimeZoneId,
     [property: Required] string StartsAtLocal,
     string? EndsAtLocal,
@@ -545,6 +624,7 @@ internal sealed record EventPreviewRenderResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
+    PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 

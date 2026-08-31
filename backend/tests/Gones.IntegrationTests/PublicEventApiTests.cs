@@ -43,8 +43,8 @@ public sealed class PublicEventApiTests : IAsyncLifetime
     [Fact]
     public async Task List_filters_page_visibility_and_public_dto_privacy()
     {
-        using var filtered = await Client.GetAsync($"/api/events?from=2035-03-04&to=2035-03-04&city=Paris&country=France&organization={seed.Alpha.Id:D}&format=pioneer&status=Published&search=Search&pageSize=5");
-        Assert.Equal(HttpStatusCode.OK, filtered.StatusCode);
+        using var filtered = await Client.GetAsync($"/api/events?from=2035-03-04&to=2035-03-04&city=Paris&country=France&region=Île-de-France&eventType=major&organization={seed.Alpha.Id:D}&format=pioneer&status=Published&search=Search&pageSize=5");
+        Assert.True(filtered.StatusCode == HttpStatusCode.OK, await filtered.Content.ReadAsStringAsync());
         Assert.Contains("public, max-age=60", filtered.Headers.CacheControl!.ToString());
         Assert.NotNull(filtered.Headers.ETag);
         var filteredBody = await filtered.Content.ReadFromJsonAsync<JsonElement>();
@@ -55,6 +55,8 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         Assert.False(item.TryGetProperty("liveTournamentUrl", out _));
         Assert.False(item.TryGetProperty("archiveTournamentUrl", out _));
         Assert.Equal("Europe/Paris", item.GetProperty("timeZoneId").GetString());
+        Assert.Equal("Île-de-France", item.GetProperty("venue").GetProperty("region").GetString());
+        Assert.Equal("major", item.GetProperty("eventType").GetString());
         Assert.Equal("2035-03-04", item.GetProperty("venueStartDate").GetString());
         Assert.Equal("10:00:00", item.GetProperty("venueStartTime").GetString());
         Assert.Equal("2035-03-04T09:00:00Z", item.GetProperty("startsAtUtc").GetString());
@@ -63,6 +65,20 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         Assert.False(item.TryGetProperty("bodyHtml", out _));
         Assert.False(item.TryGetProperty("createdByUserId", out _));
         Assert.False(item.TryGetProperty("normalizedSearchText", out _));
+
+        using var regionOnly = await Client.GetAsync("/api/events?region=Île-de-France&pageSize=100");
+        var regionItems = (await regionOnly.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
+        Assert.NotEmpty(regionItems.EnumerateArray());
+        Assert.All(regionItems.EnumerateArray(), entry => Assert.Equal("Île-de-France", entry.GetProperty("venue").GetProperty("region").GetString()));
+        using var typeOnly = await Client.GetAsync("/api/events?eventType=major&pageSize=100");
+        var typeItems = (await typeOnly.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items");
+        Assert.NotEmpty(typeItems.EnumerateArray());
+        Assert.All(typeItems.EnumerateArray(), entry => Assert.Equal("major", entry.GetProperty("eventType").GetString()));
+
+        using var invalidType = await Client.GetAsync("/api/events?eventType=other");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidType.StatusCode);
+        using var oversizedRegion = await Client.GetAsync($"/api/events?region={new string('x', Event.MaximumRegionLength + 1)}");
+        Assert.Equal(HttpStatusCode.BadRequest, oversizedRegion.StatusCode);
 
         using var defaultList = await Client.GetAsync("/api/events");
         var defaultBody = await defaultList.Content.ReadFromJsonAsync<JsonElement>();
@@ -218,7 +234,8 @@ public sealed class PublicEventApiTests : IAsyncLifetime
             Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "<p>Public <strong>body</strong></p>") with
             {
                 LiveTournamentUrl = "/live/search-cup",
-                ArchiveTournamentUrl = "https://example.test/archive/search-cup"
+                ArchiveTournamentUrl = "https://example.test/archive/search-cup",
+                EventType = CalendarEventType.Major
             },
             [pioneer],
             Now));
@@ -316,7 +333,9 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         TimeZoneId: "Europe/Paris",
         StartsAtLocal: startsAt,
         EndsAtLocal: startsAt.Date.At(new LocalTime(18, 0)),
-        Capacity: 64);
+        Capacity: 64,
+        Region: city == "Paris" ? "Île-de-France" : "Auvergne-Rhône-Alpes",
+        EventType: CalendarEventType.Weekly);
 
     private HttpClient Client => client ?? throw new InvalidOperationException("Client not initialized.");
 

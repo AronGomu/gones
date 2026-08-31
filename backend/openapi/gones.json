@@ -946,6 +946,25 @@
             }
           },
           {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "weekly",
+                "monthly",
+                "major"
+              ]
+            }
+          },
+          {
             "name": "organization",
             "in": "query",
             "schema": {
@@ -9687,6 +9706,8 @@
           "postalCode",
           "city",
           "country",
+          "region",
+          "eventType",
           "timeZoneId",
           "venueStartDate",
           "venueStartTime",
@@ -9762,6 +9783,22 @@
           },
           "country": {
             "type": "string"
+          },
+          "region": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
           },
           "timeZoneId": {
             "type": "string"
@@ -9875,6 +9912,8 @@
           "postalCode",
           "city",
           "country",
+          "region",
+          "eventType",
           "timeZoneId",
           "startsAtLocal",
           "endsAtLocal",
@@ -9923,6 +9962,18 @@
           "country": {
             "maxLength": 120,
             "type": "string"
+          },
+          "region": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "major"
+            ]
           },
           "timeZoneId": {
             "maxLength": 100,
@@ -9988,6 +10039,7 @@
           "endsAtUtc",
           "capacity",
           "status",
+          "eventType",
           "organization",
           "formats"
         ],
@@ -10061,6 +10113,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
           },
           "organization": {
             "$ref": "#/components/schemas/PublicEventOrganizationResponse"
@@ -12104,6 +12166,14 @@
           }
         }
       },
+      "PublicCalendarEventType": {
+        "type": "string",
+        "enum": [
+          "weekly",
+          "monthly",
+          "major"
+        ]
+      },
       "PublicDeckArchetypeResponse": {
         "required": [
           "id",
@@ -12171,6 +12241,7 @@
           "endsAtUtc",
           "capacity",
           "status",
+          "eventType",
           "organization",
           "formats"
         ],
@@ -12248,6 +12319,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
           },
           "organization": {
             "$ref": "#/components/schemas/PublicEventOrganizationResponse"
@@ -12464,6 +12545,7 @@
           "endsAtUtc",
           "capacity",
           "status",
+          "eventType",
           "organization",
           "formats"
         ],
@@ -12524,6 +12606,16 @@
           "status": {
             "type": "string"
           },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
+          },
           "organization": {
             "$ref": "#/components/schemas/PublicEventOrganizationResponse"
           },
@@ -12558,6 +12650,12 @@
           },
           "country": {
             "type": "string"
+          },
+          "region": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -13436,6 +13534,8 @@
           "postalCode",
           "city",
           "country",
+          "region",
+          "eventType",
           "timeZoneId",
           "startsAtLocal",
           "endsAtLocal",
@@ -13480,6 +13580,18 @@
           "country": {
             "maxLength": 120,
             "type": "string"
+          },
+          "region": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "major"
+            ]
           },
           "timeZoneId": {
             "maxLength": 100,

@@ -24,6 +24,13 @@ public enum TournamentChangeSeverity
     Major
 }
 
+public enum CalendarEventType
+{
+    Weekly,
+    Monthly,
+    Major
+}
+
 public enum TournamentLifecycleEventType
 {
     MajorDetailsUpdated,
@@ -92,7 +99,9 @@ public sealed record ScheduledTournamentDraft(
     LocalDateTime? EndsAtLocal,
     int? Capacity,
     string? LiveTournamentUrl = null,
-    string? ArchiveTournamentUrl = null);
+    string? ArchiveTournamentUrl = null,
+    string? Region = null,
+    CalendarEventType? EventType = null);
 
 public sealed class Event : VersionedEntity
 {
@@ -104,6 +113,7 @@ public sealed class Event : VersionedEntity
     public const int MaximumPostalCodeLength = 32;
     public const int MaximumCityLength = 120;
     public const int MaximumCountryLength = 120;
+    public const int MaximumRegionLength = 120;
     public const int MaximumTimeZoneLength = 100;
     public const int MaximumDeletedReasonLength = 300;
     public const int MaximumSearchTextLength = 600;
@@ -122,6 +132,8 @@ public sealed class Event : VersionedEntity
     public string? PostalCode { get; private set; }
     public string City { get; private set; } = string.Empty;
     public string Country { get; private set; } = string.Empty;
+    public string? Region { get; private set; }
+    public CalendarEventType? EventType { get; private set; }
     public string TimeZoneId { get; private set; } = string.Empty;
     public LocalDate VenueStartDate { get; private set; }
     public LocalTime VenueStartTime { get; private set; }
@@ -173,6 +185,8 @@ public sealed class Event : VersionedEntity
             || PostalCode != normalized.PostalCode
             || City != normalized.City
             || Country != normalized.Country
+            || Region != normalized.Region
+            || EventType != normalized.EventType
             || Capacity != normalized.Capacity
             || !Formats.Select(format => format.TournamentFormatId).OrderBy(id => id).SequenceEqual(selectedFormats.Select(format => format.Id).OrderBy(id => id));
         if (major) return TournamentChangeSeverity.Major;
@@ -254,6 +268,8 @@ public sealed class Event : VersionedEntity
         PostalCode = normalized.PostalCode;
         City = normalized.City;
         Country = normalized.Country;
+        Region = normalized.Region;
+        EventType = normalized.EventType;
         TimeZoneId = normalized.TimeZone.Id;
         VenueStartDate = normalized.StartsAtLocal.Date;
         VenueStartTime = normalized.StartsAtLocal.TimeOfDay;
@@ -262,7 +278,7 @@ public sealed class Event : VersionedEntity
         StartsAtUtc = normalized.StartsAtUtc;
         EndsAtUtc = normalized.EndsAtUtc;
         Capacity = normalized.Capacity;
-        NormalizedSearchText = BuildSearchText(Title, Summary, City, Country);
+        NormalizedSearchText = BuildSearchText(Title, Summary, City, Region, Country, EventType?.ToString());
         Formats.Clear();
         foreach (var format in selectedFormats.OrderBy(format => format.Slug, StringComparer.Ordinal))
         {
@@ -294,6 +310,7 @@ public sealed class Event : VersionedEntity
         var postalCode = ValidateOptional(draft.PostalCode, nameof(draft.PostalCode), MaximumPostalCodeLength);
         var city = ValidateRequired(draft.City, nameof(draft.City), MaximumCityLength);
         var country = ValidateRequired(draft.Country, nameof(draft.Country), MaximumCountryLength);
+        var region = ValidateOptional(draft.Region, nameof(draft.Region), MaximumRegionLength);
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(ValidateRequired(draft.TimeZoneId, nameof(draft.TimeZoneId), MaximumTimeZoneLength))
             ?? throw new ArgumentException("Time zone must be a valid IANA zone.", nameof(draft));
         var endLocal = draft.EndsAtLocal ?? draft.StartsAtLocal.Date.At(new LocalTime(23, 59, 59));
@@ -301,7 +318,7 @@ public sealed class Event : VersionedEntity
         var endsAtUtc = ResolveEnd(zone, endLocal);
         if (endsAtUtc < startsAtUtc) throw new ArgumentException("Tournament end cannot be before start.", nameof(draft));
         if (draft.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(draft), "Capacity must be positive when present.");
-        return new NormalizedDraft(title, slug, summary, bodyHtml, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
+        return new NormalizedDraft(title, slug, summary, bodyHtml, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
     }
 
     private static Instant ResolveRequiredStart(DateTimeZone zone, LocalDateTime local)
@@ -357,6 +374,8 @@ public sealed class Event : VersionedEntity
         string? PostalCode,
         string City,
         string Country,
+        string? Region,
+        CalendarEventType? EventType,
         DateTimeZone TimeZone,
         LocalDateTime StartsAtLocal,
         LocalDateTime EndsAtLocal,

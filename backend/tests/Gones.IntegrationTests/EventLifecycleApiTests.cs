@@ -125,14 +125,20 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         Assert.Equal("/live/edit-cup", minorBody.GetProperty("liveTournamentUrl").GetString());
         Assert.Equal("https://example.test/archive/edit-cup", minorBody.GetProperty("archiveTournamentUrl").GetString());
 
-        var majorDetails = details with { StreetAddress = "99 Major Street", StartsAtLocal = "2035-03-05T10:00:00", EndsAtLocal = "2035-03-05T18:00:00", BodyHtml = "<p>Secret changed body</p>" };
+        var majorDetails = details with { StreetAddress = "99 Major Street", Region = "Auvergne-Rhône-Alpes", EventType = "major", StartsAtLocal = "2035-03-05T10:00:00", EndsAtLocal = "2035-03-05T18:00:00", BodyHtml = "<p>Secret changed body</p>" };
         using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.OK, major.StatusCode);
+        var majorBody = await major.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Auvergne-Rhône-Alpes", majorBody.GetProperty("region").GetString());
+        Assert.Equal("major", majorBody.GetProperty("eventType").GetString());
 
         await using var database = CreateContext();
         var markers = await database.EventLifecycleEntries.Where(item => item.EventId == tournament.Id).ToListAsync();
         var marker = Assert.Single(markers);
         Assert.Equal(TournamentLifecycleEventType.MajorDetailsUpdated, marker.EventType);
+        var changed = await database.Events.SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal("Auvergne-Rhône-Alpes", changed.Region);
+        Assert.Equal(CalendarEventType.Major, changed.EventType);
         Assert.Equal(TournamentReminderPlanAction.RecalculateFuture, marker.ReminderPlanAction);
         var audits = await database.AuditRecords.Where(item => item.EntityId == tournament.Id.ToString("D") && item.Action == "tournament.details.updated").OrderBy(item => item.OccurredAt).ToListAsync();
         Assert.Equal(2, audits.Count);
@@ -378,7 +384,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
 
     private static ScheduledTournamentDraft Draft(string title, string slug) => new(
         title, slug, "Summary", "<p>Body</p>", "12 Rue de la Paix", "75001", "Paris", "France", "Europe/Paris",
-        new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), 64);
+        new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), 64, Region: "Île-de-France", EventType: CalendarEventType.Weekly);
 
     private Task<HttpResponseMessage> SendAsync(HttpMethod method, string url, Guid userId, string role)
     {
@@ -453,7 +459,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
     private sealed record SeedRows(Organization Alpha, Organization Beta, ApplicationUser Organizer, ApplicationUser Outsider, ApplicationUser Admin, TournamentFormat Legacy, TournamentFormat Modern);
-    private sealed record TournamentDetails(string Title, string? Summary, string? BodyHtml, string StreetAddress, string? PostalCode, string City, string Country, string TimeZoneId, string StartsAtLocal, string? EndsAtLocal, int? Capacity, IReadOnlyList<Guid> FormatIds, string? LiveTournamentUrl = null, string? ArchiveTournamentUrl = null);
+    private sealed record TournamentDetails(string Title, string? Summary, string? BodyHtml, string StreetAddress, string? PostalCode, string City, string Country, string TimeZoneId, string StartsAtLocal, string? EndsAtLocal, int? Capacity, IReadOnlyList<Guid> FormatIds, string? LiveTournamentUrl = null, string? ArchiveTournamentUrl = null, string Region = "Île-de-France", string EventType = "weekly");
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;

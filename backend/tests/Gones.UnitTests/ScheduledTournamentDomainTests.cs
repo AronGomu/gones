@@ -84,7 +84,7 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal("legacy-cup", tournament.Slug);
         Assert.Equal("Prizes", tournament.Summary);
         Assert.Equal("<p>Hello <strong>Legacy</strong><br></p>", tournament.BodyHtml);
-        Assert.Equal("LEGACY CUP PRIZES LYON FRANCE", tournament.NormalizedSearchText);
+        Assert.Equal("LEGACY CUP PRIZES LYON AUVERGNE-RHÔNE-ALPES FRANCE WEEKLY", tournament.NormalizedSearchText);
         Assert.Equal(new LocalTime(23, 59, 59), tournament.VenueEndTime);
         Assert.Equal(new LocalDate(2026, 3, 29), tournament.VenueEndDate);
         Assert.True(tournament.EndsAtUtc > tournament.StartsAtUtc);
@@ -179,6 +179,8 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyHtml = "<p>Changed</p>" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { StartsAtLocal = new LocalDateTime(2026, 8, 2, 11, 0) }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { Region = "Île-de-France" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { EventType = CalendarEventType.Major }, [legacy]));
     }
 
     [Theory]
@@ -215,5 +217,7 @@ public sealed class ScheduledTournamentDomainTests
         TimeZoneId: "Europe/Paris",
         StartsAtLocal: new LocalDateTime(2026, 8, 2, 10, 0),
         EndsAtLocal: new LocalDateTime(2026, 8, 2, 18, 0),
-        Capacity: 64);
+        Capacity: 64,
+        Region: "Auvergne-Rhône-Alpes",
+        EventType: CalendarEventType.Weekly);
 }

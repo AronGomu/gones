@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
@@ -197,6 +198,18 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     }
 
     [Fact]
+    public async Task Legacy_proposal_missing_new_fields_conflicts_without_creating_Event()
+    {
+        var proposal = await SeedProposalAsync(legacyPayload: true);
+        using var review = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+        Assert.Equal(HttpStatusCode.Conflict, review.StatusCode);
+        using var approve = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        Assert.Equal(HttpStatusCode.Conflict, approve.StatusCode);
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.Events.CountAsync());
+    }
+
+    [Fact]
     public async Task Approve_publishes_the_tournament()
     {
         var proposal = await SeedProposalAsync();
@@ -215,6 +228,8 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         var published = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Summer Cup", published.GetProperty("title").GetString());
+        Assert.Equal("Auvergne-Rhône-Alpes", published.GetProperty("venue").GetProperty("region").GetString());
+        Assert.Equal("weekly", published.GetProperty("eventType").GetString());
 
         // Ownership and audit reflect who proposed it, not who approved it.
         await using var database = CreateContext();
@@ -222,6 +237,8 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(slug, tournament.Slug);
         Assert.Equal(seed.Submitter.Id, tournament.CreatedByUserId);
         Assert.Equal(seed.Alpha.Id, tournament.OrganizationId);
+        Assert.Equal("Auvergne-Rhône-Alpes", tournament.Region);
+        Assert.Equal(CalendarEventType.Weekly, tournament.EventType);
     }
 
     [Fact]
@@ -596,13 +613,19 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     /// hand. Going through <c>POST /api/event-proposals</c> would burn the shared IP rate-limit
     /// budget these tests need for the decision calls, and would never hand back a sibling token.
     /// </summary>
-    private async Task<SeededProposal> SeedProposalAsync(TournamentFormat? extraFormat = null)
+    private async Task<SeededProposal> SeedProposalAsync(TournamentFormat? extraFormat = null, bool legacyPayload = false)
     {
         var organizerToken = NewToken();
         var adminToken = NewToken();
+        var payload = JsonNode.Parse(JsonSerializer.Serialize(Payload(extraFormat), PayloadJsonOptions))!.AsObject();
+        if (legacyPayload)
+        {
+            payload.Remove("region");
+            payload.Remove("eventType");
+        }
         var proposal = EventProposal.Create(
             seed.Submitter.Id,
-            JsonSerializer.Serialize(Payload(extraFormat), PayloadJsonOptions),
+            payload.ToJsonString(PayloadJsonOptions),
             clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Organizer.Id, Sha256Hex(organizerToken), clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Admin.Id, Sha256Hex(adminToken), clock.GetCurrentInstant());
@@ -732,7 +755,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         string StartsAtLocal,
         string? EndsAtLocal,
         int? Capacity,
-        IReadOnlyList<Guid> FormatIds);
+        IReadOnlyList<Guid> FormatIds,
+        string Region = "Auvergne-Rhône-Alpes",
+        string EventType = "weekly");
 
     private sealed class MutableClock(Instant current) : IClock
     {

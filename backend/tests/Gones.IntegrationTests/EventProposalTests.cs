@@ -603,7 +603,9 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string StartsAtLocal,
         string? EndsAtLocal,
         int? Capacity,
-        IReadOnlyList<Guid> FormatIds);
+        IReadOnlyList<Guid> FormatIds,
+        string Region = "Auvergne-Rhône-Alpes",
+        string EventType = "weekly");
 
     private sealed class MutableClock(Instant current) : IClock
     {
