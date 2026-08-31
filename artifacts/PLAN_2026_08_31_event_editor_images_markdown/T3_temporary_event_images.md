@@ -147,4 +147,4 @@ GET /api/event-images/{id}/variants/{width} -> image/webp
 - [x] T3.V6 Manual-equivalent component test proves valid/invalid peers, drag + keyboard reorder, retry/remove, and responsive variant `srcset` rendering.
 - [x] T3.V7 Review added deletion path and name retry site plus durable/observable retry reason; evidence recorded in final report.
 - [x] T3.V8 Targeted integration tests prove expired temps cleaned while live temp stays owner-previewable only; no external S3 required.
-- [ ] T3.V9 Commit exists with message `feat(events): stage safe ordered media before Event ownership`; `git show --stat --oneline HEAD` confirms exact T3 paths.
+- [x] T3.V9 Commit exists with message `feat(events): stage safe ordered media before Event ownership`; `git show --stat --oneline HEAD` confirms exact T3 paths.
