@@ -11,10 +11,16 @@ const check = process.argv.includes('--check');
 const normalizeGenerated = value => value
   .replaceAll('\r\n', '\n')
   .replace(/[ \t]+$/gm, '')
+  .replace(
+    /(?:export interface FileParameter \{ data: Blob; fileName\?: string; \}\n\n)?export const API_BASE_URL = new InjectionToken<string>\('API_BASE_URL'\);/,
+    "export interface FileParameter { data: Blob; fileName?: string; }\n\nexport const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');")
   // NSwag 14 emits nullable enum `oneOf` refs as empty interfaces. Keep generated DTOs typed to
   // OpenAPI's canonical Event Type enum instead of forcing every consumer through unsafe casts.
   .replace(/export interface (EventType\d*) \{\n\n    \[key: string\]: any;\n\}/g, 'export type $1 = `${PublicCalendarEventType}`;')
-  .replace(/export enum (EventPayloadRequestEventType|UpdateEventDetailsRequestEventType) \{\n    Weekly = "weekly",\n    Monthly = "monthly",\n    Major = "major",\n\}/g, 'export type $1 = "weekly" | "monthly" | "major";');
+  .replace(/export enum (EventPayloadRequestEventType|UpdateEventDetailsRequestEventType) \{\n    Weekly = "weekly",\n    Monthly = "monthly",\n    Major = "major",\n\}/g, 'export type $1 = "weekly" | "monthly" | "major";')
+  .replace(/eventImagesPOST\(file: FileParameter \| undefined\)/g, 'eventImagesPOST(file: FileParameter)')
+  .replace('    state: EventImageUploadResponseState;', '    state: "Temporary";')
+  .replace(/\nexport enum EventImageUploadResponseState \{\n    Temporary = "Temporary",\n\}\n/g, '\n');
 const listenUrl = 'http://127.0.0.1:0';
 const temp = mkdtempSync(join(tmpdir(), 'gones-api-'));
 const tempSnapshot = join(temp, 'gones.json');
@@ -70,6 +76,11 @@ try {
     const property = document.components?.schemas?.[schemaName]?.properties?.eventType;
     if (property) document.components.schemas[schemaName].properties.eventType = { type: 'string', enum: eventTypeValues };
   }
+  const eventImageResponse = document.components?.schemas?.EventImageUploadResponse;
+  if (eventImageResponse?.properties?.state) eventImageResponse.properties.state = { type: 'string', enum: ['Temporary'] };
+  if (eventImageResponse?.properties?.expiresAt) eventImageResponse.properties.expiresAt = { type: 'string', format: 'date-time' };
+  const eventImageVariant = document.paths?.['/api/event-images/{imageId}/variants/{width}']?.get?.responses?.['200'];
+  if (eventImageVariant) eventImageVariant.content = { 'image/webp': { schema: { type: 'string', format: 'binary' } } };
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [

@@ -29,6 +29,8 @@ public static class EventProviderServiceCollectionExtensions
             services.AddSingleton<IEventLocationProvider, UnavailableEventLocationProvider>();
         }
 
+        services.AddSingleton<IEventImageProcessor, ImageSharpEventImageProcessor>();
+
         var imageStorage = EventImageStorageOptions.TryLoad(configuration);
         if (imageStorage is null)
         {

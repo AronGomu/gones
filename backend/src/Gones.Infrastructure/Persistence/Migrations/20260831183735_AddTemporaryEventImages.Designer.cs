@@ -3,6 +3,7 @@ using System;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NodaTime;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Gones.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(GonesDbContext))]
-    partial class GonesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260831183735_AddTemporaryEventImages")]
+    partial class AddTemporaryEventImages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2889,13 +2892,13 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasOne("Gones.Domain.Calendar.Event", null)
                         .WithMany()
                         .HasForeignKey("EventId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_event_images_events_event_id");
 
                     b.HasOne("Gones.Domain.Calendar.EventProposal", null)
                         .WithMany()
                         .HasForeignKey("ProposalId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .HasConstraintName("fk_event_images_event_proposals_proposal_id");
 
                     b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)

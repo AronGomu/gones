@@ -19,7 +19,7 @@ describe('event editor provider runtime contract', () => {
     expect(packageLock.packages['node_modules/marked'].version).toBe('18.0.11');
     for (const [name, version] of [
       ['Markdig', '1.3.2'],
-      ['SixLabors.ImageSharp', '4.1.1'],
+      ['SixLabors.ImageSharp', '3.1.12'],
       ['AWSSDK.S3', '4.0.102.4']
     ]) {
       expect(centralPackages).toContain(`<PackageVersion Include="${name}" Version="${version}" />`);

@@ -1,4 +1,5 @@
 using Gones.Infrastructure.Calendar;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
@@ -22,6 +23,7 @@ public sealed class Worker(
         var nextEmailHistoryRedaction = Instant.MinValue;
         var nextDeliveryMetadataCleanup = Instant.MinValue;
         var nextIdempotencySweep = Instant.MinValue;
+        var nextEventImageCleanup = Instant.MinValue;
         var nextDailyPlan = Instant.MinValue;
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -118,6 +120,24 @@ public sealed class Worker(
                         nextIdempotencySweep = now + Duration.FromHours(1);
                     }
                 }
+                if (now >= nextEventImageCleanup)
+                {
+                    try
+                    {
+                        var swept = await scope.ServiceProvider.GetRequiredService<EventImageCleanupService>().SweepExpiredAsync(stoppingToken);
+                        logger.LogInformation(WorkerLogEvents.EventImagesSwept, "Event={Event}; Count={Count}", "event_image.temporary.swept", swept);
+                        nextEventImageCleanup = swept >= EventImageCleanupService.BatchSize ? now : now + Duration.FromMinutes(15);
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogError(WorkerLogEvents.EventImageSweepFailed, "Event={Event}; ExceptionType={ExceptionType}", "event_image.cleanup_failed", exception.GetType().Name);
+                        nextEventImageCleanup = now + Duration.FromMinutes(15);
+                    }
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -153,4 +173,6 @@ public static class WorkerLogEvents
     public static readonly EventId DeliveryMetadataCleanupFailed = new(7008, "DeliveryMetadataCleanupFailed");
     public static readonly EventId IdempotencyRecordsSwept = new(7009, "IdempotencyRecordsSwept");
     public static readonly EventId IdempotencySweepFailed = new(7010, "IdempotencySweepFailed");
+    public static readonly EventId EventImagesSwept = new(7011, "EventImagesSwept");
+    public static readonly EventId EventImageSweepFailed = new(7012, "EventImageSweepFailed");
 }
