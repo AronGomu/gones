@@ -147,20 +147,20 @@ public interface IEventLocationTokenService
 
 ## Impl steps
 
-- [ ] 1. Add failing backend location endpoint/token tests.
-- [ ] 2. Add failing Angular service/form-state tests.
-- [ ] 3. Implement proxy, canonical mapper, signer/validator.
-- [ ] 4. Generate OpenAPI client + add Angular autocomplete/invalidation.
-- [ ] 5. Add EN/FR labels/errors + `data-cy` on every rendered element.
-- [ ] 6. Run scoped + full gates.
+- [x] T2.1 Add failing backend location endpoint/token tests; verify: targeted `EventLocation` tests fail before production implementation.
+- [x] T2.2 Add failing Angular service/form-state tests; verify: targeted organizer Event editor tests fail before production implementation.
+- [x] T2.3 Implement proxy, canonical mapper, signer/validator; verify: targeted `EventLocation` backend tests pass.
+- [x] T2.4 Generate OpenAPI client + add Angular autocomplete/invalidation; verify: targeted organizer Event editor tests plus `npm run api:check` pass.
+- [x] T2.5 Add EN/FR labels/errors + `data-cy` on every rendered element; verify: rendered autocomplete/error test assertions plus `npm run lint` pass.
+- [x] T2.6 Run scoped + full gates; verify: every command under Validation exits `0` plus functional-path tests pass.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventLocation"`
-- [ ] `npm run test -- --run src/app/features/events/organizer-event-create.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] no silent-failure swallow on added path — `none`
-- [ ] app functional — autocomplete resolves; editing any location field invalidates resolution; outage is visible/retryable
-- [ ] commit msg draft: `feat(events): bind venue timezone to trusted resolved location`
+- [x] T2.V1 `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventLocation"`; verify: exit `0`.
+- [x] T2.V2 `npm run test -- --run src/app/features/events/organizer-event-create.component.test.ts`; verify: exit `0`.
+- [x] T2.V3 `npm run api:generate && npm run api:check`; verify: both commands exit `0`.
+- [x] T2.V4 `npm run typecheck`; verify: exit `0`.
+- [x] T2.V5 `npm run lint`; verify: exit `0`.
+- [x] T2.V6 no silent-failure swallow on added path; verify: review added catch/error branches and find no empty catch or dropped error.
+- [x] T2.V7 app functional; verify: tests prove autocomplete resolves, field edits invalidate resolution, outage remains visible/retryable.
+- [ ] T2.V8 commit msg draft; verify: local commit uses `feat(events): bind venue timezone to trusted resolved location`.

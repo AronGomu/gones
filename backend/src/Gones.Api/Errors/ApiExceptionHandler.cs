@@ -14,6 +14,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         var (status, code, message, errors) = exception switch
         {
             ApiValidationException validation => (validation.StatusCode, validation.Code, validation.SafeMessage, validation.Errors),
+            LocationTokenInvalidException invalid => (invalid.StatusCode, invalid.Code, invalid.SafeMessage, LocationTokenErrors(invalid.SafeMessage)),
+            LocationTokenExpiredException expired => (expired.StatusCode, expired.Code, expired.SafeMessage, LocationTokenErrors(expired.SafeMessage)),
             ApiException known => (known.StatusCode, known.Code, known.SafeMessage, null),
             EventLocationProviderUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.LocationProviderUnavailable, EventProviderProblemCatalog.LocationProviderUnavailableMessage, null),
             EventImageStorageUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.ImageStorageUnavailable, EventProviderProblemCatalog.ImageStorageUnavailableMessage, null),
@@ -53,6 +55,9 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: cancellationToken);
         return true;
     }
+
+    private static IReadOnlyDictionary<string, string[]> LocationTokenErrors(string message) =>
+        new Dictionary<string, string[]> { ["location.locationToken"] = [message] };
 
     /// <summary>
     /// Postgres aborts one side of a deadlock or of a failed serialization instead of letting it

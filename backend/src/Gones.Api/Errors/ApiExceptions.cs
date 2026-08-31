@@ -70,6 +70,8 @@ public static class EventProviderProblemCatalog
 public sealed class ExistingEmailRequiresLinkException() : ApiException("existing_email_requires_link", "Sign in with your existing account, then link this provider from account settings.", StatusCodes.Status409Conflict);
 public sealed class LastLoginMethodException() : ApiException("last_login_method", "Final login method cannot be removed.", StatusCodes.Status409Conflict);
 public sealed class InvalidEventPreviewTicketException() : ApiException("invalid_preview_ticket", "Tournament preview ticket is invalid or expired.", StatusCodes.Status400BadRequest);
+public sealed class LocationTokenInvalidException() : ApiException("location_token_invalid", "Event location token is invalid.", StatusCodes.Status400BadRequest);
+public sealed class LocationTokenExpiredException() : ApiException("location_token_expired", "Event location token expired.", StatusCodes.Status400BadRequest);
 public sealed class EventPreviewReplayException() : ApiException("preview_ticket_replayed", "Tournament preview ticket was already published.", StatusCodes.Status409Conflict);
 public sealed class IdempotencyConflictException() : ApiException("idempotency_conflict", "Idempotency key was already used for another request.", StatusCodes.Status409Conflict);
 public sealed class EmailVerificationRequiredException() : ApiException("email_verification_required", "Verified email is required to register.", StatusCodes.Status403Forbidden);

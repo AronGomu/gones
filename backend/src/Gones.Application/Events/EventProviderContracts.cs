@@ -1,3 +1,5 @@
+using NodaTime;
+
 namespace Gones.Application.Events;
 
 public interface IEventLocationProvider
@@ -18,6 +20,32 @@ public sealed record ResolvedEventLocation(
     decimal Latitude,
     decimal Longitude,
     string TimeZoneId);
+
+public sealed record EventLocationInput(
+    string StreetAddress,
+    string PostalCode,
+    string City,
+    string Country,
+    string Region,
+    string LocationToken);
+
+public sealed record ValidatedEventLocation(
+    string PlaceId,
+    string StreetAddress,
+    string PostalCode,
+    string City,
+    string Country,
+    string Region,
+    decimal Latitude,
+    decimal Longitude,
+    string TimeZoneId,
+    Instant ExpiresAt);
+
+public interface IEventLocationTokenService
+{
+    string Issue(Guid userId, ResolvedEventLocation location, Instant now);
+    ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now);
+}
 
 public interface IEventImageObjectStore
 {

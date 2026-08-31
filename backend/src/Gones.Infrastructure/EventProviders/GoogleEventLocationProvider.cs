@@ -76,12 +76,11 @@ public sealed class GoogleEventLocationProvider(HttpClient client, GoogleMapsOpt
             var streetNumber = Component(components, "street_number");
             var route = Component(components, "route");
             var streetAddress = string.Join(' ', new[] { streetNumber, route }.Where(value => !string.IsNullOrWhiteSpace(value)));
-            if (streetAddress.Length == 0) streetAddress = place.FormattedAddress ?? string.Empty;
             return new ResolvedEventLocation(
                 place.Id ?? placeId,
                 streetAddress,
                 Component(components, "postal_code"),
-                Component(components, "locality", "postal_town", "administrative_area_level_3"),
+                Component(components, "locality", "postal_town"),
                 Component(components, "country"),
                 Component(components, "administrative_area_level_1"),
                 location.Latitude,
