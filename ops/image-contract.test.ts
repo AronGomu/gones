@@ -123,11 +123,11 @@ describe.each(runtimeImages)('$name image', (image) => {
 
 describe('cloud independence', () => {
   const cloudPackages = [
-    'AWSSDK', 'Amazon.', 'Azure.', 'Microsoft.Azure', 'Google.Cloud', 'Google.Apis',
+    'Amazon.', 'Azure.', 'Microsoft.Azure', 'Google.Cloud', 'Google.Apis',
     'AlibabaCloud', 'Oci.', 'Pulumi', 'Serilog.Sinks.AzureAnalytics'
   ];
 
-  it('never takes a cloud provider SDK dependency', () => {
+  it('limits cloud SDK usage to the S3-compatible event image adapter', () => {
     const manifests = [
       'backend/Directory.Packages.props',
       'backend/src/Gones.Api/packages.lock.json',
@@ -139,6 +139,15 @@ describe('cloud independence', () => {
     for (const manifest of manifests) {
       const content = read(manifest);
       for (const cloudPackage of cloudPackages) expect(content).not.toContain(cloudPackage);
+    }
+
+    expect(read('backend/src/Gones.Infrastructure/Gones.Infrastructure.csproj')).toContain('<PackageReference Include="AWSSDK.S3" />');
+    for (const project of [
+      'backend/src/Gones.Api/Gones.Api.csproj',
+      'backend/src/Gones.Worker/Gones.Worker.csproj',
+      'backend/src/Gones.Migrator/Gones.Migrator.csproj'
+    ]) {
+      expect(read(project)).not.toContain('<PackageReference Include="AWSSDK.S3" />');
     }
   });
 

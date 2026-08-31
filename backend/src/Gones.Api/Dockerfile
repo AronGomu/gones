@@ -1,7 +1,7 @@
 # Gones API — platform-agnostic Linux OCI image (C41).
 #
-# Contract: no cloud SDK, no vendor runtime, no writable root filesystem. Everything the host has to
-# supply arrives as environment variables, mounted secret files, and a TLS-terminating reverse proxy.
+# Contract: no vendor runtime and no writable root filesystem. Provider adapters remain configured
+# only through environment variables and mounted secret files supplied by a generic container host.
 # Base images are pinned by digest so a rebuild of the same commit produces the same layers.
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0
 ARG DOTNET_ASPNET_IMAGE=mcr.microsoft.com/dotnet/aspnet:10.0@sha256:f1126d438ccc359f51cc6d4701a8deae513856cf10f5fe645d29ea6403dcac6b

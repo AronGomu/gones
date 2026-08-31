@@ -98,24 +98,24 @@ GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE=<absolute secret-file path>
 
 ## Impl steps
 
-- [ ] 1. Write failing runtime/config tests.
-  - [ ] 1.1 Assert env/file precedence + no-secret diagnostics.
-  - [ ] 1.2 Assert missing Google is nonfatal + operation unavailable.
-  - [ ] 1.3 Assert S3 readiness + compose MinIO/bucket/volume.
-- [ ] 2. Pin frontend/NuGet deps + regenerate locks.
-- [ ] 3. Add ports, Google/S3 impl shells, deterministic fakes, config loaders.
-- [ ] 4. Add MinIO + bucket bootstrap + worker/API env wiring.
-- [ ] 5. Write `docs/EVENT_EDITOR_PROVIDERS.md` with all user-owned setup first.
-- [ ] 6. Run scoped + full validation.
+- [x] 1. Write failing runtime/config tests. **Validate:** new targeted tests fail before implementation, then pass under scoped validation commands.
+  - [x] 1.1 Assert env/file precedence + no-secret diagnostics. **Validate:** `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~Configuration|FullyQualifiedName~EventProvider"` covers file precedence and redacted diagnostics.
+  - [x] 1.2 Assert missing Google is nonfatal + operation unavailable. **Validate:** same filtered test command proves startup-compatible missing config and `location_provider_unavailable` mapping.
+  - [x] 1.3 Assert S3 readiness + compose MinIO/bucket/volume. **Validate:** filtered .NET tests cover readiness; `npm run test -- --run ops/compose-contract.test.ts` covers compose contract.
+- [x] 2. Pin frontend/NuGet deps + regenerate locks. **Validate:** manifest/lock tests assert exact requested versions and `npm install --package-lock-only --ignore-scripts` exits 0.
+- [x] 3. Add ports, Google/S3 impl shells, deterministic fakes, config loaders. **Validate:** filtered .NET tests pass deterministic provider/object-store/config/error assertions.
+- [x] 4. Add MinIO + bucket bootstrap + worker/API env wiring. **Validate:** `docker compose config --quiet` and scoped compose-contract test exit 0.
+- [x] 5. Write `docs/EVENT_EDITOR_PROVIDERS.md` with all user-owned setup first. **Validate:** runtime-config test asserts required setup/config terms and no credential values.
+- [x] 6. Run scoped + full validation. **Validate:** every command under `## Validation` passes or exact unavailable runtime gate is recorded.
 
 ## Validation
 
-- [ ] `npm run test -- --run ops/runtime-config.test.ts`
-- [ ] `npm run test -- --run ops/compose-contract.test.ts`
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~Configuration|FullyQualifiedName~EventProvider"`
-- [ ] `docker compose config --quiet`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] no silent-failure swallow on added path — list each kept site + why, or `none`
-- [ ] app functional — API browsing remains available without Google key; MinIO readiness passes locally
-- [ ] commit msg draft: `feat(events): establish private provider boundaries before editor integration`
+- [x] `npm run test -- --run ops/runtime-config.test.ts`
+- [x] `npm run test -- --run ops/compose-contract.test.ts`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~Configuration|FullyQualifiedName~EventProvider"`
+- [x] `docker compose config --quiet`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] no silent-failure swallow on added path — list each kept site + why, or `none`
+- [x] app functional — API browsing remains available without Google key; MinIO readiness passes locally
+- [x] commit msg draft: `feat(events): establish private provider boundaries before editor integration`

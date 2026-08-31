@@ -1,5 +1,6 @@
 using Gones.Infrastructure.Calendar;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
@@ -14,6 +15,7 @@ if (args.Contains("--help", StringComparer.Ordinal))
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
+builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 GonesRuntimeConfiguration runtimeConfiguration;
