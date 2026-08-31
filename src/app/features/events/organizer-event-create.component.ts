@@ -104,6 +104,11 @@ const MaximumPublicOrganizationPages = 20;
               <input id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null" />
               @if (fieldError('country'); as message) { <p id="event-country-error" class="field-error" data-cy="event-country-error">{{ message }}</p> }
             </div>
+            <div class="tournament-create-field" data-cy="event-field-region">
+              <label for="event-region" data-cy="event-label-region">{{ i18n.t('profile.locationRegion') }}</label>
+              <input id="event-region" data-cy="event-region" formControlName="region" autocomplete="address-level1" [attr.aria-invalid]="fieldError('region') ? 'true' : null" [attr.aria-describedby]="fieldError('region') ? 'event-region-error' : null" />
+              @if (fieldError('region'); as message) { <p id="event-region-error" class="field-error" data-cy="event-region-error">{{ message }}</p> }
+            </div>
             <div class="tournament-create-field" data-cy="event-field-start">
               <label for="event-start" data-cy="event-label-start">{{ i18n.t('eventCreate.start') }}</label>
               <input id="event-start" data-cy="event-start" type="datetime-local" formControlName="startsAtLocal" [attr.aria-invalid]="fieldError('startsAtLocal') ? 'true' : null" [attr.aria-describedby]="fieldError('startsAtLocal') ? 'event-start-error' : null" />
@@ -124,6 +129,11 @@ const MaximumPublicOrganizationPages = 20;
               <label for="event-capacity" data-cy="event-label-capacity">{{ i18n.t('event.capacity') }}</label>
               <input id="event-capacity" data-cy="event-capacity" type="number" min="1" step="1" formControlName="capacity" [attr.aria-invalid]="fieldError('capacity') ? 'true' : null" [attr.aria-describedby]="fieldError('capacity') ? 'event-capacity-error' : null" />
               @if (fieldError('capacity'); as message) { <p id="event-capacity-error" class="field-error" data-cy="event-capacity-error">{{ message }}</p> }
+            </div>
+            <div class="tournament-create-field" data-cy="event-field-type">
+              <label for="event-type" data-cy="event-label-type">{{ i18n.t('event.eventType') }}</label>
+              <select id="event-type" data-cy="event-type" formControlName="eventType" [attr.aria-invalid]="fieldError('eventType') ? 'true' : null" [attr.aria-describedby]="fieldError('eventType') ? 'event-type-error' : null"><option value="" disabled data-cy="event-type-empty">{{ i18n.t('eventCreate.selectEventType') }}</option><option value="weekly" data-cy="event-type-weekly">{{ i18n.t('event.type.weekly') }}</option><option value="monthly" data-cy="event-type-monthly">{{ i18n.t('event.type.monthly') }}</option><option value="major" data-cy="event-type-major">{{ i18n.t('event.type.major') }}</option></select>
+              @if (fieldError('eventType'); as message) { <p id="event-type-error" class="field-error" data-cy="event-type-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-format">
               <label for="event-format" data-cy="event-label-format">{{ i18n.t('eventCreate.format') }}</label>
@@ -260,6 +270,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     postalCode: new FormControl('', { nonNullable: true }),
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     country: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    region: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    eventType: new FormControl<'' | 'weekly' | 'monthly' | 'major'>('weekly', { nonNullable: true, validators: Validators.required }),
     timeZoneId: new FormControl(browserTimeZoneSuggestion(), { nonNullable: true, validators: Validators.required }),
     startsAtLocal: new FormControl('', { nonNullable: true, validators: Validators.required }),
     endsAtLocal: new FormControl('', { nonNullable: true }),
@@ -596,7 +608,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const mapped: Record<string, string> = {};
     const names: Record<string, keyof typeof this.form.controls> = {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodyhtml: 'bodyHtml', streetaddress: 'streetAddress',
-      postalcode: 'postalCode', city: 'city', country: 'country', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
+      postalcode: 'postalCode', city: 'city', country: 'country', region: 'region', eventtype: 'eventType', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
       endsatlocal: 'endsAtLocal', capacity: 'capacity', formatids: 'formatId', livetournamenturl: 'liveTournamentUrl',
       archivetournamenturl: 'archiveTournamentUrl', payload: 'title'
     };

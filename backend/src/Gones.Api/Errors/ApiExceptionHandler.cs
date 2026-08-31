@@ -1,4 +1,5 @@
 using Gones.Api.Security;
+using Gones.Application.Events;
 using Microsoft.AspNetCore.Diagnostics;
 using Npgsql;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,8 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
         {
             ApiValidationException validation => (validation.StatusCode, validation.Code, validation.SafeMessage, validation.Errors),
             ApiException known => (known.StatusCode, known.Code, known.SafeMessage, null),
+            EventLocationProviderUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.LocationProviderUnavailable, EventProviderProblemCatalog.LocationProviderUnavailableMessage, null),
+            EventImageStorageUnavailableException => (StatusCodes.Status503ServiceUnavailable, EventProviderProblemCatalog.ImageStorageUnavailable, EventProviderProblemCatalog.ImageStorageUnavailableMessage, null),
             _ when IsLostLockRace(exception) => (StatusCodes.Status409Conflict, "conflict", "Request conflicts with current resource state.", null),
             BadHttpRequestException badRequest when badRequest.StatusCode == StatusCodes.Status413PayloadTooLarge => (badRequest.StatusCode, "request_too_large", "Request body exceeds the allowed size.", null),
             BadHttpRequestException badRequest => (badRequest.StatusCode, "malformed_request", "Request is malformed.", null),

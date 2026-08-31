@@ -1,4 +1,4 @@
-import { EventPayloadRequest, EventPreviewResponse } from '../../api/generated/gones-api';
+import type { EventPayloadRequest, EventPreviewResponse } from '../../api/generated/gones-api';
 
 export interface EventDraftValue {
   organizationId: string;
@@ -9,6 +9,8 @@ export interface EventDraftValue {
   postalCode: string;
   city: string;
   country: string;
+  region: string;
+  eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
   startsAtLocal: string;
   endsAtLocal: string;
@@ -32,6 +34,8 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     postalCode: optional(value.postalCode),
     city: value.city.trim(),
     country: value.country.trim(),
+    region: value.region.trim(),
+    eventType: eventTypeValue(value.eventType),
     timeZoneId: value.timeZoneId.trim(),
     startsAtLocal: value.startsAtLocal,
     endsAtLocal: value.endsAtLocal || undefined,
@@ -40,6 +44,11 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     liveTournamentUrl: optional(value.liveTournamentUrl),
     archiveTournamentUrl: optional(value.archiveTournamentUrl)
   };
+}
+
+export function eventTypeValue(value: EventDraftValue['eventType']): Exclude<EventDraftValue['eventType'], ''> {
+  if (!value) throw new Error('Event Type is required.');
+  return value;
 }
 
 export class PreviewPublicationState {

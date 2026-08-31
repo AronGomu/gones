@@ -4,10 +4,10 @@ import {
   EventPreviewRenderResponse,
   UpdateEventDetailsRequest
 } from '../../api/generated/gones-api';
-import { EventDraftValue } from './organizer-event-create';
+import { EventDraftValue, eventTypeValue } from './organizer-event-create';
 
-export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'capacity' | 'formats';
-export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
+export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
+export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
 
 const defaultMajorLabels: Record<MajorEventField, string> = {
   start: 'start date/time',
@@ -17,6 +17,8 @@ const defaultMajorLabels: Record<MajorEventField, string> = {
   postalCode: 'postal code',
   city: 'city',
   country: 'country',
+  region: 'region',
+  eventType: 'Event Type',
   capacity: 'capacity',
   formats: 'formats'
 };
@@ -31,6 +33,8 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     postalCode: event.postalCode ?? '',
     city: event.city,
     country: event.country,
+    region: event.region ?? '',
+    eventType: (event.eventType ?? '') as EventDraftValue['eventType'],
     timeZoneId: event.timeZoneId,
     startsAtLocal: localDateTime(event.venueStartDate, event.venueStartTime),
     endsAtLocal: localDateTime(event.venueEndDate, event.venueEndTime),
@@ -50,6 +54,8 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
     postalCode: optional(value.postalCode),
     city: value.city.trim(),
     country: value.country.trim(),
+    region: value.region.trim(),
+    eventType: eventTypeValue(value.eventType),
     timeZoneId: value.timeZoneId.trim(),
     startsAtLocal: value.startsAtLocal,
     endsAtLocal: value.endsAtLocal || undefined,
@@ -68,7 +74,7 @@ export function majorEventChanges(
   const originalDraft = managementToDraft(original);
   const fields: Array<[MajorEventField, keyof EventDraftValue]> = [
     ['start', 'startsAtLocal'], ['end', 'endsAtLocal'], ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'],
-    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['capacity', 'capacity'], ['formats', 'formatId']
+    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['capacity', 'capacity'], ['formats', 'formatId']
   ];
   return fields.filter(([, key]) => !same(originalDraft[key], draft[key])).map(([field]) => label(field));
 }
@@ -81,7 +87,7 @@ export function changedEventFields(
   const fields: Array<[ChangedEventField, keyof EventManagementResponse]> = [
     ['title', 'title'], ['summary', 'summary'], ['description', 'bodyHtml'], ['liveTournamentUrl', 'liveTournamentUrl'],
     ['archiveTournamentUrl', 'archiveTournamentUrl'], ['streetAddress', 'streetAddress'],
-    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['timeZone', 'timeZoneId'],
+    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['timeZone', 'timeZoneId'],
     ['start', 'startsAtUtc'], ['end', 'endsAtUtc'], ['capacity', 'capacity'], ['formats', 'formatIds'], ['status', 'status']
   ];
   return fields.filter(([, key]) => !same(original[key], latest[key])).map(([field]) => label(field));
@@ -112,7 +118,8 @@ export function managementToDetail(
       streetAddress: event.streetAddress,
       postalCode: event.postalCode,
       city: event.city,
-      country: event.country
+      country: event.country,
+      region: event.region
     },
     timeZoneId: event.timeZoneId,
     venueStartDate: event.venueStartDate,
@@ -123,6 +130,7 @@ export function managementToDetail(
     endsAtUtc: event.endsAtUtc,
     capacity: event.capacity,
     status: event.status,
+    eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 })
   };

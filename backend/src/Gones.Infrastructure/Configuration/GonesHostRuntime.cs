@@ -17,12 +17,33 @@ public static class GonesSecretFiles
 {
     public const string FileSuffix = "_FILE";
 
+    public const string GoogleMapsApiKey = "GONES_GOOGLE_MAPS_API_KEY";
+    public const string EventImagesS3AccessConfigName = "GONES_EVENT_IMAGES_S3_ACCESS_KEY";
+    public const string EventImagesS3PrivateConfigName = "GONES_EVENT_IMAGES_S3_SECRET_KEY";
+
     /// <summary>
     /// Secrets whose only reader is the generic loader. Keys with bespoke <c>_FILE</c> handling
-    /// (OAuth client secrets, the Brevo API key, the Brevo webhook token) stay with their owner so
-    /// the "configure exactly one" rule is enforced once, next to the code that consumes it.
+    /// (OAuth client secrets, the Brevo API key, the Brevo webhook token) stay with their owner.
+    /// Google Maps deliberately differs from the older exclusive pairs: its file value wins over a
+    /// direct environment value so a mounted production secret cannot be shadowed by stale process config.
     /// </summary>
-    public static readonly IReadOnlyList<string> SupportedKeys = ["GONES_DB_CONNECTION", "GONES_AUTH_SIGNING_KEY"];
+    public static readonly IReadOnlyList<string> SupportedKeys =
+    [
+        "GONES_DB_CONNECTION",
+        "GONES_AUTH_SIGNING_KEY",
+        GoogleMapsApiKey,
+        EventImagesS3AccessConfigName,
+        EventImagesS3PrivateConfigName
+    ];
+
+    private static readonly IReadOnlySet<string> FilePrecedenceKeys = new HashSet<string>(StringComparer.Ordinal)
+    {
+        GoogleMapsApiKey,
+        EventImagesS3AccessConfigName,
+        EventImagesS3PrivateConfigName
+    };
+
+    private static readonly IReadOnlySet<string> AbsolutePathKeys = new HashSet<string>(FilePrecedenceKeys, StringComparer.Ordinal);
 
     /// <summary>Reads every configured secret file. Throws before startup completes on any ambiguity.</summary>
     public static Dictionary<string, string?> Resolve(IConfiguration configuration)
@@ -34,7 +55,12 @@ public static class GonesSecretFiles
             var fileKey = key + FileSuffix;
             var path = configuration[fileKey];
             if (string.IsNullOrWhiteSpace(path)) continue;
-            if (!string.IsNullOrWhiteSpace(configuration[key]))
+            path = path.Trim();
+            if (AbsolutePathKeys.Contains(key) && !Path.IsPathRooted(path))
+            {
+                throw new InvalidOperationException($"{fileKey} must be an absolute path.");
+            }
+            if (!FilePrecedenceKeys.Contains(key) && !string.IsNullOrWhiteSpace(configuration[key]))
             {
                 throw new InvalidOperationException($"Configure only one of {key} or {fileKey}.");
             }
@@ -42,7 +68,7 @@ public static class GonesSecretFiles
             string secret;
             try
             {
-                secret = File.ReadAllText(path.Trim()).Trim();
+                secret = File.ReadAllText(path).Trim();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {

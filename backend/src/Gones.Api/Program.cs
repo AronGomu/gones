@@ -14,6 +14,7 @@ using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
@@ -32,6 +33,7 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
+var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
 if (forwardedProxies.Enabled) builder.Services.Configure<ForwardedHeadersOptions>(forwardedProxies.Apply);
@@ -95,6 +97,10 @@ builder.Services.AddGonesAuthRateLimiting(RateLimitSettings.Load(
 var brevoWebhookOptions = BrevoWebhookOptions.TryLoad(builder.Configuration);
 
 var healthChecks = builder.Services.AddHealthChecks();
+if (eventProviderRegistrations.ImageStorage is not null)
+{
+    healthChecks.AddCheck<EventImageStorageHealthCheck>("eventImageStorage");
+}
 var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
 if (string.IsNullOrWhiteSpace(connectionString))
 {
