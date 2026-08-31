@@ -163,4 +163,4 @@ public interface IEventLocationTokenService
 - [x] T2.V5 `npm run lint`; verify: exit `0`.
 - [x] T2.V6 no silent-failure swallow on added path; verify: review added catch/error branches and find no empty catch or dropped error.
 - [x] T2.V7 app functional; verify: tests prove autocomplete resolves, field edits invalidate resolution, outage remains visible/retryable.
-- [ ] T2.V8 commit msg draft; verify: local commit uses `feat(events): bind venue timezone to trusted resolved location`.
+- [x] T2.V8 commit msg draft; verify: local commit uses `feat(events): bind venue timezone to trusted resolved location`.
