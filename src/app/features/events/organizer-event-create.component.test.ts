@@ -12,7 +12,7 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { of, Subject, throwError } from 'rxjs';
 import { OrganizerEventCreateComponent } from './organizer-event-create.component';
 import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
@@ -20,6 +20,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import { ApiProblemError } from '../../api/api-boundary';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -30,7 +31,7 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
+function setupHarness(globalRole: string, client: Partial<Client> = {}) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap() } } as unknown as ActivatedRoute;
@@ -47,8 +48,293 @@ function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEvent
     I18nService
   ] });
 
-  return runInInjectionContext(injector, () => new OrganizerEventCreateComponent());
+  return {
+    component: runInInjectionContext(injector, () => new OrganizerEventCreateComponent()),
+    destroy: () => injector.destroy()
+  };
 }
+
+function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
+  return setupHarness(globalRole, client).component;
+}
+
+function locationClient(extra: Record<string, unknown> = {}): Partial<Client> {
+  return {
+    formatsAll: () => of([]),
+    organizationsAll: () => of([{ id: 'org-mine', name: 'My Club' }]),
+    ...extra
+  } as unknown as Partial<Client>;
+}
+
+const suggestion = {
+  placeId: 'google-place',
+  primaryText: '10 Rue de la République',
+  secondaryText: '69001 Lyon, France'
+};
+
+const resolvedLocation = {
+  streetAddress: '10 Rue de la République',
+  postalCode: '69001',
+  city: 'Lyon',
+  country: 'France',
+  region: 'Auvergne-Rhône-Alpes',
+  latitude: 45.764,
+  longitude: 4.8357,
+  timeZoneId: 'Europe/Paris',
+  locationToken: 'signed-location-token',
+  expiresAt: '2030-01-01T12:30:00Z'
+};
+
+describe('OrganizerEventCreateComponent resolved location', () => {
+  it('debounces street autocomplete and sends nothing below three characters', async () => {
+    vi.useFakeTimers();
+    try {
+      const autocompleteEventLocations = vi.fn(() => of({ suggestions: [suggestion] }));
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Pa');
+      await vi.advanceTimersByTimeAsync(300);
+      expect(autocompleteEventLocations).not.toHaveBeenCalled();
+
+      component.form.controls.streetAddress.setValue('Par');
+      await vi.advanceTimersByTimeAsync(299);
+      expect(autocompleteEventLocations).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(autocompleteEventLocations).toHaveBeenCalledTimes(1);
+      expect(autocompleteEventLocations).toHaveBeenCalledWith('Par', expect.any(String), component.i18n.language());
+      expect(component.locationSuggestions()).toEqual([suggestion]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('marks a successful empty autocomplete so the form can explain no matches', async () => {
+    vi.useFakeTimers();
+    try {
+      const component = setup('Organizer', locationClient({
+        autocompleteEventLocations: () => of({ suggestions: [] })
+      }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Unknown street');
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(component.locationSearchComplete()).toBe(true);
+      expect(component.locationSuggestions()).toEqual([]);
+      expect(component.locationError()).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps only the latest autocomplete response and renders at most five suggestions', async () => {
+    vi.useFakeTimers();
+    try {
+      const first = new Subject<{ suggestions: typeof suggestion[] }>();
+      const second = new Subject<{ suggestions: typeof suggestion[] }>();
+      const autocompleteEventLocations = vi.fn((input: string) => input === 'Paris' ? first : second);
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      component.form.controls.streetAddress.setValue('Parish');
+      await vi.advanceTimersByTimeAsync(300);
+      second.next({ suggestions: Array.from({ length: 7 }, (_, index) => ({ ...suggestion, placeId: `latest-${index}` })) });
+      first.next({ suggestions: [{ ...suggestion, placeId: 'stale' }] });
+
+      expect(component.locationSuggestions()).toHaveLength(5);
+      expect(component.locationSuggestions()[0].placeId).toBe('latest-0');
+      expect(component.locationSuggestions().some(item => item.placeId === 'stale')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cancels an in-flight autocomplete when street drops below three characters', async () => {
+    vi.useFakeTimers();
+    try {
+      const pending = new Subject<{ suggestions: typeof suggestion[] }>();
+      const autocompleteEventLocations = vi.fn(() => pending);
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      component.form.controls.streetAddress.setValue('Pa');
+      pending.next({ suggestions: [{ ...suggestion, placeId: 'stale' }] });
+
+      expect(autocompleteEventLocations).toHaveBeenCalledTimes(1);
+      expect(component.locationSuggestions()).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fills canonical fields and hidden resolution claims after selection', async () => {
+    const component = setup('Organizer', locationClient({ resolveEventLocation: () => of(resolvedLocation) }));
+    component.ngOnInit();
+
+    await component.resolveLocation(suggestion);
+
+    expect(component.form.getRawValue()).toMatchObject({
+      streetAddress: resolvedLocation.streetAddress,
+      postalCode: resolvedLocation.postalCode,
+      city: resolvedLocation.city,
+      country: resolvedLocation.country,
+      region: resolvedLocation.region,
+      latitude: resolvedLocation.latitude,
+      longitude: resolvedLocation.longitude,
+      timeZoneId: resolvedLocation.timeZoneId,
+      locationToken: resolvedLocation.locationToken
+    });
+    expect(component.form.controls.locationToken.valid).toBe(true);
+    expect(component.locationSuggestions()).toEqual([]);
+    expect(component.locationError()).toBe('');
+  });
+
+  it('reuses one UUID billing token for autocomplete and resolve during the editing session', async () => {
+    vi.useFakeTimers();
+    try {
+      const autocompleteEventLocations = vi.fn((_input: string, _sessionToken: string, _language: string) => of({ suggestions: [suggestion] }));
+      const resolveEventLocation = vi.fn((_request: { sessionToken: string }) => of(resolvedLocation));
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations, resolveEventLocation }));
+      component.ngOnInit();
+
+      component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      await component.resolveLocation(suggestion);
+
+      const autocompleteSessionToken = autocompleteEventLocations.mock.calls[0]![1];
+      const resolveSessionToken = resolveEventLocation.mock.calls[0]![0].sessionToken;
+      expect(autocompleteSessionToken).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+      expect(resolveSessionToken).toBe(autocompleteSessionToken);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('ignores a stale resolve response after the user edits a location field', async () => {
+    const pending = new Subject<typeof resolvedLocation>();
+    const component = setup('Organizer', locationClient({ resolveEventLocation: () => pending }));
+    component.ngOnInit();
+
+    const resolving = component.resolveLocation(suggestion);
+    component.form.controls.region.setValue('Île-de-France');
+    pending.next(resolvedLocation);
+    pending.complete();
+    await resolving;
+
+    expect(component.form.controls.region.value).toBe('Île-de-France');
+    expect(component.form.controls.locationToken.value).toBe('');
+    expect(component.form.controls.timeZoneId.value).toBe('');
+  });
+
+  it('clears token, timezone, and coordinates synchronously after each visible location field edit', async () => {
+    const component = setup('Organizer', locationClient({ resolveEventLocation: () => of(resolvedLocation) }));
+    component.ngOnInit();
+
+    for (const field of ['streetAddress', 'postalCode', 'city', 'country', 'region'] as const) {
+      await component.resolveLocation(suggestion);
+
+      component.form.controls[field].setValue(`${component.form.controls[field].value} edited`);
+
+      expect(component.form.controls.locationToken.value, field).toBe('');
+      expect(component.form.controls.timeZoneId.value, field).toBe('');
+      expect(component.form.controls.latitude.value, field).toBeNull();
+      expect(component.form.controls.longitude.value, field).toBeNull();
+      expect(component.form.controls.locationToken.invalid, field).toBe(true);
+    }
+  });
+
+  it('cancels pending debounce, subscriptions, and in-flight location HTTP work on destroy', async () => {
+    vi.useFakeTimers();
+    try {
+      const beforeDebounce = vi.fn(() => of({ suggestions: [suggestion] }));
+      const first = setupHarness('Organizer', locationClient({ autocompleteEventLocations: beforeDebounce }));
+      first.component.ngOnInit();
+      first.component.form.controls.streetAddress.setValue('Paris');
+
+      first.destroy();
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(beforeDebounce).not.toHaveBeenCalled();
+
+      const pending = new Subject<{ suggestions: typeof suggestion[] }>();
+      const inFlight = vi.fn(() => pending);
+      const second = setupHarness('Organizer', locationClient({ autocompleteEventLocations: inFlight }));
+      second.component.ngOnInit();
+      second.component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+      expect(pending.observed).toBe(true);
+
+      second.destroy();
+
+      expect(pending.observed).toBe(false);
+      pending.next({ suggestions: [suggestion] });
+      expect(second.component.locationSuggestions()).toEqual([]);
+
+      const pendingResolve = new Subject<typeof resolvedLocation>();
+      const third = setupHarness('Organizer', locationClient({ resolveEventLocation: () => pendingResolve }));
+      third.component.ngOnInit();
+      const resolving = third.component.resolveLocation(suggestion);
+      expect(pendingResolve.observed).toBe(true);
+
+      third.destroy();
+      await resolving;
+
+      expect(pendingResolve.observed).toBe(false);
+      expect(third.component.locationError()).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps street input and retries autocomplete after provider outage', async () => {
+    vi.useFakeTimers();
+    try {
+      const autocompleteEventLocations = vi.fn()
+        .mockReturnValueOnce(throwError(() => new ApiProblemError(503, { code: 'location_provider_unavailable' })))
+        .mockReturnValueOnce(of({ suggestions: [suggestion] }));
+      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
+      component.ngOnInit();
+      component.form.controls.streetAddress.setValue('Paris');
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(component.form.controls.streetAddress.value).toBe('Paris');
+      expect(component.locationError()).toBeTruthy();
+      expect(component.canRetryLocation()).toBe(true);
+
+      await component.retryLocationResolution();
+
+      expect(autocompleteEventLocations).toHaveBeenCalledTimes(2);
+      expect(component.locationSuggestions()).toEqual([suggestion]);
+      expect(component.locationError()).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps entered address and exposes retry after provider outage', async () => {
+    const resolveEventLocation = vi.fn(() => throwError(() => new ApiProblemError(503, {
+      code: 'location_provider_unavailable',
+      message: 'Event location provider is unavailable.'
+    })));
+    const component = setup('Organizer', locationClient({ resolveEventLocation }));
+    component.ngOnInit();
+    component.form.controls.streetAddress.setValue('10 Rue de la République');
+
+    await component.resolveLocation(suggestion);
+
+    expect(component.form.controls.streetAddress.value).toBe('10 Rue de la République');
+    expect(component.locationError()).toBeTruthy();
+    expect(component.canRetryLocation()).toBe(true);
+    await component.retryLocationResolution();
+    expect(resolveEventLocation).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('OrganizerEventCreateComponent role gating', () => {
   it('disables submit for a plain user', () => {

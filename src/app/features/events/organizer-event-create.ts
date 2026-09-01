@@ -10,6 +10,9 @@ export interface EventDraftValue {
   city: string;
   country: string;
   region: string;
+  locationToken: string;
+  latitude: number | null;
+  longitude: number | null;
   eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
   startsAtLocal: string;
@@ -18,10 +21,6 @@ export interface EventDraftValue {
   formatId: string;
   liveTournamentUrl: string;
   archiveTournamentUrl: string;
-}
-
-export function browserTimeZoneSuggestion(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone): string {
-  try { return resolve() || ''; } catch { return ''; }
 }
 
 export function eventPayload(value: EventDraftValue): EventPayloadRequest {

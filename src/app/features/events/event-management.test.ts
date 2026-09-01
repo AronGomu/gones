@@ -15,7 +15,8 @@ describe('Event management state', () => {
   it('hydrates edit draft from canonical management DTO', () => {
     expect(managementToDraft(event)).toEqual({
       organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street',
-      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
+      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: '', latitude: null, longitude: null,
+      eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '2027-08-01T18:00', capacity: 32, formatId: 'legacy', liveTournamentUrl: '/live/123',
       archiveTournamentUrl: 'https://example.test/archive/123'
     });

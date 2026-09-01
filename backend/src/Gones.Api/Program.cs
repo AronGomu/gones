@@ -13,6 +13,7 @@ using Gones.Api.Notifications;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
+using Gones.Application.Events;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
@@ -34,6 +35,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
 var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(builder.Configuration);
+builder.Services.AddSingleton<IEventLocationTokenService, EventLocationTokenService>();
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
 if (forwardedProxies.Enabled) builder.Services.Configure<ForwardedHeadersOptions>(forwardedProxies.Apply);
@@ -224,6 +226,7 @@ app.UseAuthorization();
 
 app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { ResponseWriter = ReadinessResponseWriter.WriteAsync }).AllowAnonymous();
+app.MapEventLocationEndpoints();
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();

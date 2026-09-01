@@ -170,6 +170,14 @@ export interface IClient {
      */
     organizationsGET2(organizationId: string): Observable<PublicOrganizationResponse>;
     /**
+     * @return OK
+     */
+    autocompleteEventLocations(input: string, sessionToken: string, language: string): Observable<EventLocationAutocompleteResponse>;
+    /**
+     * @return OK
+     */
+    resolveEventLocation(body: ResolveEventLocationRequest): Observable<ResolvedEventLocationResponse>;
+    /**
      * @return Accepted
      */
     register(body: RegisterRequest): Observable<GenericAccountActionResponse>;
@@ -2651,6 +2659,158 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    autocompleteEventLocations(input: string, sessionToken: string, language: string): Observable<EventLocationAutocompleteResponse> {
+        let url_ = this.baseUrl + "/api/event-locations/autocomplete?";
+        if (input === undefined || input === null)
+            throw new globalThis.Error("The parameter 'input' must be defined and cannot be null.");
+        else
+            url_ += "input=" + encodeURIComponent("" + input) + "&";
+        if (sessionToken === undefined || sessionToken === null)
+            throw new globalThis.Error("The parameter 'sessionToken' must be defined and cannot be null.");
+        else
+            url_ += "sessionToken=" + encodeURIComponent("" + sessionToken) + "&";
+        if (language === undefined || language === null)
+            throw new globalThis.Error("The parameter 'language' must be defined and cannot be null.");
+        else
+            url_ += "language=" + encodeURIComponent("" + language) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processAutocompleteEventLocations(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processAutocompleteEventLocations(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<EventLocationAutocompleteResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<EventLocationAutocompleteResponse>;
+        }));
+    }
+
+    protected processAutocompleteEventLocations(response: HttpResponseBase): Observable<EventLocationAutocompleteResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventLocationAutocompleteResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    resolveEventLocation(body: ResolveEventLocationRequest): Observable<ResolvedEventLocationResponse> {
+        let url_ = this.baseUrl + "/api/event-locations/resolve";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processResolveEventLocation(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processResolveEventLocation(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ResolvedEventLocationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ResolvedEventLocationResponse>;
+        }));
+    }
+
+    protected processResolveEventLocation(response: HttpResponseBase): Observable<ResolvedEventLocationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ResolvedEventLocationResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -10808,6 +10968,20 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
+export interface EventLocationAutocompleteResponse {
+    suggestions: EventLocationSuggestionResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventLocationSuggestionResponse {
+    placeId: string;
+    primaryText: string;
+    secondaryText: string;
+
+    [key: string]: any;
+}
+
 export interface EventManagementListResponse {
     items: EventManagementResponse[];
     page: number;
@@ -11756,6 +11930,29 @@ export interface ReplaceArchiveRoundRequest {
 export interface ResetPasswordRequest {
     token: string;
     password: string;
+
+    [key: string]: any;
+}
+
+export interface ResolvedEventLocationResponse {
+    streetAddress: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    region: string;
+    latitude: number;
+    longitude: number;
+    timeZoneId: string;
+    locationToken: string;
+    expiresAt: string;
+
+    [key: string]: any;
+}
+
+export interface ResolveEventLocationRequest {
+    placeId: string;
+    sessionToken: string;
+    language: string;
 
     [key: string]: any;
 }

@@ -1,17 +1,18 @@
-import { AfterViewInit, Component, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { firstValueFrom } from 'rxjs';
+import { catchError, distinctUntilChanged, firstValueFrom, map, merge, of, Subject, switchMap, timer } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, PublicFormatResponse, EventManagementResponse, EventPreviewRenderResponse } from '../../api/generated/gones-api';
+import { Client, EventLocationSuggestionResponse, PublicFormatResponse, EventManagementResponse, EventPreviewRenderResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { EventDetailViewComponent } from './event-detail-view.component';
 import { ApproverSelectionDialogComponent } from './approver-selection-dialog.component';
-import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
+import { PreviewPublicationState, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
 import { canManageArchive } from '../../data/archive-command-ux';
@@ -33,6 +34,9 @@ export interface EventOrganizationOption { id: string; name: string; }
  */
 const PublicOrganizationPageSize = 100;
 const MaximumPublicOrganizationPages = 20;
+const MinimumLocationSearchLength = 3;
+const LocationAutocompleteDelayMilliseconds = 300;
+const MaximumLocationSuggestions = 5;
 
 @Component({
   standalone: true,
@@ -87,8 +91,34 @@ const MaximumPublicOrganizationPages = 20;
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-street">
               <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
-              <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : null" />
+              <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="event-location-suggestions" [attr.aria-expanded]="locationSuggestions().length ? 'true' : 'false'" [attr.aria-invalid]="fieldError('streetAddress') || fieldError('locationToken') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : fieldError('locationToken') ? 'event-location-token-error' : null" />
+              <input type="hidden" data-cy="event-location-token" formControlName="locationToken" />
+              <input type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId" />
+              <input type="hidden" data-cy="event-location-latitude" formControlName="latitude" />
+              <input type="hidden" data-cy="event-location-longitude" formControlName="longitude" />
+              @if (locationLoading()) { <p role="status" data-cy="event-location-loading">{{ i18n.t('eventCreate.locationSearching') }}</p> }
+              @if (locationSuggestions().length) {
+                <ul id="event-location-suggestions" class="stack" role="listbox" data-cy="event-location-suggestions">
+                  @for (suggestion of locationSuggestions(); track suggestion.placeId) {
+                    <li role="none" [attr.data-cy]="'event-location-suggestion-item-' + $index">
+                      <button type="button" role="option" aria-selected="false" [attr.data-cy]="'event-location-suggestion-' + $index" [disabled]="locationResolving()" (click)="resolveLocation(suggestion)">
+                        <span [attr.data-cy]="'event-location-suggestion-primary-' + $index">{{ suggestion.primaryText }}</span>
+                        <span [attr.data-cy]="'event-location-suggestion-secondary-' + $index">{{ suggestion.secondaryText }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (locationSearchComplete() && !locationSuggestions().length) { <p role="status" data-cy="event-location-empty">{{ i18n.t('eventCreate.locationEmpty') }}</p> }
+              @if (locationResolving()) { <p role="status" data-cy="event-location-resolving">{{ i18n.t('eventCreate.locationResolving') }}</p> }
+              @if (locationError()) {
+                <div class="error" role="alert" data-cy="event-location-error">
+                  <span data-cy="event-location-error-message">{{ locationError() }}</span>
+                  @if (canRetryLocation()) { <button mat-stroked-button type="button" data-cy="event-location-retry" (click)="retryLocationResolution()">{{ i18n.t('common.retry') }}</button> }
+                </div>
+              }
               @if (fieldError('streetAddress'); as message) { <p id="event-street-error" class="field-error" data-cy="event-street-error">{{ message }}</p> }
+              @if (fieldError('locationToken'); as message) { <p id="event-location-token-error" class="field-error" data-cy="event-location-token-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-postal-code">
               <label for="event-postal-code" data-cy="event-label-postal-code">{{ i18n.t('eventCreate.postalCode') }}</label>
@@ -118,12 +148,6 @@ const MaximumPublicOrganizationPages = 20;
               <label for="event-end" data-cy="event-label-end">{{ i18n.t('eventCreate.end') }}</label>
               <input id="event-end" data-cy="event-end" type="datetime-local" formControlName="endsAtLocal" [attr.aria-invalid]="fieldError('endsAtLocal') ? 'true' : null" [attr.aria-describedby]="fieldError('endsAtLocal') ? 'event-end-error' : null" />
               @if (fieldError('endsAtLocal'); as message) { <p id="event-end-error" class="field-error" data-cy="event-end-error">{{ message }}</p> }
-            </div>
-            <div class="tournament-create-field" data-cy="event-field-zone">
-              <label for="event-zone" data-cy="event-label-zone">{{ i18n.t('eventCreate.zone') }}</label>
-              <input id="event-zone" data-cy="event-zone" formControlName="timeZoneId" autocomplete="off" [attr.aria-invalid]="fieldError('timeZoneId') ? 'true' : null" [attr.aria-describedby]="fieldError('timeZoneId') ? 'event-zone-error event-zone-help' : 'event-zone-help'" />
-              <p id="event-zone-help" class="muted" data-cy="event-zone-help">{{ i18n.t('eventCreate.zoneSuggestion') }}</p>
-              @if (fieldError('timeZoneId'); as message) { <p id="event-zone-error" class="field-error" data-cy="event-zone-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field" data-cy="event-field-capacity">
               <label for="event-capacity" data-cy="event-label-capacity">{{ i18n.t('event.capacity') }}</label>
@@ -211,6 +235,7 @@ const MaximumPublicOrganizationPages = 20;
 export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly i18n = inject(I18nService);
   private readonly client = inject(Client);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
@@ -251,6 +276,17 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
   readonly proposalError = signal('');
+  readonly locationSuggestions = signal<EventLocationSuggestionResponse[]>([]);
+  readonly locationLoading = signal(false);
+  readonly locationSearchComplete = signal(false);
+  readonly locationResolving = signal(false);
+  readonly locationError = signal('');
+  private readonly retryLocation = signal<EventLocationSuggestionResponse | null>(null);
+  private readonly retryLocationSearch = signal<string | null>(null);
+  private readonly locationSearchRetries = new Subject<string>();
+  private locationRevision = 0;
+  readonly canRetryLocation = computed(() => Boolean(this.locationError() && (this.retryLocation() || this.retryLocationSearch())) && !this.locationResolving());
+  private readonly locationSessionToken = globalThis.crypto.randomUUID();
   /** Mirrors the form control so the template can react to it; a `FormControl` value is not a signal. */
   readonly selectedOrganizationId = signal('');
   /**
@@ -271,8 +307,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     country: new FormControl('', { nonNullable: true, validators: Validators.required }),
     region: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    locationToken: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    latitude: new FormControl<number | null>(null),
+    longitude: new FormControl<number | null>(null),
     eventType: new FormControl<'' | 'weekly' | 'monthly' | 'major'>('weekly', { nonNullable: true, validators: Validators.required }),
-    timeZoneId: new FormControl(browserTimeZoneSuggestion(), { nonNullable: true, validators: Validators.required }),
+    timeZoneId: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startsAtLocal: new FormControl('', { nonNullable: true, validators: Validators.required }),
     endsAtLocal: new FormControl('', { nonNullable: true }),
     capacity: new FormControl<number | null>(null, [Validators.min(1), Validators.pattern(/^\d+$/)]),
@@ -282,7 +321,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   });
 
   ngOnInit(): void {
-    this.form.valueChanges.subscribe(() => {
+    this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncSelectedOrganization();
       this.fieldErrors.set({});
       this.submitError.set(null);
@@ -292,6 +331,58 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         this.preview.set(null);
         this.publishError.set(null);
       }
+    });
+    merge(
+      this.form.controls.streetAddress.valueChanges,
+      this.form.controls.postalCode.valueChanges,
+      this.form.controls.city.valueChanges,
+      this.form.controls.country.valueChanges,
+      this.form.controls.region.valueChanges
+    ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.invalidateResolvedLocation());
+    merge(
+      this.form.controls.streetAddress.valueChanges.pipe(
+        map(value => {
+          this.locationSearchComplete.set(false);
+          return value.trim();
+        }),
+        distinctUntilChanged(),
+        switchMap(value => value.length < MinimumLocationSearchLength
+          ? of(value)
+          : timer(LocationAutocompleteDelayMilliseconds).pipe(map(() => value)))
+      ),
+      this.locationSearchRetries
+    ).pipe(
+      switchMap(value => {
+        if (value.length < MinimumLocationSearchLength) {
+          this.locationSuggestions.set([]);
+          this.locationLoading.set(false);
+          this.locationError.set('');
+          this.retryLocationSearch.set(null);
+          return of([] as EventLocationSuggestionResponse[]);
+        }
+        this.locationLoading.set(true);
+        this.locationSearchComplete.set(false);
+        this.locationError.set('');
+        this.retryLocationSearch.set(null);
+        return this.client.autocompleteEventLocations(value, this.locationSessionToken, this.i18n.language()).pipe(
+          map(response => {
+            this.locationSearchComplete.set(true);
+            return response.suggestions.slice(0, MaximumLocationSuggestions);
+          }),
+          catchError(error => {
+            this.locationLoading.set(false);
+            this.locationSearchComplete.set(false);
+            this.locationSuggestions.set([]);
+            this.locationError.set(this.locationErrorMessage(error));
+            this.retryLocationSearch.set(value);
+            return of([] as EventLocationSuggestionResponse[]);
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(suggestions => {
+      this.locationSuggestions.set(suggestions);
+      this.locationLoading.set(false);
     });
     void this.loadReferences();
   }
@@ -336,6 +427,76 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
    */
   private syncSelectedOrganization(): void {
     this.selectedOrganizationId.set(this.form.getRawValue().organizationId);
+  }
+
+  async resolveLocation(suggestion: EventLocationSuggestionResponse): Promise<void> {
+    if (this.locationResolving()) return;
+    const revision = this.locationRevision;
+    this.retryLocation.set(suggestion);
+    this.locationSearchComplete.set(false);
+    this.locationResolving.set(true);
+    this.locationError.set('');
+    try {
+      const resolved = await firstValueFrom(this.client.resolveEventLocation({
+        placeId: suggestion.placeId,
+        sessionToken: this.locationSessionToken,
+        language: this.i18n.language()
+      }).pipe(takeUntilDestroyed(this.destroyRef)));
+      if (revision !== this.locationRevision) return;
+      this.form.patchValue({
+        streetAddress: resolved.streetAddress,
+        postalCode: resolved.postalCode,
+        city: resolved.city,
+        country: resolved.country,
+        region: resolved.region,
+        locationToken: resolved.locationToken,
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        timeZoneId: resolved.timeZoneId
+      }, { emitEvent: false });
+      this.locationSuggestions.set([]);
+      this.locationError.set('');
+      this.retryLocation.set(null);
+    } catch (error) {
+      if (!this.destroyRef.destroyed && revision === this.locationRevision) this.locationError.set(this.locationErrorMessage(error));
+    } finally {
+      if (!this.destroyRef.destroyed) this.locationResolving.set(false);
+    }
+  }
+
+  async retryLocationResolution(): Promise<void> {
+    const suggestion = this.retryLocation();
+    if (suggestion) {
+      await this.resolveLocation(suggestion);
+      return;
+    }
+    const search = this.retryLocationSearch();
+    if (search) this.locationSearchRetries.next(search);
+  }
+
+  private invalidateResolvedLocation(): void {
+    this.locationRevision += 1;
+    this.retryLocation.set(null);
+    if (!this.form.controls.locationToken.value
+      && !this.form.controls.timeZoneId.value
+      && this.form.controls.latitude.value === null
+      && this.form.controls.longitude.value === null)
+    {
+      return;
+    }
+    this.form.patchValue({
+      locationToken: '',
+      timeZoneId: '',
+      latitude: null,
+      longitude: null
+    }, { emitEvent: false });
+  }
+
+  private locationErrorMessage(error: unknown): string {
+    if (error instanceof ApiProblemError && error.problem.code === 'location_provider_unavailable') {
+      return this.i18n.t('eventCreate.locationProviderUnavailable');
+    }
+    return this.i18n.t('eventCreate.locationResolveFailed');
   }
 
   /**
@@ -559,7 +720,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     if (serverError) return serverError;
     const control = this.form.controls[name];
     if (!control.touched || !control.errors) return '';
-    if (control.errors['required']) return this.i18n.t('eventCreate.required');
+    if (control.errors['required']) {
+      return this.i18n.t(name === 'locationToken' ? 'eventCreate.locationRequired' : 'eventCreate.required');
+    }
     if (control.errors['maxlength']) {
       return this.i18n.t(name === 'summary' ? 'eventCreate.summaryTooLong' : 'eventCreate.tournamentUrlTooLong');
     }
@@ -608,7 +771,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const mapped: Record<string, string> = {};
     const names: Record<string, keyof typeof this.form.controls> = {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodyhtml: 'bodyHtml', streetaddress: 'streetAddress',
-      postalcode: 'postalCode', city: 'city', country: 'country', region: 'region', eventtype: 'eventType', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
+      postalcode: 'postalCode', city: 'city', country: 'country', region: 'region', locationtoken: 'locationToken', locationlocationtoken: 'locationToken', eventtype: 'eventType', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
       endsatlocal: 'endsAtLocal', capacity: 'capacity', formatids: 'formatId', livetournamenturl: 'liveTournamentUrl',
       archivetournamenturl: 'archiveTournamentUrl', payload: 'title'
     };

@@ -1,3 +1,5 @@
+using NodaTime;
+
 namespace Gones.Application.Events;
 
 public interface IEventLocationProvider
@@ -19,6 +21,32 @@ public sealed record ResolvedEventLocation(
     decimal Longitude,
     string TimeZoneId);
 
+public sealed record EventLocationInput(
+    string StreetAddress,
+    string PostalCode,
+    string City,
+    string Country,
+    string Region,
+    string LocationToken);
+
+public sealed record ValidatedEventLocation(
+    string PlaceId,
+    string StreetAddress,
+    string PostalCode,
+    string City,
+    string Country,
+    string Region,
+    decimal Latitude,
+    decimal Longitude,
+    string TimeZoneId,
+    Instant ExpiresAt);
+
+public interface IEventLocationTokenService
+{
+    string Issue(Guid userId, ResolvedEventLocation location, Instant now);
+    ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now);
+}
+
 public interface IEventImageObjectStore
 {
     Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken);
@@ -33,6 +61,9 @@ public interface IEventImageProcessor
 
 public sealed record ProcessedEventImage(int Width, int Height, IReadOnlyList<ProcessedEventImageVariant> Variants);
 public sealed record ProcessedEventImageVariant(int Width, int Height, ReadOnlyMemory<byte> WebP);
+
+public sealed class EventLocationUnresolvedException()
+    : Exception("Event location could not be resolved.");
 
 public sealed class EventLocationProviderUnavailableException(Exception? innerException = null)
     : Exception("Event location provider is unavailable.", innerException);
