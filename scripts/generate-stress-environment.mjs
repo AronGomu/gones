@@ -558,9 +558,9 @@ function localWeeks(random, club, volumes) {
 
 const summarize = (value) => (value.length <= 50 ? value : `${value.slice(0, 47)}...`);
 
-function eventBody(format, club, tierLabel) {
-  return `<p>${tierLabel} en ${format.name} chez ${club.name}, ${club.city}.</p>`
-    + '<ul><li>Ronde 1 à l\'heure annoncée</li><li>Decklists obligatoires au-delà de 32 joueurs</li></ul>';
+function eventBodyMarkdown(format, club, tierLabel) {
+  return `${tierLabel} en ${format.name} chez ${club.name}, ${club.city}.`
+    + '\n\n- Ronde 1 à l\'heure annoncée\n- Decklists obligatoires au-delà de 32 joueurs';
 }
 
 /**
@@ -586,7 +586,7 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: club.organizerEmails[0],
         title,
         summary: summarize(`${club.format.name} — locale ${club.city}`),
-        bodyHtml: eventBody(club.format, club, 'Locale hebdomadaire'),
+        bodyMarkdown: eventBodyMarkdown(club.format, club, 'Locale hebdomadaire'),
         streetAddress: club.streetAddress,
         postalCode: club.postalCode,
         city: club.city,
@@ -620,7 +620,7 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: club.organizerEmails[club.organizerEmails.length - 1],
         title: `${monthlySeries} ${club.city} #${pad(monthlyEdition, 2)} — ${club.name}`,
         summary: summarize(`${club.format.name} — Open ${club.city}`),
-        bodyHtml: eventBody(club.format, club, 'Open mensuel'),
+        bodyMarkdown: eventBodyMarkdown(club.format, club, 'Open mensuel'),
         streetAddress: club.streetAddress,
         postalCode: club.postalCode,
         city: club.city,
@@ -659,7 +659,7 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: host.organizerEmails[0],
         title: `Championnat Régional ${region} #${pad(edition, 2)}`,
         summary: summarize(`${host.format.name} — CR ${region}`),
-        bodyHtml: eventBody(host.format, host, `Championnat Régional ${region}`),
+        bodyMarkdown: eventBodyMarkdown(host.format, host, `Championnat Régional ${region}`),
         streetAddress: host.streetAddress,
         postalCode: host.postalCode,
         city: host.city,
@@ -696,8 +696,8 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
       organizerEmail: nationalHost.organizerEmails[0],
       title,
       summary: summarize(`${nationalFormat.name} — CdF ${year} ${nationalCity}`),
-      bodyHtml: `<p>Championnat de France ${year} en ${nationalFormat.name}, ${nationalCity}.</p>`
-        + '<ul><li>Ronde 1 à 9h00</li><li>Decklists obligatoires</li><li>Top 8 le dimanche</li></ul>',
+      bodyMarkdown: `Championnat de France ${year} en ${nationalFormat.name}, ${nationalCity}.`
+        + '\n\n- Ronde 1 à 9h00\n- Decklists obligatoires\n- Top 8 le dimanche',
       streetAddress: `Parc des expositions, ${nationalCity}`,
       postalCode: nationalPostalCode,
       city: nationalCity,

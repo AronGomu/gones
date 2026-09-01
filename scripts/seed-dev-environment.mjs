@@ -321,7 +321,7 @@ async function seedEvents(environment, tokens, organizationIds, formatIds, forma
       organizationId: organizationIds.get(entry.organizationKey),
       title: entry.title,
       summary: entry.summary,
-      bodyHtml: entry.bodyHtml,
+      bodyMarkdown: entry.bodyMarkdown,
       streetAddress: entry.streetAddress,
       postalCode: entry.postalCode,
       city: entry.city,

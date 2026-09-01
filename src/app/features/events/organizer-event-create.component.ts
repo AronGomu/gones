@@ -85,9 +85,9 @@ const MaximumLocationSuggestions = 5;
             </div>
             <div class="tournament-create-field tournament-create-wide" data-cy="event-field-body">
               <label for="event-body" data-cy="event-label-body">{{ i18n.t('eventCreate.body') }}</label>
-              <textarea id="event-body" data-cy="event-body" formControlName="bodyHtml" rows="7" [attr.aria-invalid]="fieldError('bodyHtml') ? 'true' : null" [attr.aria-describedby]="fieldError('bodyHtml') ? 'event-body-error event-body-help' : 'event-body-help'"></textarea>
+              <textarea id="event-body" data-cy="event-body" formControlName="bodyMarkdown" rows="7" maxlength="20000" [attr.aria-invalid]="fieldError('bodyMarkdown') ? 'true' : null" [attr.aria-describedby]="fieldError('bodyMarkdown') ? 'event-body-error event-body-help' : 'event-body-help'"></textarea>
               <p id="event-body-help" class="muted" data-cy="event-body-help">{{ i18n.t('eventCreate.bodyHelp') }}</p>
-              @if (fieldError('bodyHtml'); as message) { <p id="event-body-error" class="field-error" data-cy="event-body-error">{{ message }}</p> }
+              @if (fieldError('bodyMarkdown'); as message) { <p id="event-body-error" class="field-error" data-cy="event-body-error">{{ message }}</p> }
             </div>
             <div class="tournament-create-field tournament-create-double" data-cy="event-field-street">
               <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
@@ -301,7 +301,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
     title: new FormControl('', { nonNullable: true, validators: Validators.required }),
     summary: new FormControl('', { nonNullable: true, validators: Validators.maxLength(50) }),
-    bodyHtml: new FormControl('', { nonNullable: true }),
+    bodyMarkdown: new FormControl('', { nonNullable: true, validators: Validators.maxLength(20000) }),
     streetAddress: new FormControl('', { nonNullable: true, validators: Validators.required }),
     postalCode: new FormControl('', { nonNullable: true }),
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -724,7 +724,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       return this.i18n.t(name === 'locationToken' ? 'eventCreate.locationRequired' : 'eventCreate.required');
     }
     if (control.errors['maxlength']) {
-      return this.i18n.t(name === 'summary' ? 'eventCreate.summaryTooLong' : 'eventCreate.tournamentUrlTooLong');
+      if (name === 'summary') return this.i18n.t('eventCreate.summaryTooLong');
+      if (name === 'bodyMarkdown') return this.i18n.t('eventCreate.bodyTooLong');
+      return this.i18n.t('eventCreate.tournamentUrlTooLong');
     }
     return this.i18n.t('eventCreate.invalid');
   }
@@ -770,7 +772,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     if (!(error instanceof ApiProblemError) || !error.problem.errors) return;
     const mapped: Record<string, string> = {};
     const names: Record<string, keyof typeof this.form.controls> = {
-      organizationid: 'organizationId', title: 'title', summary: 'summary', bodyhtml: 'bodyHtml', streetaddress: 'streetAddress',
+      organizationid: 'organizationId', title: 'title', summary: 'summary', bodymarkdown: 'bodyMarkdown', streetaddress: 'streetAddress',
       postalcode: 'postalCode', city: 'city', country: 'country', region: 'region', locationtoken: 'locationToken', locationlocationtoken: 'locationToken', eventtype: 'eventType', timezoneid: 'timeZoneId', startsatlocal: 'startsAtLocal',
       endsatlocal: 'endsAtLocal', capacity: 'capacity', formatids: 'formatId', livetournamenturl: 'liveTournamentUrl',
       archivetournamenturl: 'archiveTournamentUrl', payload: 'title'

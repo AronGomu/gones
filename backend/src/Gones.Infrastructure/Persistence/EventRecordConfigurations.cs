@@ -17,7 +17,7 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.Title).HasMaxLength(Event.MaximumTitleLength);
         builder.Property(tournament => tournament.Slug).HasMaxLength(Event.MaximumSlugLength);
         builder.Property(tournament => tournament.Summary).HasMaxLength(Event.MaximumSummaryLength);
-        builder.Property(tournament => tournament.BodyHtml).HasMaxLength(Event.MaximumBodyHtmlLength);
+        builder.Property(tournament => tournament.BodyMarkdown).HasMaxLength(Event.MaximumBodyMarkdownLength);
         builder.Property(tournament => tournament.LiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.ArchiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.StreetAddress).HasMaxLength(Event.MaximumAddressLength);

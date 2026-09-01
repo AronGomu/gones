@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Gones.Domain.Calendar;
@@ -467,7 +468,7 @@ public static partial class MigrationPlanner
             }
 
             var summary = SanitizeDescription(entity.Id, source, sanitation);
-            var bodyHtml = SanitizeBodyHtml(entity.Id, source, sanitation);
+            var bodyMarkdown = SanitizeBodyMarkdown(entity.Id, source, sanitation);
 
             if (eventDate is not null && startTime is not null && zone is not null)
             {
@@ -489,7 +490,7 @@ public static partial class MigrationPlanner
                 title,
                 slug,
                 summary,
-                bodyHtml,
+                bodyMarkdown,
                 address!,
                 FirstNonEmpty(eventMapping.PostalCode),
                 city!,
@@ -520,29 +521,21 @@ public static partial class MigrationPlanner
         return summary.Length == 0 ? null : summary;
     }
 
-    private static string? SanitizeBodyHtml(string eventId, LegacyCalendarEvent source, List<MigrationSanitationChange> sanitation)
+    private static string? SanitizeBodyMarkdown(string eventId, LegacyCalendarEvent source, List<MigrationSanitationChange> sanitation)
     {
         var html = source.RichDescriptionHtml.Trim();
         if (ImageTagRegex().IsMatch(html))
         {
-            sanitation.Add(new MigrationSanitationChange(eventId, "removedImage", "embedded <img> markup is not allowed on the server and was removed"));
+            sanitation.Add(new MigrationSanitationChange(eventId, "removedImage", "embedded <img> markup is not allowed in Event Markdown and was removed"));
         }
 
         string? body = null;
         if (html.Length > 0)
         {
-            try
-            {
-                body = html.Length <= Event.MaximumBodyHtmlLength ? TournamentContentSanitizer.Sanitize(html) : throw new ArgumentException("too long");
-            }
-            catch (ArgumentException)
-            {
-                var text = WhitespaceRegex().Replace(HtmlTagRegex().Replace(html, " "), " ").Trim();
-                text = text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
-                if (text.Length > Event.MaximumBodyHtmlLength) text = text[..Event.MaximumBodyHtmlLength];
-                sanitation.Add(new MigrationSanitationChange(eventId, "strippedUnsafeHtml", "rich description contained markup outside the allowed subset; only its text content was kept"));
-                body = text.Length == 0 ? null : text;
-            }
+            var text = WebUtility.HtmlDecode(WhitespaceRegex().Replace(HtmlTagRegex().Replace(html, " "), " ")).Trim();
+            if (text.Length > Event.MaximumBodyMarkdownLength) text = text[..Event.MaximumBodyMarkdownLength];
+            sanitation.Add(new MigrationSanitationChange(eventId, "strippedUnsafeHtml", "legacy rich description markup was removed; only its readable text was kept as Markdown"));
+            body = text.Length == 0 ? null : text;
         }
 
         var externalLink = source.ExternalLink.Trim();
@@ -550,11 +543,12 @@ public static partial class MigrationPlanner
         {
             if (Uri.TryCreate(externalLink, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps && !string.IsNullOrWhiteSpace(uri.Host))
             {
-                var linkHtml = $"<p><a href=\"{uri.AbsoluteUri}\">{System.Security.SecurityElement.Escape(uri.AbsoluteUri)}</a></p>";
-                if ((body?.Length ?? 0) + linkHtml.Length <= Event.MaximumBodyHtmlLength)
+                var linkMarkdown = $"<{uri.AbsoluteUri}>";
+                var separatorLength = body is null ? 0 : 2;
+                if ((body?.Length ?? 0) + separatorLength + linkMarkdown.Length <= Event.MaximumBodyMarkdownLength)
                 {
-                    body = body is null ? linkHtml : body + linkHtml;
-                    sanitation.Add(new MigrationSanitationChange(eventId, "convertedExternalLink", $"externalLink converted to a body link: {uri.AbsoluteUri}"));
+                    body = body is null ? linkMarkdown : body + "\n\n" + linkMarkdown;
+                    sanitation.Add(new MigrationSanitationChange(eventId, "convertedExternalLink", $"externalLink converted to a Markdown link: {uri.AbsoluteUri}"));
                 }
                 else
                 {

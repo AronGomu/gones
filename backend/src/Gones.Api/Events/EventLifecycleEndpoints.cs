@@ -552,7 +552,7 @@ internal sealed class EventLifecycleService(
         EventDisplayTitle.From(item.Title, formatName),
         item.Slug,
         item.Summary,
-        item.BodyHtml,
+        item.BodyMarkdown,
         item.LiveTournamentUrl,
         item.ArchiveTournamentUrl,
         item.StreetAddress,
@@ -580,7 +580,7 @@ internal sealed class EventLifecycleService(
         request.Title,
         slug,
         request.Summary,
-        request.BodyHtml,
+        request.BodyMarkdown,
         request.StreetAddress,
         request.PostalCode,
         request.City,
@@ -634,7 +634,7 @@ internal sealed class EventOrganizationDeleteDependency(GonesDbContext database)
 internal sealed record UpdateEventDetailsRequest(
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
-    [property: MaxLength(Event.MaximumBodyHtmlLength)] string? BodyHtml,
+    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown,
     [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
     [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
     [property: Required, MaxLength(Event.MaximumCityLength)] string City,
@@ -674,7 +674,7 @@ internal sealed record EventManagementResponse(
     string DisplayTitle,
     string Slug,
     string? Summary,
-    string? BodyHtml,
+    string? BodyMarkdown,
     string? LiveTournamentUrl,
     string? ArchiveTournamentUrl,
     string StreetAddress,
@@ -708,7 +708,7 @@ internal sealed record EventMutationResponse(
 internal sealed record EventAuditSnapshot(
     string Title,
     string? Summary,
-    string? BodyHtml,
+    string? BodyMarkdown,
     string? LiveTournamentUrl,
     string? ArchiveTournamentUrl,
     string StreetAddress,
@@ -726,7 +726,7 @@ internal sealed record EventAuditSnapshot(
     public static EventAuditSnapshot From(Event tournament) => new(
         tournament.Title,
         tournament.Summary,
-        tournament.BodyHtml,
+        tournament.BodyMarkdown,
         tournament.LiveTournamentUrl,
         tournament.ArchiveTournamentUrl,
         tournament.StreetAddress,
@@ -749,7 +749,7 @@ internal sealed record EventAuditSnapshot(
         var fields = new List<string>();
         if (Title != other.Title) fields.Add("title");
         if (Summary != other.Summary) fields.Add("summary");
-        if (BodyHtml != other.BodyHtml) fields.Add("bodyChanged");
+        if (BodyMarkdown != other.BodyMarkdown) fields.Add("bodyChanged");
         if (LiveTournamentUrl != other.LiveTournamentUrl) fields.Add("liveTournamentUrl");
         if (ArchiveTournamentUrl != other.ArchiveTournamentUrl) fields.Add("archiveTournamentUrl");
         if (StreetAddress != other.StreetAddress) fields.Add("streetAddress");
@@ -775,7 +775,7 @@ internal sealed record EventAuditSnapshot(
             fields,
             before,
             after,
-            bodyChanged = BodyHtml != other.BodyHtml
+            bodyChanged = BodyMarkdown != other.BodyMarkdown
         });
     }
 

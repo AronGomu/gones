@@ -53,6 +53,7 @@ public sealed class AllEventsEndpointTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(3, body.GetProperty("count").GetInt32());
+        Assert.All(body.GetProperty("items").EnumerateArray(), item => Assert.False(item.TryGetProperty("images", out _)));
         var slugs = body.GetProperty("items").EnumerateArray().Select(item => item.GetProperty("slug").GetString()).ToArray();
         Assert.DoesNotContain("past-one", slugs);
         Assert.DoesNotContain("past-two", slugs);
@@ -230,11 +231,11 @@ public sealed class AllEventsEndpointTests : IAsyncLifetime
         return new GonesDbContext(options);
     }
 
-    private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyHtml) => new(
+    private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyMarkdown) => new(
         Title: title,
         Slug: slug,
         Summary: summary,
-        BodyHtml: bodyHtml,
+        BodyMarkdown: bodyMarkdown,
         StreetAddress: "12 Rue de la Paix",
         PostalCode: "75001",
         City: city,

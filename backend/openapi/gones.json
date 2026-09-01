@@ -9998,6 +9998,32 @@
           }
         }
       },
+      "EventImageResponse": {
+        "required": [
+          "id",
+          "altText",
+          "variants"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "altText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageVariantResponse"
+            }
+          }
+        }
+      },
       "EventImageUploadForm": {
         "required": [
           "file"
@@ -10170,7 +10196,7 @@
           "displayTitle",
           "slug",
           "summary",
-          "bodyHtml",
+          "bodyMarkdown",
           "liveTournamentUrl",
           "archiveTournamentUrl",
           "streetAddress",
@@ -10222,7 +10248,7 @@
               "string"
             ]
           },
-          "bodyHtml": {
+          "bodyMarkdown": {
             "type": [
               "null",
               "string"
@@ -10378,7 +10404,7 @@
           "organizationId",
           "title",
           "summary",
-          "bodyHtml",
+          "bodyMarkdown",
           "streetAddress",
           "postalCode",
           "city",
@@ -10408,8 +10434,8 @@
               "string"
             ]
           },
-          "bodyHtml": {
-            "maxLength": 10000,
+          "bodyMarkdown": {
+            "maxLength": 20000,
             "type": [
               "null",
               "string"
@@ -10512,7 +10538,8 @@
           "status",
           "eventType",
           "organization",
-          "formats"
+          "formats",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -10602,6 +10629,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PublicTournamentFormatResponse"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -12718,7 +12751,8 @@
           "status",
           "eventType",
           "organization",
-          "formats"
+          "formats",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -12812,6 +12846,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PublicTournamentFormatResponse"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -14081,7 +14121,7 @@
         "required": [
           "title",
           "summary",
-          "bodyHtml",
+          "bodyMarkdown",
           "streetAddress",
           "postalCode",
           "city",
@@ -14107,8 +14147,8 @@
               "string"
             ]
           },
-          "bodyHtml": {
-            "maxLength": 10000,
+          "bodyMarkdown": {
+            "maxLength": 20000,
             "type": [
               "null",
               "string"

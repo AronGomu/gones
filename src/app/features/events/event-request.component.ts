@@ -60,7 +60,7 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
-            <pre class="tournament-request-body" data-cy="event-request-body">{{ review.event.bodyHtml || '' }}</pre>
+            <pre class="tournament-request-body" data-cy="event-request-body">{{ review.event.bodyMarkdown || '' }}</pre>
             <div class="info-actions" data-cy="event-request-actions">
               <button mat-flat-button class="home-primary-action" type="button" data-cy="event-request-validate" [disabled]="pending()" (click)="approve()">{{ i18n.t('proposal.validate') }}</button>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="event-request-refuse" [disabled]="pending()" (click)="state.set('reason')">{{ i18n.t('proposal.refuse') }}</button>

@@ -62,7 +62,7 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     organizationId: 'org1',
     title: 'My Event',
     summary: '',
-    bodyHtml: '',
+    bodyMarkdown: '',
     streetAddress: '1 rue Test',
     postalCode: '',
     city: 'Lyon',

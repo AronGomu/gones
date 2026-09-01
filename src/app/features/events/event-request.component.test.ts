@@ -34,7 +34,7 @@ const baseReview: EventProposalReviewResponse = {
     organizationId: 'org1',
     title: 'Modern Cup',
     summary: 'A fun cup',
-    bodyHtml: '<script>alert(1)</script>plain body',
+    bodyMarkdown: '<script>alert(1)</script>plain body',
     streetAddress: '1 rue Test',
     postalCode: '69001',
     city: 'Lyon',

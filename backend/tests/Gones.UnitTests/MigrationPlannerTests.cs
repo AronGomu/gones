@@ -249,10 +249,10 @@ public sealed class MigrationPlannerTests
         Assert.Contains(changes, change => change.EntityId == "event-2" && change.Change == "convertedExternalLink");
         var sanitized = evaluation.Plan.ScheduledTournaments.Single(item => item.SourceEventId == "event-1");
         Assert.Equal("summer-cup-2026", sanitized.Draft.Slug);
-        Assert.DoesNotContain("<img", sanitized.Draft.BodyHtml ?? string.Empty, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("script", sanitized.Draft.BodyHtml ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<img", sanitized.Draft.BodyMarkdown ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("script", sanitized.Draft.BodyMarkdown ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         var converted = evaluation.Plan.ScheduledTournaments.Single(item => item.SourceEventId == "event-2");
-        Assert.Contains("https://example.org/info", converted.Draft.BodyHtml);
+        Assert.Contains("https://example.org/info", converted.Draft.BodyMarkdown);
     }
 
     [Fact]

@@ -42,12 +42,12 @@ describe('Organizer Event create state', () => {
 
   it('builds payload from the resolved form zone without inferring a replacement', () => {
     expect(eventPayload({
-      organizationId: 'org', title: ' Cup ', summary: ' ', bodyHtml: ' <p>Body</p> ', streetAddress: ' 1 Street ',
+      organizationId: 'org', title: ' Cup ', summary: ' ', bodyMarkdown: ' **Body** ', streetAddress: ' 1 Street ',
       postalCode: '', city: ' Lyon ', country: ' France ', region: ' Rhône ', locationToken: 'token', latitude: 45.764, longitude: 4.8357,
       eventType: 'weekly', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '', capacity: null, formatId: 'legacy', liveTournamentUrl: ' /live/123 ', archiveTournamentUrl: ' '
     })).toEqual({
-      organizationId: 'org', title: 'Cup', summary: undefined, bodyHtml: '<p>Body</p>', streetAddress: '1 Street',
+      organizationId: 'org', title: 'Cup', summary: undefined, bodyMarkdown: ' **Body** ', streetAddress: '1 Street',
       postalCode: undefined, city: 'Lyon', country: 'France', region: 'Rhône', eventType: 'weekly', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: undefined, capacity: undefined, formatIds: ['legacy'], liveTournamentUrl: '/live/123', archiveTournamentUrl: undefined
     });

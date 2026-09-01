@@ -469,7 +469,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         Title: "Legacy Cup",
         Slug: $"cup-{Guid.NewGuid():N}",
         Summary: "Prizes",
-        BodyHtml: "<p>Welcome</p>",
+        BodyMarkdown: "Welcome",
         StreetAddress: "12 Rue de la Paix",
         PostalCode: "69001",
         City: "Lyon",

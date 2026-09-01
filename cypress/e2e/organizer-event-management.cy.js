@@ -8,7 +8,7 @@ const profile = {
 };
 const event = {
   id: eventId, organizationId: orgId, organizationName: 'Owned Club', title: 'Lyon Legacy Open', slug: 'lyon-legacy-open',
-  summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+  summary: 'Summary', bodyMarkdown: 'Body', streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
   timeZoneId: 'Europe/Paris', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '18:00:00', startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T16:00:00Z', capacity: 32,
   status: 'Published', formatIds: [formatId], version: 3, eTag: '"3"'

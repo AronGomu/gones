@@ -4,7 +4,7 @@ const review = {
     organizationId: 'org-1',
     title: 'Modern Cup',
     summary: 'A fun cup',
-    bodyHtml: 'Plain description body',
+    bodyMarkdown: 'Plain description body',
     streetAddress: '1 Rue Test',
     postalCode: '69001',
     city: 'Lyon',

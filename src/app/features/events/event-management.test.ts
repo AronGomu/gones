@@ -1,10 +1,11 @@
+import '@angular/compiler';
 import { describe, expect, it } from 'vitest';
 import { EventManagementResponse } from '../../api/generated/gones-api';
 import { canCancelEvent, canEditEvent, majorEventChanges, managementToDraft } from './event-management';
 
 const event: EventManagementResponse = {
   id: 'event', organizationId: 'org', organizationName: 'Club', title: 'Legacy Open', slug: 'legacy-open',
-  summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', eventType: 'weekly' as unknown as EventManagementResponse['eventType'],
+  summary: 'Summary', bodyMarkdown: '**Body**', streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', eventType: 'weekly' as unknown as EventManagementResponse['eventType'],
   timeZoneId: 'Europe/Paris', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '18:00:00', startsAtUtc: '2027-08-01T08:00:00Z' as never, endsAtUtc: '2027-08-01T16:00:00Z' as never, capacity: 32,
   status: 'Published', deletedAt: undefined, deletedReason: undefined, formatIds: ['legacy'], version: 3, eTag: '"3"',
@@ -14,7 +15,7 @@ const event: EventManagementResponse = {
 describe('Event management state', () => {
   it('hydrates edit draft from canonical management DTO', () => {
     expect(managementToDraft(event)).toEqual({
-      organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Old Street',
+      organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '**Body**', streetAddress: '1 Old Street',
       postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: '', latitude: null, longitude: null,
       eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '2027-08-01T18:00', capacity: 32, formatId: 'legacy', liveTournamentUrl: '/live/123',
@@ -38,8 +39,8 @@ describe('Event management state', () => {
 
   it('maps links into update and preview DTOs', async () => {
     const { eventUpdatePayload, managementToDetail } = await import('./event-management');
-    expect(eventUpdatePayload({ ...managementToDraft(event), liveTournamentUrl: ' ', archiveTournamentUrl: ' /archive/123 ' })).toMatchObject({
-      formatIds: ['legacy'], liveTournamentUrl: undefined, archiveTournamentUrl: '/archive/123'
+    expect(eventUpdatePayload({ ...managementToDraft(event), bodyMarkdown: '  line  \nnext  ', liveTournamentUrl: ' ', archiveTournamentUrl: ' /archive/123 ' })).toMatchObject({
+      bodyMarkdown: '  line  \nnext  ', formatIds: ['legacy'], liveTournamentUrl: undefined, archiveTournamentUrl: '/archive/123'
     });
     expect(managementToDetail(event, [{ id: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 0 }])).toMatchObject({
       displayTitle: 'Legacy — Legacy Open', liveTournamentUrl: '/live/123', archiveTournamentUrl: 'https://example.test/archive/123'
