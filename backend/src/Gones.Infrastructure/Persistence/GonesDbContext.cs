@@ -42,6 +42,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<EventProposal> EventProposals => Set<EventProposal>();
     public DbSet<EventProposalRecipient> EventProposalRecipients => Set<EventProposalRecipient>();
     public DbSet<EventLifecycleEntry> EventLifecycleEntries => Set<EventLifecycleEntry>();
+    public DbSet<EventImage> EventImages => Set<EventImage>();
+    public DbSet<EventImageObjectDeletion> EventImageObjectDeletions => Set<EventImageObjectDeletion>();
     public DbSet<EventRegistrationAttempt> EventRegistrationAttempts => Set<EventRegistrationAttempt>();
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();

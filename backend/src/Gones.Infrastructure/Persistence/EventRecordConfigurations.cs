@@ -59,6 +59,53 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
     }
 }
 
+internal sealed class EventImageConfiguration : IEntityTypeConfiguration<EventImage>
+{
+    public void Configure(EntityTypeBuilder<EventImage> builder)
+    {
+        builder.ToTable("event_images");
+        builder.HasKey(image => image.Id);
+        builder.Property(image => image.State).HasConversion<string>().HasMaxLength(20);
+        builder.Property(image => image.AltText).HasMaxLength(EventImage.MaximumAltTextLength);
+        builder.HasIndex(image => new { image.UploadedByUserId, image.State });
+        builder.HasIndex(image => new { image.State, image.ExpiresAt });
+        builder.HasIndex(image => new { image.EventId, image.SortOrder })
+            .IsUnique()
+            .HasFilter("event_id IS NOT NULL");
+        builder.HasIndex(image => new { image.ProposalId, image.SortOrder })
+            .IsUnique()
+            .HasFilter("proposal_id IS NOT NULL");
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(image => image.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Event>().WithMany().HasForeignKey(image => image.EventId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EventProposal>().WithMany().HasForeignKey(image => image.ProposalId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_event_images_state", "state IN ('Temporary','ProposalOwned','EventOwned')");
+            table.HasCheckConstraint("ck_event_images_alt_text", $"alt_text IS NULL OR length(alt_text) <= {EventImage.MaximumAltTextLength}");
+            table.HasCheckConstraint("ck_event_images_dimensions", "width > 0 AND height > 0");
+            table.HasCheckConstraint(
+                "ck_event_images_ownership",
+                "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND sort_order IS NULL AND expires_at IS NOT NULL) OR " +
+                "(state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND sort_order IS NOT NULL AND expires_at IS NOT NULL) OR " +
+                "(state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND sort_order IS NOT NULL AND expires_at IS NULL)");
+        });
+    }
+}
+
+internal sealed class EventImageObjectDeletionConfiguration : IEntityTypeConfiguration<EventImageObjectDeletion>
+{
+    public void Configure(EntityTypeBuilder<EventImageObjectDeletion> builder)
+    {
+        builder.ToTable("event_image_object_deletions");
+        builder.HasKey(deletion => deletion.ObjectKey);
+        builder.Property(deletion => deletion.ObjectKey).HasMaxLength(EventImageObjectDeletion.MaximumObjectKeyLength);
+        builder.Property(deletion => deletion.LastError).HasMaxLength(EventImageObjectDeletion.MaximumLastErrorLength);
+        builder.HasIndex(deletion => deletion.ImageId);
+        builder.HasIndex(deletion => deletion.NextAttemptAt);
+        builder.ToTable(table => table.HasCheckConstraint("ck_event_image_object_deletions_attempts", "attempts >= 0"));
+    }
+}
+
 internal sealed class EventRegistrationAttemptConfiguration : VersionedEntityConfiguration<EventRegistrationAttempt>
 {
     public override void Configure(EntityTypeBuilder<EventRegistrationAttempt> builder)

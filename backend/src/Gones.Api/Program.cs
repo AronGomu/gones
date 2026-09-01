@@ -121,6 +121,8 @@ else
     }
     builder.Services.AddScoped<OrganizationAccessService>();
     builder.Services.AddScoped<EventPublicationService>();
+    builder.Services.AddScoped<EventImageUploadService>();
+    builder.Services.AddScoped<EventImageCleanupService>();
     builder.Services.AddScoped<EventProposalService>();
     builder.Services.AddScoped<EventLifecycleService>();
     builder.Services.AddScoped<EventRegistrationService>();
@@ -254,6 +256,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapLiveCommandEndpoints();
     app.MapPublicEventEndpoints();
     app.MapEventPublicationEndpoints();
+    app.MapEventImageEndpoints();
     app.MapEventProposalEndpoints();
     app.MapEventLifecycleEndpoints();
     app.MapEventRegistrationEndpoints();

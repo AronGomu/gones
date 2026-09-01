@@ -65,6 +65,29 @@ public sealed record ProcessedEventImageVariant(int Width, int Height, ReadOnlyM
 public sealed class EventLocationUnresolvedException()
     : Exception("Event location could not be resolved.");
 
+public static class EventImageUploadLimits
+{
+    public const long MaximumBytes = 5 * 1024 * 1024;
+    public const long MaximumPixels = 25_000_000;
+    public static readonly IReadOnlySet<string> ContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp"
+    };
+}
+
+public static class EventImageObjectKeys
+{
+    public static string Variant(Guid imageId, int width) => $"event-images/{imageId:D}/{width}.webp";
+}
+
+public sealed class EventImageTooLargeException() : Exception("Event image exceeds 5 MiB.");
+public sealed class EventImageTypeUnsupportedException() : Exception("Event image type is unsupported.");
+public sealed class EventImageInvalidException() : Exception("Event image is invalid.");
+public sealed class EventImageTooManyPixelsException() : Exception("Event image exceeds 25 megapixels.");
+public sealed class EventImageAnimatedException() : Exception("Animated Event images are unsupported.");
+
 public sealed class EventLocationProviderUnavailableException(Exception? innerException = null)
     : Exception("Event location provider is unavailable.", innerException);
 

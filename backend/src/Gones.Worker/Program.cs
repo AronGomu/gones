@@ -37,6 +37,7 @@ builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationWorker(builder.Configuration);
 builder.Services.AddTournamentScheduler(builder.Configuration);
 builder.Services.AddScoped<WorkerHeartbeatStore>();
+builder.Services.AddScoped<EventImageCleanupService>();
 builder.Services.AddScoped<UserEmailHistoryRedactor>();
 builder.Services.AddScoped<IdempotencyRecordSweeper>();
 builder.Services.AddHostedService<Worker>();

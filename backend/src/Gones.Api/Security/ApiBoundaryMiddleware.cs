@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Gones.Api.Errors;
+using Gones.Application.Events;
 using Gones.Infrastructure.Observability;
 
 namespace Gones.Api.Security;
@@ -58,11 +59,17 @@ public sealed class ApiBoundaryMiddleware(RequestDelegate next, ILogger<ApiBound
 
 public sealed class ApiRequestSizeMiddleware(RequestDelegate next)
 {
+    private const long EventImageMultipartOverheadBytes = 64 * 1024;
+
     public Task InvokeAsync(HttpContext context)
     {
         if (!context.Request.Path.StartsWithSegments("/api")) return next(context);
-        if (context.Request.ContentLength > ApiBoundaryMiddleware.MaxApiRequestBodySize) throw new RequestBodyTooLargeException();
-        context.Request.Body = new LimitedReadStream(context.Request.Body, ApiBoundaryMiddleware.MaxApiRequestBodySize);
+        var limit = HttpMethods.IsPost(context.Request.Method)
+            && context.Request.Path.Equals("/api/event-images", StringComparison.Ordinal)
+                ? EventImageUploadLimits.MaximumBytes + EventImageMultipartOverheadBytes
+                : ApiBoundaryMiddleware.MaxApiRequestBodySize;
+        if (context.Request.ContentLength > limit) throw new RequestBodyTooLargeException();
+        context.Request.Body = new LimitedReadStream(context.Request.Body, limit);
         return next(context);
     }
 

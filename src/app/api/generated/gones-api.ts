@@ -12,6 +12,8 @@ import { Observable, throwError as _observableThrow, of as _observableOf } from 
 import { Injectable, Inject, Optional, InjectionToken } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpResponse, HttpResponseBase } from '@angular/common/http';
 
+export interface FileParameter { data: Blob; fileName?: string; }
+
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');
 
 export interface IClient {
@@ -459,6 +461,19 @@ export interface IClient {
      * @return OK
      */
     preview(body: EventPayloadRequest): Observable<EventPreviewResponse>;
+    /**
+     * @param file (optional)
+     * @return Created
+     */
+    eventImagesPOST(file: FileParameter): Observable<EventImageUploadResponse>;
+    /**
+     * @return No Content
+     */
+    eventImagesDELETE(imageId: string): Observable<void>;
+    /**
+     * @return OK
+     */
+    variants(imageId: string, width: number): Observable<FileResponse>;
     /**
      * @return OK
      */
@@ -6544,6 +6559,247 @@ export class Client implements IClient {
     }
 
     /**
+     * @param file (optional)
+     * @return Created
+     */
+    eventImagesPOST(file: FileParameter): Observable<EventImageUploadResponse> {
+        let url_ = this.baseUrl + "/api/event-images";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = new FormData();
+        if (file === null || file === undefined)
+            throw new globalThis.Error("The parameter 'file' cannot be null.");
+        else
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processEventImagesPOST(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processEventImagesPOST(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<EventImageUploadResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<EventImageUploadResponse>;
+        }));
+    }
+
+    protected processEventImagesPOST(response: HttpResponseBase): Observable<EventImageUploadResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 201) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventImageUploadResponse;
+            return _observableOf(result201);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 403) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result403: any = null;
+            result403 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Forbidden", status, _responseText, _headers, result403);
+            }));
+        } else if (status === 413) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result413: any = null;
+            result413 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Payload Too Large", status, _responseText, _headers, result413);
+            }));
+        } else if (status === 415) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result415: any = null;
+            result415 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unsupported Media Type", status, _responseText, _headers, result415);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    eventImagesDELETE(imageId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/event-images/{imageId}";
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processEventImagesDELETE(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processEventImagesDELETE(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processEventImagesDELETE(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    variants(imageId: string, width: number): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/event-images/{imageId}/variants/{width}";
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        if (width === undefined || width === null)
+            throw new globalThis.Error("The parameter 'width' must be defined.");
+        url_ = url_.replace("{width}", encodeURIComponent("" + width));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "image/webp"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processVariants(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processVariants(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<FileResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<FileResponse>;
+        }));
+    }
+
+    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @return OK
      */
     approvers(organizationId: string): Observable<ProposalApproverResponse[]> {
@@ -10968,6 +11224,31 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
+export interface EventImageUploadForm {
+    file: Blob;
+
+    [key: string]: any;
+}
+
+export interface EventImageUploadResponse {
+    id: string;
+    state: "Temporary";
+    width: number;
+    height: number;
+    expiresAt: string;
+    variants: EventImageVariantResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventImageVariantResponse {
+    width: number;
+    height: number;
+    url: string;
+
+    [key: string]: any;
+}
+
 export interface EventLocationAutocompleteResponse {
     suggestions: EventLocationSuggestionResponse[];
 
@@ -12156,6 +12437,7 @@ export enum EventType {
     Monthly = "monthly",
     Major = "major",
 }
+
 
 export type EventPayloadRequestEventType = "weekly" | "monthly" | "major";
 

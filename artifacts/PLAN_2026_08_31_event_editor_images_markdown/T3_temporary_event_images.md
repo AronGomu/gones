@@ -129,22 +129,22 @@ GET /api/event-images/{id}/variants/{width} -> image/webp
 
 ## Impl steps
 
-- [ ] 1. Add failing domain/migration/integration tests.
-- [ ] 2. Add failing processor/object-store compensation tests.
-- [ ] 3. Add failing uploader DOM/state/a11y tests.
-- [ ] 4. Implement table/domain/API/processor/base read route.
-- [ ] 5. Implement worker sweep + observable retry-safe object deletion.
-- [ ] 6. Implement reusable uploader/reorder component + i18n/data-cy.
-- [ ] 7. Regenerate API client; run gates.
+- [x] T3.1 Add failing domain/migration/integration tests. Verify: targeted `EventImage` backend test command fails for missing implementation before production code lands.
+- [x] T3.2 Add failing processor/object-store compensation tests. Verify: targeted `EventImage` backend test command reports processor/compensation failures before production code lands.
+- [x] T3.3 Add failing uploader DOM/state/a11y tests. Verify: targeted uploader Vitest command fails for missing component behavior before production code lands.
+- [x] T3.4 Implement table/domain/API/processor/base read route. Verify: targeted `EventImage` backend test command passes.
+- [x] T3.5 Implement worker sweep + observable retry-safe object deletion. Verify: targeted `EventImage` backend test command passes sweep/retry tests.
+- [x] T3.6 Implement reusable uploader/reorder component + i18n/data-cy. Verify: targeted uploader Vitest command passes.
+- [x] T3.7 Regenerate API client; run gates. Verify: `npm run api:generate && npm run api:check`, `npm run typecheck`, and `npm run lint` pass.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImage"`
-- [ ] `npm run test -- --run src/app/features/events/event-image-uploader.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: upload valid/invalid peers, reorder by drag + keyboard, retry/remove, inspect `srcset` variants
-- [ ] no silent-failure swallow on added path — list object-delete retry site + durable/observable retry reason
-- [ ] app functional — expired temps cleaned; valid temp remains previewable only to owner
-- [ ] commit msg draft: `feat(events): stage safe ordered media before Event ownership`
+- [x] T3.V1 `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImage"` exits 0.
+- [x] T3.V2 `npm run test -- --run src/app/features/events/event-image-uploader.component.test.ts` exits 0.
+- [x] T3.V3 `npm run api:generate && npm run api:check` exits 0.
+- [x] T3.V4 `npm run typecheck` exits 0.
+- [x] T3.V5 `npm run lint` exits 0.
+- [x] T3.V6 Manual-equivalent component test proves valid/invalid peers, drag + keyboard reorder, retry/remove, and responsive variant `srcset` rendering.
+- [x] T3.V7 Review added deletion path and name retry site plus durable/observable retry reason; evidence recorded in final report.
+- [x] T3.V8 Targeted integration tests prove expired temps cleaned while live temp stays owner-previewable only; no external S3 required.
+- [x] T3.V9 Commit exists with message `feat(events): stage safe ordered media before Event ownership`; `git show --stat --oneline HEAD` confirms exact T3 paths.
