@@ -69,9 +69,9 @@ tournaments for it). The seeding admin creates the organization and is stepped b
 roster is exactly this list — an empty array leaves the organization Draft.
 
 `tournaments.json` — `key`, `organizationKey`, `organizerEmail` (must be one of the organization's `memberEmails`),
-`title`, `summary` (50 characters maximum), `bodyHtml` (well-formed markup limited to
-`p`, `br`, `strong`, `em`, `ul`, `ol`, `li`, `h2`, `h3`, `a`), `streetAddress`, `postalCode`, `city`,
-`country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and
+`title`, `summary` (50 characters maximum), `bodyMarkdown` (20,000 characters maximum; CommonMark
+plus pipe tables, task lists, strikethrough and autolinks; raw HTML and Markdown images are ignored),
+`streetAddress`, `postalCode`, `city`, `country`, `timeZoneId` (IANA), `startsAtLocalOffsetDays` / `startsAtLocalTime` and
 `endsAtLocalOffsetDays` / `endsAtLocalTime`, `capacity` (positive integer or `null` for unlimited),
 `formatKeys` (must contain exactly one format). Split Event keys use
 `{source-key}-{format-slug}` while stored titles keep the shared base title.

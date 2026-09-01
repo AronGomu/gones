@@ -128,6 +128,18 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Preview_removes_XML_invalid_control_chars_from_derived_HTML()
+    {
+        using var preview = await PreviewAsync(
+            seed.Organizer.Id,
+            Payload(seed.Alpha.Id) with { BodyMarkdown = "Before\u0001After" });
+
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var render = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("render");
+        Assert.Equal("<p>BeforeAfter</p>", render.GetProperty("bodyHtml").GetString());
+    }
+
+    [Fact]
     public async Task Mutated_payload_is_rejected_original_publishes_once_and_retry_is_idempotent()
     {
         var payload = Payload(seed.Alpha.Id) with { BodyMarkdown = "  Welcome  \n" };

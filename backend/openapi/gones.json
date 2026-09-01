@@ -10748,6 +10748,7 @@
         "required": [
           "id",
           "event",
+          "bodyHtml",
           "status",
           "submittedByUsername",
           "approverUsername",
@@ -10763,6 +10764,12 @@
           },
           "event": {
             "$ref": "#/components/schemas/EventPayloadRequest"
+          },
+          "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "status": {
             "type": "string"

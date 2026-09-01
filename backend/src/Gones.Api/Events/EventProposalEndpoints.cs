@@ -143,6 +143,7 @@ internal static class EventProposalEndpoints
     private static async Task<IResult> GetByTokenAsync(
         string token,
         GonesDbContext database,
+        IEventMarkdownRenderer markdown,
         IClock clock,
         CancellationToken cancellationToken)
     {
@@ -161,6 +162,7 @@ internal static class EventProposalEndpoints
         return Results.Ok(new EventProposalReviewResponse(
             proposal.Id,
             payload,
+            payload.BodyMarkdown is null ? null : markdown.RenderAndSanitize(payload.BodyMarkdown),
             proposal.Status.ToString(),
             await UsernameAsync(database, proposal.SubmittedByUserId, cancellationToken),
             await UsernameAsync(database, recipient.UserId, cancellationToken),
@@ -621,6 +623,7 @@ internal sealed record EventProposalResponse(Guid Id, string Status, Instant Exp
 internal sealed record EventProposalReviewResponse(
     Guid Id,
     EventPayloadRequest Event,
+    string? BodyHtml,
     string Status,
     string SubmittedByUsername,
     string ApproverUsername,

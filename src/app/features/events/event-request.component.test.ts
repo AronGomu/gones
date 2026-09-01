@@ -11,6 +11,8 @@ vi.mock('@angular/core', async (importOriginal) => {
 
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap } from '@angular/router';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ApiProblemError } from '../../api/api-boundary';
 import { EventRequestComponent } from './event-request.component';
 import { EventProposalService } from './event-proposal.service';
@@ -50,7 +52,8 @@ const baseReview: EventProposalReviewResponse = {
   approverUsername: 'bob',
   expiresAt: '2027-08-08T00:00:00Z',
   organizationName: 'Gones',
-  formatNames: ['Legacy', 'Modern']
+  formatNames: ['Legacy', 'Modern'],
+  bodyHtml: '<p>Safe <strong>body</strong></p>'
 } as unknown as EventProposalReviewResponse;
 
 function setup(reviewResult: unknown = baseReview) {
@@ -84,14 +87,20 @@ async function flush() {
   await Promise.resolve();
 }
 
+const source = readFileSync(join(__dirname, 'event-request.component.ts'), 'utf8');
+
 describe('EventRequestComponent', () => {
-  it('renders the proposal', async () => {
+  it('renders the proposal with server-derived safe HTML instead of Markdown source', async () => {
     const { component } = setup();
     await flush();
     expect(component.state()).toBe('review');
     expect(component.proposal()?.event.title).toBe('Modern Cup');
     expect(component.proposal()?.organizationName).toBe('Gones');
     expect(component.proposal()?.formatNames).toEqual(['Legacy', 'Modern']);
+    expect(component.proposal()?.bodyHtml).toBe('<p>Safe <strong>body</strong></p>');
+    expect(source).toContain('<gones-server-sanitized-html');
+    expect(source).toContain('[html]="review.bodyHtml || \'\'"');
+    expect(source).not.toContain('{{ review.event.bodyMarkdown');
   });
 
   it('renders a dash for a deleted organization', async () => {

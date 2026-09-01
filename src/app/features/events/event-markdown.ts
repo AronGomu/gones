@@ -23,5 +23,9 @@ const eventMarkdown = new Marked({
 
 export function renderEventMarkdown(markdown: string): string {
   if (!markdown.trim()) return '';
-  return withSafeExternalLinks(eventMarkdown.parse(markdown, { async: false }));
+  const normalizedMarkdown = [...markdown].filter(character => {
+    const code = character.charCodeAt(0);
+    return code >= 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+  }).join('');
+  return withSafeExternalLinks(eventMarkdown.parse(normalizedMarkdown, { async: false }));
 }

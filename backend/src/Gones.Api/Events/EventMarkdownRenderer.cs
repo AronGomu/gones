@@ -31,7 +31,8 @@ internal sealed class EventMarkdownRenderer : IEventMarkdownRenderer
     public string RenderAndSanitize(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return string.Empty;
-        var markdownDocument = Markdown.Parse(markdown, Pipeline);
+        var normalizedMarkdown = RemoveXmlInvalidControlCharacters(markdown);
+        var markdownDocument = Markdown.Parse(normalizedMarkdown, Pipeline);
         foreach (var block in markdownDocument.Descendants<HtmlBlock>().ToArray()) block.Remove();
         foreach (var inline in markdownDocument.Descendants<HtmlInline>().ToArray()) inline.Remove();
         foreach (var image in markdownDocument.Descendants<LinkInline>().Where(link => link.IsImage).ToArray()) image.Remove();
@@ -130,4 +131,7 @@ internal sealed class EventMarkdownRenderer : IEventMarkdownRenderer
         .Replace(">", "&gt;", StringComparison.Ordinal);
 
     private static string EscapeAttribute(string value) => EscapeText(value).Replace("\"", "&quot;", StringComparison.Ordinal);
+
+    private static string RemoveXmlInvalidControlCharacters(string value) => string.Concat(value.Where(character =>
+        character is '\t' or '\n' or '\r' || character >= ' '));
 }

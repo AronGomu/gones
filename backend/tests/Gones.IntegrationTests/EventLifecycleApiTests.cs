@@ -148,6 +148,25 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Update_then_public_detail_remove_XML_invalid_control_chars_from_derived_HTML()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Control Cup");
+        using var update = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details("Control Cup") with { BodyMarkdown = "Before\u0001After" },
+            ifMatch: StrongETag.Encode(tournament.Version));
+
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        using var detail = await Client.GetAsync($"/api/events/{tournament.Slug}");
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("<p>BeforeAfter</p>", body.GetProperty("bodyHtml").GetString());
+    }
+
+    [Fact]
     public async Task Cancel_delete_restore_enforce_deadlines_admin_auth_and_idempotent_retries()
     {
         var completed = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Completed Cup");

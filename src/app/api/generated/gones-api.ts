@@ -11414,6 +11414,7 @@ export interface EventProposalResponse {
 export interface EventProposalReviewResponse {
     id: string;
     event: EventPayloadRequest;
+    bodyHtml: string | undefined;
     status: string;
     submittedByUsername: string;
     approverUsername: string;

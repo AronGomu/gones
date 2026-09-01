@@ -113,7 +113,7 @@ function tournamentPayload(organizationId, formatIds, startsAtLocal, title) {
     organizationId,
     title,
     summary: 'Release rehearsal tournament',
-    bodyHtml: '<p>Local rehearsal only.</p>',
+    bodyMarkdown: 'Local rehearsal only.',
     streetAddress: '1 Rue de la Republique',
     postalCode: '69002',
     city: 'Lyon',
@@ -227,6 +227,8 @@ async function rolesStage() {
 
   const publicDetail = await call(`/api/tournaments/${slug}`);
   check(publicDetail.status === 200, `a Visitor reads the published tournament (${publicDetail.status})`);
+  check(publicDetail.json?.bodyHtml === '<p>Local rehearsal only.</p>',
+    'the public detail derives safe HTML from the authored Markdown');
   const ics = await call(`/api/tournaments/${slug}.ics`);
   check(ics.status === 200 && ics.text.includes('BEGIN:VEVENT') && ics.text.includes('Europe/Paris'),
     'the tournament exports an ICS entry carrying the venue time zone');
@@ -370,7 +372,7 @@ async function dateChangeStage() {
     body: {
       title: entry.title,
       summary: entry.summary,
-      bodyHtml: entry.bodyHtml,
+      bodyMarkdown: entry.bodyMarkdown,
       streetAddress: entry.streetAddress,
       postalCode: entry.postalCode,
       city: entry.city,

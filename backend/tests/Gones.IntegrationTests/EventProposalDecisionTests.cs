@@ -75,6 +75,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         var expected = Payload();
         Assert.Equal(expected.Title, tournament.GetProperty("title").GetString());
         Assert.Equal(expected.Summary, tournament.GetProperty("summary").GetString());
+        Assert.Equal(expected.BodyMarkdown, tournament.GetProperty("bodyMarkdown").GetString());
+        Assert.False(tournament.TryGetProperty("bodyHtml", out _));
+        Assert.Equal("<p>Welcome</p>", body.GetProperty("bodyHtml").GetString());
         Assert.Equal(expected.StreetAddress, tournament.GetProperty("streetAddress").GetString());
         Assert.Equal(expected.PostalCode, tournament.GetProperty("postalCode").GetString());
         Assert.Equal(expected.City, tournament.GetProperty("city").GetString());
