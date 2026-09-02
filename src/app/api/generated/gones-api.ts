@@ -10552,7 +10552,7 @@ export class Client implements IClient {
 
 export interface AccessTokenResponse {
     accessToken: string;
-    expiresAt: Instant;
+    expiresAt: string;
     tokenType: string;
 
     [key: string]: any;
@@ -10613,7 +10613,7 @@ export interface AdminAuditRecordResponse {
     entityType: string;
     entityId: string;
     redactedDiff: string;
-    occurredAt: Instant;
+    occurredAt: string;
 
     [key: string]: any;
 }
@@ -10621,9 +10621,9 @@ export interface AdminAuditRecordResponse {
 export interface AdminDeckArchetypeResponse {
     id: string;
     name: string;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10633,9 +10633,9 @@ export interface AdminFormatResponse {
     name: string;
     slug: string;
     sortOrder: number;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10659,10 +10659,10 @@ export interface AdminNotificationResponse {
     providerMessageId: string | undefined;
     attemptCount: number;
     lastErrorCode: string | undefined;
-    createdAt: Instant;
-    lastAttemptAt: Instant | undefined;
-    sentAt: Instant | undefined;
-    deadLetteredAt: Instant | undefined;
+    createdAt: string;
+    lastAttemptAt: string | undefined;
+    sentAt: string | undefined;
+    deadLetteredAt: string | undefined;
     canRetry: boolean;
 
     [key: string]: any;
@@ -10695,7 +10695,7 @@ export interface AdminOrganizationMemberResponse {
     email: string;
     globalRole: string;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -10706,9 +10706,9 @@ export interface AdminOrganizationResponse {
     description: string | undefined;
     website: string | undefined;
     contactEmail: string | undefined;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
     version: number;
     memberCount: number;
     isDraft?: boolean;
@@ -10725,9 +10725,9 @@ export interface AdminUserDetailResponse {
     firstName: string;
     lastName: string;
     isClosed: boolean;
-    closedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    closedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10750,7 +10750,7 @@ export interface AdminUserSummaryResponse {
     firstName: string;
     lastName: string;
     isClosed: boolean;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -10782,7 +10782,7 @@ export interface ArchiveCatalogResponseOfArchiveTournamentSummary {
 export interface ArchiveCommandResponse {
     id: string;
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -10866,7 +10866,7 @@ export interface ArchiveLeagueSeasonSummary {
     name: string;
     leagueId: string;
     status: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
     tournamentCount: number;
     playerCount: number;
@@ -10879,8 +10879,8 @@ export interface ArchiveLeagueSeasonSummary {
 export interface ArchiveLeagueSummary {
     id: string;
     name: string;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
     documentVersion: number;
 
     [key: string]: any;
@@ -10947,7 +10947,7 @@ export interface ArchiveTournamentCommandResponse {
     rounds: RoundDocument[];
     playerArchetypes: PlayerArchetypeDocument[];
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -10962,7 +10962,7 @@ export interface ArchiveTournamentDetailResponse {
     rounds: RoundDocument[];
     playerArchetypes: PlayerArchetypeDocument[];
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10985,7 +10985,7 @@ export interface ArchiveTournamentSummary {
     seasonId: string | undefined;
     tournamentDate: string;
     status: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
     playerCount: number;
 
@@ -11009,7 +11009,7 @@ export interface ArchiveYearsResponse {
 export interface BlockOrganizationUserRequest {
     userId: string;
     reason: string;
-    expiresAt: Instant | undefined;
+    expiresAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11247,11 +11247,11 @@ export interface EventManagementResponse {
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
+    startsAtUtc: string;
+    endsAtUtc: string;
     capacity: number | undefined;
     status: string;
-    deletedAt: Instant | undefined;
+    deletedAt: string | undefined;
     deletedReason: string | undefined;
     formatIds: string[];
     images: EventImageResponse[];
@@ -11325,7 +11325,7 @@ export interface EventProposalRequest {
 export interface EventProposalResponse {
     id: string;
     status: string;
-    expiresAt: Instant;
+    expiresAt: string;
     recipientCount: number;
 
     [key: string]: any;
@@ -11340,7 +11340,7 @@ export interface EventProposalReviewResponse {
     status: string;
     submittedByUsername: string;
     approverUsername: string;
-    expiresAt: Instant;
+    expiresAt: string;
     organizationName: string;
     formatNames: string[];
 
@@ -11371,14 +11371,14 @@ export interface EventRegistrationHistoryResponse {
     eventSlug: string;
     eventTitle: string;
     organizationName: string;
-    startsAtUtc: Instant;
+    startsAtUtc: string;
     timeZoneId: string;
     status: string;
     isCurrent: boolean;
     registeredByUserId: string;
-    registeredAt: Instant;
+    registeredAt: string;
     statusChangedByUserId: string | undefined;
-    statusChangedAt: Instant | undefined;
+    statusChangedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11397,8 +11397,8 @@ export interface EventRegistrationMutationResponse {
     eventId: string;
     userId: string;
     status: string;
-    registeredAt: Instant;
-    statusChangedAt: Instant | undefined;
+    registeredAt: string;
+    statusChangedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11407,8 +11407,8 @@ export interface ExternalIdentityResponse {
     provider: string;
     providerEmail: string | undefined;
     providerEmailVerified: boolean;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -11437,11 +11437,6 @@ export interface ImportDeckArchetypesRequest {
     [key: string]: any;
 }
 
-export interface Instant {
-
-    [key: string]: any;
-}
-
 export interface LeagueResult {
     scope: string;
     startDate: string;
@@ -11456,7 +11451,7 @@ export interface LeagueResult {
 export interface LiveCommandResponse {
     document: LiveTournamentDocument;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -11555,7 +11550,7 @@ export interface LiveTournamentDocument {
 export interface LiveTournamentDocumentResponse {
     document: LiveTournamentDocument;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
 
     [key: string]: any;
 }
@@ -11622,7 +11617,7 @@ export interface MyOrganizationResponse {
     website: string | undefined;
     contactEmail: string | undefined;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -11630,7 +11625,7 @@ export interface MyOrganizationResponse {
 export interface OAuthFlowResponse {
     status: string;
     accessToken: string | undefined;
-    expiresAt: Instant | undefined;
+    expiresAt: string | undefined;
     tokenType: string | undefined;
     completionTicket: string | undefined;
     email: string | undefined;
@@ -11671,8 +11666,8 @@ export interface OrganizationBlockedUserResponse {
     username: string;
     reason: string;
     blockedByUserId: string | undefined;
-    blockedAt: Instant;
-    expiresAt: Instant | undefined;
+    blockedAt: string;
+    expiresAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11690,7 +11685,7 @@ export interface OrganizationMemberResponse {
     userId: string;
     username: string;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -11699,7 +11694,7 @@ export interface OrganizationNotificationSettingsResponse {
     organizationId: string;
     notifyOnRegistration: boolean;
     notifyOnUnregistration: boolean;
-    updatedAt: Instant;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -11845,7 +11840,7 @@ export interface PrivateEventParticipantResponse {
     firstName: string;
     lastName: string;
     email: string;
-    registeredAt: Instant;
+    registeredAt: string;
     registeredByUserId: string;
 
     [key: string]: any;
@@ -11884,7 +11879,7 @@ export interface PublicDeckArchetypeResponse {
 
 export interface PublicEventCatalogResponse {
     items: PublicEventSummaryResponse[];
-    generatedAt: Instant;
+    generatedAt: string;
     count: number;
     truncated: boolean;
 
@@ -11906,8 +11901,8 @@ export interface PublicEventDetailResponse {
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
+    startsAtUtc: string;
+    endsAtUtc: string;
     capacity: number;
     status: string;
     eventType: PublicCalendarEventType | undefined;
@@ -11972,8 +11967,8 @@ export interface PublicEventSummaryResponse {
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
+    startsAtUtc: string;
+    endsAtUtc: string;
     capacity: number;
     status: string;
     eventType: PublicCalendarEventType | undefined;
@@ -12019,7 +12014,7 @@ export interface PublicLiveTournamentDetailResponse {
     createdAt: string;
     updatedAt: string;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
 
     [key: string]: any;
 }
@@ -12038,7 +12033,7 @@ export interface PublicLiveTournamentSummaryResponse {
     name: string;
     tournamentDate: string;
     stage: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
 
     [key: string]: any;
@@ -12050,7 +12045,7 @@ export interface PublicOrganizationResponse {
     description: string | undefined;
     website: string | undefined;
     contactEmail: string | undefined;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -12313,9 +12308,9 @@ export interface UpsertFormatRequest {
 export interface UserEmailHistoryResponse {
     id: string;
     email: string | undefined;
-    recordedAt: Instant;
-    retainUntil: Instant;
-    redactedAt: Instant | undefined;
+    recordedAt: string;
+    retainUntil: string;
+    redactedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -12338,8 +12333,8 @@ export interface UserProfileResponse {
     isLocationPublic: boolean;
     isBirthDatePublic: boolean;
     isPreferredLanguagePublic: boolean;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }

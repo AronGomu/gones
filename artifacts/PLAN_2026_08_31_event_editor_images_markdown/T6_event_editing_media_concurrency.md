@@ -142,3 +142,11 @@ interface EventManagementResponse {
 - [x] 11. Recover missing-image PATCH 404 through latest Event/media reload. Verify: API code and Angular test distinguish `image_not_found` from permission failure.
 - [x] 12. Regenerate API client and run focused gates. Verify: backend/frontend/API/typecheck/lint/Cypress commands pass or record explicit limitation.
 - [x] 13. Commit only T6 review-repair paths. Verify: commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged files.
+
+## Final contract repair
+
+- [x] 14. Fix generated OpenAPI NodaTime `Instant` schema and location-token expiry semantics. Verify: generated OpenAPI/client model `Instant` and `locationTokenExpiresAt` as string `date-time`; no dangling or object-shaped `Instant` refs.
+- [x] 15. Add generator semantic regression test. Verify: focused generator test passes and fails for object-shaped or semantically invalid `Instant` refs.
+- [x] 16. Clear obsolete image field error after successful `reloadLatest`. Verify: focused Angular test proves stale image error disappears after canonical reload.
+- [x] 17. Regenerate API/client and run final gates. Verify: focused tests, `npm run api:check`, `npm run typecheck`, `npm run lint`, and generated-diff check pass.
+- [ ] 18. Commit exact final-repair paths without push/merge. Verify: new commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged or unstaged files.

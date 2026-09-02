@@ -10282,7 +10282,8 @@
             "$ref": "#/components/schemas/EventLocationInput"
           },
           "locationTokenExpiresAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "streetAddress": {
             "type": "string"
@@ -11023,7 +11024,10 @@
           }
         }
       },
-      "Instant": {},
+      "Instant": {
+        "type": "string",
+        "format": "date-time"
+      },
       "LeagueResult": {
         "required": [
           "scope",

@@ -505,6 +505,10 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     expect(component.staleEvent()).toBe(latest);
     expect(component.submitError()).toBeNull();
     expect(component.fieldErrors()['images']).not.toBe(component.i18n.t('eventManage.forbidden'));
+
+    component.reloadLatest();
+
+    expect(component.fieldErrors()['images']).toBeUndefined();
   });
 
   it('sends nested ETag edit, keeps local draft on 412, then explicitly reloads canonical media and location', async () => {

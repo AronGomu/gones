@@ -719,6 +719,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.applyCanonical(latest);
     this.staleEvent.set(null);
     this.staleChanges.set([]);
+    this.fieldErrors.update(errors => {
+      if (!errors['images']) return errors;
+      const current = { ...errors };
+      delete current['images'];
+      return current;
+    });
     this.submitError.set(null);
     this.success.set(this.i18n.t('eventManage.reloaded'));
     queueMicrotask(() => this.streetInput?.nativeElement.focus());
