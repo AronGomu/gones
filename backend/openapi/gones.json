@@ -1354,6 +1354,7 @@
         "tags": [
           "EventProposalEndpoints"
         ],
+        "operationId": "ReadProposalImageVariant",
         "parameters": [
           {
             "name": "token",
@@ -1391,6 +1392,17 @@
                 "schema": {
                   "type": "string",
                   "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "Private proposal media must never be cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             }
@@ -4454,6 +4466,7 @@
         "tags": [
           "EventImageEndpoints"
         ],
+        "operationId": "Variants",
         "parameters": [
           {
             "name": "imageId",
@@ -10586,85 +10599,6 @@
           }
         }
       },
-      "EventProposalPayloadRequest": {
-        "required": [
-          "organizationId",
-          "title",
-          "location",
-          "eventType",
-          "startsAtLocal",
-          "capacity",
-          "formatIds",
-          "images"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "maxLength": 160,
-            "type": "string"
-          },
-          "location": {
-            "$ref": "#/components/schemas/EventLocationInput"
-          },
-          "eventType": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PublicCalendarEventType"
-              }
-            ]
-          },
-          "startsAtLocal": {
-            "type": "string"
-          },
-          "capacity": {
-            "maximum": 2147483647,
-            "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "formatIds": {
-            "maxItems": 1,
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "images": {
-            "maxItems": 5,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageInput"
-            }
-          },
-          "summary": {
-            "maxLength": 50,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "bodyMarkdown": {
-            "maxLength": 20000,
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "EventProposalRejectRequest": {
         "required": [
           "reason"
@@ -10686,7 +10620,7 @@
         "type": "object",
         "properties": {
           "event": {
-            "$ref": "#/components/schemas/EventProposalPayloadRequest"
+            "$ref": "#/components/schemas/EventPayloadRequest"
           },
           "recipientUserIds": {
             "maxItems": 10,

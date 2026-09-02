@@ -185,7 +185,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                 </div>
 
                 @if (!editMode) {
-                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
+                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
                 }
 
                 @if (editMode) {

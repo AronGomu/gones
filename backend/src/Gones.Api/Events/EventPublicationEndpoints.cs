@@ -249,11 +249,11 @@ internal sealed class EventPublicationService(
         Guid userId,
         IReadOnlyList<EventImageInput> inputs,
         Instant proposalExpiresAt,
-        Instant now,
         CancellationToken cancellationToken)
     {
         ValidateImageInputs(inputs);
         var images = await LockImagesAsync(inputs, cancellationToken);
+        var now = clock.GetCurrentInstant();
         for (var index = 0; index < inputs.Count; index++)
         {
             try
@@ -575,7 +575,7 @@ internal sealed class EventPublicationService(
         string? Summary,
         string? BodyMarkdown,
         EventLocationInput Location,
-        PublicCalendarEventType? EventType,
+        PublicCalendarEventType EventType,
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
@@ -627,7 +627,7 @@ internal sealed record EventPayloadRequest(
     Guid OrganizationId,
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: Required] EventLocationInput Location,
-    [property: Required] PublicCalendarEventType? EventType,
+    [property: JsonRequired] PublicCalendarEventType EventType,
     [property: Required] string StartsAtLocal,
     [property: Range(1, int.MaxValue)] int Capacity,
     [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,

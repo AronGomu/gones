@@ -129,3 +129,21 @@ Reject/expire: decision/expiry commits -> row/object deletion job; retry until c
 - [x] no silent-failure swallow on added path — list retry-safe reject/expiry object cleanup sites + logs
 - [x] app functional — proposal img private until approval; reject/expiry leaves no durable media
 - [x] commit msg draft: `feat(events): carry private media through proposal consent`
+
+## Review repair
+
+- [x] 8. Revalidate and lock recipient authority inside approve/reject decision transactions after locking the proposal; reject rechecks expiry while locked. Validate: targeted concurrent revocation and reject-vs-expiry integration tests pass with loser 404 and no notification.
+- [x] 9. Refresh submission clock after image row locks and cover near-expiry lock timing. Validate: targeted submission timing integration test passes and expired image remains Temporary.
+- [x] 10. Prove real transaction rollback after attachment failure. Validate: injected failure leaves proposal/outbox absent and images Temporary.
+- [x] 11. Restore exact `EventPayloadRequest` proposal contract, generated client method names, image response `Cache-Control`, and proposal wording. Validate: API generation check, typecheck, lint, and translation assertions pass.
+- [x] 12. Add actual proposal editor DOM coverage for plain User uploader and pending/failed upload submit blocking; preserve unrelated EventOwned images. Validate: targeted DOM/backend tests and proposal Cypress pass.
+- [ ] 13. Commit only intentional repair paths without push or merge. Validate: commit exists on `ticket/event-editor-T7`; `git status --short` empty; no staged files.
+
+## Review repair validation
+
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal|FullyQualifiedName~EventImage"`
+- [x] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-proposal-submit.dom.test.ts src/app/features/events/event-request.component.test.ts src/app/features/events/event-image-uploader.component.test.ts src/app/i18n/messages.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`

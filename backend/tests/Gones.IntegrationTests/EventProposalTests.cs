@@ -332,6 +332,81 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     }
 
     [Fact]
+    public async Task Submission_rechecks_temporary_image_expiry_after_waiting_for_its_row_lock()
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 960, 540, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.Add(image);
+            await database.SaveChangesAsync();
+        }
+        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+
+        await using var blocker = CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        _ = await blocker.EventImages
+            .FromSql($"SELECT * FROM event_images WHERE id = {image.Id} FOR UPDATE")
+            .SingleAsync();
+
+        var submitting = SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Organizer.Id]);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.False(submitting.IsCompleted);
+        clock.Advance(EventImage.TemporaryLifetime);
+        await transaction.CommitAsync();
+
+        using var response = await submitting;
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("image_state_conflict", await ProblemCode(response));
+        await using var verify = CreateContext();
+        Assert.Equal(0, await verify.EventProposals.CountAsync());
+        Assert.Equal(0, await verify.NotificationOutboxRecords.CountAsync());
+        var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
+        Assert.Equal(EventImageState.Temporary, stored.State);
+        Assert.Null(stored.ProposalId);
+        Assert.Equal(Now + EventImage.TemporaryLifetime, stored.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Failure_after_image_attachment_rolls_back_proposal_outbox_and_image_state()
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 960, 540, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.Add(image);
+            await database.SaveChangesAsync();
+            await database.Database.ExecuteSqlRawAsync("""
+                CREATE FUNCTION fail_proposal_outbox_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.template_key = 'tournament-proposal' THEN
+                        RAISE EXCEPTION 'injected proposal outbox failure after attachment';
+                    END IF;
+                    RETURN NEW;
+                END $$;
+                """);
+            await database.Database.ExecuteSqlRawAsync("""
+                CREATE TRIGGER fail_proposal_outbox_insert
+                BEFORE INSERT ON notification_outbox
+                FOR EACH ROW EXECUTE FUNCTION fail_proposal_outbox_insert();
+                """);
+        }
+        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+
+        using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Organizer.Id]);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        await using var verify = CreateContext();
+        Assert.Equal(0, await verify.EventProposals.CountAsync());
+        Assert.Equal(0, await verify.NotificationOutboxRecords.CountAsync());
+        var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
+        Assert.Equal(EventImageState.Temporary, stored.State);
+        Assert.Null(stored.ProposalId);
+        Assert.Null(stored.SortOrder);
+        Assert.Null(stored.AltText);
+        Assert.Equal(Now + EventImage.TemporaryLifetime, stored.ExpiresAt);
+    }
+
+    [Fact]
     public async Task Submit_stores_the_proposal()
     {
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.Organizer.Id, seed.Admin.Id]);

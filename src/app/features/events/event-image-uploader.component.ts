@@ -1,11 +1,12 @@
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpClient, HttpEventType, HttpResponse } from '@angular/common/http';
-import { Component, EventEmitter, OnDestroy, Output, computed, inject, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnDestroy, Output, computed, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { Subscription, firstValueFrom, forkJoin } from 'rxjs';
 import { joinApiUrl } from '../../api/api-boundary';
 import { API_BASE_URL, EventImageUploadResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { MessageKey } from '../../i18n/messages';
 
 export type EventImageUploadStatus = 'pending' | 'uploaded' | 'error';
 
@@ -82,7 +83,7 @@ export interface EventImageUploadCard {
           </li>
         }
       </ul>
-      @if (publishBlocked()) { <p class="warning" role="status" data-cy="event-image-publish-blocked">{{ i18n.t('eventImages.publishBlocked') }}</p> }
+      @if (publishBlocked()) { <p class="warning" role="status" data-cy="event-image-publish-blocked">{{ i18n.t(blockedMessageKey) }}</p> }
     </section>
   `
 })
@@ -113,6 +114,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         }]
       : []));
 
+  @Input() blockedMessageKey: MessageKey = 'eventImages.publishBlocked';
   @Output() readonly imagesChange = new EventEmitter<readonly EventImageSelection[]>();
   @Output() readonly publishBlockedChange = new EventEmitter<boolean>();
 

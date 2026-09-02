@@ -163,7 +163,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    variants(token: string, imageId: string, width: number): Observable<FileResponse>;
+    readProposalImageVariant(token: string, imageId: string, width: number): Observable<FileResponse>;
     /**
      * @param search (optional)
      * @param page (optional)
@@ -473,7 +473,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    variants2(imageId: string, width: number): Observable<FileResponse>;
+    variants(imageId: string, width: number): Observable<FileResponse>;
     /**
      * @return OK
      */
@@ -2562,7 +2562,7 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    variants(token: string, imageId: string, width: number): Observable<FileResponse> {
+    readProposalImageVariant(token: string, imageId: string, width: number): Observable<FileResponse> {
         let url_ = this.baseUrl + "/api/event-requests/{token}/images/{imageId}/variants/{width}";
         if (token === undefined || token === null)
             throw new globalThis.Error("The parameter 'token' must be defined.");
@@ -2584,11 +2584,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processVariants(response_);
+            return this.processReadProposalImageVariant(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processVariants(response_ as any);
+                    return this.processReadProposalImageVariant(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<FileResponse>;
                 }
@@ -2597,7 +2597,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
+    protected processReadProposalImageVariant(response: HttpResponseBase): Observable<FileResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -6733,7 +6733,7 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    variants2(imageId: string, width: number): Observable<FileResponse> {
+    variants(imageId: string, width: number): Observable<FileResponse> {
         let url_ = this.baseUrl + "/api/event-images/{imageId}/variants/{width}";
         if (imageId === undefined || imageId === null)
             throw new globalThis.Error("The parameter 'imageId' must be defined.");
@@ -6752,11 +6752,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processVariants2(response_);
+            return this.processVariants(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processVariants2(response_ as any);
+                    return this.processVariants(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<FileResponse>;
                 }
@@ -6765,7 +6765,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processVariants2(response: HttpResponseBase): Observable<FileResponse> {
+    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -11376,21 +11376,6 @@ export interface EventProposalDecisionResponse {
     [key: string]: any;
 }
 
-export interface EventProposalPayloadRequest {
-    organizationId: string;
-    title: string;
-    location: EventLocationInput;
-    eventType: PublicCalendarEventType | undefined;
-    startsAtLocal: string;
-    capacity: number;
-    formatIds: string[];
-    images: EventImageInput[];
-    summary?: string | undefined;
-    bodyMarkdown?: string | undefined;
-
-    [key: string]: any;
-}
-
 export interface EventProposalRejectRequest {
     reason: string;
 
@@ -11398,7 +11383,7 @@ export interface EventProposalRejectRequest {
 }
 
 export interface EventProposalRequest {
-    event: EventProposalPayloadRequest;
+    event: EventPayloadRequest;
     recipientUserIds: string[];
 
     [key: string]: any;

@@ -529,6 +529,85 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     /// organizer left to own the tournament.
     /// </summary>
     [Fact]
+    public async Task Approval_waits_for_concurrent_role_revocation_then_publishes_nothing()
+    {
+        var proposal = await SeedProposalAsync();
+        await using var revocation = CreateContext();
+        await using var transaction = await revocation.Database.BeginTransactionAsync();
+        var organizer = await revocation.Users
+            .FromSql($"SELECT * FROM asp_net_users WHERE id = {seed.Organizer.Id} FOR UPDATE")
+            .SingleAsync();
+        organizer.AssignGlobalRole(GlobalRoles.User);
+        await revocation.SaveChangesAsync();
+
+        var approving = Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.False(approving.IsCompleted);
+        await transaction.CommitAsync();
+
+        using var response = await approving;
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Rejection_waits_for_concurrent_membership_revocation_then_sends_no_mail()
+    {
+        var proposal = await SeedProposalAsync();
+        await using var revocation = CreateContext();
+        await using var transaction = await revocation.Database.BeginTransactionAsync();
+        var membership = await revocation.OrganizationMembers
+            .FromSql($"""
+                SELECT * FROM organization_members
+                WHERE organization_id = {seed.Alpha.Id} AND user_id = {seed.Organizer.Id}
+                FOR UPDATE
+                """)
+            .SingleAsync();
+        revocation.OrganizationMembers.Remove(membership);
+        await revocation.SaveChangesAsync();
+
+        var rejecting = RejectAsync(proposal.OrganizerToken, Reason);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.False(rejecting.IsCompleted);
+        await transaction.CommitAsync();
+
+        using var response = await rejecting;
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(0, await stored.NotificationOutboxRecords.CountAsync());
+    }
+
+    [Fact]
+    public async Task Approval_waits_for_concurrent_profile_closure_then_publishes_nothing()
+    {
+        var proposal = await SeedProposalAsync();
+        await using var closure = CreateContext();
+        await using var transaction = await closure.Database.BeginTransactionAsync();
+        var profile = await closure.UserProfiles
+            .FromSql($"SELECT * FROM user_profiles WHERE user_id = {seed.Organizer.Id} FOR UPDATE")
+            .SingleAsync();
+        profile.CloseAndAnonymize($"closed-{seed.Organizer.Id:N}", clock.GetCurrentInstant());
+        await closure.SaveChangesAsync();
+
+        var approving = Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.False(approving.IsCompleted);
+        await transaction.CommitAsync();
+
+        using var response = await approving;
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
+    }
+
+    [Fact]
     public async Task Approving_a_proposal_for_a_draft_organization_is_refused()
     {
         var proposal = await SeedProposalAsync();
@@ -656,6 +735,30 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     }
 
     [Fact]
+    public async Task Reject_racing_expiry_loses_with_not_found_and_sends_no_mail()
+    {
+        var proposal = await SeedProposalAsync();
+        await using var blocker = CreateContext();
+        await using var transaction = await blocker.Database.BeginTransactionAsync();
+        _ = await blocker.EventProposals
+            .FromSql($"SELECT * FROM event_proposals WHERE id = {proposal.Id} FOR UPDATE")
+            .SingleAsync();
+
+        var rejecting = RejectAsync(proposal.OrganizerToken, Reason);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        Assert.False(rejecting.IsCompleted);
+        clock.Advance(EventProposal.Lifetime);
+        await transaction.CommitAsync();
+
+        using var response = await rejecting;
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await using var stored = CreateContext();
+        Assert.Equal(TournamentProposalStatus.Pending, (await stored.EventProposals.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(0, await stored.NotificationOutboxRecords.CountAsync());
+    }
+
+    [Fact]
     public async Task Reject_commits_then_cleans_proposal_images_with_retryable_object_failure()
     {
         var imageId = Guid.NewGuid();
@@ -694,6 +797,29 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         await using var verify = CreateContext();
         Assert.Empty(await verify.EventImageObjectDeletions.ToListAsync());
         Assert.DoesNotContain(key, objects.Keys);
+    }
+
+    [Fact]
+    public async Task Reject_cleanup_preserves_unrelated_EventOwned_images()
+    {
+        var publishedImageId = Guid.NewGuid();
+        var approved = await SeedProposalAsync(images: [new EventImageInput(publishedImageId, "Published")]);
+        using (var approval = await Client.PostAsync(ReviewUrl(approved.OrganizerToken) + "/approve", null))
+        {
+            Assert.Equal(HttpStatusCode.OK, approval.StatusCode);
+        }
+
+        var rejectedImageId = Guid.NewGuid();
+        var rejected = await SeedProposalAsync(images: [new EventImageInput(rejectedImageId, "Rejected")]);
+        using var rejection = await RejectAsync(rejected.OrganizerToken, Reason);
+
+        Assert.Equal(HttpStatusCode.NoContent, rejection.StatusCode);
+        await using var database = CreateContext();
+        var published = await database.EventImages.AsNoTracking().SingleAsync(image => image.Id == publishedImageId);
+        Assert.Equal(EventImageState.EventOwned, published.State);
+        Assert.NotNull(published.EventId);
+        Assert.Null(published.ProposalId);
+        Assert.False(await database.EventImages.AnyAsync(image => image.Id == rejectedImageId));
     }
 
     [Fact]

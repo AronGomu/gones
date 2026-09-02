@@ -103,6 +103,15 @@ try {
     const response = document.paths?.[path]?.get?.responses?.['200'];
     if (response) response.content = { 'image/webp': { schema: { type: 'string', format: 'binary' } } };
   }
+  const proposalImageResponse = document.paths?.['/api/event-requests/{token}/images/{imageId}/variants/{width}']?.get?.responses?.['200'];
+  if (proposalImageResponse) {
+    proposalImageResponse.headers = {
+      'Cache-Control': {
+        description: 'Private proposal media must never be cached.',
+        schema: { type: 'string', enum: ['no-store'] }
+      }
+    };
+  }
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [
