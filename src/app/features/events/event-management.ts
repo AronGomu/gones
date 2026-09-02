@@ -1,11 +1,11 @@
 import {
   PublicFormatResponse,
   EventManagementResponse,
-  EventPreviewRenderResponse,
   UpdateEventDetailsRequest
 } from '../../api/generated/gones-api';
 import { EventDraftValue, eventTypeValue, optionalMarkdown } from './organizer-event-create';
 import { renderEventMarkdown } from './event-markdown';
+import { EventDetailView } from './event-detail-view.component';
 
 export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
 export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
@@ -40,12 +40,14 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     longitude: null,
     eventType: (event.eventType ?? '') as EventDraftValue['eventType'],
     timeZoneId: event.timeZoneId,
-    startsAtLocal: localDateTime(event.venueStartDate, event.venueStartTime),
+    startDate: event.venueStartDate,
+    startTime: event.venueStartTime.slice(0, 5),
     endsAtLocal: localDateTime(event.venueEndDate, event.venueEndTime),
     capacity: event.capacity ?? null,
     formatId: event.formatIds[0] ?? '',
     liveTournamentUrl: event.liveTournamentUrl ?? '',
-    archiveTournamentUrl: event.archiveTournamentUrl ?? ''
+    archiveTournamentUrl: event.archiveTournamentUrl ?? '',
+    images: []
   };
 }
 
@@ -61,7 +63,7 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
     region: value.region.trim(),
     eventType: eventTypeValue(value.eventType),
     timeZoneId: value.timeZoneId.trim(),
-    startsAtLocal: value.startsAtLocal,
+    startsAtLocal: `${value.startDate}T${value.startTime}`,
     endsAtLocal: value.endsAtLocal || undefined,
     capacity: value.capacity ?? undefined,
     formatIds: [value.formatId],
@@ -77,10 +79,12 @@ export function majorEventChanges(
 ): string[] {
   const originalDraft = managementToDraft(original);
   const fields: Array<[MajorEventField, keyof EventDraftValue]> = [
-    ['start', 'startsAtLocal'], ['end', 'endsAtLocal'], ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'],
+    ['end', 'endsAtLocal'], ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'],
     ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['capacity', 'capacity'], ['formats', 'formatId']
   ];
-  return fields.filter(([, key]) => !same(originalDraft[key], draft[key])).map(([field]) => label(field));
+  const changed = fields.filter(([, key]) => !same(originalDraft[key], draft[key])).map(([field]) => label(field));
+  if (originalDraft.startDate !== draft.startDate || originalDraft.startTime !== draft.startTime) changed.unshift(label('start'));
+  return changed;
 }
 
 export function changedEventFields(
@@ -108,9 +112,10 @@ export function canCancelEvent(event: EventManagementResponse): boolean {
 export function managementToDetail(
   event: EventManagementResponse,
   formats: readonly PublicFormatResponse[]
-): EventPreviewRenderResponse {
+): EventDetailView {
   const byId = new Map(formats.map(format => [format.id, format]));
   return {
+    id: event.id,
     title: event.title,
     displayTitle: event.displayTitle,
     slug: event.slug,
@@ -120,10 +125,10 @@ export function managementToDetail(
     archiveTournamentUrl: event.archiveTournamentUrl,
     venue: {
       streetAddress: event.streetAddress,
-      postalCode: event.postalCode,
+      postalCode: event.postalCode ?? '',
       city: event.city,
       country: event.country,
-      region: event.region
+      region: event.region ?? ''
     },
     timeZoneId: event.timeZoneId,
     venueStartDate: event.venueStartDate,
@@ -132,7 +137,7 @@ export function managementToDetail(
     venueEndTime: event.venueEndTime,
     startsAtUtc: event.startsAtUtc,
     endsAtUtc: event.endsAtUtc,
-    capacity: event.capacity,
+    capacity: event.capacity ?? null,
     status: event.status,
     eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },

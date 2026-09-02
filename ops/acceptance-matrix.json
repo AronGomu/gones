@@ -103,7 +103,7 @@
                 {
                     "gate": "rehearsal",
                     "target": "deploy/release-test/journeys.mjs",
-                    "detail": "the Organizer publishes the tournament"
+                    "detail": "the Organizer directly publishes the Event with Location and ETag"
                 }
             ]
         },
@@ -1396,7 +1396,7 @@
                 {
                     "gate": "rehearsal",
                     "target": "deploy/release-test/journeys.mjs",
-                    "detail": "the Organizer previews before publishing"
+                    "detail": "the Organizer directly publishes the Event with Location and ETag"
                 }
             ]
         },

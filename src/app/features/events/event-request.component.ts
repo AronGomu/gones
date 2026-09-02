@@ -53,11 +53,11 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dt data-cy="event-request-fact-starts-label">{{ i18n.t('eventCreate.start') }}</dt>
               <dd data-cy="event-request-fact-starts">{{ review.event.startsAtLocal }}</dd>
               <dt data-cy="event-request-fact-ends-label">{{ i18n.t('eventCreate.end') }}</dt>
-              <dd data-cy="event-request-fact-ends">{{ review.event.endsAtLocal || '—' }}</dd>
+              <dd data-cy="event-request-fact-ends">{{ review.endsAtLocal || '—' }}</dd>
               <dt data-cy="event-request-fact-timezone-label">{{ i18n.t('eventCreate.zone') }}</dt>
-              <dd data-cy="event-request-fact-timezone">{{ review.event.timeZoneId }}</dd>
+              <dd data-cy="event-request-fact-timezone">{{ review.timeZoneId }}</dd>
               <dt data-cy="event-request-fact-capacity-label">{{ i18n.t('event.capacity') }}</dt>
-              <dd data-cy="event-request-fact-capacity">{{ review.event.capacity ?? '—' }}</dd>
+              <dd data-cy="event-request-fact-capacity">{{ review.event.capacity }}</dd>
               <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
@@ -154,7 +154,7 @@ export class EventRequestComponent {
 
   venueLine(review: EventProposalReviewResponse): string {
     const t = review.event;
-    return [t.streetAddress, t.postalCode, t.city, t.country].filter(Boolean).join(', ');
+    return [t.location.streetAddress, t.location.postalCode, t.location.city, t.location.country].filter(Boolean).join(', ');
   }
 
   private stateForError(error: unknown): EventRequestState {

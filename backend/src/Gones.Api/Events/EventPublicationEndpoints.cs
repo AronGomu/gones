@@ -10,6 +10,7 @@ using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Validation;
 using Gones.Application.Concurrency;
+using Gones.Application.Events;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Persistence;
@@ -61,40 +62,18 @@ internal static class EventPublicationEndpoints
         var group = app.MapGroup("/api/events")
             .RequireAuthorization(AuthorizationPolicies.Organizer);
 
-        group.MapPost("/preview", PreviewAsync)
-            .AddEndpointFilter<DataAnnotationsValidationFilter>()
-            .Produces<EventPreviewResponse>()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status404NotFound);
-
         group.MapPost("/", PublishAsync)
-            .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces<EventPublishResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
-    }
-
-    private static async Task<IResult> PreviewAsync(
-        EventPayloadRequest request,
-        ClaimsPrincipal principal,
-        EventPublicationService publication,
-        CancellationToken cancellationToken)
-    {
-        var preview = await publication.PreviewAsync(
-            OrganizationPrincipal.UserId(principal),
-            OrganizationPrincipal.IsAdmin(principal),
-            request,
-            cancellationToken);
-        return Results.Ok(preview);
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     }
 
     private static async Task<IResult> PublishAsync(
-        PublishEventRequest request,
+        EventPayloadRequest request,
         [FromHeader(Name = "Idempotency-Key")] string idempotencyKey,
         HttpResponse httpResponse,
         ClaimsPrincipal principal,
@@ -125,76 +104,36 @@ internal static class EventPublicationEndpoints
 internal sealed class EventPublicationService(
     GonesDbContext database,
     OrganizationAccessService access,
-    EventPreviewTicketService tickets,
-    IClock clock,
-    IEventMarkdownRenderer markdown)
+    IEventLocationTokenService locationTokens,
+    IClock clock)
 {
     private const int MaximumPublishAttempts = 3;
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
 
-    public async Task<EventPreviewResponse> PreviewAsync(
-        Guid userId,
-        bool isAdmin,
-        EventPayloadRequest request,
-        CancellationToken cancellationToken)
-    {
-        var normalized = await NormalizeAsync(userId, isAdmin, request, cancellationToken);
-        var ticket = tickets.Issue(userId, request.OrganizationId, normalized.PayloadHash);
-        return new EventPreviewResponse(normalized.Render, ticket.Value, ticket.ExpiresAt);
-    }
-
-    /// <summary>
-    /// The HTTP publish path: a preview ticket is mandatory here, then the work is handed to
-    /// <see cref="PublishEventAsync"/>.
-    /// </summary>
     public Task<EventPublishOutcome> PublishAsync(
         Guid userId,
         bool isAdmin,
         string idempotencyKey,
-        PublishEventRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(request.PreviewTicket) || request.PreviewTicket.Length > 2048)
-        {
-            throw Validation("previewTicket", "Preview ticket is required and cannot exceed 2048 characters.");
-        }
-        if (request.Payload is null) throw Validation("payload", "Payload is required.");
-        return PublishEventAsync(request.Payload, userId, isAdmin, idempotencyKey, request.PreviewTicket, cancellationToken);
-    }
+        EventPayloadRequest request,
+        CancellationToken cancellationToken) =>
+        PublishEventAsync(request, userId, isAdmin, idempotencyKey, null, cancellationToken);
 
     /// <summary>
-    /// Publishes a normalized payload without going through HTTP. <paramref name="previewTicket"/> is
-    /// null when the caller never issued one — approving a stored tournament proposal (T17) is the
-    /// case: the payload was already validated at submission, so there is no preview to consume.
-    ///
-    /// <paramref name="requireMembership"/> is false only on that approval path, where the acting user
-    /// is the proposal's submitter — a plain account that is by definition not a member of the target
-    /// organization. The consent that path acts on is the *approver's*, and T26 made that approver
-    /// someone who represents the organization. <see cref="PublishAsync"/> keeps the default, so
-    /// direct organizer publishing still goes through the membership check.
-    ///
-    /// T26: when the caller already owns a transaction, this joins it instead of opening a second
-    /// one on the same connection. Approving a proposal takes the proposal's row lock first and must
-    /// keep holding it while the tournament is written, so that an approve and a reject cannot both
-    /// believe they won. Nothing else calls in with a transaction open, and with none open the flow
-    /// is exactly what it was: own transaction, own commit.
+    /// Publishes direct HTTP requests or a proposal-owned, submission-time validated location.
+    /// Proposal approval joins its caller's transaction; direct publication owns its transaction.
     /// </summary>
     internal async Task<EventPublishOutcome> PublishEventAsync(
         EventPayloadRequest request,
         Guid actingUserId,
         bool isAdmin,
         string idempotencyKey,
-        string? previewTicket,
+        ValidatedEventLocation? proposalLocation,
         CancellationToken cancellationToken,
         bool requireMembership = true)
     {
-        var normalized = await NormalizeAsync(actingUserId, isAdmin, request, cancellationToken, requireMembership);
-        var ticketHash = previewTicket is null ? string.Empty : EventPreviewTicketService.Hash(previewTicket);
+        ValidatePayloadShape(request);
+        var payloadHash = PayloadHash(request);
         var scope = $"tournament-publish:{actingUserId:D}";
-
-        // Null unless a caller is already inside a transaction (approving a proposal, T26). When it
-        // is set this method neither commits nor disposes it — the owner does — and the slug-collision
-        // retry unwinds to a savepoint instead of throwing away the caller's work.
         var ambient = database.Database.CurrentTransaction;
 
         for (var attempt = 1; attempt <= MaximumPublishAttempts; attempt++)
@@ -215,40 +154,22 @@ internal sealed class EventPublicationService(
                 {
                     var stored = JsonSerializer.Deserialize<StoredPublishResult>(existing.ResponseBody, StoredJsonOptions)
                         ?? throw new InvalidOperationException("Stored tournament publication result is invalid.");
-                    if (!FixedTimeEquals(stored.TicketHash, ticketHash)
-                        || !FixedTimeEquals(stored.PayloadHash, normalized.PayloadHash))
-                    {
-                        throw new IdempotencyConflictException();
-                    }
-
+                    if (!FixedTimeEquals(stored.PayloadHash, payloadHash)) throw new IdempotencyConflictException();
                     if (ambient is null) await transaction.CommitAsync(cancellationToken);
                     return Outcome(stored.Response);
                 }
 
-                // T11: an organization with no members is a Draft and publishes nothing. The check sits
-                // here rather than in NormalizeAsync so that previewing and validating a proposal payload
-                // stay open, and inside the transaction so it cannot race a membership removal. It is
-                // below the idempotency replay on purpose: a request that already published stays
-                // replayable even if the organization was emptied afterwards.
+                var normalized = await NormalizeAsync(
+                    actingUserId,
+                    isAdmin,
+                    request,
+                    proposalLocation,
+                    cancellationToken,
+                    requireMembership);
                 if (!await database.OrganizationMembers
                         .AnyAsync(member => member.OrganizationId == request.OrganizationId, cancellationToken))
                 {
                     throw new OrganizationIsDraftException();
-                }
-
-                Instant? expiresAt = null;
-                if (previewTicket is not null)
-                {
-                    expiresAt = tickets.Validate(
-                        previewTicket,
-                        actingUserId,
-                        request.OrganizationId,
-                        normalized.PayloadHash);
-                    if (await database.ConsumedEventPreviewTickets.AsNoTracking()
-                        .AnyAsync(item => item.TicketHash == ticketHash, cancellationToken))
-                    {
-                        throw new EventPreviewReplayException();
-                    }
                 }
 
                 var lockedFormat = await database.TournamentFormats
@@ -264,27 +185,20 @@ internal sealed class EventPublicationService(
                 var tournament = Event.Create(
                     request.OrganizationId,
                     actingUserId,
-                    ToDraft(request, slug),
+                    ToDraft(request, slug, normalized.Location),
                     [lockedFormat],
                     now);
                 database.Events.Add(tournament);
+                await AttachImagesAsync(tournament.Id, actingUserId, request.Images, now, cancellationToken);
+
                 var response = new EventPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
-                var storedResult = new StoredPublishResult(ticketHash, normalized.PayloadHash, response);
-                if (expiresAt is { } ticketExpiresAt)
-                {
-                    database.ConsumedEventPreviewTickets.Add(new ConsumedEventPreviewTicket
-                    {
-                        TicketHash = ticketHash,
-                        ExpiresAt = ticketExpiresAt
-                    });
-                }
                 database.AuditRecords.Add(new AuditRecord
                 {
                     ActorId = actingUserId,
                     Action = "tournament.published",
                     EntityType = "scheduled_tournament",
                     EntityId = tournament.Id.ToString("D"),
-                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\",\"liveTournamentUrl\",\"archiveTournamentUrl\"]}",
+                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\",\"images\"]}",
                     OccurredAt = now
                 });
                 database.IdempotencyRecords.Add(new IdempotencyRecord
@@ -292,7 +206,7 @@ internal sealed class EventPublicationService(
                     Scope = scope,
                     Key = idempotencyKey,
                     ResponseStatusCode = StatusCodes.Status201Created,
-                    ResponseBody = JsonSerializer.Serialize(storedResult, StoredJsonOptions),
+                    ResponseBody = JsonSerializer.Serialize(new StoredPublishResult(payloadHash, response), StoredJsonOptions),
                     CreatedAt = now,
                     ExpiresAt = now + Duration.FromHours(24)
                 });
@@ -317,34 +231,39 @@ internal sealed class EventPublicationService(
         throw new ResourceConflictException();
     }
 
-    /// <summary>
-    /// Runs every check <c>POST /api/events/preview</c> runs except the organizer-membership one,
-    /// which a proposal submitter cannot satisfy by definition. A stored proposal therefore can never
-    /// carry a payload that publishing would later reject.
-    /// </summary>
-    public async Task ValidateProposalPayloadAsync(
+    public async Task<ValidatedEventLocation> ValidateProposalPayloadAsync(
         Guid submitterUserId,
         EventPayloadRequest request,
         CancellationToken cancellationToken)
     {
-        _ = await NormalizeAsync(submitterUserId, isAdmin: false, request, cancellationToken, requireMembership: false);
+        if (request.Images.Count != 0)
+        {
+            throw Validation("event.images", "Proposal images are unavailable until image proposal ownership is supported.");
+        }
+        return (await NormalizeAsync(
+            submitterUserId,
+            isAdmin: false,
+            request,
+            proposalLocation: null,
+            cancellationToken,
+            requireMembership: false)).Location;
     }
 
     private async Task<NormalizedEventPayload> NormalizeAsync(
         Guid userId,
         bool isAdmin,
         EventPayloadRequest request,
+        ValidatedEventLocation? proposalLocation,
         CancellationToken cancellationToken,
         bool requireMembership = true)
     {
         ValidatePayloadShape(request);
         if (request.OrganizationId == Guid.Empty) throw Validation("organizationId", "Organization ID is required.");
-        var organization = requireMembership
+        _ = requireMembership
             ? (await access.RequireMemberAsync(request.OrganizationId, userId, isAdmin, cancellationToken)).Organization
             : (await access.LoadAsync(request.OrganizationId, userId, isAdmin, includeDeletedForAdmin: false, cancellationToken)).Organization;
-        if (organization.DeletedAt is not null) throw new ResourceNotFoundException();
-        var formatIds = request.FormatIds?.Distinct().ToArray() ?? [];
-        if (request.FormatIds is null || request.FormatIds.Count != 1 || formatIds.Length != 1)
+        var formatIds = request.FormatIds.Distinct().ToArray();
+        if (request.FormatIds.Count != 1 || formatIds.Length != 1)
         {
             throw Validation("formatIds", "Exactly one format is required.");
         }
@@ -355,62 +274,27 @@ internal sealed class EventPublicationService(
             .ToListAsync(cancellationToken);
         if (formats.Count != formatIds.Length) throw Validation("formatIds", "One or more formats are invalid.");
 
+        var location = proposalLocation ?? locationTokens.Validate(userId, request.Location, clock.GetCurrentInstant());
+        if (!LocationMatches(request.Location, location)) throw new LocationTokenInvalidException();
         try
         {
             var baseSlug = EventSlugGenerator.FromTitleAndFormat(request.Title, formats.Single().Slug);
-            var tournament = Event.Create(
+            _ = Event.Create(
                 request.OrganizationId,
                 userId,
-                ToDraft(request, baseSlug),
+                ToDraft(request, baseSlug, location),
                 formats,
                 clock.GetCurrentInstant());
-            var render = new EventPreviewRenderResponse(
-                tournament.Title,
-                EventDisplayTitle.From(tournament.Title, formats.Single().Name),
-                tournament.Slug,
-                tournament.Summary,
-                tournament.BodyMarkdown is null ? null : markdown.RenderAndSanitize(tournament.BodyMarkdown),
-                tournament.LiveTournamentUrl,
-                tournament.ArchiveTournamentUrl,
-                new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country, tournament.Region),
-                tournament.TimeZoneId,
-                LocalDatePattern.Iso.Format(tournament.VenueStartDate),
-                LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(tournament.VenueStartTime),
-                LocalDatePattern.Iso.Format(tournament.VenueEndDate),
-                LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(tournament.VenueEndTime),
-                tournament.StartsAtUtc,
-                tournament.EndsAtUtc,
-                tournament.Capacity,
-                tournament.Status.ToString(),
-                EventTypeWire(tournament.EventType),
-                new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail, []),
-                formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray(),
-                []);
-            var canonical = new CanonicalEventPayload(
-                request.OrganizationId,
-                tournament.Title,
-                tournament.Slug,
-                tournament.Summary,
-                tournament.BodyMarkdown,
-                tournament.LiveTournamentUrl,
-                tournament.ArchiveTournamentUrl,
-                tournament.StreetAddress,
-                tournament.PostalCode,
-                tournament.City,
-                tournament.Country,
-                tournament.Region,
-                EventTypeWire(tournament.EventType),
-                tournament.TimeZoneId,
-                tournament.StartsAtUtc.ToUnixTimeTicks(),
-                tournament.EndsAtUtc.ToUnixTimeTicks(),
-                tournament.Capacity,
-                formatIds);
-            var payloadHash = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, StoredJsonOptions))).ToLowerInvariant();
-            return new NormalizedEventPayload(baseSlug, payloadHash, formats, render);
+            return new NormalizedEventPayload(baseSlug, formats, location);
         }
         catch (ApiException)
         {
             throw;
+        }
+        catch (ArgumentException exception) when (
+            exception.Message.Contains("start time", StringComparison.OrdinalIgnoreCase))
+        {
+            throw Validation("startsAtLocal", exception.Message);
         }
         catch (ArgumentException exception)
         {
@@ -418,23 +302,27 @@ internal sealed class EventPublicationService(
         }
     }
 
-    private static ScheduledTournamentDraft ToDraft(EventPayloadRequest request, string slug) => new(
+    private static ScheduledTournamentDraft ToDraft(
+        EventPayloadRequest request,
+        string slug,
+        ValidatedEventLocation location) => new(
         request.Title,
         slug,
         request.Summary,
         request.BodyMarkdown,
-        request.StreetAddress,
-        request.PostalCode,
-        request.City,
-        request.Country,
-        request.TimeZoneId,
+        location.StreetAddress,
+        location.PostalCode,
+        location.City,
+        location.Country,
+        location.TimeZoneId,
         ParseLocal(request.StartsAtLocal, "startsAtLocal"),
-        string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
+        null,
         request.Capacity,
-        request.LiveTournamentUrl,
-        request.ArchiveTournamentUrl,
-        request.Region,
-        ToDomainEventType(request.EventType));
+        Region: location.Region,
+        EventType: ToDomainEventType(request.EventType),
+        ProviderPlaceId: location.PlaceId,
+        Latitude: location.Latitude,
+        Longitude: location.Longitude);
 
     internal static CalendarEventType? ToDomainEventType(PublicCalendarEventType? value) => value switch
     {
@@ -456,9 +344,75 @@ internal sealed class EventPublicationService(
     private static LocalDateTime ParseLocal(string value, string field)
     {
         if (string.IsNullOrWhiteSpace(value)) throw Validation(field, "Local date and time is required.");
-        var parsed = LocalDateTimePattern.ExtendedIso.Parse(value.Trim());
-        if (!parsed.Success) throw Validation(field, "Value must be an ISO-8601 local date and time.");
+        var parsed = LocalDateTimePattern.CreateWithInvariantCulture("uuuu-MM-dd'T'HH:mm").Parse(value.Trim());
+        if (!parsed.Success) throw Validation(field, "Value must be an ISO-8601 local date and time in YYYY-MM-DDTHH:mm form.");
         return parsed.Value;
+    }
+
+    private async Task AttachImagesAsync(
+        Guid eventId,
+        Guid userId,
+        IReadOnlyList<EventImageInput> inputs,
+        Instant now,
+        CancellationToken cancellationToken)
+    {
+        if (inputs.Count > 5) throw Validation("images", "At most five images are allowed.");
+        if (inputs.Select(input => input.ImageId).Distinct().Count() != inputs.Count)
+        {
+            throw new ResourceConflictException("image_state_conflict");
+        }
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            var input = inputs[index];
+            if (input.ImageId == Guid.Empty) throw Validation($"images[{index}].imageId", "Image ID is required.");
+            if (input.AltText?.Length > EventImage.MaximumAltTextLength)
+            {
+                throw Validation($"images[{index}].altText", $"Alt text cannot exceed {EventImage.MaximumAltTextLength} characters.");
+            }
+            var image = await database.EventImages
+                .FromSqlInterpolated($"SELECT * FROM event_images WHERE id = {input.ImageId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new ResourceNotFoundException();
+            try
+            {
+                image.AttachToEvent(eventId, userId, index, input.AltText, now);
+            }
+            catch (InvalidOperationException)
+            {
+                throw new ResourceConflictException("image_state_conflict");
+            }
+        }
+    }
+
+    internal static bool LocationMatches(EventLocationInput input, ValidatedEventLocation location) =>
+        string.Equals(input.StreetAddress, location.StreetAddress, StringComparison.Ordinal)
+        && string.Equals(input.PostalCode, location.PostalCode, StringComparison.Ordinal)
+        && string.Equals(input.City, location.City, StringComparison.Ordinal)
+        && string.Equals(input.Country, location.Country, StringComparison.Ordinal)
+        && string.Equals(input.Region, location.Region, StringComparison.Ordinal);
+
+    internal static string PayloadHash(EventPayloadRequest request)
+    {
+        var canonical = new CanonicalReplayPayload(
+            request.OrganizationId,
+            request.Title.Trim(),
+            string.IsNullOrWhiteSpace(request.Summary) ? null : request.Summary.Trim(),
+            string.IsNullOrWhiteSpace(request.BodyMarkdown) ? null : request.BodyMarkdown,
+            new EventLocationInput(
+                request.Location.StreetAddress.Trim(),
+                request.Location.PostalCode.Trim(),
+                request.Location.City.Trim(),
+                request.Location.Country.Trim(),
+                request.Location.Region.Trim(),
+                request.Location.LocationToken),
+            request.EventType,
+            request.StartsAtLocal.Trim(),
+            request.Capacity,
+            request.FormatIds,
+            request.Images.Select(image => new EventImageInput(
+                image.ImageId,
+                string.IsNullOrWhiteSpace(image.AltText) ? null : image.AltText.Trim())).ToArray());
+        return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, StoredJsonOptions))).ToLowerInvariant();
     }
 
     private async Task<string> NextSlugAsync(string baseSlug, CancellationToken cancellationToken)
@@ -482,6 +436,8 @@ internal sealed class EventPublicationService(
     private static EventPublishOutcome Outcome(EventPublishResponse response) =>
         new(response, $"/api/events/{response.Slug}", StrongETag.Encode(1));
 
+    internal static bool FixedTimePayloadHash(string left, string right) => FixedTimeEquals(left, right);
+
     private static bool FixedTimeEquals(string left, string right)
     {
         var leftBytes = Encoding.UTF8.GetBytes(left);
@@ -490,23 +446,65 @@ internal sealed class EventPublicationService(
             && CryptographicOperations.FixedTimeEquals(leftBytes, rightBytes);
     }
 
-    internal static void ValidatePayloadShape(EventPayloadRequest? payload)
+    internal static void ValidatePayloadShape(EventPayloadRequest? payload, string prefix = "")
     {
         if (payload is null) throw Validation("payload", "Payload is required.");
-        var results = new List<ValidationResult>();
-        if (Validator.TryValidateObject(payload, new ValidationContext(payload), results, validateAllProperties: true)) return;
-        var failures = results
-            .SelectMany(result => result.MemberNames.DefaultIfEmpty("payload").Select(member => new
+        var failures = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        ValidateObject(payload, prefix, failures);
+        if (payload.Location is null)
+        {
+            AddFailure(failures, prefix + "location", "Location is required.");
+        }
+        else
+        {
+            ValidateObject(payload.Location, prefix + "location.", failures);
+        }
+        if (payload.FormatIds is null) AddFailure(failures, prefix + "formatIds", "Format IDs are required.");
+        if (payload.Images is null) AddFailure(failures, prefix + "images", "Images are required.");
+        else
+        {
+            for (var index = 0; index < payload.Images.Count; index++)
             {
-                Field = JsonNamingPolicy.CamelCase.ConvertName(member),
-                Message = result.ErrorMessage ?? "Invalid value."
-            }))
-            .GroupBy(item => item.Field, StringComparer.Ordinal)
-            .ToDictionary(
-                group => group.Key,
-                group => group.Select(item => item.Message).Distinct(StringComparer.Ordinal).ToArray(),
-                StringComparer.Ordinal);
-        throw new ApiValidationException(failures);
+                var image = payload.Images[index];
+                if (image is null)
+                {
+                    AddFailure(failures, $"{prefix}images[{index}]", "Image is required.");
+                    continue;
+                }
+                ValidateObject(image, $"{prefix}images[{index}].", failures);
+                if (image.ImageId == Guid.Empty)
+                {
+                    AddFailure(failures, $"{prefix}images[{index}].imageId", "Image ID is required.");
+                }
+            }
+        }
+        if (failures.Count == 0) return;
+        throw new ApiValidationException(failures.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Distinct(StringComparer.Ordinal).ToArray(),
+            StringComparer.Ordinal));
+    }
+
+    private static void ValidateObject(object value, string prefix, Dictionary<string, List<string>> failures)
+    {
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(value, new ValidationContext(value), results, validateAllProperties: true);
+        foreach (var result in results)
+        {
+            foreach (var member in result.MemberNames.DefaultIfEmpty("payload"))
+            {
+                AddFailure(
+                    failures,
+                    prefix + JsonNamingPolicy.CamelCase.ConvertName(member),
+                    result.ErrorMessage ?? "Invalid value.");
+            }
+        }
+    }
+
+    private static void AddFailure(Dictionary<string, List<string>> failures, string field, string message)
+    {
+        if (!failures.TryGetValue(field, out var messages)) failures[field] = messages = [];
+        messages.Add(message);
     }
 
     private static ApiValidationException Validation(string field, string message) =>
@@ -514,31 +512,22 @@ internal sealed class EventPublicationService(
 
     private sealed record NormalizedEventPayload(
         string BaseSlug,
-        string PayloadHash,
         IReadOnlyList<TournamentFormat> Formats,
-        EventPreviewRenderResponse Render);
+        ValidatedEventLocation Location);
 
-    private sealed record CanonicalEventPayload(
+    private sealed record CanonicalReplayPayload(
         Guid OrganizationId,
         string Title,
-        string Slug,
         string? Summary,
         string? BodyMarkdown,
-        string? LiveTournamentUrl,
-        string? ArchiveTournamentUrl,
-        string StreetAddress,
-        string? PostalCode,
-        string City,
-        string Country,
-        string? Region,
+        EventLocationInput Location,
         PublicCalendarEventType? EventType,
-        string TimeZoneId,
-        long StartsAtUtcTicks,
-        long EndsAtUtcTicks,
-        int? Capacity,
-        IReadOnlyList<Guid> FormatIds);
+        string StartsAtLocal,
+        int Capacity,
+        IReadOnlyList<Guid> FormatIds,
+        IReadOnlyList<EventImageInput> Images);
 
-    private sealed record StoredPublishResult(string TicketHash, string PayloadHash, EventPublishResponse Response);
+    private sealed record StoredPublishResult(string PayloadHash, EventPublishResponse Response);
 }
 
 internal static class EventSlugGenerator
@@ -583,53 +572,18 @@ internal static class EventSlugGenerator
 internal sealed record EventPayloadRequest(
     Guid OrganizationId,
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
-    [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
-    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown,
-    [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
-    [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
-    [property: Required, MaxLength(Event.MaximumCityLength)] string City,
-    [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
-    [property: Required, MaxLength(Event.MaximumRegionLength)] string Region,
+    [property: Required] EventLocationInput Location,
     [property: Required] PublicCalendarEventType? EventType,
-    [property: Required, MaxLength(Event.MaximumTimeZoneLength)] string TimeZoneId,
     [property: Required] string StartsAtLocal,
-    string? EndsAtLocal,
-    int? Capacity,
-    IReadOnlyList<Guid> FormatIds,
-    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? LiveTournamentUrl = null,
-    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? ArchiveTournamentUrl = null);
+    [property: Range(1, int.MaxValue)] int Capacity,
+    [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
+    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images,
+    [property: MaxLength(Event.MaximumSummaryLength)] string? Summary = null,
+    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown = null);
 
-internal sealed record PublishEventRequest(
-    [property: Required] string PreviewTicket,
-    [property: Required] EventPayloadRequest Payload);
-
-internal sealed record EventPreviewResponse(
-    EventPreviewRenderResponse Render,
-    string PreviewTicket,
-    Instant ExpiresAt);
-
-internal sealed record EventPreviewRenderResponse(
-    string Title,
-    string DisplayTitle,
-    string Slug,
-    string? Summary,
-    string? BodyHtml,
-    string? LiveTournamentUrl,
-    string? ArchiveTournamentUrl,
-    PublicEventVenueResponse Venue,
-    string TimeZoneId,
-    string VenueStartDate,
-    string VenueStartTime,
-    string VenueEndDate,
-    string VenueEndTime,
-    Instant StartsAtUtc,
-    Instant EndsAtUtc,
-    int? Capacity,
-    string Status,
-    PublicCalendarEventType? EventType,
-    PublicEventOrganizationResponse Organization,
-    IReadOnlyList<PublicTournamentFormatResponse> Formats,
-    IReadOnlyList<EventImageResponse> Images);
+internal sealed record EventImageInput(
+    Guid ImageId,
+    [property: MaxLength(EventImage.MaximumAltTextLength)] string? AltText);
 
 internal sealed record EventPublishResponse(Guid Id, string Slug, string Status);
 internal sealed record EventPublishOutcome(EventPublishResponse Response, string Location, string ETag);

@@ -336,6 +336,103 @@ describe('OrganizerEventCreateComponent resolved location', () => {
   });
 });
 
+describe('OrganizerEventCreateComponent live direct editor', () => {
+  it('requires a trimmed title and enforces the 160-character client limit', () => {
+    const component = setup('Organizer');
+    component.form.controls.title.setValue('   ');
+    component.form.controls.title.markAsTouched();
+    expect(component.form.controls.title.invalid).toBe(true);
+    expect(component.fieldError('title')).toBe(component.i18n.t('eventCreate.required'));
+
+    component.form.controls.title.setValue('x'.repeat(161));
+    expect(component.form.controls.title.invalid).toBe(true);
+    expect(component.fieldError('title')).toBe(component.i18n.t('eventCreate.titleTooLong'));
+
+    component.form.controls.title.setValue(' Valid title ');
+    expect(component.form.controls.title.valid).toBe(true);
+  });
+
+  it('maps DST payload errors to start controls and other payload errors to the general region', () => {
+    const component = setup('Organizer');
+    const editor = component as unknown as {
+      applyFieldErrors(error: unknown): void;
+      fieldErrors(): Record<string, string>;
+    };
+
+    editor.applyFieldErrors(new ApiProblemError(400, {
+      errors: { payload: ['Tournament start time falls in a daylight-saving gap.'] }
+    }));
+    expect(editor.fieldErrors()).toMatchObject({
+      startDate: 'Tournament start time falls in a daylight-saving gap.',
+      startTime: 'Tournament start time falls in a daylight-saving gap.'
+    });
+    expect(editor.fieldErrors()['title']).toBeUndefined();
+
+    editor.applyFieldErrors(new ApiProblemError(400, {
+      errors: { payload: ['Payload is inconsistent.'] }
+    }));
+    expect(editor.fieldErrors()).toEqual({ general: 'Payload is inconsistent.' });
+  });
+
+  it('updates actual detail preview locally without Event preview HTTP', () => {
+    const preview = vi.fn();
+    const component = setup('Organizer', locationClient({ preview }));
+    component.ngOnInit();
+    component.formats.set([{ id: 'fmt1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    component.form.patchValue({
+      organizationId: 'org-mine',
+      title: 'Instant Cup',
+      summary: 'Live summary',
+      bodyMarkdown: '**Live Markdown**',
+      streetAddress: '1 Rue Test',
+      postalCode: '69001',
+      city: 'Lyon',
+      country: 'France',
+      region: 'Auvergne-Rhône-Alpes',
+      locationToken: 'signed-location-token',
+      eventType: 'weekly',
+      capacity: 32,
+      formatId: 'fmt1'
+    });
+    const controls = component.form.controls as unknown as Record<string, { setValue(value: string): void }>;
+    controls['startDate']?.setValue('2027-08-01');
+    controls['startTime']?.setValue('10:00');
+
+    const draft = (component as unknown as { draftPreview(): { displayTitle: string; bodyHtml: string | undefined } }).draftPreview();
+    expect(draft.displayTitle).toContain('Instant Cup');
+    expect(draft.bodyHtml).toContain('<strong>Live Markdown</strong>');
+    expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('persists collapse state for tab session with exact ARIA labels', () => {
+    sessionStorage.removeItem('gones.event-editor.preview-collapsed');
+    const first = setup('Organizer');
+    expect((first as unknown as { previewCollapsed(): boolean }).previewCollapsed()).toBe(false);
+    (first as unknown as { togglePreview(): void }).togglePreview();
+    expect(sessionStorage.getItem('gones.event-editor.preview-collapsed')).toBe('true');
+
+    const second = setup('Organizer');
+    expect((second as unknown as { previewCollapsed(): boolean }).previewCollapsed()).toBe(true);
+    sessionStorage.removeItem('gones.event-editor.preview-collapsed');
+  });
+
+  it('blocks direct publish for unresolved location or failed/pending upload', () => {
+    const component = setup('Organizer');
+    component.form.patchValue({
+      organizationId: 'org', title: 'Cup', streetAddress: 'Street', postalCode: '69001', city: 'Lyon', country: 'France',
+      region: 'Auvergne-Rhône-Alpes', eventType: 'weekly', capacity: 32, formatId: 'fmt'
+    });
+    const editor = component as unknown as {
+      imagePublishBlocked: { set(value: boolean): void };
+      publishDisabled(): boolean;
+    };
+    expect(editor.publishDisabled()).toBe(true);
+    component.form.controls.locationToken.setValue('token');
+    editor.imagePublishBlocked.set(true);
+    expect(editor.publishDisabled()).toBe(true);
+  });
+});
+
 describe('OrganizerEventCreateComponent role gating', () => {
   it('disables submit for a plain user', () => {
     const component = setup('User');

@@ -140,7 +140,7 @@ export interface IClient {
     /**
      * @return Created
      */
-    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse>;
+    eventsPOST(idempotency_Key: string, body: EventPayloadRequest): Observable<EventPublishResponse>;
     /**
      * @param from (optional)
      * @return OK
@@ -457,10 +457,6 @@ export interface IClient {
      * @return OK
      */
     finalizeLiveTournament(id: string, if_Match: string | undefined, idempotency_Key: string | undefined): Observable<LiveFinalizeResponse>;
-    /**
-     * @return OK
-     */
-    preview(body: EventPayloadRequest): Observable<EventPreviewResponse>;
     /**
      * @param file (optional)
      * @return Created
@@ -2210,7 +2206,7 @@ export class Client implements IClient {
     /**
      * @return Created
      */
-    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse> {
+    eventsPOST(idempotency_Key: string, body: EventPayloadRequest): Observable<EventPublishResponse> {
         let url_ = this.baseUrl + "/api/events";
         url_ = url_.replace(/[?&]$/, "");
 
@@ -2283,6 +2279,12 @@ export class Client implements IClient {
             let result409: any = null;
             result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -6471,84 +6473,6 @@ export class Client implements IClient {
             let result200: any = null;
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as LiveFinalizeResponse;
             return _observableOf(result200);
-            }));
-        } else if (status !== 200 && status !== 204) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            }));
-        }
-        return _observableOf(null as any);
-    }
-
-    /**
-     * @return OK
-     */
-    preview(body: EventPayloadRequest): Observable<EventPreviewResponse> {
-        let url_ = this.baseUrl + "/api/events/preview";
-        url_ = url_.replace(/[?&]$/, "");
-
-        const content_ = JSON.stringify(body);
-
-        let options_ : any = {
-            body: content_,
-            observe: "response",
-            responseType: "blob",
-            headers: new HttpHeaders({
-                "Content-Type": "application/json",
-                "Accept": "application/json"
-            })
-        };
-
-        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processPreview(response_);
-        })).pipe(_observableCatch((response_: any) => {
-            if (response_ instanceof HttpResponseBase) {
-                try {
-                    return this.processPreview(response_ as any);
-                } catch (e) {
-                    return _observableThrow(e) as any as Observable<EventPreviewResponse>;
-                }
-            } else
-                return _observableThrow(response_) as any as Observable<EventPreviewResponse>;
-        }));
-    }
-
-    protected processPreview(response: HttpResponseBase): Observable<EventPreviewResponse> {
-        const status = response.status;
-        const responseBlob =
-            response instanceof HttpResponse ? response.body :
-            (response as any).error instanceof Blob ? (response as any).error : undefined;
-
-        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventPreviewResponse;
-            return _observableOf(result200);
-            }));
-        } else if (status === 400) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result400: any = null;
-            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
-            return throwException("Bad Request", status, _responseText, _headers, result400);
-            }));
-        } else if (status === 401) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result401: any = null;
-            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
-            return throwException("Unauthorized", status, _responseText, _headers, result401);
-            }));
-        } else if (status === 403) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result403: any = null;
-            result403 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
-            return throwException("Forbidden", status, _responseText, _headers, result403);
-            }));
-        } else if (status === 404) {
-            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result404: any = null;
-            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
-            return throwException("Not Found", status, _responseText, _headers, result404);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -11224,6 +11148,13 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
+export interface EventImageInput {
+    imageId: string;
+    altText: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface EventImageResponse {
     id: string;
     altText: string | undefined;
@@ -11259,6 +11190,17 @@ export interface EventImageVariantResponse {
 
 export interface EventLocationAutocompleteResponse {
     suggestions: EventLocationSuggestionResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventLocationInput {
+    streetAddress: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    region: string;
+    locationToken: string;
 
     [key: string]: any;
 }
@@ -11328,55 +11270,14 @@ export interface EventMutationResponse {
 export interface EventPayloadRequest {
     organizationId: string;
     title: string;
-    summary: string | undefined;
-    bodyMarkdown: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    region: string;
+    location: EventLocationInput;
     eventType: EventPayloadRequestEventType;
-    timeZoneId: string;
     startsAtLocal: string;
-    endsAtLocal: string | undefined;
-    capacity: number | undefined;
+    capacity: number;
     formatIds: string[];
-    liveTournamentUrl?: string | undefined;
-    archiveTournamentUrl?: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface EventPreviewRenderResponse {
-    title: string;
-    displayTitle: string;
-    slug: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    liveTournamentUrl: string | undefined;
-    archiveTournamentUrl: string | undefined;
-    venue: PublicEventVenueResponse;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    eventType: PublicCalendarEventType | undefined;
-    organization: PublicEventOrganizationResponse;
-    formats: PublicTournamentFormatResponse[];
-    images: EventImageResponse[];
-
-    [key: string]: any;
-}
-
-export interface EventPreviewResponse {
-    render: EventPreviewRenderResponse;
-    previewTicket: string;
-    expiresAt: Instant;
+    images: EventImageInput[];
+    summary?: string | undefined;
+    bodyMarkdown?: string | undefined;
 
     [key: string]: any;
 }
@@ -11389,6 +11290,21 @@ export interface EventProposalDecisionResponse {
     [key: string]: any;
 }
 
+export interface EventProposalPayloadRequest {
+    organizationId: string;
+    title: string;
+    location: EventLocationInput;
+    eventType: PublicCalendarEventType | undefined;
+    startsAtLocal: string;
+    capacity: number;
+    formatIds: string[];
+    images: EventImageInput[];
+    summary?: string | undefined;
+    bodyMarkdown?: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface EventProposalRejectRequest {
     reason: string;
 
@@ -11396,7 +11312,7 @@ export interface EventProposalRejectRequest {
 }
 
 export interface EventProposalRequest {
-    event: EventPayloadRequest;
+    event: EventProposalPayloadRequest;
     recipientUserIds: string[];
 
     [key: string]: any;
@@ -11415,6 +11331,8 @@ export interface EventProposalReviewResponse {
     id: string;
     event: EventPayloadRequest;
     bodyHtml: string | undefined;
+    timeZoneId: string;
+    endsAtLocal: string;
     status: string;
     submittedByUsername: string;
     approverUsername: string;
@@ -11986,7 +11904,7 @@ export interface PublicEventDetailResponse {
     venueEndTime: string;
     startsAtUtc: Instant;
     endsAtUtc: Instant;
-    capacity: number | undefined;
+    capacity: number;
     status: string;
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
@@ -12052,7 +11970,7 @@ export interface PublicEventSummaryResponse {
     venueEndTime: string;
     startsAtUtc: Instant;
     endsAtUtc: Instant;
-    capacity: number | undefined;
+    capacity: number;
     status: string;
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
@@ -12063,10 +11981,10 @@ export interface PublicEventSummaryResponse {
 
 export interface PublicEventVenueResponse {
     streetAddress: string;
-    postalCode: string | undefined;
+    postalCode: string;
     city: string;
     country: string;
-    region?: string | undefined;
+    region: string;
 
     [key: string]: any;
 }
@@ -12138,13 +12056,6 @@ export interface PublicTournamentFormatResponse {
     name: string;
     slug: string;
     sortOrder: number;
-
-    [key: string]: any;
-}
-
-export interface PublishEventRequest {
-    previewTicket: string;
-    payload: EventPayloadRequest;
 
     [key: string]: any;
 }

@@ -1,11 +1,34 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
-import { PublicEventDetailResponse, EventPreviewRenderResponse } from '../../api/generated/gones-api';
+import { PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { eventDatePresentation, venueMapsUrl } from './public-event-list';
 import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
-export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResponse;
+export interface EventDetailView {
+  id?: string;
+  title: string;
+  displayTitle: string;
+  slug: string;
+  summary: string | undefined;
+  bodyHtml: string | undefined;
+  liveTournamentUrl: string | undefined;
+  archiveTournamentUrl: string | undefined;
+  venue: PublicEventDetailResponse['venue'];
+  timeZoneId: string;
+  venueStartDate: string;
+  venueStartTime: string;
+  venueEndDate: string;
+  venueEndTime: string;
+  startsAtUtc: PublicEventDetailResponse['startsAtUtc'] | string;
+  endsAtUtc: PublicEventDetailResponse['endsAtUtc'] | string;
+  capacity: number | null | undefined;
+  status: string;
+  eventType: PublicEventDetailResponse['eventType'];
+  organization: PublicEventDetailResponse['organization'];
+  formats: PublicEventDetailResponse['formats'];
+  images: PublicEventDetailResponse['images'];
+}
 export type EventDetailImage = EventDetailView['images'][number];
 
 @Component({
@@ -15,11 +38,11 @@ export type EventDetailImage = EventDetailView['images'][number];
   template: `
     <article class="event-page public-tournament-detail" aria-labelledby="event-title" data-cy="event-detail-view">
       <section class="event-hero panel" data-cy="event-detail-hero">
-        <div class="event-hero-topline" data-cy="event-detail-topline">@if (event().organization.website; as url) { <a class="kicker" data-cy="event-detail-kicker-link" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ event().organization.name }}</a> } @else { <p class="kicker" data-cy="event-detail-kicker">{{ event().organization.name }}</p> }<span class="event-player-count" data-cy="event-detail-player-count">{{ playerCount() }}</span></div>
+        <div class="event-hero-topline" data-cy="event-detail-topline">@if (event().organization.website; as url) { <a class="kicker" data-cy="event-detail-kicker-link" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ organizationName() }}</a> } @else { <p class="kicker" data-cy="event-detail-kicker" [class.muted]="showOrganizationPlaceholder()">{{ organizationName() }}</p> }<span class="event-player-count" data-cy="event-detail-player-count" [class.muted]="showCapacityPlaceholder()">{{ playerCount() }}</span></div>
         <h1 id="event-title" data-cy="event-detail-title"><span data-cy="event-detail-title-text" [class.muted]="showTitlePlaceholder()">{{ displayTitle() }}</span></h1>
         @if (showIcsAction() && icsUrl(); as url) { <a mat-stroked-button class="event-hero-ics" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
-        <p class="event-when" data-cy="event-detail-when-row"><span data-cy="event-detail-when">{{ naturalDate() }}</span><span data-cy="event-detail-when-separator">-</span><span class="event-starting-hour" data-cy="event-detail-starting-hour">{{ i18n.t('event.startingHour') }} : {{ startTime() }}</span></p>
+        <p class="event-when" data-cy="event-detail-when-row" [class.muted]="showDatePlaceholder()"><span data-cy="event-detail-when">{{ naturalDate() }}</span><span data-cy="event-detail-when-separator">-</span><span class="event-starting-hour" data-cy="event-detail-starting-hour">{{ i18n.t('event.startingHour') }} : {{ startTime() }}</span></p>
         @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
         <p class="event-where" data-cy="event-detail-where-row">@if (mapsUrl(); as url) { <a data-cy="event-detail-where-link" [href]="url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue() })"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ venueDisplay() }}</a> } @else { <span data-cy="event-detail-where" [class.muted]="showVenuePlaceholder()">{{ venueDisplay() }}</span> }</p>
         @if (organizers().length) { <p class="event-hero-organizers" data-cy="event-detail-organizers">{{ organizers().join(', ') }}</p> }
@@ -71,15 +94,21 @@ export class EventDetailViewComponent {
   readonly lightboxIndex = signal<number | null>(null);
   private lightboxTrigger: HTMLElement | null = null;
 
-  readonly date = computed(() => eventDatePresentation(this.event(), this.i18n.locale()));
+  readonly date = computed(() => this.draftPlaceholderMode()
+    ? { primary: '' }
+    : eventDatePresentation(this.event(), this.i18n.locale()));
   readonly playerCount = computed(() => {
     const capacity = this.event().capacity;
-    if (capacity === undefined || capacity === null) return this.i18n.t('registration.unlimited');
+    if (capacity === undefined || capacity === null) return this.draftPlaceholderMode()
+      ? this.i18n.t('event.draftCapacityPlaceholder')
+      : this.i18n.t('registration.unlimited');
     return this.i18n.t(capacity === 1 ? 'event.playerCount' : 'event.playerCountPlural', { count: capacity });
   });
-  readonly mapsUrl = computed(() => venueMapsUrl(this.event().venue));
-  readonly naturalDate = computed(() => this.i18n.formatDate(this.event().venueStartDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
-  readonly startTime = computed(() => this.event().venueStartTime.slice(0, 5));
+  readonly mapsUrl = computed(() => this.showVenuePlaceholder() ? undefined : venueMapsUrl(this.event().venue));
+  readonly naturalDate = computed(() => this.showDatePlaceholder()
+    ? this.i18n.t('event.draftDatePlaceholder')
+    : this.i18n.formatDate(this.event().venueStartDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+  readonly startTime = computed(() => this.showDatePlaceholder() ? '—' : this.event().venueStartTime.slice(0, 5));
   readonly organizers = computed(() => this.event().organization.organizers ?? []);
   readonly images = computed(() => this.event().images ?? []);
   readonly heroImage = computed(() => this.images()[0]);
@@ -89,12 +118,21 @@ export class EventDetailViewComponent {
     return index === null ? undefined : this.images()[index];
   });
   readonly displayTitle = computed(() => this.event().displayTitle.trim() || (this.draftPlaceholderMode() ? this.i18n.t('event.draftTitlePlaceholder') : ''));
+  readonly organizationName = computed(() => this.event().organization.name.trim() || (this.draftPlaceholderMode() ? this.i18n.t('event.draftOrganizationPlaceholder') : ''));
   readonly showTitlePlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().displayTitle.trim());
-  readonly showVenuePlaceholder = computed(() => this.draftPlaceholderMode() && !this.venue());
-  readonly venueDisplay = computed(() => this.venue() || (this.draftPlaceholderMode() ? this.i18n.t('event.draftLocationPlaceholder') : ''));
+  readonly showVenuePlaceholder = computed(() => this.draftPlaceholderMode() && !this.locationComplete());
+  readonly showOrganizationPlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().organization.name.trim());
+  readonly showDatePlaceholder = computed(() => this.draftPlaceholderMode() && (!this.event().venueStartDate || !this.event().venueStartTime));
+  readonly showCapacityPlaceholder = computed(() => this.draftPlaceholderMode() && this.event().capacity == null);
+  readonly venueDisplay = computed(() => this.showVenuePlaceholder() ? this.i18n.t('event.draftLocationPlaceholder') : this.venue());
 
   externalLinkAttrs(url: string): { target?: '_blank'; rel?: 'noopener noreferrer' } {
     return /^https?:\/\//i.test(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+  }
+
+  locationComplete(): boolean {
+    const venue = this.event().venue;
+    return [venue.streetAddress, venue.postalCode, venue.city, venue.country, venue.region].every(value => (value ?? '').trim());
   }
 
   venue(): string {

@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Gones.Api.Errors;
+using Gones.Application.Events;
 using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
@@ -365,14 +367,14 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
                      {
                          payload.Title,
                          payload.Summary!,
-                         payload.StreetAddress,
-                         payload.PostalCode!,
-                         payload.City,
-                         payload.Country,
-                         payload.TimeZoneId,
+                         payload.Location.StreetAddress,
+                         payload.Location.PostalCode,
+                         payload.Location.City,
+                         payload.Location.Country,
+                         "Europe/Paris",
                          payload.StartsAtLocal,
-                         payload.EndsAtLocal!,
-                         payload.Capacity!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                         "2035-03-04T23:59:59",
+                         payload.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture),
                          seed.Legacy.Name,
                          seed.SubmitterProfile.Username
                      })
@@ -487,6 +489,8 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(clock);
+                services.RemoveAll<IEventLocationTokenService>();
+                services.AddSingleton<IEventLocationTokenService, TestLocationTokenService>();
             });
         });
 
@@ -555,15 +559,18 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         "Summer Cup",
         "Featured",
         "Welcome",
-        "12 Rue de la Paix",
-        "75001",
-        "Paris",
-        "France",
-        "Europe/Paris",
-        "2035-03-04T10:00:00",
-        "2035-03-04T18:00:00",
+        new TournamentLocationPayload(
+            "12 Rue de la Paix",
+            "75001",
+            "Paris",
+            "France",
+            "Auvergne-Rhône-Alpes",
+            "valid-location-token"),
+        "weekly",
+        "2035-03-04T10:00",
         64,
-        [seed.Legacy.Id]);
+        [seed.Legacy.Id],
+        []);
 
     private GonesDbContext CreateContext()
     {
@@ -595,21 +602,37 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string Title,
         string? Summary,
         string? BodyMarkdown,
+        TournamentLocationPayload Location,
+        string EventType,
+        string StartsAtLocal,
+        int Capacity,
+        IReadOnlyList<Guid> FormatIds,
+        IReadOnlyList<object> Images);
+
+    private sealed record TournamentLocationPayload(
         string StreetAddress,
-        string? PostalCode,
+        string PostalCode,
         string City,
         string Country,
-        string TimeZoneId,
-        string StartsAtLocal,
-        string? EndsAtLocal,
-        int? Capacity,
-        IReadOnlyList<Guid> FormatIds,
-        string Region = "Auvergne-Rhône-Alpes",
-        string EventType = "weekly");
+        string Region,
+        string LocationToken);
 
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
+    }
+
+    private sealed class TestLocationTokenService : IEventLocationTokenService
+    {
+        public string Issue(Guid userId, ResolvedEventLocation location, Instant now) => "valid-location-token";
+
+        public ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now)
+        {
+            if (input.LocationToken != "valid-location-token") throw new LocationTokenInvalidException();
+            return new ValidatedEventLocation(
+                "google-place-id", input.StreetAddress, input.PostalCode, input.City, input.Country, input.Region,
+                45.764m, 4.8357m, "Europe/Paris", now + Duration.FromMinutes(30));
+        }
     }
 }

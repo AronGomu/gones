@@ -260,7 +260,7 @@ const TIERS = {
   local: { minimum: 8, maximum: 30, skew: 1.3, capacity: 32 },
   monthly: { minimum: 30, maximum: 100, skew: 2.2, capacity: 104 },
   regional: { minimum: 100, maximum: 300, skew: 2.0, capacity: 320 },
-  national: { minimum: 1000, maximum: 1100, skew: 1, capacity: null }
+  national: { minimum: 1000, maximum: 1100, skew: 1, capacity: 1100 }
 };
 
 /** Swiss rounds a field of this size is really paired for. */

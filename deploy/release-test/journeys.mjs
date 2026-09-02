@@ -56,7 +56,7 @@ async function call(path, { method = 'GET', body, token, headers = {}, cookie, b
   return { status: response.status, headers: response.headers, text, json };
 }
 
-const idempotent = () => ({ 'idempotency-key': randomUUID() });
+const idempotent = () => ({ 'Idempotency-Key': randomUUID() });
 
 /** Reads the local email sink the way an operator would read the inbox it stands in for. */
 async function sinkMessages() {
@@ -108,21 +108,39 @@ async function login(email) {
   return { token: response.json.accessToken, profile: me.json };
 }
 
-function tournamentPayload(organizationId, formatIds, startsAtLocal, title) {
+async function eventPayload(token, organizationId, formatIds, startsAtLocal, title) {
+  const resolved = await call('/api/event-locations/resolve', {
+    method: 'POST',
+    token,
+    body: {
+      placeId: 'fixture|1%20Rue%20de%20la%20Republique|69002|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes',
+      sessionToken: randomUUID(),
+      language: 'en'
+    }
+  });
+  check(resolved.status === 200 && typeof resolved.json?.locationToken === 'string',
+    `the Organizer resolves the Event location (${resolved.status} ${resolved.text.slice(0, 120)})`);
+  if (resolved.status !== 200 || !resolved.json?.locationToken) {
+    throw new Error(`Event location resolution failed: ${resolved.status} ${resolved.text.slice(0, 200)}`);
+  }
   return {
     organizationId,
     title,
     summary: 'Release rehearsal tournament',
     bodyMarkdown: 'Local rehearsal only.',
-    streetAddress: '1 Rue de la Republique',
-    postalCode: '69002',
-    city: 'Lyon',
-    country: 'France',
-    timeZoneId: 'Europe/Paris',
-    startsAtLocal,
-    endsAtLocal: startsAtLocal.replace('T09:00:00', 'T18:00:00'),
+    location: {
+      streetAddress: resolved.json.streetAddress,
+      postalCode: resolved.json.postalCode,
+      city: resolved.json.city,
+      country: resolved.json.country,
+      region: resolved.json.region,
+      locationToken: resolved.json.locationToken
+    },
+    eventType: 'major',
+    startsAtLocal: startsAtLocal.slice(0, 16),
     capacity: 8,
-    formatIds
+    formatIds,
+    images: []
   };
 }
 
@@ -133,13 +151,13 @@ function futureLocal(daysAhead) {
 }
 
 async function visitorStage() {
-  const list = await call('/api/tournaments');
+  const list = await call('/api/events');
   check(list.status === 200, `anonymous Visitor reads the public calendar (${list.status})`);
   const me = await call('/api/users/me');
   check(me.status === 401, `anonymous Visitor cannot read a profile (${me.status})`);
   const admin = await call('/api/admin/users');
   check(admin.status === 401, `anonymous Visitor cannot reach the Admin surface (${admin.status})`);
-  const organizer = await call('/api/organizer/tournaments');
+  const organizer = await call('/api/organizer/events');
   check(organizer.status === 401, `anonymous Visitor cannot reach the Organizer surface (${organizer.status})`);
   const spa = await call('/');
   check(spa.status === 200 && spa.text.includes('<gones-root'), 'the server-mode SPA is served from the same TLS origin as the API');
@@ -210,60 +228,60 @@ async function rolesStage() {
   const formatIds = [formats.json[0].id];
 
   const startsAtLocal = futureLocal(70);
-  const payload = tournamentPayload(organizationId, formatIds, startsAtLocal, 'Release Rehearsal Cup');
-  const preview = await call('/api/tournaments/preview', { method: 'POST', token: organizer.token, body: payload });
-  check(preview.status === 200 && typeof preview.json.previewTicket === 'string', `the Organizer previews before publishing (${preview.status} ${preview.text.slice(0, 120)})`);
-
-  const published = await call('/api/tournaments/', {
+  const payload = await eventPayload(organizer.token, organizationId, formatIds, startsAtLocal, 'Release Rehearsal Cup');
+  const published = await call('/api/events', {
     method: 'POST',
     token: organizer.token,
     headers: idempotent(),
-    body: { previewTicket: preview.json.previewTicket, payload }
+    body: payload
   });
-  check(published.status === 201 && published.json.status === 'Published',
-    `the Organizer publishes the tournament (${published.status} ${published.text.slice(0, 160)})`);
+  check(published.status === 201
+      && published.json.status === 'Published'
+      && published.headers.get('location') === `/api/events/${published.json.slug}`
+      && /^"\d+"$/.test(published.headers.get('etag') ?? ''),
+    `the Organizer directly publishes the Event with Location and ETag (${published.status} ${published.text.slice(0, 160)})`);
   const tournamentId = published.json.id;
   const slug = published.json.slug;
 
-  const publicDetail = await call(`/api/tournaments/${slug}`);
+  const publicDetail = await call(`/api/events/${slug}`);
   check(publicDetail.status === 200, `a Visitor reads the published tournament (${publicDetail.status})`);
   check(publicDetail.json?.bodyHtml === '<p>Local rehearsal only.</p>',
     'the public detail derives safe HTML from the authored Markdown');
-  const ics = await call(`/api/tournaments/${slug}.ics`);
+  const ics = await call(`/api/events/${slug}.ics`);
   check(ics.status === 200 && ics.text.includes('BEGIN:VEVENT') && ics.text.includes('Europe/Paris'),
     'the tournament exports an ICS entry carrying the venue time zone');
 
   const registrationKey = randomUUID();
-  const registered = await call(`/api/tournaments/${tournamentId}/registrations`, {
-    method: 'POST', token: participant.token, headers: { 'idempotency-key': registrationKey }
+  const registered = await call(`/api/events/${tournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: { 'Idempotency-Key': registrationKey }
   });
   check(registered.status === 201, `a verified User registers (${registered.status} ${registered.text.slice(0, 160)})`);
-  const replayed = await call(`/api/tournaments/${tournamentId}/registrations`, {
-    method: 'POST', token: participant.token, headers: { 'idempotency-key': registrationKey }
+  const replayed = await call(`/api/events/${tournamentId}/registrations`, {
+    method: 'POST', token: participant.token, headers: { 'Idempotency-Key': registrationKey }
   });
   check(replayed.status === 201 || replayed.status === 200, `replaying the same Idempotency-Key is not a second registration (${replayed.status})`);
-  const duplicate = await call(`/api/tournaments/${tournamentId}/registrations`, {
+  const duplicate = await call(`/api/events/${tournamentId}/registrations`, {
     method: 'POST', token: participant.token, headers: idempotent()
   });
   check(duplicate.status === 409, `a second active registration is refused (${duplicate.status})`);
 
-  const anonymousParticipants = await call(`/api/tournaments/${slug}/participants`);
+  const anonymousParticipants = await call(`/api/events/${slug}/participants`);
   check(anonymousParticipants.status === 200 && !anonymousParticipants.text.includes(participantEmail),
     'the public participant view never exposes a participant address');
-  const privateParticipants = await call(`/api/tournaments/${tournamentId}/registrations`, { token: organizer.token });
+  const privateParticipants = await call(`/api/events/${tournamentId}/registrations`, { token: organizer.token });
   check(privateParticipants.status === 200 && privateParticipants.text.includes(participantEmail),
     'the Organizer private participant view resolves the participant');
 
-  const csv = await call(`/api/tournaments/${tournamentId}/registrations/export`, { token: organizer.token });
+  const csv = await call(`/api/events/${tournamentId}/registrations/export`, { token: organizer.token });
   check(csv.status === 200 && csv.text.includes(participantEmail), `the Organizer exports participants as CSV (${csv.status})`);
   check(!/^[=+\-@]/m.test(csv.text), 'the CSV export never starts a cell with a spreadsheet formula character');
 
-  const manual = await call(`/api/tournaments/${tournamentId}/registrations/by-organizer`, {
+  const manual = await call(`/api/events/${tournamentId}/registrations/by-organizer`, {
     method: 'POST', token: organizer.token, headers: idempotent(), body: { userId: standInId }
   });
   check(manual.status === 201, `the Organizer registers a participant manually (${manual.status})`);
   const manualId = manual.json.attemptId;
-  const removed = await call(`/api/tournaments/${tournamentId}/registrations/${manualId}`, {
+  const removed = await call(`/api/events/${tournamentId}/registrations/${manualId}`, {
     method: 'DELETE', token: organizer.token, headers: idempotent()
   });
   check(removed.status === 200 || removed.status === 204, `the Organizer removes that participant (${removed.status})`);
@@ -272,7 +290,7 @@ async function rolesStage() {
     method: 'POST', token: organizer.token, body: { userId: standInId, reason: 'release rehearsal block' }
   });
   check(blocked.status === 201, `the Organizer blocks a user for the organization (${blocked.status})`);
-  const blockedAttempt = await call(`/api/tournaments/${tournamentId}/registrations`, {
+  const blockedAttempt = await call(`/api/events/${tournamentId}/registrations`, {
     method: 'POST', token: standIn.token, headers: idempotent()
   });
   check(blockedAttempt.status === 403, `a blocked user cannot register (${blockedAttempt.status})`);
@@ -314,46 +332,50 @@ async function rolesStage() {
 async function deleteRestoreStage() {
   const admin = await login(bootstrapEmail);
   const organizer = await login(organizerEmail);
-  const payload = tournamentPayload(state.organizationId, state.formatIds ?? (await call('/api/formats')).json.map((format) => format.id).slice(0, 1), futureLocal(50), 'Release Rehearsal Spare');
-  const preview = await call('/api/tournaments/preview', { method: 'POST', token: organizer.token, body: payload });
-  const published = await call('/api/tournaments/', {
-    method: 'POST', token: organizer.token, headers: idempotent(), body: { previewTicket: preview.json.previewTicket, payload }
+  const payload = await eventPayload(
+    organizer.token,
+    state.organizationId,
+    state.formatIds ?? (await call('/api/formats')).json.map((format) => format.id).slice(0, 1),
+    futureLocal(50),
+    'Release Rehearsal Spare');
+  const published = await call('/api/events', {
+    method: 'POST', token: organizer.token, headers: idempotent(), body: payload
   });
   check(published.status === 201, `a spare tournament is published for the delete/restore journey (${published.status} ${published.text.slice(0, 160)})`);
   const id = published.json.id;
   const slug = published.json.slug;
 
-  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const managed = await call('/api/organizer/events', { token: organizer.token });
   const entry = managed.json.items.find((item) => item.id === id);
   check(Boolean(entry?.eTag), 'the Organizer management list carries the concurrency token');
 
-  const stale = await call(`/api/tournaments/${id}`, {
+  const stale = await call(`/api/events/${id}`, {
     method: 'DELETE', token: organizer.token, headers: { 'if-match': '"0"', ...idempotent() }, body: { reason: 'stale write' }
   });
   check(stale.status === 412 || stale.status === 409, `a stale If-Match is refused (${stale.status})`);
 
-  const deleted = await call(`/api/tournaments/${id}`, {
+  const deleted = await call(`/api/events/${id}`, {
     method: 'DELETE', token: organizer.token, headers: { 'if-match': entry.eTag, ...idempotent() }, body: { reason: 'release rehearsal' }
   });
   check(deleted.status === 200 || deleted.status === 204, `the Organizer soft-deletes the tournament (${deleted.status})`);
-  const gone = await call(`/api/tournaments/${slug}`);
+  const gone = await call(`/api/events/${slug}`);
   check(gone.status === 404, `a deleted tournament disappears from the public surface (${gone.status})`);
 
-  const deletedList = await call('/api/admin/tournaments/deleted', { token: admin.token });
+  const deletedList = await call('/api/admin/events/deleted', { token: admin.token });
   const deletedEntry = deletedList.json.items.find((item) => item.id === id);
   check(Boolean(deletedEntry), 'the Admin sees the deleted tournament');
-  const restored = await call(`/api/admin/tournaments/${id}/restore`, {
+  const restored = await call(`/api/admin/events/${id}/restore`, {
     method: 'POST', token: admin.token, headers: { 'if-match': deletedEntry.eTag }
   });
   check(restored.status === 200 || restored.status === 204, `the Admin restores the tournament (${restored.status})`);
-  const back = await call(`/api/tournaments/${slug}`);
+  const back = await call(`/api/events/${slug}`);
   check(back.status === 200, `the restored tournament is public again (${back.status})`);
   emit({ spareTournamentId: id, spareSlug: slug });
 }
 
 async function spareRegisterStage() {
   const participant = await login(participantEmail);
-  const response = await call(`/api/tournaments/${state.spareTournamentId}/registrations`, {
+  const response = await call(`/api/events/${state.spareTournamentId}/registrations`, {
     method: 'POST', token: participant.token, headers: idempotent()
   });
   check(response.status === 201, `the participant registers on the second tournament (${response.status})`);
@@ -361,11 +383,11 @@ async function spareRegisterStage() {
 
 async function dateChangeStage() {
   const organizer = await login(organizerEmail);
-  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const managed = await call('/api/organizer/events', { token: organizer.token });
   const entry = managed.json.items.find((item) => item.id === state.tournamentId);
   check(Boolean(entry), 'the Organizer can still manage the rehearsal tournament');
   const startsAtLocal = futureLocal(40);
-  const update = await call(`/api/tournaments/${state.tournamentId}/details`, {
+  const update = await call(`/api/events/${state.tournamentId}/details`, {
     method: 'PATCH',
     token: organizer.token,
     headers: { 'if-match': entry.eTag },
@@ -377,6 +399,8 @@ async function dateChangeStage() {
       postalCode: entry.postalCode,
       city: entry.city,
       country: entry.country,
+      region: entry.region,
+      eventType: entry.eventType,
       timeZoneId: entry.timeZoneId,
       startsAtLocal,
       endsAtLocal: startsAtLocal.replace('T09:00:00', 'T18:00:00'),
@@ -390,20 +414,20 @@ async function dateChangeStage() {
 
 async function unregisterStage() {
   const participant = await login(participantEmail);
-  const response = await call(`/api/tournaments/${state.spareTournamentId}/registrations`, {
+  const response = await call(`/api/events/${state.spareTournamentId}/registrations`, {
     method: 'DELETE', token: participant.token, headers: idempotent()
   });
   check(response.status === 200 || response.status === 204, `the participant unregisters (${response.status})`);
   const mine = await call('/api/users/me/registrations', { token: participant.token });
-  check(!mine.json.items.some((item) => item.tournamentId === state.spareTournamentId && item.status === 'Confirmed'),
+  check(!mine.json.items.some((item) => item.eventId === state.spareTournamentId && item.status === 'Confirmed'),
     'the cancelled registration is no longer confirmed for that user');
 }
 
 async function cancelStage() {
   const organizer = await login(organizerEmail);
-  const managed = await call('/api/organizer/tournaments', { token: organizer.token });
+  const managed = await call('/api/organizer/events', { token: organizer.token });
   const entry = managed.json.items.find((item) => item.id === state.tournamentId);
-  const response = await call(`/api/tournaments/${state.tournamentId}/cancel`, {
+  const response = await call(`/api/events/${state.tournamentId}/cancel`, {
     method: 'POST', token: organizer.token, headers: { 'if-match': entry.eTag, ...idempotent() }
   });
   check(response.status === 200, `the Organizer cancels the tournament (${response.status})`);

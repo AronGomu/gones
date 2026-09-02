@@ -310,39 +310,47 @@ async function seedOrganizations(environment, tokens) {
   return ids;
 }
 
-/** Preview then publish, exactly as the organizer UI does: publishing consumes the preview ticket. */
+/** Resolve each fixture venue, then publish directly through the same signed-location contract as the editor. */
 async function seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs) {
   const ids = new Map();
   if (!environment.tournaments.length) return ids;
 
   for (const entry of environment.tournaments) {
     const token = tokens.get(normalizeFixtureEmail(entry.organizerEmail));
+    const resolved = await requireResponse(await api('POST', '/api/event-locations/resolve', {
+      token,
+      body: {
+        placeId: ['fixture', entry.streetAddress, entry.postalCode, entry.city, entry.country, entry.region]
+          .map((part) => encodeURIComponent(part))
+          .join('|'),
+        sessionToken: crypto.randomUUID(),
+        language: 'en'
+      }
+    }), 'tournaments', `${entry.key} location`);
+    const location = await resolved.json();
     const payload = {
       organizationId: organizationIds.get(entry.organizationKey),
       title: entry.title,
       summary: entry.summary,
       bodyMarkdown: entry.bodyMarkdown,
-      streetAddress: entry.streetAddress,
-      postalCode: entry.postalCode,
-      city: entry.city,
-      country: entry.country,
-      region: entry.region,
+      location: {
+        streetAddress: location.streetAddress,
+        postalCode: location.postalCode,
+        city: location.city,
+        country: location.country,
+        region: location.region,
+        locationToken: location.locationToken
+      },
       eventType: entry.eventType,
-      timeZoneId: entry.timeZoneId,
-      // `:00` because the server parses these with NodaTime's extended ISO pattern, which wants
-      // seconds; the fixtures and `localDateTime` stay at minute precision, which is what a person
-      // editing a tournament time cares about.
-      startsAtLocal: `${localDateTime(entry.startsAtLocalOffsetDays, entry.startsAtLocalTime)}:00`,
-      endsAtLocal: `${localDateTime(entry.endsAtLocalOffsetDays, entry.endsAtLocalTime)}:00`,
+      startsAtLocal: localDateTime(entry.startsAtLocalOffsetDays, entry.startsAtLocalTime),
       capacity: entry.capacity,
-      formatIds: entry.formatKeys.map((key) => formatIds.get(key))
+      formatIds: entry.formatKeys.map((key) => formatIds.get(key)),
+      images: []
     };
 
-    const previewed = await requireResponse(await api('POST', '/api/events/preview', { token, body: payload }), 'tournaments', entry.key);
-    const { previewTicket } = await previewed.json();
     const published = await requireResponse(await api('POST', '/api/events', {
       token,
-      body: { previewTicket, payload },
+      body: payload,
       idempotencyKey: `${environment.name}-tournament-${entry.key}`
     }), 'tournaments', entry.key);
     const { id, slug } = await published.json();

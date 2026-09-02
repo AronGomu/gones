@@ -1281,12 +1281,22 @@ a.public-month-event:hover, a.public-month-event:focus-visible { background: col
 }
 
 /* Organizer Tournament create + management */
-.organizer-tournament-create, .tournament-management-page { width: min(100%, 64rem); margin-inline: auto; }
+.organizer-tournament-create { width: min(100%, 96rem); margin-inline: auto; }
+.tournament-management-page { width: min(100%, 64rem); margin-inline: auto; }
+.event-editor-shell { display: grid; gap: 16px; align-items: start; }
+.event-editor-shell--collapsed { grid-template-columns: minmax(0, 1fr); }
+.event-live-preview { min-width: 0; }
+.event-live-preview > h2 { margin-top: 0; }
 .tournament-create-form { display: grid; gap: 1.25rem; padding: clamp(1rem, 3vw, 2rem); }
 .tournament-form-lock { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tournament-form-lock:disabled { opacity: .72; }
 .tournament-create-help { margin: 0; line-height: 1.55; }
 .tournament-create-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.event-form-rows { display: grid; gap: 16px; }
+.event-form-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: start; }
+.event-form-row > .tournament-create-field { flex: 1 1 12rem; }
+.event-form-row--title > .tournament-create-field { flex-basis: 18rem; }
+.event-form-row--full > .tournament-create-field, .event-form-row--full > gones-event-image-uploader { flex: 1 1 100%; min-width: 0; }
 .tournament-create-field { display: grid; gap: .4rem; min-width: 0; }
 .tournament-create-field label { color: var(--dim-ash); font-size: .88rem; font-weight: 800; }
 .tournament-create-field input, .tournament-create-field select, .tournament-create-field textarea {
@@ -1302,6 +1312,10 @@ a.public-month-event:hover, a.public-month-event:focus-visible { background: col
 .tournament-create-double { grid-column: span 2; }
 .tournament-create-recovery { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
 .tournament-preview-actions { position: sticky; bottom: .75rem; z-index: 5; padding: .75rem; border: 1px solid var(--soot); background: color-mix(in oklch, var(--black-metal) 94%, transparent); }
+@media (min-width: 1024px) {
+  .event-editor-shell:not(.event-editor-shell--collapsed) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .event-live-preview { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+}
 @media (max-width: 700px) {
   .tournament-create-grid { grid-template-columns: 1fr; }
   .tournament-create-wide, .tournament-create-double { grid-column: 1; }

@@ -140,24 +140,24 @@ ETag: "<version>"
 
 ## Impl steps
 
-- [ ] 1. Add failing backend direct-publication/schema/attachment tests.
-- [ ] 2. Add failing Angular exact-row/live-preview/responsive/session/a11y tests.
-- [ ] 3. Remove preview subsystem + make direct endpoint preserve internal proposal publisher.
-- [ ] 4. Implement reset schema/location persistence/img attachment + fixture updates.
-- [ ] 5. Implement exact create form rows, local preview, split/collapse, publish mapping.
-- [ ] 6. Regenerate OpenAPI/client + update Cypress create flow.
-- [ ] 7. Run gates.
+- [x] 1. Add failing backend direct-publication/schema/attachment tests. Verify: focused backend test command fails only on unimplemented T5 behavior.
+- [x] 2. Add failing Angular exact-row/live-preview/responsive/session/a11y tests. Verify: focused Angular create tests fail only on unimplemented T5 behavior.
+- [x] 3. Remove preview subsystem + make direct endpoint preserve internal proposal publisher. Verify: preview route/service/entity references are absent and direct-publication backend tests pass.
+- [x] 4. Implement reset schema/location persistence/img attachment + fixture updates. Verify: focused backend publication/proposal tests pass with schema and image ownership assertions.
+- [x] 5. Implement exact create form rows, local preview, split/collapse, publish mapping. Verify: focused Angular create/proposal tests pass.
+- [x] 6. Regenerate OpenAPI/client + update Cypress create flow. Verify: `npm run api:generate && npm run api:check` passes and focused Cypress specs pass.
+- [x] 7. Run gates. Verify: every command and observable check under Validation passes.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventPublication|FullyQualifiedName~EventProposal|FullyQualifiedName~EventProposalDecision"`
-- [ ] `npm run test -- --run src/app/features/events/organizer-event-create.test.ts src/app/features/events/organizer-event-create.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts`
-- [ ] `npm run cy:run -- --spec cypress/e2e/organizer-event-create.cy.js,cypress/e2e/event-proposal.cy.js`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: 1023/1024px, collapse restore, Markdown preview, 5 imgs reorder, failed-upload block
-- [ ] no silent-failure swallow on added path — `none`
-- [ ] app functional — direct create navigates to faithful public Event; proposal non-img path remains green
-- [ ] commit msg draft: `feat(events): publish directly from faithful responsive editor`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventPublication|FullyQualifiedName~EventProposal|FullyQualifiedName~EventProposalDecision"`
+- [x] `npm run test -- --run src/app/features/events/organizer-event-create.test.ts src/app/features/events/organizer-event-create.component.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts`
+- [x] `npm run cy:run -- --spec cypress/e2e/organizer-event-create.cy.js,cypress/e2e/event-proposal.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] manual check: 1023/1024px, collapse restore, Markdown preview, 5 imgs reorder, failed-upload block
+- [x] no silent-failure swallow on added path — `none`
+- [x] app functional — direct create navigates to faithful public Event; proposal non-img path remains green
+- [x] commit msg draft: `feat(events): publish directly from faithful responsive editor`

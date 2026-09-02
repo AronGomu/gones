@@ -166,7 +166,7 @@ describe('EventDetailViewComponent hero', () => {
 
   it('keeps a plain kicker with no website', () => {
     expect(source).toContain('data-cy="event-detail-kicker"');
-    expect(source).toContain('@else { <p class="kicker" data-cy="event-detail-kicker">');
+    expect(source).toContain('@else { <p class="kicker" data-cy="event-detail-kicker"');
   });
 
   it('keeps an ics action', () => {
