@@ -141,4 +141,4 @@ interface EventManagementResponse {
 - [x] 10. Expose and enforce management location-token expiry. Verify: API/client tests show expiry hydration, expired-save refusal, and re-resolve recovery.
 - [x] 11. Recover missing-image PATCH 404 through latest Event/media reload. Verify: API code and Angular test distinguish `image_not_found` from permission failure.
 - [x] 12. Regenerate API client and run focused gates. Verify: backend/frontend/API/typecheck/lint/Cypress commands pass or record explicit limitation.
-- [ ] 13. Commit only T6 review-repair paths. Verify: commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged files.
+- [x] 13. Commit only T6 review-repair paths. Verify: commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged files.
