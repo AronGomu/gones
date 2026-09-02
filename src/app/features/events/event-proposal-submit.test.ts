@@ -75,11 +75,8 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     timeZoneId: 'Europe/Paris',
     startDate: '2027-08-01',
     startTime: '10:00',
-    endsAtLocal: '',
     capacity: 32,
     formatId: 'fmt1',
-    liveTournamentUrl: '',
-    archiveTournamentUrl: '',
     images: []
   });
 }

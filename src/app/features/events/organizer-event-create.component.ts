@@ -184,16 +184,8 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                 </div>
 
-                @if (!editMode && canPublishDirectly()) {
-                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
-                }
-
-                @if (editMode) {
-                  <div class="event-form-row" data-cy="event-row-edit-extra">
-                    <div class="tournament-create-field" data-cy="event-field-end"><label for="event-end" data-cy="event-label-end">{{ i18n.t('eventCreate.end') }}</label><input id="event-end" data-cy="event-end" type="datetime-local" formControlName="endsAtLocal" /></div>
-                    <div class="tournament-create-field" data-cy="event-field-live-tournament-url"><label for="event-live-tournament-url" data-cy="event-label-live-tournament-url">{{ i18n.t('eventCreate.liveTournamentUrl') }}</label><input id="event-live-tournament-url" data-cy="event-live-tournament-url" type="url" formControlName="liveTournamentUrl" maxlength="2048" /></div>
-                    <div class="tournament-create-field" data-cy="event-field-archive-tournament-url"><label for="event-archive-tournament-url" data-cy="event-label-archive-tournament-url">{{ i18n.t('eventCreate.archiveTournamentUrl') }}</label><input id="event-archive-tournament-url" data-cy="event-archive-tournament-url" type="url" formControlName="archiveTournamentUrl" maxlength="2048" /></div>
-                  </div>
+                @if (canPublishDirectly()) {
+                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImages]="initialEditorImages()" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
                 }
               </div>
             </fieldset>
@@ -209,7 +201,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             <div class="actions" data-cy="event-create-actions">
               @if (canPublishDirectly()) {
                 @if (editMode) {
-                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
+                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || locationExpired() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
                   <button mat-flat-button class="home-primary-action" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
                 }
@@ -264,6 +256,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly staleEvent = signal<EventManagementResponse | null>(null);
   readonly staleChanges = signal<string[]>([]);
   readonly currentRender = signal<EventDetailView | null>(null);
+  readonly initialEditorImages = computed(() => this.baseEvent()?.images ?? []);
   readonly success = signal('');
   readonly canMutateEvent = computed(() => canUsePowerMutation(
     this.power.enabled(),
@@ -309,18 +302,15 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     country: new FormControl('', { nonNullable: true, validators: Validators.required }),
     region: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    locationToken: new FormControl('', { nonNullable: true, validators: this.editMode ? [] : Validators.required }),
+    locationToken: new FormControl('', { nonNullable: true, validators: Validators.required }),
     latitude: new FormControl<number | null>(null),
     longitude: new FormControl<number | null>(null),
     eventType: new FormControl<'' | 'weekly' | 'monthly' | 'major'>('weekly', { nonNullable: true, validators: Validators.required }),
     timeZoneId: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startDate: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startTime: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    endsAtLocal: new FormControl('', { nonNullable: true }),
     capacity: new FormControl<number | null>(null, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]),
     formatId: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    liveTournamentUrl: new FormControl('', { nonNullable: true, validators: Validators.maxLength(2048) }),
-    archiveTournamentUrl: new FormControl('', { nonNullable: true, validators: Validators.maxLength(2048) }),
     images: new FormControl<EventImageInput[]>([], { nonNullable: true })
   });
 
@@ -516,13 +506,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         longitude: resolved.longitude,
         timeZoneId: resolved.timeZoneId
       }, { emitEvent: false });
-      this.locationExpiresAt.set(resolved.expiresAt);
-      this.locationExpired.set(Date.now() >= new Date(resolved.expiresAt).getTime());
-      const expiresAt = resolved.expiresAt;
-      const delay = Math.min(2_147_483_647, Math.max(0, new Date(expiresAt).getTime() - Date.now()));
-      timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-        if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(true);
-      });
+      this.trackLocationExpiry(resolved.expiresAt);
       this.locationSuggestions.set([]);
       this.locationError.set('');
       this.retryLocation.set(null);
@@ -676,7 +660,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.submitError.set(null);
     this.success.set('');
     const base = this.baseEvent();
-    if (!this.eventId || !base || this.form.invalid || this.saving()) return;
+    if (!this.eventId || !base || this.form.invalid || this.saving() || this.imagePublishBlocked()) return;
+    if (this.locationExpired()) {
+      this.fieldErrors.set({ locationToken: this.i18n.t('eventManage.locationExpired') });
+      return;
+    }
     const draft = this.form.getRawValue();
     const major = majorEventChanges(base, draft, field => this.i18n.t(`eventManage.major.${field}`));
     if (major.length) {
@@ -704,8 +692,19 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       queueMicrotask(() => this.saveButton?.nativeElement.focus());
     } catch (error) {
       this.applyFieldErrors(error);
-      if (error instanceof ApiProblemError && error.status === 412) {
+      if (error instanceof ApiProblemError && error.problem.code === 'image_state_conflict') {
+        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageConflict') }));
+      }
+      if (error instanceof ApiProblemError && error.status === 404 && error.problem.code === 'image_not_found') {
+        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageMissing') }));
         await this.loadStaleEvent(base);
+      } else if (error instanceof ApiProblemError && error.status === 412) {
+        await this.loadStaleEvent(base);
+      } else if (error instanceof ApiProblemError
+        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
+      {
+        this.locationExpired.set(true);
+        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventManage.locationExpired') }));
       } else {
         this.submitError.set({ message: this.managementError(error), action: 'retry' });
       }
@@ -720,12 +719,19 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.applyCanonical(latest);
     this.staleEvent.set(null);
     this.staleChanges.set([]);
+    this.fieldErrors.update(errors => {
+      if (!errors['images']) return errors;
+      const current = { ...errors };
+      delete current['images'];
+      return current;
+    });
     this.submitError.set(null);
     this.success.set(this.i18n.t('eventManage.reloaded'));
     queueMicrotask(() => this.streetInput?.nativeElement.focus());
   }
 
   fieldError(name: keyof typeof this.form.controls): string {
+    if (name === 'locationToken' && this.locationExpired()) return this.i18n.t('eventManage.locationExpired');
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
     const control = this.form.controls[name];
@@ -756,7 +762,19 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private applyCanonical(event: EventManagementResponse): void {
     this.baseEvent.set(event);
     this.form.patchValue(managementToDraft(event), { emitEvent: false });
+    this.trackLocationExpiry(event.locationTokenExpiresAt);
     this.currentRender.set(managementToDetail(event, this.formats()));
+  }
+
+  private trackLocationExpiry(expiresAt: string): void {
+    this.locationExpiresAt.set(expiresAt);
+    const expiry = Date.parse(expiresAt);
+    this.locationExpired.set(!Number.isFinite(expiry) || Date.now() >= expiry);
+    if (!Number.isFinite(expiry) || Date.now() >= expiry) return;
+    const delay = Math.min(2_147_483_647, expiry - Date.now());
+    timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(Date.now() >= expiry);
+    });
   }
 
   private async loadStaleEvent(base: EventManagementResponse): Promise<void> {

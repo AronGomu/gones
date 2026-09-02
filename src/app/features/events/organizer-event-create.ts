@@ -17,11 +17,8 @@ export interface EventDraftValue {
   timeZoneId: string;
   startDate: string;
   startTime: string;
-  endsAtLocal: string;
   capacity: number | null;
   formatId: string;
-  liveTournamentUrl: string;
-  archiveTournamentUrl: string;
   images: EventImageInput[];
 }
 

@@ -43,8 +43,7 @@ describe('Organizer Event create state', () => {
       organizationId: 'org', title: ' Cup ', summary: ' ', bodyMarkdown: ' **Body** ', streetAddress: ' 1 Street ',
       postalCode: ' 69001 ', city: ' Lyon ', country: ' France ', region: ' Rhône ', locationToken: 'token', latitude: 45.764, longitude: 4.8357,
       eventType: 'weekly', timeZoneId: 'Europe/Paris', startDate: '2027-08-01', startTime: '10:00',
-      endsAtLocal: '', capacity: 32, formatId: 'legacy', liveTournamentUrl: ' /live/123 ', archiveTournamentUrl: ' ',
-      images: [{ imageId: 'image-1', altText: ' Hero ' }]
+      capacity: 32, formatId: 'legacy', images: [{ imageId: 'image-1', altText: ' Hero ' }]
     } as never)).toEqual({
       organizationId: 'org',
       title: 'Cup',

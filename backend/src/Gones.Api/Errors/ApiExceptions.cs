@@ -22,6 +22,7 @@ public sealed class AuthenticationFailedException() : ApiException("invalid_cred
 public sealed class InvalidAccountActionTokenException() : ApiException("invalid_account_action", "Account action link is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class RateLimitExceededException() : ApiException("rate_limited", "Too many requests. Try again later.", StatusCodes.Status429TooManyRequests);
 public sealed class ResourceNotFoundException() : ApiException("not_found", "Resource not found.", StatusCodes.Status404NotFound);
+public sealed class EventImageNotFoundException() : ApiException("image_not_found", "Event image not found.", StatusCodes.Status404NotFound);
 public sealed class ConcurrencyConflictException(string? currentETag = null, long? currentDocumentVersion = null)
     : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed)
 {

@@ -7,7 +7,6 @@ import {
   LiveTournamentDocument as DomainLiveTournamentDocument
 } from '../domain/live-tournament';
 import {
-  Instant,
   LiveStandingRow as GeneratedLiveStandingRow,
   LiveTournamentDocument as GeneratedLiveTournamentDocument,
   PublicLiveTournamentDetailResponse
@@ -95,7 +94,7 @@ describe('Live DTO parity with generated API client', () => {
       createdAt: domainDocument.createdAt,
       updatedAt: domainDocument.updatedAt,
       documentVersion: 1,
-      serverUpdatedAt: '2026-08-05T10:00:00Z' as unknown as Instant
+      serverUpdatedAt: '2026-08-05T10:00:00Z'
     };
     // Locked security review: the pairing seed, locked first-round order, and checkpoints
     // are Organizer/Admin mutation details and must stay out of the public detail contract.

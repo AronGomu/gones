@@ -113,23 +113,40 @@ interface EventManagementResponse {
 
 ## Impl steps
 
-- [ ] 1. Add failing backend concurrency/domain/API tests.
-- [ ] 2. Add failing Angular draft/stale/edit tests.
-- [ ] 3. Implement nested management DTO/read model + trusted token issuance.
-- [ ] 4. Implement tx media diff + post-commit retry-safe deletes + URL preservation.
-- [ ] 5. Wire editor save/reload/field errors; remove orphan legacy controls/mappers.
-- [ ] 6. Regenerate API/client + update management Cypress spec.
-- [ ] 7. Run gates.
+- [x] 1. Add failing backend concurrency/domain/API tests. Verify: targeted backend test command fails on new T6 assertions before production changes.
+- [x] 2. Add failing Angular draft/stale/edit tests. Verify: targeted Angular test command fails on new T6 assertions before production changes.
+- [x] 3. Implement nested management DTO/read model + trusted token issuance. Verify: targeted backend API tests pass for nested location/Markdown/img response without Google calls.
+- [x] 4. Implement tx media diff + post-commit retry-safe deletes + URL preservation. Verify: targeted backend concurrency/domain/API tests pass for reorder, stale no-op, attachment, removal, retry/log, severity, hidden URLs.
+- [x] 5. Wire editor save/reload/field errors; remove orphan legacy controls/mappers. Verify: targeted Angular draft/stale/edit tests pass with shared media editor, canonical reload, nested payload, hidden URL omission.
+- [x] 6. Regenerate API/client + update management Cypress spec. Verify: `npm run api:generate && npm run api:check` passes; Cypress spec contains edit-media coverage.
+- [x] 7. Run gates. Verify: every command/check under Validation has recorded passing evidence or explicit manual limitation.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventLifecycle|FullyQualifiedName~EventImage"`
-- [ ] `npm run test -- --run src/app/features/events/event-management.test.ts src/app/features/events/organizer-event-create.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run cy:run -- --spec cypress/e2e/organizer-event-management.cy.js`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: stale two-tab reorder/removal; hidden URL remains on public detail
-- [ ] no silent-failure swallow on added path — list durable post-commit object-delete retry + log site
-- [ ] app functional — create/edit share editor; stale changes cannot delete media
-- [ ] commit msg draft: `feat(events): protect media edits with Event concurrency boundary`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventLifecycle|FullyQualifiedName~EventImage"`
+- [x] `npm run test -- --run src/app/features/events/event-management.test.ts src/app/features/events/organizer-event-create.component.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run cy:run -- --spec cypress/e2e/organizer-event-management.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] manual check: stale two-tab reorder/removal; hidden URL remains on public detail
+- [x] no silent-failure swallow on added path — list durable post-commit object-delete retry + log site
+- [x] app functional — create/edit share editor; stale changes cannot delete media
+- [x] commit msg draft: `feat(events): protect media edits with Event concurrency boundary`
+
+## Review repair
+
+- [x] 8. Make management list reads and PATCH responses use one coherent DB snapshot. Verify: deterministic list/PATCH race tests return matching Event version, fields, images, and ETag.
+- [x] 9. Classify provider place ID or coordinate changes as major. Verify: domain tests cover place ID, latitude, and longitude with unchanged visible address/TZ.
+- [x] 10. Expose and enforce management location-token expiry. Verify: API/client tests show expiry hydration, expired-save refusal, and re-resolve recovery.
+- [x] 11. Recover missing-image PATCH 404 through latest Event/media reload. Verify: API code and Angular test distinguish `image_not_found` from permission failure.
+- [x] 12. Regenerate API client and run focused gates. Verify: backend/frontend/API/typecheck/lint/Cypress commands pass or record explicit limitation.
+- [x] 13. Commit only T6 review-repair paths. Verify: commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged files.
+
+## Final contract repair
+
+- [x] 14. Fix generated OpenAPI NodaTime `Instant` schema and location-token expiry semantics. Verify: generated OpenAPI/client model `Instant` and `locationTokenExpiresAt` as string `date-time`; no dangling or object-shaped `Instant` refs.
+- [x] 15. Add generator semantic regression test. Verify: focused generator test passes and fails for object-shaped or semantically invalid `Instant` refs.
+- [x] 16. Clear obsolete image field error after successful `reloadLatest`. Verify: focused Angular test proves stale image error disappears after canonical reload.
+- [x] 17. Regenerate API/client and run final gates. Verify: focused tests, `npm run api:check`, `npm run typecheck`, `npm run lint`, and generated-diff check pass.
+- [x] 18. Commit exact final-repair paths without push/merge. Verify: new commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged or unstaged files.

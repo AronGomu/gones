@@ -40,6 +40,22 @@ public sealed class EventImageTests
         Assert.Equal(Now + Duration.FromHours(24), image.ExpiresAt);
     }
 
+    [Fact]
+    public void Event_owned_image_accepts_same_Event_reorder_and_alt_edit_only()
+    {
+        var eventId = Guid.NewGuid();
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), Guid.NewGuid(), 960, 540, Now);
+        image.AttachToEvent(eventId, image.UploadedByUserId, 0, "Old alt", Now);
+
+        image.UpdateEventDetails(eventId, 2, "  New alt  ");
+
+        Assert.Equal(EventImageState.EventOwned, image.State);
+        Assert.Equal(eventId, image.EventId);
+        Assert.Equal(2, image.SortOrder);
+        Assert.Equal("New alt", image.AltText);
+        Assert.Throws<InvalidOperationException>(() => image.UpdateEventDetails(Guid.NewGuid(), 0, null));
+    }
+
     [Theory]
     [InlineData(0, 100)]
     [InlineData(100, 0)]

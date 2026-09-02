@@ -179,12 +179,18 @@ public sealed class Event : VersionedEntity
         return tournament;
     }
 
-    public TournamentChangeSeverity ClassifyChange(ScheduledTournamentDraft draft, IReadOnlyCollection<TournamentFormat> selectedFormats)
+    public TournamentChangeSeverity ClassifyChange(
+        ScheduledTournamentDraft draft,
+        IReadOnlyCollection<TournamentFormat> selectedFormats,
+        bool imagesChanged = false)
     {
         var normalized = NormalizeDraft(draft, selectedFormats);
         var major = StartsAtUtc != normalized.StartsAtUtc
-            || EndsAtUtc != normalized.EndsAtUtc
             || TimeZoneId != normalized.TimeZone.Id
+            || (normalized.ProviderPlaceId is not null
+                && (ProviderPlaceId != normalized.ProviderPlaceId
+                    || Latitude != normalized.Latitude!.Value
+                    || Longitude != normalized.Longitude!.Value))
             || StreetAddress != normalized.StreetAddress
             || PostalCode != normalized.PostalCode
             || City != normalized.City
@@ -195,19 +201,22 @@ public sealed class Event : VersionedEntity
             || !Formats.Select(format => format.TournamentFormatId).OrderBy(id => id).SequenceEqual(selectedFormats.Select(format => format.Id).OrderBy(id => id));
         if (major) return TournamentChangeSeverity.Major;
 
-        var minor = Title != normalized.Title
+        var minor = imagesChanged
+            || Title != normalized.Title
             || Slug != normalized.Slug
             || Summary != normalized.Summary
-            || BodyMarkdown != normalized.BodyMarkdown
-            || LiveTournamentUrl != normalized.LiveTournamentUrl
-            || ArchiveTournamentUrl != normalized.ArchiveTournamentUrl;
+            || BodyMarkdown != normalized.BodyMarkdown;
         return minor ? TournamentChangeSeverity.Minor : TournamentChangeSeverity.None;
     }
 
     public void UpdateDetails(ScheduledTournamentDraft draft, IReadOnlyCollection<TournamentFormat> selectedFormats, Instant now)
     {
         EnsureEditable(now);
+        var liveTournamentUrl = LiveTournamentUrl;
+        var archiveTournamentUrl = ArchiveTournamentUrl;
         ApplyDraft(draft, selectedFormats, now);
+        LiveTournamentUrl = liveTournamentUrl;
+        ArchiveTournamentUrl = archiveTournamentUrl;
     }
 
     public void AdvanceLifecycle(Instant now)

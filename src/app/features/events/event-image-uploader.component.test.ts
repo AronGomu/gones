@@ -17,6 +17,7 @@ const copy: Record<string, string> = {
   'eventImages.title': 'Event images',
   'eventImages.help': 'Help',
   'eventImages.choose': 'Choose images',
+  'eventImages.existingName': 'Existing image {index}',
   'eventImages.maximum': 'Maximum five images.',
   'eventImages.typeUnsupported': 'Use a JPEG, PNG, or WebP image.',
   'eventImages.tooLarge': 'Image must be 5 MiB or smaller.',
@@ -109,6 +110,40 @@ describe('EventImageUploaderComponent', () => {
     let objectUrl = 0;
     Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => `blob:test-${++objectUrl}`) });
     Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  });
+
+  it('hydrates existing Event-owned images and defers reorder, alt edit, and removal to Event PATCH', async () => {
+    const { component, http } = setup();
+    component.initialImages = [
+      {
+        id: 'existing-1', altText: 'First',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/existing-1/variants/320' }]
+      },
+      {
+        id: 'existing-2', altText: undefined,
+        variants: [{ width: 320, height: 180, url: '/api/event-images/existing-2/variants/320' }]
+      }
+    ];
+
+    expect(component.cards().map(card => card.response?.id)).toEqual(['existing-1', 'existing-2']);
+    expect(component.publishBlocked()).toBe(false);
+    component.moveLeft('existing-existing-2');
+    component.setAltText('existing-existing-2', { target: { value: '  New alt  ' } } as unknown as Event);
+    await component.remove('existing-existing-1');
+
+    expect(http.delete).not.toHaveBeenCalled();
+    expect(component.selectedImages().map(image => ({ imageId: image.imageId, altText: image.altText }))).toEqual([
+      { imageId: 'existing-2', altText: 'New alt' }
+    ]);
+
+    component.addFiles([file('bad.gif', 'image/gif')]);
+    expect(component.publishBlocked()).toBe(true);
+    component.initialImages = [{
+      id: 'latest', altText: 'Latest',
+      variants: [{ width: 320, height: 180, url: '/api/event-images/latest/variants/320' }]
+    }];
+    expect(component.publishBlocked()).toBe(false);
+    expect(component.selectedImages().map(image => image.imageId)).toEqual(['latest']);
   });
 
   it('keeps valid peers when one file is invalid and blocks publish while pending or failed', () => {

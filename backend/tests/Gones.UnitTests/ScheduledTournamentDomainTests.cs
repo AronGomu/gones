@@ -177,10 +177,24 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Title = "Renamed Cup" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Summary = "Side events" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyMarkdown = "Changed" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft(), [legacy], imagesChanged: true));
+        Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft() with { EndsAtLocal = null }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { StartsAtLocal = new LocalDateTime(2026, 8, 2, 11, 0) }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { Region = "Île-de-France" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { EventType = CalendarEventType.Major }, [legacy]));
+    }
+
+    [Fact]
+    public void Provider_place_identity_or_coordinates_change_is_major_even_when_visible_location_and_zone_match()
+    {
+        var legacy = TournamentFormat.CreateLegacy(Now);
+        var resolvedDraft = Draft() with { ProviderPlaceId = "place-1", Latitude = 45.764m, Longitude = 4.8357m };
+        var tournament = Event.Create(OrganizationId, UserId, resolvedDraft, [legacy], Now);
+
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { ProviderPlaceId = "place-2" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Latitude = 45.765m }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Longitude = 4.836m }, [legacy]));
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -7,9 +8,11 @@ using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Validation;
 using Gones.Application.Concurrency;
+using Gones.Application.Events;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -29,7 +32,7 @@ internal static class EventLifecycleEndpoints
         organizer.MapGet("/organizer/events", ListOrganizerEventsAsync)
             .WithName("ListOrganizerEvents")
             .Produces<EventManagementListResponse>();
-        organizer.MapPatch("/events/{eventId:guid}/details", UpdateEventDetailsEndpointAsync)
+        organizer.MapPatch("/organizer/events/{eventId:guid}/details", UpdateEventDetailsEndpointAsync)
             .WithName("UpdateEventDetails")
             .AddEndpointFilter<DataAnnotationsValidationFilter>()
             .Produces<EventManagementResponse>()
@@ -78,11 +81,16 @@ internal static class EventLifecycleEndpoints
             cancellationToken));
 
     private static async Task<IResult> ListDeletedEventsAsync(
+        ClaimsPrincipal principal,
         int? page,
         int? pageSize,
         EventLifecycleService lifecycle,
         CancellationToken cancellationToken) =>
-        Results.Ok(await lifecycle.ListDeletedAsync(Page(page), PageSize(pageSize), cancellationToken));
+        Results.Ok(await lifecycle.ListDeletedAsync(
+            OrganizationPrincipal.UserId(principal),
+            Page(page),
+            PageSize(pageSize),
+            cancellationToken));
 
     private static async Task<IResult> UpdateEventDetailsEndpointAsync(
         Guid eventId,
@@ -201,6 +209,9 @@ internal sealed class EventLifecycleService(
     GonesDbContext database,
     OrganizationAccessService access,
     EventRegistrationNotificationService registrationNotifications,
+    IEventLocationTokenService locationTokens,
+    EventImageCleanupService imageCleanup,
+    ILogger<EventLifecycleService> logger,
     IClock clock)
 {
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
@@ -219,14 +230,15 @@ internal sealed class EventLifecycleService(
             query = query.Where(item => database.OrganizationMembers.Any(member =>
                 member.OrganizationId == item.OrganizationId && member.UserId == userId));
         }
-        return await ListAsync(query, page, pageSize, cancellationToken);
+        return await ListAsync(query, userId, page, pageSize, cancellationToken);
     }
 
     public Task<EventManagementListResponse> ListDeletedAsync(
+        Guid userId,
         int page,
         int pageSize,
         CancellationToken cancellationToken) =>
-        ListAsync(database.Events.AsNoTracking().Where(item => item.DeletedAt != null), page, pageSize, cancellationToken);
+        ListAsync(database.Events.AsNoTracking().Where(item => item.DeletedAt != null), userId, page, pageSize, cancellationToken);
 
     public async Task<EventManagementResponse> UpdateDetailsAsync(
         Guid eventId,
@@ -236,17 +248,22 @@ internal sealed class EventLifecycleService(
         UpdateEventDetailsRequest request,
         CancellationToken cancellationToken)
     {
+        ValidateDetailsRequest(request);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         var tournament = await RequireActiveAsync(eventId, actorUserId, isAdmin, cancellationToken);
         RequireVersion(tournament, expectedVersion);
         var formats = await RequireFormatsAsync(request.FormatIds, cancellationToken);
+        var now = clock.GetCurrentInstant();
+        var location = locationTokens.Validate(actorUserId, request.Location, now);
+        if (!EventPublicationService.LocationMatches(request.Location, location)) throw new LocationTokenInvalidException();
+        var media = await UpdateImagesAsync(tournament.Id, actorUserId, request.Images, now, cancellationToken);
         var before = EventAuditSnapshot.From(tournament);
-        var draft = ToDraft(request, tournament.Slug);
+        var draft = ToDraft(request, tournament, location);
         TournamentChangeSeverity severity;
         try
         {
-            severity = tournament.ClassifyChange(draft, formats);
-            tournament.UpdateDetails(draft, formats, clock.GetCurrentInstant());
+            severity = tournament.ClassifyChange(draft, formats, media.Changed);
+            tournament.UpdateDetails(draft, formats, now);
         }
         catch (ArgumentException exception)
         {
@@ -257,9 +274,9 @@ internal sealed class EventLifecycleService(
             throw new ResourceConflictException();
         }
 
-        var now = clock.GetCurrentInstant();
         var after = EventAuditSnapshot.From(tournament);
-        var changedFields = before.ChangedFields(after);
+        var changedFields = before.ChangedFields(after).ToList();
+        if (media.Changed) changedFields.Add("imagesChanged");
         database.AuditRecords.Add(NewAudit(actorUserId, "tournament.details.updated", tournament.Id, before.AuditDiff(after, changedFields), now));
         if (severity == TournamentChangeSeverity.Major)
         {
@@ -276,8 +293,11 @@ internal sealed class EventLifecycleService(
             await registrationNotifications.EnqueueMajorUpdateAsync(tournament, lifecycleEvent.Id, cancellationToken);
         }
         ForceVersionMutation(tournament);
-        await SaveAsync(transaction, cancellationToken);
-        return await ResponseAsync(tournament, cancellationToken);
+        await SaveChangesAsync(transaction, cancellationToken);
+        var response = await ResponseAsync(tournament, actorUserId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await ProcessRemovedImagesAsync(media.RemovedImageIds);
+        return response;
     }
 
     public Task<EventMutationResponse> CancelAsync(
@@ -445,11 +465,12 @@ internal sealed class EventLifecycleService(
         bool isAdmin,
         CancellationToken cancellationToken)
     {
-        var tournament = await database.Events
-            .Include(item => item.Formats)
-            .SingleOrDefaultAsync(item => item.Id == eventId && item.DeletedAt == null, cancellationToken)
-            ?? throw new ResourceNotFoundException();
+        var locked = await database.Events.FromSqlInterpolated($$"""
+            SELECT * FROM events WHERE id = {{eventId}} AND deleted_at IS NULL FOR UPDATE
+            """).ToListAsync(cancellationToken);
+        var tournament = locked.SingleOrDefault() ?? throw new ResourceNotFoundException();
         _ = await access.RequireMemberAsync(tournament.OrganizationId, actorUserId, isAdmin, cancellationToken);
+        await database.Entry(tournament).Collection(item => item.Formats).LoadAsync(cancellationToken);
         return tournament;
     }
 
@@ -469,12 +490,135 @@ internal sealed class EventLifecycleService(
         return formats;
     }
 
+    private static void ValidateDetailsRequest(UpdateEventDetailsRequest request)
+    {
+        EventPublicationService.ValidatePayloadShape(new EventPayloadRequest(
+            Guid.Empty,
+            request.Title,
+            request.Location,
+            request.EventType,
+            request.StartsAtLocal,
+            request.Capacity,
+            request.FormatIds,
+            request.Images,
+            request.Summary,
+            request.BodyMarkdown));
+        if (request.Images.Select(image => image.ImageId).Distinct().Count() != request.Images.Count)
+        {
+            throw new ResourceConflictException("image_state_conflict");
+        }
+    }
+
+    private async Task<MediaUpdateResult> UpdateImagesAsync(
+        Guid eventId,
+        Guid actorUserId,
+        IReadOnlyList<EventImageInput> inputs,
+        Instant now,
+        CancellationToken cancellationToken)
+    {
+        var requestedIds = inputs.Select(input => input.ImageId).ToArray();
+        var requestedStates = await database.EventImages.AsNoTracking()
+            .Where(image => requestedIds.Contains(image.Id))
+            .Select(image => new { image.Id, image.State, image.EventId })
+            .ToListAsync(cancellationToken);
+        if (requestedStates.Any(image => image.State != EventImageState.Temporary
+            && (image.State != EventImageState.EventOwned || image.EventId != eventId)))
+        {
+            throw new ResourceConflictException("image_state_conflict");
+        }
+        var locked = await database.EventImages.FromSqlInterpolated($$"""
+            SELECT * FROM event_images
+            WHERE event_id = {{eventId}} OR id = ANY({{requestedIds}})
+            ORDER BY id
+            FOR UPDATE
+            """).ToListAsync(cancellationToken);
+        var byId = locked.ToDictionary(image => image.Id);
+        var current = locked
+            .Where(image => image.State == EventImageState.EventOwned && image.EventId == eventId)
+            .OrderBy(image => image.SortOrder)
+            .ToArray();
+        var currentShape = current.Select(image => new ImageShape(image.Id, image.AltText)).ToArray();
+        var requestedShape = inputs.Select(input => new ImageShape(input.ImageId, NormalizeAltText(input.AltText))).ToArray();
+        var changed = !currentShape.SequenceEqual(requestedShape);
+
+        foreach (var input in inputs)
+        {
+            if (!byId.TryGetValue(input.ImageId, out var image)) throw new EventImageNotFoundException();
+            if (image.State == EventImageState.EventOwned && image.EventId == eventId) continue;
+            if (image.State == EventImageState.Temporary
+                && image.UploadedByUserId == actorUserId
+                && image.ExpiresAt > now)
+            {
+                continue;
+            }
+            throw new ResourceConflictException("image_state_conflict");
+        }
+
+        if (changed && current.Length > 0)
+        {
+            await database.Database.ExecuteSqlInterpolatedAsync($$"""
+                UPDATE event_images SET sort_order = -sort_order - 1 WHERE event_id = {{eventId}}
+                """, cancellationToken);
+        }
+
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            var input = inputs[index];
+            var image = byId[input.ImageId];
+            try
+            {
+                if (image.State == EventImageState.EventOwned)
+                {
+                    image.UpdateEventDetails(eventId, index, input.AltText);
+                    if (changed) database.Entry(image).Property(item => item.SortOrder).IsModified = true;
+                }
+                else image.AttachToEvent(eventId, actorUserId, index, input.AltText, now);
+            }
+            catch (InvalidOperationException)
+            {
+                throw new ResourceConflictException("image_state_conflict");
+            }
+            catch (ArgumentException exception)
+            {
+                throw Validation($"images[{index}].altText", exception.Message);
+            }
+        }
+
+        var requested = requestedIds.ToHashSet();
+        var removed = current.Where(image => !requested.Contains(image.Id)).ToArray();
+        foreach (var image in removed) imageCleanup.Enqueue(image);
+        return new MediaUpdateResult(changed, removed.Select(image => image.Id).ToArray());
+    }
+
+    private async Task ProcessRemovedImagesAsync(IReadOnlyList<Guid> imageIds)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        foreach (var imageId in imageIds)
+        {
+            try
+            {
+                await imageCleanup.ProcessImageObjectDeletionsAsync(imageId, timeout.Token);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    EventImageCleanupLogEvents.PostCommitCleanupFailed,
+                    "Event image post-commit object cleanup deferred; Event={Event}; ImageId={ImageId}; ExceptionType={ExceptionType}",
+                    "event_image.object_delete.post_commit_deferred",
+                    imageId,
+                    exception.GetType().Name);
+            }
+        }
+    }
+
     private async Task<EventManagementListResponse> ListAsync(
         IQueryable<Event> query,
+        Guid actorUserId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         var total = await query.CountAsync(cancellationToken);
         var tournaments = await query.Include(item => item.Formats)
             .OrderBy(item => item.StartsAtUtc)
@@ -490,14 +634,27 @@ internal sealed class EventLifecycleService(
         var formatNames = await database.TournamentFormats.AsNoTracking()
             .Where(item => formatIds.Contains(item.Id))
             .ToDictionaryAsync(item => item.Id, item => item.Name, cancellationToken);
+        var eventIds = tournaments.Select(item => item.Id).ToArray();
+        var images = (await database.EventImages.AsNoTracking()
+            .Where(item => eventIds.Contains(item.EventId!.Value) && item.State == EventImageState.EventOwned)
+            .OrderBy(item => item.EventId)
+            .ThenBy(item => item.SortOrder)
+            .ToListAsync(cancellationToken))
+            .ToLookup(item => item.EventId!.Value);
         var items = tournaments.Select(item => ToResponse(
             item,
             organizationNames[item.OrganizationId],
-            formatNames[item.Formats.Single().TournamentFormatId])).ToArray();
+            formatNames[item.Formats.Single().TournamentFormatId],
+            images[item.Id],
+            actorUserId)).ToArray();
+        await transaction.CommitAsync(cancellationToken);
         return new EventManagementListResponse(items, page, pageSize, total);
     }
 
-    private async Task<EventManagementResponse> ResponseAsync(Event tournament, CancellationToken cancellationToken)
+    private async Task<EventManagementResponse> ResponseAsync(
+        Event tournament,
+        Guid actorUserId,
+        CancellationToken cancellationToken)
     {
         var organizationName = await database.Organizations.AsNoTracking()
             .Where(item => item.Id == tournament.OrganizationId)
@@ -508,15 +665,24 @@ internal sealed class EventLifecycleService(
             .Where(item => item.Id == formatId)
             .Select(item => item.Name)
             .SingleAsync(cancellationToken);
-        return ToResponse(tournament, organizationName, formatName);
+        var images = await database.EventImages.AsNoTracking()
+            .Where(item => item.EventId == tournament.Id && item.State == EventImageState.EventOwned)
+            .OrderBy(item => item.SortOrder)
+            .ToListAsync(cancellationToken);
+        return ToResponse(tournament, organizationName, formatName, images, actorUserId);
     }
 
     private async Task SaveAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
     {
+        await SaveChangesAsync(transaction, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task SaveChangesAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
+    {
         try
         {
             await database.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -544,63 +710,105 @@ internal sealed class EventLifecycleService(
         return new EventMutationResponse(tournament.Id, tournament.Status.ToString(), tournament.IsDeleted, currentVersion, StrongETag.Encode(currentVersion));
     }
 
-    private static EventManagementResponse ToResponse(Event item, string organizationName, string formatName) => new(
-        item.Id,
-        item.OrganizationId,
-        organizationName,
-        item.Title,
-        EventDisplayTitle.From(item.Title, formatName),
-        item.Slug,
-        item.Summary,
-        item.BodyMarkdown,
-        item.LiveTournamentUrl,
-        item.ArchiveTournamentUrl,
-        item.StreetAddress,
-        item.PostalCode,
-        item.City,
-        item.Country,
-        item.Region,
-        EventPublicationService.EventTypeWire(item.EventType),
-        item.TimeZoneId,
-        LocalDatePattern.Iso.Format(item.VenueStartDate),
-        LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(item.VenueStartTime),
-        LocalDatePattern.Iso.Format(item.VenueEndDate),
-        LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(item.VenueEndTime),
-        item.StartsAtUtc,
-        item.EndsAtUtc,
-        item.Capacity,
-        item.Status.ToString(),
-        item.DeletedAt,
-        item.DeletedReason,
-        item.Formats.Select(format => format.TournamentFormatId).Order().ToArray(),
-        item.Version,
-        StrongETag.Encode(item.Version));
+    private EventManagementResponse ToResponse(
+        Event item,
+        string organizationName,
+        string formatName,
+        IEnumerable<EventImage> images,
+        Guid actorUserId)
+    {
+        var issuedAt = clock.GetCurrentInstant();
+        var token = locationTokens.Issue(actorUserId, new ResolvedEventLocation(
+            item.ProviderPlaceId,
+            item.StreetAddress,
+            item.PostalCode,
+            item.City,
+            item.Country,
+            item.Region,
+            item.Latitude,
+            item.Longitude,
+            item.TimeZoneId), issuedAt);
+        return new EventManagementResponse(
+            item.Id,
+            item.OrganizationId,
+            organizationName,
+            item.Title,
+            EventDisplayTitle.From(item.Title, formatName),
+            item.Slug,
+            item.Summary,
+            item.BodyMarkdown,
+            item.LiveTournamentUrl,
+            item.ArchiveTournamentUrl,
+            new EventLocationInput(item.StreetAddress, item.PostalCode, item.City, item.Country, item.Region, token),
+            InstantPattern.ExtendedIso.Format(issuedAt + EventLocationTokenService.Lifetime),
+            item.StreetAddress,
+            item.PostalCode,
+            item.City,
+            item.Country,
+            item.Region,
+            EventPublicationService.EventTypeWire(item.EventType),
+            item.TimeZoneId,
+            $"{LocalDatePattern.Iso.Format(item.VenueStartDate)}T{LocalTimePattern.CreateWithInvariantCulture("HH:mm").Format(item.VenueStartTime)}",
+            LocalDatePattern.Iso.Format(item.VenueStartDate),
+            LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(item.VenueStartTime),
+            LocalDatePattern.Iso.Format(item.VenueEndDate),
+            LocalTimePattern.CreateWithInvariantCulture("HH:mm:ss").Format(item.VenueEndTime),
+            item.StartsAtUtc,
+            item.EndsAtUtc,
+            item.Capacity,
+            item.Status.ToString(),
+            item.DeletedAt,
+            item.DeletedReason,
+            item.Formats.Select(format => format.TournamentFormatId).Order().ToArray(),
+            images.OrderBy(image => image.SortOrder).Select(ToImageResponse).ToArray(),
+            item.Version,
+            StrongETag.Encode(item.Version));
+    }
 
-    private static ScheduledTournamentDraft ToDraft(UpdateEventDetailsRequest request, string slug) => new(
+    private static EventImageResponse ToImageResponse(EventImage image) => new(
+        image.Id,
+        image.AltText,
+        EventImage.VariantWidthsFor(image.Width)
+            .Select(width => new EventImageVariantResponse(
+                width,
+                (int)Math.Round((double)image.Height * width / image.Width),
+                $"/api/event-images/{image.Id:D}/variants/{width}"))
+            .ToArray());
+
+    private static ScheduledTournamentDraft ToDraft(
+        UpdateEventDetailsRequest request,
+        Event tournament,
+        ValidatedEventLocation location) => new(
         request.Title,
-        slug,
+        tournament.Slug,
         request.Summary,
         request.BodyMarkdown,
-        request.StreetAddress,
-        request.PostalCode,
-        request.City,
-        request.Country,
-        request.TimeZoneId,
+        location.StreetAddress,
+        location.PostalCode,
+        location.City,
+        location.Country,
+        location.TimeZoneId,
         ParseLocal(request.StartsAtLocal, "startsAtLocal"),
-        string.IsNullOrWhiteSpace(request.EndsAtLocal) ? null : ParseLocal(request.EndsAtLocal, "endsAtLocal"),
+        null,
         request.Capacity,
-        request.LiveTournamentUrl,
-        request.ArchiveTournamentUrl,
-        request.Region,
-        EventPublicationService.ToDomainEventType(request.EventType));
+        null,
+        null,
+        location.Region,
+        EventPublicationService.ToDomainEventType(request.EventType),
+        location.PlaceId,
+        location.Latitude,
+        location.Longitude);
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
         if (string.IsNullOrWhiteSpace(value)) throw Validation(field, "Local date and time is required.");
-        var parsed = LocalDateTimePattern.ExtendedIso.Parse(value.Trim());
-        if (!parsed.Success) throw Validation(field, "Value must be an ISO-8601 local date and time.");
+        var parsed = LocalDateTimePattern.CreateWithInvariantCulture("uuuu-MM-dd'T'HH:mm").Parse(value.Trim());
+        if (!parsed.Success) throw Validation(field, "Value must be an ISO-8601 local date and time in YYYY-MM-DDTHH:mm form.");
         return parsed.Value;
     }
+
+    private static string? NormalizeAltText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static AuditRecord NewAudit(Guid actorUserId, string action, Guid eventId, string diff, Instant now) => new()
     {
@@ -615,6 +823,8 @@ internal sealed class EventLifecycleService(
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 
+    private sealed record ImageShape(Guid Id, string? AltText);
+    private sealed record MediaUpdateResult(bool Changed, IReadOnlyList<Guid> RemovedImageIds);
     private sealed record StoredLifecycleMutation(string Command, Guid EventId, EventMutationResponse Response);
 }
 
@@ -635,19 +845,12 @@ internal sealed record UpdateEventDetailsRequest(
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
     [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown,
-    [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
-    [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
-    [property: Required, MaxLength(Event.MaximumCityLength)] string City,
-    [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
-    [property: Required, MaxLength(Event.MaximumRegionLength)] string Region,
+    [property: Required] EventLocationInput Location,
     [property: Required] PublicCalendarEventType? EventType,
-    [property: Required, MaxLength(Event.MaximumTimeZoneLength)] string TimeZoneId,
     [property: Required] string StartsAtLocal,
-    string? EndsAtLocal,
-    int? Capacity,
-    IReadOnlyList<Guid> FormatIds,
-    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? LiveTournamentUrl = null,
-    [property: MaxLength(Event.MaximumTournamentUrlLength)] string? ArchiveTournamentUrl = null)
+    [property: Range(1, int.MaxValue)] int Capacity,
+    [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
+    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images)
 {
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalFields { get; init; }
@@ -677,6 +880,8 @@ internal sealed record EventManagementResponse(
     string? BodyMarkdown,
     string? LiveTournamentUrl,
     string? ArchiveTournamentUrl,
+    EventLocationInput Location,
+    [property: DataType(DataType.DateTime)] string LocationTokenExpiresAt,
     string StreetAddress,
     string? PostalCode,
     string City,
@@ -684,6 +889,7 @@ internal sealed record EventManagementResponse(
     string? Region,
     PublicCalendarEventType? EventType,
     string TimeZoneId,
+    string StartsAtLocal,
     string VenueStartDate,
     string VenueStartTime,
     string VenueEndDate,
@@ -695,6 +901,7 @@ internal sealed record EventManagementResponse(
     Instant? DeletedAt,
     string? DeletedReason,
     IReadOnlyList<Guid> FormatIds,
+    IReadOnlyList<EventImageResponse> Images,
     long Version,
     string ETag);
 
@@ -775,7 +982,8 @@ internal sealed record EventAuditSnapshot(
             fields,
             before,
             after,
-            bodyChanged = BodyMarkdown != other.BodyMarkdown
+            bodyChanged = BodyMarkdown != other.BodyMarkdown,
+            imagesChanged = fields.Contains("imagesChanged", StringComparer.Ordinal)
         });
     }
 
@@ -784,7 +992,7 @@ internal sealed record EventAuditSnapshot(
         var values = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var field in fields)
         {
-            if (field == "bodyChanged") continue;
+            if (field is "bodyChanged" or "imagesChanged") continue;
             values[field] = field switch
             {
                 "title" => Title,

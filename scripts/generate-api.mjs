@@ -77,10 +77,15 @@ try {
     const property = document.components?.schemas?.[schemaName]?.properties?.eventType;
     if (property) document.components.schemas[schemaName].properties.eventType = { type: 'string', enum: eventTypeValues };
   }
-  // ASP.NET OpenAPI emits DateTimeOffset's format but omits its JSON type. Keep the location token
-  // expiry on the documented RFC 3339 string contract instead of generating it as `any`.
-  const locationExpiry = document.components?.schemas?.ResolvedEventLocationResponse?.properties?.expiresAt;
-  if (locationExpiry) Object.assign(locationExpiry, { type: 'string', format: 'date-time' });
+  // ASP.NET OpenAPI emits NodaTime Instant as an empty object and drops date-time metadata from
+  // location token expiry fields. Keep every generated timestamp on its RFC 3339 string contract.
+  const dateTimeString = { type: 'string', format: 'date-time' };
+  const instant = document.components?.schemas?.Instant;
+  if (instant) Object.assign(instant, dateTimeString);
+  const resolvedLocationExpiry = document.components?.schemas?.ResolvedEventLocationResponse?.properties?.expiresAt;
+  if (resolvedLocationExpiry) Object.assign(resolvedLocationExpiry, dateTimeString);
+  const managementLocationExpiry = document.components?.schemas?.EventManagementResponse?.properties?.locationTokenExpiresAt;
+  if (managementLocationExpiry) Object.assign(managementLocationExpiry, dateTimeString);
   // Runtime accepts omissions so endpoint can return per-field errors instead of framework-level
   // malformed_request. They remain required in public contract plus generated callers.
   const locationAutocompleteParameters = document.paths?.['/api/event-locations/autocomplete']?.get?.parameters ?? [];
