@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Data;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -292,9 +293,11 @@ internal sealed class EventLifecycleService(
             await registrationNotifications.EnqueueMajorUpdateAsync(tournament, lifecycleEvent.Id, cancellationToken);
         }
         ForceVersionMutation(tournament);
-        await SaveAsync(transaction, cancellationToken);
+        await SaveChangesAsync(transaction, cancellationToken);
+        var response = await ResponseAsync(tournament, actorUserId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         await ProcessRemovedImagesAsync(media.RemovedImageIds);
-        return await ResponseAsync(tournament, actorUserId, cancellationToken);
+        return response;
     }
 
     public Task<EventMutationResponse> CancelAsync(
@@ -540,7 +543,7 @@ internal sealed class EventLifecycleService(
 
         foreach (var input in inputs)
         {
-            if (!byId.TryGetValue(input.ImageId, out var image)) throw new ResourceNotFoundException();
+            if (!byId.TryGetValue(input.ImageId, out var image)) throw new EventImageNotFoundException();
             if (image.State == EventImageState.EventOwned && image.EventId == eventId) continue;
             if (image.State == EventImageState.Temporary
                 && image.UploadedByUserId == actorUserId
@@ -615,6 +618,7 @@ internal sealed class EventLifecycleService(
         int pageSize,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await database.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
         var total = await query.CountAsync(cancellationToken);
         var tournaments = await query.Include(item => item.Formats)
             .OrderBy(item => item.StartsAtUtc)
@@ -643,6 +647,7 @@ internal sealed class EventLifecycleService(
             formatNames[item.Formats.Single().TournamentFormatId],
             images[item.Id],
             actorUserId)).ToArray();
+        await transaction.CommitAsync(cancellationToken);
         return new EventManagementListResponse(items, page, pageSize, total);
     }
 
@@ -669,10 +674,15 @@ internal sealed class EventLifecycleService(
 
     private async Task SaveAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
     {
+        await SaveChangesAsync(transaction, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task SaveChangesAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
+    {
         try
         {
             await database.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -707,6 +717,7 @@ internal sealed class EventLifecycleService(
         IEnumerable<EventImage> images,
         Guid actorUserId)
     {
+        var issuedAt = clock.GetCurrentInstant();
         var token = locationTokens.Issue(actorUserId, new ResolvedEventLocation(
             item.ProviderPlaceId,
             item.StreetAddress,
@@ -716,7 +727,7 @@ internal sealed class EventLifecycleService(
             item.Region,
             item.Latitude,
             item.Longitude,
-            item.TimeZoneId), clock.GetCurrentInstant());
+            item.TimeZoneId), issuedAt);
         return new EventManagementResponse(
             item.Id,
             item.OrganizationId,
@@ -729,6 +740,7 @@ internal sealed class EventLifecycleService(
             item.LiveTournamentUrl,
             item.ArchiveTournamentUrl,
             new EventLocationInput(item.StreetAddress, item.PostalCode, item.City, item.Country, item.Region, token),
+            InstantPattern.ExtendedIso.Format(issuedAt + EventLocationTokenService.Lifetime),
             item.StreetAddress,
             item.PostalCode,
             item.City,
@@ -869,6 +881,7 @@ internal sealed record EventManagementResponse(
     string? LiveTournamentUrl,
     string? ArchiveTournamentUrl,
     EventLocationInput Location,
+    [property: DataType(DataType.DateTime)] string LocationTokenExpiresAt,
     string StreetAddress,
     string? PostalCode,
     string City,

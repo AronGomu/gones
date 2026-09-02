@@ -187,6 +187,10 @@ public sealed class Event : VersionedEntity
         var normalized = NormalizeDraft(draft, selectedFormats);
         var major = StartsAtUtc != normalized.StartsAtUtc
             || TimeZoneId != normalized.TimeZone.Id
+            || (normalized.ProviderPlaceId is not null
+                && (ProviderPlaceId != normalized.ProviderPlaceId
+                    || Latitude != normalized.Latitude!.Value
+                    || Longitude != normalized.Longitude!.Value))
             || StreetAddress != normalized.StreetAddress
             || PostalCode != normalized.PostalCode
             || City != normalized.City

@@ -442,7 +442,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
       region: 'Auvergne-Rhône-Alpes', locationToken: 'fresh-editor-token'
     },
     streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
-    eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
+    eventType: 'weekly', timeZoneId: 'Europe/Paris', locationTokenExpiresAt: '2999-01-01T12:30:00Z', startsAtLocal: '2027-08-01T10:00',
     venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01', venueEndTime: '23:59:59',
     startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
     status: 'Published', formatIds: ['fmt-1'], images: [{
@@ -451,6 +451,61 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     }],
     version: 3, eTag: '"3"'
   };
+
+  it('blocks a known-expired management token until location is re-resolved', async () => {
+    const saved = {
+      ...managedEvent,
+      location: { ...managedEvent.location, locationToken: 'replacement-token' },
+      locationTokenExpiresAt: '2999-01-01T13:00:00Z'
+    };
+    const updateEventDetails = vi.fn(() => of(saved));
+    const resolveEventLocation = vi.fn(() => of({
+      streetAddress: managedEvent.location.streetAddress,
+      postalCode: managedEvent.location.postalCode,
+      city: managedEvent.location.city,
+      country: managedEvent.location.country,
+      region: managedEvent.location.region,
+      latitude: 45.764,
+      longitude: 4.8357,
+      timeZoneId: managedEvent.timeZoneId,
+      locationToken: 'replacement-token',
+      expiresAt: '2999-01-01T13:00:00Z'
+    }));
+    const component = setup('Organizer', { updateEventDetails, resolveEventLocation } as unknown as Partial<Client>, { id: 'event-1' });
+    const editor = component as unknown as { applyCanonical(event: unknown): void };
+    component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    editor.applyCanonical({ ...managedEvent, locationTokenExpiresAt: '2000-01-01T00:00:00Z' });
+
+    await component.saveEdit();
+
+    expect(component.locationExpired()).toBe(true);
+    expect(component.fieldError('locationToken')).toBe(component.i18n.t('eventManage.locationExpired'));
+    expect(updateEventDetails).not.toHaveBeenCalled();
+
+    await component.resolveLocation(suggestion);
+    expect(component.locationExpired()).toBe(false);
+    expect(component.form.controls.locationToken.value).toBe('replacement-token');
+
+    await component.saveEdit();
+    expect(updateEventDetails).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps missing-image PATCH 404 to media reload recovery instead of permission failure', async () => {
+    const latest = { ...managedEvent, images: [], version: 4, eTag: '"4"' };
+    const updateEventDetails = vi.fn(() => throwError(() => new ApiProblemError(404, { code: 'image_not_found' })));
+    const listOrganizerEvents = vi.fn(() => of({ items: [latest], page: 1, pageSize: 100, totalCount: 1 }));
+    const component = setup('Organizer', { updateEventDetails, listOrganizerEvents } as unknown as Partial<Client>, { id: 'event-1' });
+    const editor = component as unknown as { applyCanonical(event: unknown): void };
+    component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    editor.applyCanonical(managedEvent);
+
+    await component.saveEdit();
+
+    expect(component.fieldErrors()['images']).toBe(component.i18n.t('eventManage.imageMissing'));
+    expect(component.staleEvent()).toBe(latest);
+    expect(component.submitError()).toBeNull();
+    expect(component.fieldErrors()['images']).not.toBe(component.i18n.t('eventManage.forbidden'));
+  });
 
   it('sends nested ETag edit, keeps local draft on 412, then explicitly reloads canonical media and location', async () => {
     const latest = {

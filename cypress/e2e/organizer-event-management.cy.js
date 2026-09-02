@@ -14,7 +14,7 @@ const event = {
   summary: 'Summary', bodyMarkdown: 'Body', liveTournamentUrl: '/live/keep-exact', archiveTournamentUrl: '/archive/keep-exact',
   location: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token' },
   streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
-  eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
+  eventType: 'weekly', timeZoneId: 'Europe/Paris', locationTokenExpiresAt: '2999-01-01T12:30:00Z', startsAtLocal: '2027-08-01T10:00', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '23:59:59', startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
   status: 'Published', formatIds: [formatId], images: [
     { id: firstImageId, altText: 'First image', variants: [{ width: 320, height: 180, url: `/api/event-images/${firstImageId}/variants/320` }] },

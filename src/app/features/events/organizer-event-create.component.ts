@@ -201,7 +201,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             <div class="actions" data-cy="event-create-actions">
               @if (canPublishDirectly()) {
                 @if (editMode) {
-                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
+                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || locationExpired() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
                   <button mat-flat-button class="home-primary-action" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
                 }
@@ -506,13 +506,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         longitude: resolved.longitude,
         timeZoneId: resolved.timeZoneId
       }, { emitEvent: false });
-      this.locationExpiresAt.set(resolved.expiresAt);
-      this.locationExpired.set(Date.now() >= new Date(resolved.expiresAt).getTime());
-      const expiresAt = resolved.expiresAt;
-      const delay = Math.min(2_147_483_647, Math.max(0, new Date(expiresAt).getTime() - Date.now()));
-      timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-        if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(true);
-      });
+      this.trackLocationExpiry(resolved.expiresAt);
       this.locationSuggestions.set([]);
       this.locationError.set('');
       this.retryLocation.set(null);
@@ -667,6 +661,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.success.set('');
     const base = this.baseEvent();
     if (!this.eventId || !base || this.form.invalid || this.saving() || this.imagePublishBlocked()) return;
+    if (this.locationExpired()) {
+      this.fieldErrors.set({ locationToken: this.i18n.t('eventManage.locationExpired') });
+      return;
+    }
     const draft = this.form.getRawValue();
     const major = majorEventChanges(base, draft, field => this.i18n.t(`eventManage.major.${field}`));
     if (major.length) {
@@ -697,8 +695,16 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       if (error instanceof ApiProblemError && error.problem.code === 'image_state_conflict') {
         this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageConflict') }));
       }
-      if (error instanceof ApiProblemError && error.status === 412) {
+      if (error instanceof ApiProblemError && error.status === 404 && error.problem.code === 'image_not_found') {
+        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageMissing') }));
         await this.loadStaleEvent(base);
+      } else if (error instanceof ApiProblemError && error.status === 412) {
+        await this.loadStaleEvent(base);
+      } else if (error instanceof ApiProblemError
+        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
+      {
+        this.locationExpired.set(true);
+        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventManage.locationExpired') }));
       } else {
         this.submitError.set({ message: this.managementError(error), action: 'retry' });
       }
@@ -719,6 +725,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   fieldError(name: keyof typeof this.form.controls): string {
+    if (name === 'locationToken' && this.locationExpired()) return this.i18n.t('eventManage.locationExpired');
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
     const control = this.form.controls[name];
@@ -749,9 +756,19 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private applyCanonical(event: EventManagementResponse): void {
     this.baseEvent.set(event);
     this.form.patchValue(managementToDraft(event), { emitEvent: false });
-    this.locationExpiresAt.set('');
-    this.locationExpired.set(false);
+    this.trackLocationExpiry(event.locationTokenExpiresAt);
     this.currentRender.set(managementToDetail(event, this.formats()));
+  }
+
+  private trackLocationExpiry(expiresAt: string): void {
+    this.locationExpiresAt.set(expiresAt);
+    const expiry = Date.parse(expiresAt);
+    this.locationExpired.set(!Number.isFinite(expiry) || Date.now() >= expiry);
+    if (!Number.isFinite(expiry) || Date.now() >= expiry) return;
+    const delay = Math.min(2_147_483_647, expiry - Date.now());
+    timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(Date.now() >= expiry);
+    });
   }
 
   private async loadStaleEvent(base: EventManagementResponse): Promise<void> {

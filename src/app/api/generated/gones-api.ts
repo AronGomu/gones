@@ -11234,6 +11234,7 @@ export interface EventManagementResponse {
     liveTournamentUrl: string | undefined;
     archiveTournamentUrl: string | undefined;
     location: EventLocationInput;
+    locationTokenExpiresAt: string;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;

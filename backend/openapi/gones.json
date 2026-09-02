@@ -10208,6 +10208,7 @@
           "liveTournamentUrl",
           "archiveTournamentUrl",
           "location",
+          "locationTokenExpiresAt",
           "streetAddress",
           "postalCode",
           "city",
@@ -10279,6 +10280,9 @@
           },
           "location": {
             "$ref": "#/components/schemas/EventLocationInput"
+          },
+          "locationTokenExpiresAt": {
+            "type": "string"
           },
           "streetAddress": {
             "type": "string"

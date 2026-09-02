@@ -133,3 +133,12 @@ interface EventManagementResponse {
 - [x] no silent-failure swallow on added path — list durable post-commit object-delete retry + log site
 - [x] app functional — create/edit share editor; stale changes cannot delete media
 - [x] commit msg draft: `feat(events): protect media edits with Event concurrency boundary`
+
+## Review repair
+
+- [x] 8. Make management list reads and PATCH responses use one coherent DB snapshot. Verify: deterministic list/PATCH race tests return matching Event version, fields, images, and ETag.
+- [x] 9. Classify provider place ID or coordinate changes as major. Verify: domain tests cover place ID, latitude, and longitude with unchanged visible address/TZ.
+- [x] 10. Expose and enforce management location-token expiry. Verify: API/client tests show expiry hydration, expired-save refusal, and re-resolve recovery.
+- [x] 11. Recover missing-image PATCH 404 through latest Event/media reload. Verify: API code and Angular test distinguish `image_not_found` from permission failure.
+- [x] 12. Regenerate API client and run focused gates. Verify: backend/frontend/API/typecheck/lint/Cypress commands pass or record explicit limitation.
+- [ ] 13. Commit only T6 review-repair paths. Verify: commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged files.

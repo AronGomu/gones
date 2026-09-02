@@ -140,6 +140,9 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         Assert.Equal("Legacy — Renamed Cup", minorBody.GetProperty("displayTitle").GetString());
         Assert.Equal("Renamed Cup", minorBody.GetProperty("title").GetString());
         Assert.Equal("12 Rue de la Paix", minorBody.GetProperty("location").GetProperty("streetAddress").GetString());
+        Assert.Equal(
+            (clock.GetCurrentInstant() + Duration.FromMinutes(30)).ToDateTimeOffset(),
+            minorBody.GetProperty("locationTokenExpiresAt").GetDateTimeOffset());
 
         var majorDetails = Details(
             tournament,
@@ -212,6 +215,9 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         var location = item.GetProperty("location");
         Assert.Equal("12 Rue de la Paix", location.GetProperty("streetAddress").GetString());
         Assert.False(string.IsNullOrWhiteSpace(location.GetProperty("locationToken").GetString()));
+        Assert.Equal(
+            (clock.GetCurrentInstant() + Duration.FromMinutes(30)).ToDateTimeOffset(),
+            item.GetProperty("locationTokenExpiresAt").GetDateTimeOffset());
         Assert.Equal(image.Id, item.GetProperty("images")[0].GetProperty("id").GetGuid());
         Assert.Equal("Poster", item.GetProperty("images")[0].GetProperty("altText").GetString());
         Assert.Equal(new[] { 320 }, item.GetProperty("images")[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
@@ -226,6 +232,34 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             ifMatch: item.GetProperty("eTag").GetString());
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
         Assert.Equal(0, locations.Calls);
+    }
+
+    [Fact]
+    public async Task Management_list_reads_Event_fields_images_and_ETag_from_one_snapshot()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Snapshot List Cup");
+        var image = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Old media");
+
+        await using var writer = CreateContext();
+        await using var transaction = await writer.Database.BeginTransactionAsync();
+        await writer.Database.ExecuteSqlRawAsync("LOCK TABLE event_images IN ACCESS EXCLUSIVE MODE");
+        await writer.Database.ExecuteSqlInterpolatedAsync($$"""
+            UPDATE events SET title = {{"New Event"}}, version = version + 1 WHERE id = {{tournament.Id}};
+            UPDATE event_images SET alt_text = {{"New media"}} WHERE id = {{image.Id}};
+            """);
+
+        var listing = SendAsync(HttpMethod.Get, "/api/organizer/events?pageSize=100", seed.Organizer.Id, "Organizer");
+        await WaitUntilBlockedOnEventImagesAsync();
+        await transaction.CommitAsync();
+
+        using var response = await listing;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var item = body.GetProperty("items").EnumerateArray().Single(value => value.GetProperty("id").GetGuid() == tournament.Id);
+        Assert.Equal("Snapshot List Cup", item.GetProperty("title").GetString());
+        Assert.Equal(tournament.Version, item.GetProperty("version").GetInt64());
+        Assert.Equal(StrongETag.Encode(tournament.Version), item.GetProperty("eTag").GetString());
+        Assert.Equal("Old media", item.GetProperty("images")[0].GetProperty("altText").GetString());
     }
 
     [Fact]
@@ -340,6 +374,51 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PATCH_response_keeps_its_Event_version_and_media_snapshot_while_next_PATCH_commits()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Snapshot PATCH Cup");
+        var retained = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Retained");
+        var removed = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 1, "Removed");
+        var added = await CreateTemporaryImageAsync(seed.Organizer.Id);
+        objects.BlockDeletes();
+
+        try
+        {
+            var firstPatch = SendJsonAsync(
+                HttpMethod.Patch,
+                $"/api/organizer/events/{tournament.Id:D}/details",
+                seed.Organizer.Id,
+                "Organizer",
+                Details(tournament, "First snapshot", images: [new(retained.Id, "Retained")]),
+                ifMatch: StrongETag.Encode(tournament.Version));
+            await objects.WaitUntilDeleteBlockedAsync();
+
+            using var secondPatch = await SendJsonAsync(
+                HttpMethod.Patch,
+                $"/api/organizer/events/{tournament.Id:D}/details",
+                seed.Organizer.Id,
+                "Organizer",
+                Details(tournament, "Second snapshot", images: [new(added.Id, "Added"), new(retained.Id, "Retained")]),
+                ifMatch: StrongETag.Encode(tournament.Version + 1));
+            Assert.Equal(HttpStatusCode.OK, secondPatch.StatusCode);
+
+            objects.ReleaseDeletes();
+            using var first = await firstPatch;
+            Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+            var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal("First snapshot", firstBody.GetProperty("title").GetString());
+            Assert.Equal(tournament.Version + 1, firstBody.GetProperty("version").GetInt64());
+            Assert.Equal(StrongETag.Encode(tournament.Version + 1), firstBody.GetProperty("eTag").GetString());
+            Assert.Equal(StrongETag.Encode(tournament.Version + 1), first.Headers.ETag?.Tag);
+            Assert.Equal([retained.Id], firstBody.GetProperty("images").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
+        }
+        finally
+        {
+            objects.ReleaseDeletes();
+        }
+    }
+
+    [Fact]
     public async Task Media_edit_rejects_missing_and_foreign_attached_images_without_mutation()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Conflict Media Cup");
@@ -355,6 +434,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             Details(tournament, tournament.Title, images: [new(Guid.NewGuid(), null)]),
             ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal("image_not_found", (await missing.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
         using var conflict = await SendJsonAsync(
             HttpMethod.Patch,
             $"/api/organizer/events/{tournament.Id:D}/details",
@@ -611,6 +691,21 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.EntityId == tournament.Id.ToString("D") && (item.Action == "tournament.cancelled" || item.Action == "tournament.deleted")));
     }
 
+    private async Task WaitUntilBlockedOnEventImagesAsync()
+    {
+        await using var poll = CreateContext();
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (DateTime.UtcNow < deadline)
+        {
+            var waiting = await poll.Database
+                .SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE '%event_images%'")
+                .SingleAsync();
+            if (waiting > 0) return;
+            await Task.Delay(TimeSpan.FromMilliseconds(50));
+        }
+        Assert.Fail("No management list query blocked on event_images within 15s.");
+    }
+
     private async Task<Event> CreateTournamentAsync(Guid organizationId, Guid creatorId, string title)
     {
         await using var database = CreateContext();
@@ -768,6 +863,8 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
 
     private sealed class RecordingObjectStore : IEventImageObjectStore
     {
+        private TaskCompletionSource? deleteBlocked;
+        private TaskCompletionSource? releaseDeletes;
         public bool FailDeletes { get; set; }
         public IReadOnlyList<string> DeleteKeys { get; private set; } = [];
 
@@ -777,16 +874,36 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken) =>
             Task.FromException<Stream>(new KeyNotFoundException());
 
-        public Task DeleteAsync(string key, CancellationToken cancellationToken)
+        public async Task DeleteAsync(string key, CancellationToken cancellationToken)
         {
             DeleteKeys = [.. DeleteKeys, key];
-            return FailDeletes
-                ? Task.FromException(new EventImageStorageUnavailableException())
-                : Task.CompletedTask;
+            if (deleteBlocked is not null && releaseDeletes is not null)
+            {
+                deleteBlocked.TrySetResult();
+                await releaseDeletes.Task.WaitAsync(cancellationToken);
+            }
+            if (FailDeletes) throw new EventImageStorageUnavailableException();
         }
+
+        public void BlockDeletes()
+        {
+            deleteBlocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            releaseDeletes = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public async Task WaitUntilDeleteBlockedAsync()
+        {
+            if (deleteBlocked is null) throw new InvalidOperationException("Delete blocking was not configured.");
+            await deleteBlocked.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        }
+
+        public void ReleaseDeletes() => releaseDeletes?.TrySetResult();
 
         public void Reset()
         {
+            ReleaseDeletes();
+            deleteBlocked = null;
+            releaseDeletes = null;
             DeleteKeys = [];
             FailDeletes = false;
         }
