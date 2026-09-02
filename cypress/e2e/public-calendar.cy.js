@@ -380,7 +380,7 @@ describe('public Calendar V1', () => {
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
   });
 
-  // T8: event hero layout — title font cap + player count right alignment
+  // Event hero layout — title font cap + player count beside organization
   it('event hero title font-size stays under 40px', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
     cy.viewport(1280, 800);
@@ -392,16 +392,16 @@ describe('public Calendar V1', () => {
     });
   });
 
-  it('player count hugs the right edge of the topline', () => {
+  it('player count sits beside the organization on the left', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
     cy.viewport(1280, 800);
     visit('/events/lyon-legacy');
     cy.wait('@detail');
-    cy.get('[data-cy="event-detail-topline"]').then(($topline) => {
+    cy.get('[data-cy="event-detail-kicker-link"]').then(($organization) => {
       cy.get('[data-cy="event-detail-player-count"]').then(($count) => {
-        const toplineRight = $topline[0].getBoundingClientRect().right;
-        const countRight = $count[0].getBoundingClientRect().right;
-        expect(countRight, 'player count right edge').to.be.closeTo(toplineRight, 2);
+        const organizationRight = $organization[0].getBoundingClientRect().right;
+        const countLeft = $count[0].getBoundingClientRect().left;
+        expect(countLeft - organizationRight, 'organization/player gap').to.be.closeTo(12, 2);
       });
     });
   });

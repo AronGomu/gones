@@ -137,6 +137,7 @@ internal static class EventImageEndpoints
                 break;
             case EventImageState.EventOwned:
                 response.Headers.CacheControl = "public, max-age=31536000, immutable";
+                response.Headers.ETag = EventOwnedVariantETag(image.Id, width);
                 break;
             case EventImageState.ProposalOwned:
             default:
@@ -153,6 +154,8 @@ internal static class EventImageEndpoints
             throw new ResourceNotFoundException();
         }
     }
+
+    internal static string EventOwnedVariantETag(Guid imageId, int width) => $"\"{imageId:N}-{width}\"";
 }
 
 internal sealed class EventImageUploadService(

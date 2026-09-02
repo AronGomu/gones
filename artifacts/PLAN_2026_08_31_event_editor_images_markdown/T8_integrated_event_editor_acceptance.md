@@ -77,25 +77,83 @@ required targets:
 
 ## Impl steps
 
-- [ ] 1. Add failing integrated browser/API/rehearsal cases.
-- [ ] 2. Update acceptance matrix + fixture/reset harness only.
-- [ ] 3. Update durable vocabulary/docs + AGENT ADR list.
-- [ ] 4. Run scoped journeys, then full gates.
-- [ ] 5. Record exact failures; one bounded repair loop; stop on unresolved blocker.
+- [x] 1. Add failing integrated browser/API/rehearsal cases. — verify: scoped Cypress/API/rehearsal targets expose at least one pre-fix composition failure, then pass.
+- [x] 2. Update acceptance matrix + fixture/reset harness only. — verify: `npm run acceptance:matrix` passes after clean `npm run db:reset`.
+- [x] 3. Update durable vocabulary/docs + AGENT ADR list. — verify: `docs/GLOSSARY.md`, `docs/CONTEXT.md`, and `AGENT.md` contain required T8 vocabulary/ADR references or inspection proves no update needed.
+- [x] 4. Run scoped journeys, then full gates. — verify: every command and manual check under Validation records passing evidence.
+- [x] 5. Record exact failures; repair until green; stop only on a hard blocker. — verify: ticket report records `none` after all gates pass.
+
+## Final review repair
+
+- [x] 6. Run clean-volume real Event media lifecycle through API, PostgreSQL, and MinIO. — verify: `npm run release:rehearsal` uploads fixture bytes, directly creates then edits an Event, submits then token-approves a User proposal, and reads public variants with exact cache/ETag/order/alt assertions.
+- [x] 7. Cover editor and gallery browser acceptance gaps. — verify: scoped Cypress proves axe on editor/uploader/reorder controls and open lightbox, 375px axe/overflow, one failed image does not break remaining gallery, and no-summary/no-body/no-image publication succeeds.
+- [x] 8. Emit deterministic Event-owned variant ETags. — verify: `EventImageApiTests.Temporary_variant_is_owner_only_no_store_while_EventOwned_is_anonymous_immutable` proves stable ETag on repeated public reads.
+- [x] 9. Harden release evidence. — verify: release journey checks publication `Location` origin plus path; `npm run images:build && npm run images:verify` proves every image revision label equals current `HEAD`; stale-revision unit test passes.
+- [x] 10. Bind T8 matrix evidence to exact executable assertions. — verify: `npm run acceptance:matrix` plus `ops/acceptance-matrix.test.ts` prove each integrated Event target names an assertion present in target source.
+- [x] 11. Run final gates and commit exact paths without push/merge. — verify: every command under Validation passes on final source; `git diff --check` passes; commit exists on `ticket/event-editor-T8`.
 
 ## Validation
 
-- [ ] `npm run db:reset`
-- [ ] `npm run api:check`
-- [ ] `npm run test`
-- [ ] `npm run backend:test`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm run cy:run`
-- [ ] `npm run acceptance:matrix`
-- [ ] `npm run e2e:ci`
-- [ ] `npm run images:verify`
-- [ ] manual check: desktop split/retract + mobile preview ordering + keyboard lightbox/reorder
-- [ ] no silent-failure swallow on added path — list all retained sites + rationale, or `none`
-- [ ] app functional — clean reset supports create/edit/proposal/public detail with fake providers
-- [ ] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
+- [x] `npm run db:reset`
+- [x] `npm run api:check`
+- [x] `npm run test`
+- [x] `npm run backend:test`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm run cy:run`
+- [x] `npm run acceptance:matrix`
+- [x] `npm run e2e:ci`
+- [x] `npm run images:build`
+- [x] `npm run images:verify`
+- [x] `npm run build`
+- [x] `npm run api:generate` leaves generated API paths unchanged
+- [x] `npm run release:rehearsal`
+- [x] residue/secrets: `git diff --check`; no `.orig`/`.rej`/backup residue; added-line high-confidence secret scan clean
+- [x] manual check: desktop split/retract + mobile preview ordering + keyboard lightbox/reorder
+- [x] no silent-failure swallow on added path — `none`
+- [x] app functional — clean reset supports create/edit/proposal/public detail with fake providers
+- [x] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
+
+## OPS final repair
+
+- [x] 12. Make initial release-test teardown and clean-volume checks hard prerequisites. — evidence: `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` passed (2 files, 17 tests), including failed teardown, leftover volume, and required fresh-volume assertions.
+- [x] 13. Serialize release rehearsals and recover stale locks. — evidence: same focused run passed live-owner contention, dead-owner recovery, failure cleanup, and SIGTERM cleanup tests.
+- [x] 14. Re-run unchanged-HEAD release evidence and commit exact repair paths. — evidence: focused ops tests, matrix, two sequential rehearsals at `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`, and diff/residue scans passed; repair commit `1e86e38` exists without push/merge.
+
+## OPS final repair validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 17 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal run 1 — `npm run release:rehearsal` — passed at HEAD `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`; old volumes absent; fresh `postgres-data`/`event-image-data` created; final lock/project volumes absent.
+- [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed at same HEAD `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`; script hashes unchanged (`6f1fba68…`, `413c6b19…`); final lock/project volumes absent.
+- [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; no `.orig`/`.rej`/backup residue; added-line high-confidence secret scan clean.
+- [x] commit msg draft: `test(release): isolate clean-volume rehearsal`
+
+## LOCK CORRECTNESS REPAIR
+
+- [x] 15. Replace stale-owner deletion with process-lifetime kernel exclusion. — evidence: `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` passed 2 files/19 tests; kernel `flock` contention, metadata-write failure cleanup, teardown-failure cleanup, and SIGTERM cleanup passed.
+- [x] 16. Add deterministic concurrent stale-metadata acquisition and PID reuse/start-identity coverage. — evidence: same focused run passed exact-one-owner concurrent stale-metadata test and reused-PID/different-Linux-start-identity test.
+- [x] 17. Re-run release evidence and commit exact repair paths without push/merge. — evidence: focused ops tests, acceptance matrix, two sequential release rehearsals, diff/residue/secret scans passed; repair commit `c93176b` exists on `ticket/event-editor-T8`; no push/merge.
+
+## LOCK CORRECTNESS REPAIR validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 19 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal run 1 — `npm run release:rehearsal` — passed from clean reset through final teardown; fresh PostgreSQL/MinIO volumes and full Event lifecycle proved.
+- [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed sequentially with persistent stale metadata file present; clean reset, full Event lifecycle, and final teardown passed again.
+- [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; residue count 0; added-line high-confidence secret scan clean; release volumes/containers 0; kernel lock free.
+- [x] commit msg draft: `fix(release): enforce exclusive rehearsal ownership`
+
+## LAST LOCK LEAK REPAIR
+
+- [x] 18. Guard every post-kernel-acquire step, including `linuxProcessStartIdentity(pid)`, with owned cleanup. — evidence: focused ops test injected `injected /proc identity read failure`, observed empty metadata, then immediately reacquired; metadata-write-after-owner test did same.
+- [x] 19. Make successful `down --volumes` cleanup assert zero project volumes without leaking lock when assertion fails. — evidence: focused ops test returned exact leftover-volume failure, then immediately reacquired.
+- [x] 20. Run final focused evidence and commit exact repair paths without push/merge. — evidence: focused ops tests, acceptance matrix, one release rehearsal, diff/residue/secret scans passed; repair commit `e0c775c` exists on `ticket/event-editor-T8`; no push/merge.
+
+## LAST LOCK LEAK REPAIR validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 21 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal — `npm run release:rehearsal` passed once; clean reset, full Event lifecycle, final teardown, zero-volume executable assertion passed.
+- [x] diff/residue/secrets — `git diff --check` and `git diff --cached --check` passed; residue count 0; added-line high-confidence secret scan clean; release volumes/containers 0; kernel lock free.
+- [x] commit msg draft: `fix(release): close lock on setup and cleanup failures`

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 // @ts-expect-error - the acceptance matrix validator is a plain ESM script shared with the CLI.
-import { evaluateMatrix, docFiles, docsRoot, matrixPath } from '../scripts/acceptance-matrix.mjs';
+import { evaluateMatrix, exactAssertionFailure, docFiles, docsRoot, matrixPath } from '../scripts/acceptance-matrix.mjs';
 
 /**
  * The acceptance matrix is only worth something if it cannot be ticked by hand. This keeps the
@@ -18,6 +18,33 @@ describe('V1 acceptance matrix', () => {
   it('proves 100% of the non-deferred capability rows', () => {
     expect(result.totals.proved).toBe(result.totals.nonDeferred);
     expect(result.totals.nonDeferred).toBeGreaterThan(50);
+  });
+
+  it('maps integrated Event publication to exact assertions in every executable lifecycle target', () => {
+    const row = result.matrix.rows.find((candidate: { id: string }) => candidate.id === 'doc00-tournaments');
+    expect(row?.acceptance).toContain('product-organizer-lifecycle');
+    expect(row?.exactTestAssertions).toBe(true);
+    expect(row?.evidence.map((item: { target: string }) => item.target)).toEqual(expect.arrayContaining([
+      'backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventProposalTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs',
+      'cypress/e2e/organizer-event-create.cy.js',
+      'cypress/e2e/organizer-event-management.cy.js',
+      'cypress/e2e/event-proposal.cy.js'
+    ]));
+    for (const item of row.evidence.filter((candidate: { gate: string }) => ['vitest', 'dotnet', 'cypress'].includes(candidate.gate))) {
+      expect(item.assertion).toBeTruthy();
+      expect(exactAssertionFailure(process.cwd(), item.target, item.assertion)).toBeNull();
+    }
+  });
+
+  it('rejects a stale exact assertion even when its target file still exists', () => {
+    expect(exactAssertionFailure(
+      process.cwd(),
+      'cypress/e2e/organizer-event-create.cy.js',
+      'removed integrated Event assertion'
+    )).toBe('assertion "removed integrated Event assertion" is not present in cypress/e2e/organizer-event-create.cy.js');
   });
 
   it('covers every V1 architecture document', () => {

@@ -121,7 +121,8 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
   });
 
   it('shows the uploader to a plain User proposal submitter', () => {
-    expect(source).toMatch(/@if \(!editMode\) \{\s*<div[^>]+data-cy="event-row-images"[^>]*><gones-event-image-uploader/);
+    expect(source).toMatch(/<div[^>]+data-cy="event-row-images"[^>]*><gones-event-image-uploader/);
+    expect(source).toContain("[blockedMessageKey]=\"canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'\"");
   });
 
   it('blocks proposal submit while an image upload or preview has failed', async () => {

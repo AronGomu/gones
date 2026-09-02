@@ -38,6 +38,10 @@ if [ ! -f "$secrets/db-connection" ]; then
     random_hex 24 > "$secrets/oauth-facebook-secret"
     random_hex 32 > "$secrets/backup-key"
 fi
+if [ ! -f "$secrets/event-images-s3-access-key" ]; then
+    random_hex 10 > "$secrets/event-images-s3-access-key"
+    random_hex 20 > "$secrets/event-images-s3-secret-key"
+fi
 
 # Non-root service accounts read these; nothing writes them again.
 chmod 0555 "$certs" "$secrets"

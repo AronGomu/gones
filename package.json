@@ -10,7 +10,7 @@
     "dev:env": "node scripts/seed-dev-environment.mjs",
     "dev:stress:generate": "node scripts/generate-stress-environment.mjs",
     "cy:open": "cypress open",
-    "cy:run": "cypress run",
+    "cy:run": "node scripts/full-stack-ci.mjs",
     "build": "ng build",
     "lint": "ng lint",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.spec.json",

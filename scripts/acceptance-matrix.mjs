@@ -41,6 +41,7 @@ export const docFiles = [
 ];
 
 const gates = new Set(['vitest', 'dotnet', 'cypress', 'script', 'rehearsal']);
+const testGates = new Set(['vitest', 'dotnet', 'cypress']);
 const rowStatuses = new Set(['proved', 'unproved', 'deferred']);
 const acceptanceStatuses = new Set(['proved', 'deferred', 'release-candidate']);
 
@@ -49,6 +50,15 @@ const forbiddenClaims = [/\bRPO\b/, /\bRTO\b/, /\bdeliverab/i, /\bproduction[- ]
 
 function readJson(root, relative) {
   return JSON.parse(readFileSync(join(root, relative), 'utf8'));
+}
+
+export function exactAssertionFailure(root, target, assertion) {
+  if (!assertion) return `test evidence for ${target} needs an exact assertion name`;
+  const path = join(root, target);
+  if (!existsSync(path)) return `file ${target} does not exist`;
+  return readFileSync(path, 'utf8').includes(assertion)
+    ? null
+    : `assertion "${assertion}" is not present in ${target}`;
 }
 
 /**
@@ -70,20 +80,20 @@ function buildResolvers(root) {
   };
 
   return {
-    vitest(target) {
+    vitest(target, _detail, assertion) {
       if (!existsSync(join(root, target))) return `file ${target} does not exist`;
       if (!vitestRoots.some((prefix) => target.startsWith(prefix))) return `${target} is outside the vitest include globs`;
-      return null;
+      return assertion ? exactAssertionFailure(root, target, assertion) : null;
     },
-    dotnet(target) {
+    dotnet(target, _detail, assertion) {
       if (!existsSync(join(root, target))) return `file ${target} does not exist`;
       if (!target.startsWith('backend/tests/')) return `${target} is not a backend test project file`;
-      return null;
+      return assertion ? exactAssertionFailure(root, target, assertion) : null;
     },
-    cypress(target) {
+    cypress(target, _detail, assertion) {
       if (!existsSync(join(root, target))) return `spec ${target} does not exist`;
       if (!ciSource.includes(basename(target))) return `spec ${target} is not wired into scripts/full-stack-ci.mjs`;
-      return null;
+      return assertion ? exactAssertionFailure(root, target, assertion) : null;
     },
     script(target) {
       if (!packageJson.scripts?.[target]) return `npm script "${target}" is not declared in package.json`;
@@ -162,7 +172,11 @@ export function evaluateMatrix(root = process.cwd()) {
         errors.push(`${where}: unknown evidence gate "${item.gate}"`);
         continue;
       }
-      const failure = resolvers[item.gate](item.target, item.detail);
+      if (row.exactTestAssertions === true && testGates.has(item.gate) && !item.assertion) {
+        errors.push(`${where}: test evidence for ${item.target} needs an exact assertion name`);
+        continue;
+      }
+      const failure = resolvers[item.gate](item.target, item.detail, item.assertion);
       if (failure) errors.push(`${where}: ${failure}`);
     }
 
