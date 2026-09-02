@@ -6,6 +6,10 @@ Accepted. Amended by T26 (see *Who may propose, who may approve* below), which n
 approve a proposal without narrowing who can submit one. Extends Calendar V1's publication path;
 does not change organizer or admin publishing.
 
+Amended by [ADR 0053](0053-markdown-is-event-description-source.md): proposal review renders
+server-derived sanitized Markdown HTML instead of plain text; it still does not call a privileged
+preview endpoint.
+
 ## Context
 
 Publishing a public tournament requires the `Organizer` role. The product owner wants every verified

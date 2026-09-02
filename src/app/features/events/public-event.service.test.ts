@@ -4,7 +4,7 @@ import { Injector } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { API_BASE_URL, PublicEventDetailResponse } from '../../api/generated/gones-api';
-import { PublicEventService } from './public-event.service';
+import { EVENT_DETAIL_CACHE_PREFIX, PublicEventService } from './public-event.service';
 
 const response = { slug: 'lyon-legacy', title: 'Lyon Legacy' } as unknown as PublicEventDetailResponse;
 
@@ -38,7 +38,7 @@ describe('PublicEventService', () => {
   it('evicts the oldest cached event beyond the cap of 30', async () => {
     localStorage.clear();
     for (let index = 0; index < 30; index += 1) {
-      localStorage.setItem(`gones.events.cache.${index}`, JSON.stringify({
+      localStorage.setItem(`${EVENT_DETAIL_CACHE_PREFIX}${index}`, JSON.stringify({
         data: {}, cachedAt: new Date(Date.now() - (30 - index) * 60 * 1000).toISOString()
       }));
     }
@@ -50,14 +50,14 @@ describe('PublicEventService', () => {
     ] });
     const service = injector.get(PublicEventService);
     // Same key the service builds: the prefix plus the encoded request URL and its (empty) query.
-    const detailKey = `gones.events.cache.${encodeURIComponent('https://api.example/api/events/lyon-legacy?')}`;
+    const detailKey = `${EVENT_DETAIL_CACHE_PREFIX}${encodeURIComponent('https://api.example/api/events/lyon-legacy?')}`;
 
     await service.detail('lyon-legacy');
 
-    expect(localStorage.getItem('gones.events.cache.0')).toBeNull();
-    expect(localStorage.getItem('gones.events.cache.1')).not.toBeNull();
+    expect(localStorage.getItem(`${EVENT_DETAIL_CACHE_PREFIX}0`)).toBeNull();
+    expect(localStorage.getItem(`${EVENT_DETAIL_CACHE_PREFIX}1`)).not.toBeNull();
     expect(localStorage.getItem(detailKey)).not.toBeNull();
-    expect(Object.keys(localStorage).filter((key) => key.startsWith('gones.events.cache.'))).toHaveLength(30);
+    expect(Object.keys(localStorage).filter((key) => key.startsWith(EVENT_DETAIL_CACHE_PREFIX))).toHaveLength(30);
   });
 
   it('builds the ICS download URL from the base API URL', () => {

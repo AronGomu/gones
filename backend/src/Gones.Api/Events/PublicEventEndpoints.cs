@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
@@ -62,6 +63,8 @@ internal static partial class PublicEventEndpoints
         string? to,
         string? city,
         string? country,
+        string? region,
+        [AllowedValues("weekly", "monthly", "major")] string? eventType,
         string? organization,
         string? format,
         string? status,
@@ -82,6 +85,7 @@ internal static partial class PublicEventEndpoints
         var toDate = ParseDateQuery(to, nameof(to));
         var organizationId = ParseOrganization(organization);
         var statuses = ParseStatuses(status);
+        var parsedEventType = ParseEventType(eventType);
         var showPast = past == true || includePast == true;
         var query = VisibleEvents(database);
 
@@ -98,6 +102,13 @@ internal static partial class PublicEventEndpoints
             var term = country.Trim();
             query = query.Where(item => item.Tournament.Country == term);
         }
+        if (!string.IsNullOrWhiteSpace(region))
+        {
+            var term = region.Trim();
+            if (term.Length > Event.MaximumRegionLength) throw Validation("region", $"Region cannot exceed {Event.MaximumRegionLength} characters.");
+            query = query.Where(item => item.Tournament.Region == term);
+        }
+        if (parsedEventType is not null) query = query.Where(item => item.Tournament.EventType == parsedEventType);
         if (organizationId is not null) query = query.Where(item => item.Tournament.OrganizationId == organizationId);
         if (!string.IsNullOrWhiteSpace(format))
         {
@@ -128,6 +139,8 @@ internal static partial class PublicEventEndpoints
                 item.Tournament.PostalCode,
                 item.Tournament.City,
                 item.Tournament.Country,
+                item.Tournament.Region,
+                item.Tournament.EventType,
                 item.Tournament.TimeZoneId,
                 item.Tournament.VenueStartDate,
                 item.Tournament.VenueStartTime,
@@ -198,6 +211,8 @@ internal static partial class PublicEventEndpoints
                 item.Tournament.PostalCode,
                 item.Tournament.City,
                 item.Tournament.Country,
+                item.Tournament.Region,
+                item.Tournament.EventType,
                 item.Tournament.TimeZoneId,
                 item.Tournament.VenueStartDate,
                 item.Tournament.VenueStartTime,
@@ -359,6 +374,8 @@ internal static partial class PublicEventEndpoints
                 tournament.PostalCode,
                 tournament.City,
                 tournament.Country,
+                tournament.Region,
+                tournament.EventType,
                 tournament.TimeZoneId,
                 tournament.VenueStartDate,
                 tournament.VenueStartTime,
@@ -411,7 +428,7 @@ internal static partial class PublicEventEndpoints
         EventDisplayTitle.From(row.Title, formats.Single().Name),
         row.Slug,
         row.Summary,
-        new PublicEventVenueResponse(row.StreetAddress, row.PostalCode, row.City, row.Country),
+        new PublicEventVenueResponse(row.StreetAddress, row.PostalCode, row.City, row.Country, row.Region),
         row.TimeZoneId,
         FormatDate(row.VenueStartDate),
         FormatTime(row.VenueStartTime),
@@ -421,6 +438,7 @@ internal static partial class PublicEventEndpoints
         row.EndsAtUtc,
         row.Capacity,
         row.Status.ToString(),
+        EventPublicationService.EventTypeWire(row.EventType),
         new PublicEventOrganizationResponse(row.OrganizationId, row.OrganizationName, row.OrganizationDescription, row.OrganizationWebsite, row.OrganizationContactEmail, []),
         formats);
     }
@@ -448,6 +466,7 @@ internal static partial class PublicEventEndpoints
             summary.EndsAtUtc,
             summary.Capacity,
             summary.Status,
+            summary.EventType,
             organization,
             summary.Formats);
     }
@@ -465,7 +484,7 @@ internal static partial class PublicEventEndpoints
         builder.AppendLine($"DTEND:{FormatIcsInstant(row.EndsAtUtc)}");
         builder.AppendLine($"SUMMARY:{EscapeIcsText(row.Title)}");
         if (!string.IsNullOrWhiteSpace(row.Summary)) builder.AppendLine($"DESCRIPTION:{EscapeIcsText(row.Summary)}");
-        builder.AppendLine($"LOCATION:{EscapeIcsText(string.Join(", ", new[] { row.StreetAddress, row.PostalCode, row.City, row.Country }.Where(value => !string.IsNullOrWhiteSpace(value))))}");
+        builder.AppendLine($"LOCATION:{EscapeIcsText(string.Join(", ", new[] { row.StreetAddress, row.PostalCode, row.City, row.Region, row.Country }.Where(value => !string.IsNullOrWhiteSpace(value))))}");
         builder.AppendLine($"X-GONES-TIMEZONE:{EscapeIcsText(row.TimeZoneId)}");
         builder.AppendLine($"STATUS:{(row.Status == ScheduledTournamentStatus.Cancelled ? "CANCELLED" : "CONFIRMED")}");
         builder.AppendLine("END:VEVENT");
@@ -486,6 +505,18 @@ internal static partial class PublicEventEndpoints
         if (string.IsNullOrWhiteSpace(value)) return null;
         if (Guid.TryParse(value.Trim(), out var organizationId) && organizationId != Guid.Empty) return organizationId;
         throw Validation("organization", "Organization must be a UUID.");
+    }
+
+    private static CalendarEventType? ParseEventType(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return value.Trim().ToLowerInvariant() switch
+        {
+            "weekly" => CalendarEventType.Weekly,
+            "monthly" => CalendarEventType.Monthly,
+            "major" => CalendarEventType.Major,
+            _ => throw Validation("eventType", "Event Type must be weekly, monthly, or major.")
+        };
     }
 
     private static IReadOnlyList<ScheduledTournamentStatus> ParseStatuses(string? value)
@@ -540,6 +571,8 @@ internal static partial class PublicEventEndpoints
         string? PostalCode,
         string City,
         string Country,
+        string? Region,
+        CalendarEventType? EventType,
         string TimeZoneId,
         LocalDate VenueStartDate,
         LocalTime VenueStartTime,
@@ -597,6 +630,7 @@ internal sealed record PublicEventSummaryResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
+    PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 
@@ -619,6 +653,7 @@ internal sealed record PublicEventDetailResponse(
     Instant EndsAtUtc,
     int? Capacity,
     string Status,
+    PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats);
 
@@ -626,7 +661,8 @@ internal sealed record PublicEventVenueResponse(
     string StreetAddress,
     string? PostalCode,
     string City,
-    string Country);
+    string Country,
+    string? Region = null);
 
 internal sealed record PublicEventOrganizationResponse(
     Guid Id,

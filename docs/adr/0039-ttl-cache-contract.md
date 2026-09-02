@@ -33,7 +33,8 @@ the old role for up to a day.
 
 Every listed page gets identical behaviour: load once on page load; serve the cached copy while it is
 under 24 hours old; show the "last synced" instant and a Synchronize button (`gones-sync-bar`);
-refetch automatically when the copy is older than 24 hours.
+refetch automatically when the copy is older than 24 hours. `/about` is the display-only exception:
+it reads upcoming MTGones events through the same public catalog cache but omits manual sync UI.
 
 - **Public data** caches in `localStorage` through `src/app/shared/catalog-cache.ts`
   (`readCatalogEntry`, `writeCatalogEntry`, `isCatalogFresh`, `CATALOG_TTL_MS`).
@@ -66,7 +67,8 @@ the cache untouched. The TTL governs navigation; it never governs correctness.
   `src/app/backend/server-authority-boundary.test.ts` allows.
 - A 24-hour-stale copy can be shown to a user whose data another actor changed. The Synchronize
   button is the manual escape hatch, and self-inflicted changes are never stale.
-- Every new data page must join this contract. `AGENT.md` states it as a standing rule.
+- Every new data page must join this contract. `AGENT.md` states it as a standing rule and names
+  `/about` as the sole sync-UI exception.
 - A cached catalog is only as small as the endpoint it mirrors. The League entry was ~2.9 MB of
   UTF-16 against a ~5 MB quota until ADR 0042 made the endpoint serve summary rows; the `.v2` key
   bump is what keeps an upgraded browser from reading the old documents back, and

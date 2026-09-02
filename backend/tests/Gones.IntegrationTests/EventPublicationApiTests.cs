@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
@@ -152,7 +153,15 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         using var replay = await PublishAsync(seed.Organizer.Id, "replay-key", ticket, payload);
         Assert.Equal(HttpStatusCode.Conflict, replay.StatusCode);
 
+        using var detail = await Client.GetAsync("/api/events/summer-cup-legacy");
+        var publicEvent = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(payload.Region, publicEvent.GetProperty("venue").GetProperty("region").GetString());
+        Assert.Equal(payload.EventType, publicEvent.GetProperty("eventType").GetString());
+
         await using var database = CreateContext();
+        var stored = await database.Events.SingleAsync(item => item.Id == tournamentId);
+        Assert.Equal(payload.Region, stored.Region);
+        Assert.Equal(CalendarEventType.Weekly, stored.EventType);
         Assert.Equal(1, await database.Events.CountAsync(item => item.Id == tournamentId));
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.Action == "tournament.published" && item.EntityId == tournamentId.ToString("D")));
         Assert.Equal(1, await database.IdempotencyRecords.CountAsync(item => item.Scope.Contains(seed.Organizer.Id.ToString("D")) && item.Key == "publish-once"));
@@ -243,6 +252,35 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Publish_validates_required_nested_payload_fields()
+    {
+        var payload = Payload(seed.Alpha.Id) with { Title = "Nested Validation Cup" };
+        var numeric = JsonNode.Parse(JsonSerializer.Serialize(payload))!.AsObject();
+        numeric["EventType"] = 0;
+        using var invalidEnum = await SendAsync(HttpMethod.Post, "/api/events/preview", seed.Organizer.Id, "Organizer", numeric);
+        Assert.Equal(HttpStatusCode.BadRequest, invalidEnum.StatusCode);
+        var ticket = await GetTicketAsync(seed.Organizer.Id, payload);
+        var missing = JsonNode.Parse(JsonSerializer.Serialize(payload))!.AsObject();
+        missing.Remove("Region");
+        missing.Remove("EventType");
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/events",
+            seed.Organizer.Id,
+            "Organizer",
+            new { previewTicket = ticket, payload = missing },
+            "nested-validation");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var errors = problem.GetProperty("errors");
+        Assert.True(errors.TryGetProperty("region", out _));
+        Assert.True(errors.TryGetProperty("eventType", out _));
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.Events.CountAsync(item => item.Title == payload.Title));
+        Assert.Equal(0, await database.IdempotencyRecords.CountAsync(item => item.Key == "nested-validation"));
+    }
+
+    [Fact]
     public async Task Extra_request_fields_cannot_assign_server_controlled_state()
     {
         var payload = Payload(seed.Alpha.Id) with { Title = "Mass Assignment Cup" };
@@ -258,6 +296,8 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             ["postalCode"] = payload.PostalCode,
             ["city"] = payload.City,
             ["country"] = payload.Country,
+            ["region"] = payload.Region,
+            ["eventType"] = payload.EventType,
             ["timeZoneId"] = payload.TimeZoneId,
             ["startsAtLocal"] = payload.StartsAtLocal,
             ["endsAtLocal"] = payload.EndsAtLocal,
@@ -594,7 +634,9 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         int? Capacity,
         IReadOnlyList<Guid> FormatIds,
         string? LiveTournamentUrl = null,
-        string? ArchiveTournamentUrl = null);
+        string? ArchiveTournamentUrl = null,
+        string Region = "Auvergne-Rhône-Alpes",
+        string EventType = "weekly");
 
     private sealed class MutableClock(Instant current) : IClock
     {

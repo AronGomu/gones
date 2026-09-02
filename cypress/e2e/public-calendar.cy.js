@@ -5,16 +5,17 @@ const event = {
   displayTitle: 'Legacy — Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
-  venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
+  venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', region: 'Auvergne-Rhône-Alpes', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
   venueStartTime: '23:30:00',
   venueEndDate: '2026-08-02',
   venueEndTime: '01:30:00',
-  startsAtUtc: '2026-08-01T21:30:00Z',
-  endsAtUtc: '2026-08-01T23:30:00Z',
+  startsAtUtc: '2099-08-01T21:30:00Z',
+  endsAtUtc: '2099-08-01T23:30:00Z',
   capacity: 32,
   status: 'Cancelled',
+  eventType: 'weekly',
   liveTournamentUrl: '/live-tournaments/lyon-legacy',
   archiveTournamentUrl: 'https://archive.example.test/lyon-legacy',
   organization: { id: orgId, name: 'Gones', description: '', website: 'https://example.test', contactEmail: '', organizers: ['adam', 'zoe'] },
@@ -61,6 +62,9 @@ function seedLanguage(win) {
 // branch honest: the app persists that key while it boots, so reaching it means the language below is
 // the one the app actually booted on rather than a value read before it had written anything.
 function visit(path) {
+  // Most Calendar assertions use fixed 2026 fixtures. Pin an explicit wide range so those tests are
+  // independent from product's real today → +6 months default as wall clock advances.
+  if (/^\/events\?/.test(path) && !/[?&]from=/.test(path)) path += '&from=2026-01-01&to=2100-01-01';
   cy.visit(path, { onBeforeLoad: seedLanguage });
   cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
   cy.window().then((win) => {
@@ -106,7 +110,7 @@ describe('public Calendar V1', () => {
     });
   });
 
-  it('defaults to month view, restores URL filters, persists list view, and filters locally without a network call', () => {
+  it('restores URL filters, persists list view, and filters locally without a network call', () => {
     visit('/events?month=2026-08&q=Lyon');
     cy.wait('@allEvents');
     cy.get('[data-cy="public-calendar"]').should('be.visible');
@@ -367,14 +371,14 @@ describe('public Calendar V1', () => {
     cy.get('[data-cy="event-detail-status"]').should('not.exist');
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
     cy.get('[data-cy="event-detail-when-row"]').should('contain.text', 'August').and('contain.text', '23:30');
-    cy.get('[data-cy="event-detail-where-row"]').should('contain.text', '1 Rue Test, 69001, Lyon, France');
+    cy.get('[data-cy="event-detail-where-row"]').should('contain.text', '1 Rue Test, 69001, Lyon, Auvergne-Rhône-Alpes, France');
     cy.get('[data-cy="event-detail-actions"]').should('not.exist');
     cy.get('[data-cy="event-detail-organizers"]').should('contain.text', 'adam, zoe');
     cy.get('[data-cy="event-detail-where-link"]')
       .should('have.attr', 'target', '_blank')
       .and('have.attr', 'rel', 'noopener noreferrer')
-      .and('have.attr', 'href', 'https://www.google.com/maps/search/?api=1&query=1%20Rue%20Test%2C%2069001%2C%20Lyon%2C%20France')
-      .and('have.attr', 'aria-label', 'Open 1 Rue Test, 69001, Lyon, France in Google Maps');
+      .and('have.attr', 'href', 'https://www.google.com/maps/search/?api=1&query=1%20Rue%20Test%2C%2069001%2C%20Lyon%2C%20Auvergne-Rh%C3%B4ne-Alpes%2C%20France')
+      .and('have.attr', 'aria-label', 'Open 1 Rue Test, 69001, Lyon, Auvergne-Rhône-Alpes, France in Google Maps');
     cy.get('[data-cy="event-detail-where-link"] svg.maps-icon').should('exist');
     cy.viewport(375, 812);
     cy.document().then(document => expect(document.documentElement.scrollWidth).to.be.at.most(375));
@@ -520,16 +524,19 @@ describe('public Calendar V1', () => {
       id: `${String(index).padStart(8, '0')}-1111-1111-1111-111111111111`,
       slug: `item-${String(index).padStart(3, '0')}`,
       title: `Event ${String(index).padStart(3, '0')}`,
-      venueStartDate: '2026-08-01'
+      venueStartDate: '2026-08-01',
+      startsAtUtc: '2099-08-01T21:30:00Z'
     }));
     cy.intercept('GET', '**/api/events/all*', { items: manyEvents, generatedAt: '2026-08-08T10:00:00Z', count: 25, truncated: false }).as('manyEvents');
 
     visit('/events?month=2026-08&view=list');
     cy.wait('@manyEvents');
     cy.get('[data-cy^="event-item-"]').should('have.length', 20);
+    cy.get('[data-cy="event-list-pagination-top"]').should('be.visible');
     cy.get('[data-cy="event-list-pagination"]').should('be.visible');
+    cy.get('[data-cy="event-list-page-number-top-2"]').should('be.visible');
 
-    cy.get('[data-cy="event-list-page-next"]').click();
+    cy.get('[data-cy="event-list-page-number-bottom-2"]').click();
     cy.location('search').should('contain', 'page=2');
     cy.get('[data-cy^="event-item-"]').should('have.length', 5);
 
@@ -556,6 +563,7 @@ describe('public Calendar V1', () => {
 
     visit('/events?month=2026-08&view=list');
     cy.wait('@icsEvents');
+    cy.get('[data-cy="event-list-hide-past"]').uncheck();
 
     cy.get('[data-cy="event-past-event"]').within(() => {
       cy.get('[data-cy="event-list-card-register"]').should('be.disabled');

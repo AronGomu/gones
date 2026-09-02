@@ -5,10 +5,21 @@ import { API_BASE_URL, PublicEventCatalogResponse } from '../../api/generated/go
 import { joinApiUrl } from '../../api/api-boundary';
 import { CatalogEntry, CatalogResult, isCatalogFresh, readCatalogEntry, writeCatalogEntry } from '../../shared/catalog-cache';
 import { PublicEventView } from './public-event-list';
+import { EVENT_DETAIL_CACHE_PREFIX } from './public-event.service';
 
-export const EVENT_CATALOG_CACHE_KEY = 'gones.events.catalog';
+export const EVENT_CATALOG_CACHE_KEY = 'gones.events.catalog.v2';
 
 export type EventCatalogResult = CatalogResult<PublicEventView[]>;
+
+export function invalidateEventCaches(storage = globalThis.localStorage): void {
+  try {
+    storage?.removeItem(EVENT_CATALOG_CACHE_KEY);
+    const keys = Array.from({ length: storage?.length ?? 0 }, (_, index) => storage?.key(index)).filter((key): key is string => Boolean(key));
+    for (const key of keys) {
+      if (key.startsWith(EVENT_DETAIL_CACHE_PREFIX) || key.startsWith('gones.events.cache.')) storage?.removeItem(key);
+    }
+  } catch { /* Cache invalidation is best effort. */ }
+}
 
 type StoredEntry = CatalogEntry<PublicEventView[]>;
 

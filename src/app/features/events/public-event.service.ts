@@ -18,7 +18,7 @@ interface CacheEntry<T> {
   data: T;
 }
 
-const CACHE_PREFIX = 'gones.events.cache.';
+export const EVENT_DETAIL_CACHE_PREFIX = 'gones.events.cache.v2.';
 
 /** F15 bound: at most this many event details are kept; the oldest by fetch time is evicted beyond it. */
 const CACHE_MAX_ENTRIES = 30;
@@ -38,7 +38,7 @@ export class PublicEventService {
 
   private async getCached<T>(path: string, params = new HttpParams()): Promise<CachedApiResult<T>> {
     const url = joinApiUrl(this.baseUrl, path);
-    const key = `${CACHE_PREFIX}${encodeURIComponent(`${url}?${params.toString()}`)}`;
+    const key = `${EVENT_DETAIL_CACHE_PREFIX}${encodeURIComponent(`${url}?${params.toString()}`)}`;
     const cached = this.readCache<T>(key);
     const headers = cached?.etag ? new HttpHeaders({ 'If-None-Match': cached.etag }) : undefined;
     try {
@@ -65,7 +65,7 @@ export class PublicEventService {
     if (response.body === null) return undefined;
     const cachedAt = new Date().toISOString();
     writeBoundedCacheValue(
-      { prefix: CACHE_PREFIX, maxEntries: CACHE_MAX_ENTRIES, timestampField: 'cachedAt' },
+      { prefix: EVENT_DETAIL_CACHE_PREFIX, maxEntries: CACHE_MAX_ENTRIES, timestampField: 'cachedAt' },
       key,
       JSON.stringify({ data: response.body, etag: response.headers.get('ETag') ?? undefined, cachedAt } satisfies CacheEntry<T>)
     );

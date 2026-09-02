@@ -19,9 +19,10 @@
 | local Live store | Offline IndexedDB Live authority for anonymous and `User`, never synced (ADR 0021) | `src/app/backend/local-live-backend.service.ts` |
 | calendar | Public Event calendar feature and its detail page; browse route `/events` (ADR 0038) | `src/app/features/events/public-event-list.component.ts` |
 | guards | Route guards for User, Organizer and Admin | `src/app/auth/auth.guards.ts` |
-| power user | Browser-only opt-in (`gones.settings.power-user`) for advanced Event, League and Live mutation UI; never grants server authority, never hides home cards or browse destinations (ADR 0037) | `src/app/shared/power-user-settings.service.ts` |
+| power user | Browser-only opt-in (`gones.settings.power-user`) for Visitor/User advanced mutation UI, forced on without a toggle for Organizer/Admin; never grants server authority or hides browse destinations (ADR 0037) | `src/app/shared/power-user-settings.service.ts` |
 | global stats | Public server-derived ranking over every completed Archive Tournament; 12 columns, search/sort/page, scopable to one League or one Season (`?league=`/`?season=`); browsable at `/global-stats`, where the URL sort direction is `dir` and the wire parameter is `direction`; browser-local records excluded | `src/app/features/players/global-stats.component.ts` |
 | event link | Optional `liveTournamentUrl` or `archiveTournamentUrl` on an Event; navigation string only, no data-authority coupling, broken links are valid (ADR 0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
+| event type | Public Event cadence: weekly, monthly, or major | `backend/src/Gones.Domain/Calendar/Event.cs`, `CalendarEventType` |
 | staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/archive/tournament-detail.component.ts` |
 | sync bar | Per-page "last synced" label + Synchronize button implementing the ADR 0039 cache contract | `src/app/shared/sync-bar.component.ts` |
 | catalog cache | Public `localStorage` store with 24h TTL for anonymous read-only catalogs | `src/app/shared/catalog-cache.ts` |

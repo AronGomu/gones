@@ -52,6 +52,7 @@ describe('Power User mutation perimeter', () => {
 
     expect(settings).toMatch(/async saveServerPlayerEdit\([^)]*\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
     expect(settings).toMatch(/async saveLocalPlayerEdit\([^)]*\)[\s\S]*?if \(!this\.power\.enabled\(\)\) return;/);
+    expect(settings).toContain('@if (!power.forced())');
     expect(settings).toContain('data-cy="settings-power-user-card"');
   });
 });

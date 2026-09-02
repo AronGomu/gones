@@ -16,7 +16,11 @@
     "endsAtLocalOffsetDays": -90,
     "endsAtLocalTime": "19:00",
     "capacity": 32,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "monthly"
   },
   {
     "key": "gones-league-7-day-2",
@@ -35,7 +39,11 @@
     "endsAtLocalOffsetDays": -45,
     "endsAtLocalTime": "19:00",
     "capacity": 32,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "monthly"
   },
   {
     "key": "aura-winter-open-legacy",
@@ -54,7 +62,11 @@
     "endsAtLocalOffsetDays": -21,
     "endsAtLocalTime": "20:00",
     "capacity": 48,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "aura-winter-open-modern",
@@ -73,7 +85,11 @@
     "endsAtLocalOffsetDays": -21,
     "endsAtLocalTime": "20:00",
     "capacity": 48,
-    "formatKeys": ["modern"]
+    "formatKeys": [
+      "modern"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "pauper-night-legacy",
@@ -92,7 +108,11 @@
     "endsAtLocalOffsetDays": -7,
     "endsAtLocalTime": "23:30",
     "capacity": 24,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "weekly"
   },
   {
     "key": "pauper-night-pauper",
@@ -111,7 +131,11 @@
     "endsAtLocalOffsetDays": -7,
     "endsAtLocalTime": "23:30",
     "capacity": 24,
-    "formatKeys": ["pauper"]
+    "formatKeys": [
+      "pauper"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "weekly"
   },
   {
     "key": "gones-league-8-day-1",
@@ -130,7 +154,11 @@
     "endsAtLocalOffsetDays": 0,
     "endsAtLocalTime": "19:00",
     "capacity": 40,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "monthly"
   },
   {
     "key": "aura-spring-classic-legacy",
@@ -149,7 +177,11 @@
     "endsAtLocalOffsetDays": 3,
     "endsAtLocalTime": "20:00",
     "capacity": 64,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "aura-spring-classic-modern",
@@ -168,7 +200,11 @@
     "endsAtLocalOffsetDays": 3,
     "endsAtLocalTime": "20:00",
     "capacity": 64,
-    "formatKeys": ["modern"]
+    "formatKeys": [
+      "modern"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "commander-social-legacy",
@@ -187,7 +223,11 @@
     "endsAtLocalOffsetDays": 10,
     "endsAtLocalTime": "23:00",
     "capacity": null,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "weekly"
   },
   {
     "key": "commander-social-commander",
@@ -206,7 +246,11 @@
     "endsAtLocalOffsetDays": 10,
     "endsAtLocalTime": "23:00",
     "capacity": null,
-    "formatKeys": ["commander"]
+    "formatKeys": [
+      "commander"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "weekly"
   },
   {
     "key": "aura-league-9-day-1",
@@ -225,7 +269,11 @@
     "endsAtLocalOffsetDays": 24,
     "endsAtLocalTime": "19:00",
     "capacity": 16,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "monthly"
   },
   {
     "key": "aura-summer-open-legacy",
@@ -244,7 +292,11 @@
     "endsAtLocalOffsetDays": 61,
     "endsAtLocalTime": "18:00",
     "capacity": 64,
-    "formatKeys": ["legacy"]
+    "formatKeys": [
+      "legacy"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "aura-summer-open-modern",
@@ -263,7 +315,11 @@
     "endsAtLocalOffsetDays": 61,
     "endsAtLocalTime": "18:00",
     "capacity": 64,
-    "formatKeys": ["modern"]
+    "formatKeys": [
+      "modern"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "aura-summer-open-pauper",
@@ -282,7 +338,11 @@
     "endsAtLocalOffsetDays": 61,
     "endsAtLocalTime": "18:00",
     "capacity": 64,
-    "formatKeys": ["pauper"]
+    "formatKeys": [
+      "pauper"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   },
   {
     "key": "aura-summer-open-commander",
@@ -301,6 +361,10 @@
     "endsAtLocalOffsetDays": 61,
     "endsAtLocalTime": "18:00",
     "capacity": 64,
-    "formatKeys": ["commander"]
+    "formatKeys": [
+      "commander"
+    ],
+    "region": "Auvergne-Rhône-Alpes",
+    "eventType": "major"
   }
 ]

@@ -17,6 +17,10 @@ const BREADCRUMB_ROOT_COMPONENTS = [
   'features/admin/admin-home.component'
 ];
 
+const TOP_BACK_EXEMPT_COMPONENTS = [
+  'features/menu/about.component'
+];
+
 function parseRoutedComponents(): string[] {
   const pattern = /loadComponent:\s*\(\)\s*=>\s*import\('\.\/([^']+)'\)/g;
   const paths = new Set<string>();
@@ -46,16 +50,24 @@ describe('back-button-coverage', () => {
     }
   });
 
-  it('every routed page has a top back button', () => {
-    const nonRootPaths = routedPaths.filter((p) => !BREADCRUMB_ROOT_COMPONENTS.includes(p));
+  it('every routed page outside explicit exceptions has a top back button', () => {
+    const requiredPaths = routedPaths.filter((p) => !BREADCRUMB_ROOT_COMPONENTS.includes(p) && !TOP_BACK_EXEMPT_COMPONENTS.includes(p));
     const missing: string[] = [];
-    for (const path of nonRootPaths) {
+    for (const path of requiredPaths) {
       const source = readComponentSource(path);
       if (!source.includes('position="top"')) {
         missing.push(path);
       }
     }
     expect(missing, `Missing position="top": ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('top-back exceptions omit only the top button', () => {
+    for (const path of TOP_BACK_EXEMPT_COMPONENTS) {
+      const source = readComponentSource(path);
+      expect(source, `${path} should not contain position="top"`).not.toContain('position="top"');
+      expect(source, `${path} should retain position="bottom"`).toContain('position="bottom"');
+    }
   });
 
   it('every routed page (except auth) has a bottom back button', () => {

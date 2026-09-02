@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { RouterLink } from '@angular/router';
@@ -17,6 +17,7 @@ import { AboutComponent } from './about.component';
 const source = readFileSync(join(__dirname, 'about.component.ts'), 'utf8');
 const stylesSource = readFileSync(join(__dirname, '../../../styles.css'), 'utf8');
 const routesSource = readFileSync(join(__dirname, '../../app.routes.ts'), 'utf8');
+const appSource = readFileSync(join(__dirname, '../../app.component.ts'), 'utf8');
 const guardSource = readFileSync(join(__dirname, '../../shared/first-visit.guard.ts'), 'utf8');
 const homeMenuSource = readFileSync(join(__dirname, 'home-menu.component.ts'), 'utf8');
 
@@ -27,15 +28,6 @@ class BackButtonStub {
   @Input() link: readonly string[] = [];
   @Input() label = '';
   @Input() position = '';
-}
-
-@Component({ selector: 'gones-sync-bar', standalone: true, template: '<button type="button" [attr.data-cy]="cyPrefix + \'-sync-button\'" [disabled]="loading" (click)="sync.emit()">Sync</button>' })
-class SyncBarStub {
-  @Input() cyPrefix = '';
-  @Input() syncedAt: string | undefined;
-  @Input() loading = false;
-  @Input() stale = false;
-  @Output() sync = new EventEmitter<void>();
 }
 
 type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (reason?: unknown) => void };
@@ -68,7 +60,7 @@ function event(slug: string, startsAtUtc = new Date(Date.now() + 86_400_000).toI
     endsAtUtc: new Date(new Date(startsAtUtc).getTime() + 3_600_000).toISOString(),
     capacity: undefined,
     status: 'published',
-    organization: undefined as unknown as PublicEventView['organization'],
+    organization: { id: 'gones-lyon', name: 'Gones Lyon' } as PublicEventView['organization'],
     formats: [] as PublicEventView['formats']
   };
 }
@@ -91,7 +83,7 @@ function createAboutFixture(load: (options?: { force?: boolean }) => Promise<Eve
       { provide: EventCatalogCacheService, useValue: catalog },
     ]
   });
-  TestBed.overrideComponent(AboutComponent, { set: { imports: [RouterLink, BackButtonStub, SyncBarStub] } });
+  TestBed.overrideComponent(AboutComponent, { set: { imports: [RouterLink, BackButtonStub] } });
   const fixture = TestBed.createComponent(AboutComponent);
   fixture.detectChanges();
   return { fixture, component: fixture.componentInstance, load: catalog.load };
@@ -118,6 +110,7 @@ const aboutKeys = [
   'about.hero.kicker',
   'about.hero.title',
   'about.hero.lede',
+  'about.hero.imageAlt',
   'about.hero.calendar',
   'about.hero.team',
   'about.hero.logoAria',
@@ -225,8 +218,6 @@ describe('AboutComponent live Next Up behavior', () => {
 
     expect(component.loading()).toBe(false);
     expect(component.error()).toBe(false);
-    expect(component.stale()).toBe(false);
-    expect(component.syncedAt()).toBe('2026-08-30T12:00:00.000Z');
     expect(fixture.nativeElement.querySelectorAll('.about-next-up__row').length).toBe(3);
   });
 
@@ -234,7 +225,6 @@ describe('AboutComponent live Next Up behavior', () => {
     const { fixture, component } = createAboutFixture(() => Promise.resolve(result([event('stale-event')], true)));
     await settle(fixture);
 
-    expect(component.stale()).toBe(true);
     expect(component.error()).toBe(false);
     expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-stale-event"]')).not.toBeNull();
   });
@@ -282,7 +272,7 @@ describe('AboutComponent live Next Up behavior', () => {
     const load = vi.fn((options: { force?: boolean } = {}) => options.force ? forced.promise : initial.promise);
     const { fixture, component } = createAboutFixture(load);
 
-    component.syncUpcomingEvents();
+    component.retryUpcomingEvents();
     expect(load).toHaveBeenNthCalledWith(2, { force: true });
 
     forced.resolve(result([event('latest')]));
@@ -293,22 +283,6 @@ describe('AboutComponent live Next Up behavior', () => {
     await settle(fixture);
     expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-latest"]')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-old"]')).toBeNull();
-  });
-
-  it('uses force load when sync button is activated', async () => {
-    const initial = deferred<EventCatalogResult>();
-    const forced = deferred<EventCatalogResult>();
-    const load = vi.fn((options: { force?: boolean } = {}) => options.force ? forced.promise : initial.promise);
-    const { fixture } = createAboutFixture(load);
-
-    initial.resolve(result([event('before-sync')]));
-    await settle(fixture);
-    (fixture.nativeElement.querySelector('[data-cy="about-next-up-sync-button"]') as HTMLButtonElement).click();
-    expect(load).toHaveBeenLastCalledWith({ force: true });
-
-    forced.resolve(result([event('after-sync')]));
-    await settle(fixture);
-    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-event-after-sync"]')).not.toBeNull();
   });
 
   it('binds event row RouterLink to event detail segments', async () => {
@@ -329,24 +303,48 @@ describe('AboutComponent route and interaction contract', () => {
     expect(homeMenuSource).toContain("routerLink=\"/about\"");
   });
 
-  it('exposes shell-safe internal navigation, CTAs, and both return actions', () => {
-    for (const fragment of ['association', 'tournaments', 'staff']) {
-      expect(source).toContain(`href="#${fragment}"`);
-    }
-    expect(source).toContain('routerLink="/events"');
-    expect(source).toContain('href="#tournaments"');
-    expect(source.match(/<gones-back-button/g)?.length).toBe(2);
-    expect(source.match(/\[link\]="\['\/']"/g)?.length).toBe(2);
-    expect(source.match(/about\.back/g)?.length).toBeGreaterThanOrEqual(2);
+  it('moves page navigation from the About component into remaining main-header space', () => {
+    expect(source).not.toContain('about-top-nav');
+    expect(source).not.toContain('about-internal-nav');
+    expect(source).not.toContain('about-nav-association');
+    expect(appSource).toContain('@if (showAboutNavigation())');
+    expect(appSource).toContain('class="about-header-nav"');
+    expect(appSource).toContain('href="#association"');
+    expect(appSource).toContain('href="#tournaments"');
+    expect(appSource).toContain('href="#staff"');
+    expect(appSource).toContain('routerLink="/events"');
+    expect(appSource).toContain("host: { '[class.about-active]': 'showAboutNavigation()' }");
+    expect(appSource).toContain("readonly showAboutNavigation = computed(() => this.pathOnly(this.currentUrl()) === '/about')");
+    expect(stylesSource).toMatch(/\.about-header-nav\s*\{[^}]*flex:\s*1 1 auto[^}]*justify-content:\s*safe center/s);
   });
 
-  it('covers live Next Up states, sync, retry, and detail navigation contract', () => {
+  it('places the full-width side-borderless hero directly under the main header', () => {
+    expect(source).toMatch(/template: `\s*<section class="about-hero"[\s\S]+?<\/section>\s*<div class="about-page"/);
+    expect(appSource).toMatch(/@if \(!showAboutNavigation\(\)\) \{\s*<nav class="breadcrumb-shell breadcrumb-shell--header"/s);
+    expect(stylesSource).toMatch(/gones-root\.about-active \.app-main\s*\{[^}]*width:\s*100%[^}]*padding-top:\s*0/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-hero\s*\{[^}]*width:\s*100%[^}]*border-inline:\s*0/s);
+  });
+
+  it('keeps the hero title top-left and remaining copy bottom-left over a black gradient', () => {
+    expect(source).toMatch(/about-hero__image[\s\S]+?about-hero__title[\s\S]+?about-hero__copy/);
+    expect(stylesSource).toMatch(/\.about-route \.about-hero::after\s*\{[^}]*linear-gradient/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-hero__title\s*\{[^}]*align-self:\s*start[^}]*justify-self:\s*start[^}]*text-shadow:/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-hero__copy\s*\{[^}]*align-self:\s*end[^}]*text-shadow:/s);
+    expect(stylesSource).not.toMatch(/\.about-route \.about-hero__image\s*\{[^}]*filter:/s);
+  });
+
+  it('renders Next Up without an outer border', () => {
+    const nextUpStyles = stylesSource.match(/\.about-route \.about-next-up\s*\{([^}]*)\}/)?.[1] ?? '';
+    expect(nextUpStyles).not.toContain('border:');
+  });
+
+  it('covers live Next Up states, hidden sync UI, retry, and detail navigation contract', () => {
     expect(source).toContain("import { selectUpcomingEvents } from './about-upcoming-events';");
     expect(source).toContain('EventCatalogCacheService');
     expect(source).toContain('implements OnInit, AfterViewInit, OnDestroy');
     expect(source).toContain('readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2]');
-    expect(source).toContain('<gones-sync-bar cyPrefix="about-next-up"');
-    expect(source).toContain('(sync)="syncUpcomingEvents()"');
+    expect(source).not.toContain('gones-sync-bar');
+    expect(source).not.toContain('syncUpcomingEvents');
     expect(source).toContain('aria-busy="true"');
     expect(source).toContain("i18n.t('common.loading')");
     expect(source).toContain("i18n.t('about.nextUp.emptyTitle')");
@@ -450,24 +448,29 @@ describe('AboutComponent approved layout contract', () => {
     expect(template.indexOf('tournamentBands.slice(0, 3)')).toBeLessThan(template.indexOf('data-cy="about-fire-ice"'));
     expect(template.indexOf('data-cy="about-fire-ice"')).toBeLessThan(template.indexOf('tournamentBands.slice(3)'));
     expect((source.match(/about-fire-ice/g) ?? []).length).toBeGreaterThanOrEqual(1);
-    expect(source).toContain('assets/card-art/fire-ice.jpg');
+    expect(source).toContain('assets/fire-about.webp|assets/ice-about.webp');
+    expect(stylesSource).toContain("background-image: url('/assets/fire-about.webp')");
+    expect(stylesSource).toContain("background-image: url('/assets/ice-about.webp')");
+    expect(stylesSource).toContain('background-size: cover');
+    expect(stylesSource).not.toContain("background-image: url('/assets/card-art/fire-ice.jpg')");
     expect(stylesSource).toContain('--fire-ember');
     expect(stylesSource).toContain('--ice-glacier');
   });
 
   it('declares inspected image dimensions and bounded lazy content media', () => {
     for (const declaration of [
-      'assets/images/2025-01-ice-mtgones-10-years.jpeg',
-      'assets/images/2019-10-mtglyon-mtgones-gathering.jpeg',
-      'assets/images/2024-01-gones-legacy-brindas-01.jpeg',
-      'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg',
-      'assets/images/2023-05-gones-legacy-fact-top-8.jpeg',
-      'assets/images/2025-06-fire-team-orga.jpeg',
-      'assets/images/2026-01-ice-01.jpeg',
-      'assets/images/2025-01-mtgones-10-years-top-2.jpeg'
+      'src="assets/images/000_about-hero-image.jpeg" [alt]="i18n.t(\'about.hero.imageAlt\')" width="1583" height="878"',
+      'src="assets/images/001_keeping-community-alive.jpeg" alt="MTGones community members posing together" width="2048" height="1152"',
+      "image: 'assets/images/002_weekly_legacy.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1152",
+      "image: 'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536",
+      "image: 'assets/images/2023-05-gones-legacy-fact-top-8.jpeg', imageAltKey: 'about.tournament.salty.imageAlt', imageWidth: 2048, imageHeight: 1536",
+      'src="assets/images/005_fire.jpeg" alt="Players competing in a packed Fire tournament hall" width="2048" height="1152"',
+      'src="assets/images/006_ice.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536"',
+      "image: 'assets/images/007_league_final.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1536"
     ]) expect(source).toContain(declaration);
     expect(stylesSource).toContain('aspect-ratio: 3 / 2');
     expect(stylesSource).toContain('max-height: 380px');
+    expect(stylesSource).toContain('.about-route .about-intro__image { grid-column: 1 / -1; width: min(100%, 48rem); aspect-ratio: 16 / 9; max-height: 27rem; justify-self: center; }');
     expect(source).toContain('loading="lazy"');
     expect(source).toContain('decoding="async"');
     expect(stylesSource).toContain('object-position: center top');
@@ -619,9 +622,8 @@ describe('AboutComponent motion and responsive contract', () => {
 
   it('offsets every About fragment below stacked sticky chrome and caps content images', () => {
     expect(stylesSource).toMatch(/\.about-route \[id\]\s*\{\s*scroll-margin-top:\s*var\(--about-scroll-offset\)/);
-    expect(stylesSource).toContain('top: calc(var(--app-toolbar-height) + var(--about-breadcrumb-height))');
-    expect(stylesSource).toContain('--about-scroll-offset: calc(');
-    expect(stylesSource).toContain('--about-nav-height: 5rem');
+    expect(stylesSource).toContain('--about-scroll-offset: calc(var(--app-toolbar-height) + 1rem)');
+    expect(stylesSource).not.toContain('--about-nav-height');
     expect(stylesSource).toMatch(/\.about-route \.about-content-image,[^{]+\.about-route \.about-fire-ice__photos img\s*\{[^}]*max-height:\s*380px/s);
     expect(stylesSource).toContain('aspect-ratio: 3 / 2');
     expect(stylesSource).toContain('overflow-x: clip');
@@ -637,6 +639,7 @@ describe('AboutComponent i18n contract', () => {
   it('uses translation keys for representative full-page content', () => {
     for (const key of [
       'about.hero.title',
+      'about.hero.imageAlt',
       'about.intro.paragraph1',
       'about.tournament.weekly.body',
       'about.fireIce.fire',

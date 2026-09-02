@@ -1,12 +1,18 @@
-import { Injectable, Signal, signal } from '@angular/core';
+import { computed, inject, Injectable, Signal, signal } from '@angular/core';
+import { AuthService } from '../auth/auth.service';
 
 export const POWER_USER_STORAGE_KEY = 'gones.settings.power-user';
 
 /** Client-only capability preference. Server authorization remains authoritative. */
 @Injectable({ providedIn: 'root' })
 export class PowerUserSettingsService {
+  private readonly auth = inject(AuthService);
   private readonly state = signal(readPowerUserSetting());
-  readonly enabled: Signal<boolean> = this.state.asReadonly();
+  readonly forced = computed(() => {
+    const role = this.auth.profile()?.globalRole;
+    return role === 'Organizer' || role === 'Admin';
+  });
+  readonly enabled: Signal<boolean> = computed(() => this.forced() || this.state());
 
   constructor() {
     // Cross-tab sync, the behaviour the language setting already has: turning Power User mode on in
@@ -17,6 +23,7 @@ export class PowerUserSettingsService {
   }
 
   setEnabled(value: boolean): void {
+    if (this.forced()) return;
     this.state.set(value);
     try { globalThis.localStorage?.setItem(POWER_USER_STORAGE_KEY, String(value)); }
     catch { /* Browser preference remains active for this tab when storage is unavailable. */ }

@@ -21,10 +21,10 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AuthService } from '../../auth/auth.service';
+import { GeoService } from '../../shared/geo.service';
 import { PublicEventView, shiftMonth } from './public-event-list';
-import { UserProfileResponse } from '../../api/generated/gones-api';
+import { Client, MyOrganizationResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -40,8 +40,8 @@ const event: PublicEventView = {
   venueStartTime: '23:30:00',
   venueEndDate: '2026-08-02',
   venueEndTime: '01:30:00',
-  startsAtUtc: '2026-08-01T21:30:00Z',
-  endsAtUtc: '2026-08-01T23:30:00Z',
+  startsAtUtc: '2099-08-01T21:30:00Z',
+  endsAtUtc: '2099-08-01T23:30:00Z',
   capacity: 32,
   status: 'Published',
   organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
@@ -97,6 +97,12 @@ function setup(options: {
   capability?: ReturnType<typeof vi.fn>;
   register?: ReturnType<typeof vi.fn>;
   open?: ReturnType<typeof vi.fn>;
+  organizations?: MyOrganizationResponse[];
+  organizationsError?: boolean;
+  organizationsAll?: ReturnType<typeof vi.fn>;
+  bareParams?: boolean;
+  geoCountries?: Array<{ code: string; name: string }>;
+  geoRegions?: Array<{ code: string; name: string }>;
 } = {}) {
   const result: EventCatalogResult = {
     items: options.itemCount !== undefined ? makeItems(options.itemCount) : [event],
@@ -108,7 +114,8 @@ function setup(options: {
   };
   const load = vi.fn(async () => result);
   const catalog = { load } as unknown as EventCatalogCacheService;
-  const initialParams = paramMap({ month: '2026-08', view: 'calendar', ...options.params });
+  const initialValues = options.bareParams ? (options.params ?? {}) : { month: '2026-08', view: 'calendar', from: '2000-01-01', to: '2100-01-01', ...options.params };
+  const initialParams = paramMap(initialValues);
 
   // The router stub feeds the query params it is handed straight back into `queryParamMap`, the way
   // a real navigation does. A `of(initialParams)` stub emits once and completes, so the `ngOnInit`
@@ -121,7 +128,7 @@ function setup(options: {
     return true;
   });
   const navigateByUrl = vi.fn(async () => true);
-  const router = { navigate, navigateByUrl, url: `/events?${new URLSearchParams({ month: '2026-08', view: 'calendar', ...options.params }).toString()}` } as unknown as Router;
+  const router = { navigate, navigateByUrl, url: `/events?${new URLSearchParams(initialValues).toString()}` } as unknown as Router;
   const route = {
     snapshot: { queryParamMap: initialParams },
     queryParamMap: params$.asObservable()
@@ -136,6 +143,10 @@ function setup(options: {
   const register = options.register ?? vi.fn(async () => ({ status: 'Confirmed' }));
   const open = options.open ?? vi.fn(() => ({ afterClosed: () => of(true) }));
 
+  const organizationsAll = options.organizationsAll ?? vi.fn(() => {
+    if (options.organizationsError) throw new Error('membership failed');
+    return of(options.organizations ?? []);
+  });
   const injector = Injector.create({ providers: [
     { provide: EventCatalogCacheService, useValue: catalog },
     { provide: PublicEventService, useValue: { icsUrl: vi.fn(() => 'https://api.example/x.ics') } },
@@ -144,13 +155,14 @@ function setup(options: {
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
-    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
+    { provide: Client, useValue: { organizationsAll } },
+    { provide: GeoService, useValue: { countries: vi.fn(async () => options.geoCountries ?? []), regions: vi.fn(async () => options.geoRegions ?? []) } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
   const component = runInInjectionContext(injector, () => new PublicEventListComponent());
-  return { component, load, navigate, navigateByUrl, capability, register, open, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
+  return { component, load, navigate, navigateByUrl, capability, register, open, organizationsAll, lastQueryParams: () => navigate.mock.calls[navigate.mock.calls.length - 1]?.[1]?.queryParams };
 }
 
 const verifiedUserProfile = {
@@ -390,19 +402,64 @@ describe('PublicEventListComponent', () => {
     }
   });
 
-  it('hides the create button when anonymous', () => {
-    const { component } = setup({ profile: null });
+  it('hides the create button when anonymous or a plain User', () => {
+    expect(setup({ profile: null }).component.showCreateEvent()).toBe(false);
+    expect(setup({ profile: verifiedUserProfile }).component.showCreateEvent()).toBe(false);
+  });
+
+  it.each(['Organizer', 'Admin'] as const)('always shows the create button for %s', role => {
+    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: role } });
+    expect(component.showCreateEvent()).toBe(true);
+  });
+
+  it('disables creation for an unverified organizer, explains verification, and skips the membership lookup', async () => {
+    const { component, organizationsAll } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer', emailVerified: false }, organizations: [{ id: 'org-1' } as MyOrganizationResponse] });
+    component.sync();
+    await Promise.resolve();
+
+    expect(component.canCreateEvent()).toBe(false);
+    expect(component.createEventDisabledReason()).toBe(component.i18n.t('event.createRequiresVerifiedEmail'));
+    expect(organizationsAll).not.toHaveBeenCalled();
+  });
+
+  it('disables creation with zero direct memberships and enables it with one', async () => {
+    const zero = setup({ profile: { ...verifiedUserProfile, globalRole: 'Admin' }, organizations: [] }).component;
+    zero.sync();
+    await vi.waitFor(() => expect(zero.createEventMembershipState()).toBe('empty'));
+    expect(zero.canCreateEvent()).toBe(false);
+    expect(zero.createEventDisabledReason()).toBe(zero.i18n.t('event.createRequiresOrganization'));
+
+    const one = setup({ profile: { ...verifiedUserProfile, globalRole: 'Admin' }, organizations: [{ id: 'org-1' } as MyOrganizationResponse] }).component;
+    one.sync();
+    await vi.waitFor(() => expect(one.createEventMembershipState()).toBe('enabled'));
+    expect(one.canCreateEvent()).toBe(true);
+    expect(one.createEventDisabledReason()).toBeNull();
+  });
+
+  it('keeps creation disabled when the membership lookup fails', async () => {
+    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer' }, organizationsError: true });
+    component.sync();
+    await vi.waitFor(() => expect(component.createEventMembershipState()).toBe('failed'));
+
     expect(component.canCreateEvent()).toBe(false);
   });
 
-  it('hides the create button when unverified', () => {
-    const { component } = setup({ profile: { ...verifiedUserProfile, emailVerified: false } });
-    expect(component.canCreateEvent()).toBe(false);
-  });
+  it('does not let an older membership response overwrite a newer retry', async () => {
+    const first = new Subject<MyOrganizationResponse[]>();
+    const organizationsAll = vi.fn()
+      .mockReturnValueOnce(first.asObservable())
+      .mockReturnValueOnce(of([{ id: 'org-1' } as MyOrganizationResponse]));
+    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Admin' }, organizationsAll });
+    component.sync();
+    await vi.waitFor(() => expect(organizationsAll).toHaveBeenCalledTimes(1));
 
-  it('shows the create button for a verified organizer', () => {
-    const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer' } });
-    expect(component.canCreateEvent()).toBe(true);
+    component.sync();
+    await vi.waitFor(() => expect(component.createEventMembershipState()).toBe('enabled'));
+    first.next([]);
+    first.complete();
+    await Promise.resolve();
+
+    expect(component.createEventMembershipState()).toBe('enabled');
   });
 });
 
@@ -579,6 +636,132 @@ describe('PublicEventListComponent search row layout', () => {
 
     expect(component.items()).toHaveLength(2);
   });
+
+  it('orders structured filters after the whole-card fuzzy search', () => {
+    const controls = [
+      'event-list-search', 'event-list-filter-from', 'event-list-filter-to', 'event-list-filter-country',
+      'event-list-filter-region', 'event-list-filter-city', 'event-list-filter-format', 'event-list-filter-type'
+    ].map(cy => source.indexOf(`data-cy="${cy}"`));
+    expect(controls.every(index => index >= 0)).toBe(true);
+    expect(controls).toEqual([...controls].sort((left, right) => left - right));
+  });
+
+  it('ANDs structured filters with fuzzy whole-card matching', async () => {
+    const weekly = { ...event, eventType: 'weekly', venue: { ...event.venue, region: 'Auvergne-Rhône-Alpes' } };
+    const major = { ...eventB, eventType: 'major', venue: { ...eventB.venue, city: 'Paris', region: 'Île-de-France' } };
+    const { component } = setup({
+      params: { from: '2026-01-01', to: '2100-01-01', country: 'France', type: 'weekly' },
+      result: { items: [weekly, major] }
+    });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    component.setSearchDraft('legacy');
+
+    expect(component.items()).toEqual([weekly]);
+  });
+
+  it('loads defaults when URL carries only navigation params', async () => {
+    localStorage.removeItem('gones.events.search.v1.anonymous');
+    const { component } = setup({ bareParams: true, params: { view: 'list' } });
+    component.ngOnInit();
+    await vi.waitFor(() => {
+      expect(component.query().from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(component.query().to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+    expect(component.query().view).toBe('list');
+  });
+
+  it('restores per-user search memory before profile defaults', async () => {
+    const key = 'gones.events.search.v1.44444444-4444-4444-4444-444444444444';
+    localStorage.setItem(key, JSON.stringify({ version: 1, q: 'stored', filters: {
+      from: '2028-01-01', to: '2028-06-30', country: 'Belgium', region: 'Wallonia', city: 'Liège', format: 'legacy', eventType: 'monthly'
+    } }));
+    const profile = { ...verifiedUserProfile, locationCountry: 'FR', locationRegion: 'ARA', locationCity: 'Lyon' } as UserProfileResponse;
+    const { component } = setup({ bareParams: true, params: { view: 'list' }, profile });
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.searchDraft()).toBe('stored'));
+    expect(component.query()).toMatchObject({ country: 'Belgium', region: 'Wallonia', city: 'Liège', eventType: 'monthly' });
+    localStorage.removeItem(key);
+  });
+
+  it('round-trips intentionally empty stored date bounds through router params', async () => {
+    const key = 'gones.events.search.v1.44444444-4444-4444-4444-444444444444';
+    localStorage.setItem(key, JSON.stringify({ version: 1, q: '', filters: {
+      from: '', to: '', country: '', region: '', city: '', format: '', eventType: ''
+    } }));
+    const { component } = setup({ bareParams: true, params: { view: 'list' }, profile: verifiedUserProfile });
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.query()).toMatchObject({ from: '', to: '' }));
+    localStorage.removeItem(key);
+  });
+
+  it('keeps explicit URL filters ahead of search memory and profile defaults', async () => {
+    const key = 'gones.events.search.v1.44444444-4444-4444-4444-444444444444';
+    localStorage.setItem(key, JSON.stringify({ version: 1, q: 'stored', filters: {
+      from: '2028-01-01', to: '2028-06-30', country: 'Belgium', region: '', city: '', format: '', eventType: ''
+    } }));
+    const { component } = setup({ bareParams: true, profile: verifiedUserProfile, params: {
+      q: 'url', from: '2029-01-01', to: '2029-06-30', country: 'France', region: 'Île-de-France', city: 'Paris', type: 'major'
+    } });
+    component.ngOnInit();
+    await Promise.resolve();
+    expect(component.query()).toMatchObject({ q: 'url', country: 'France', region: 'Île-de-France', city: 'Paris', eventType: 'major' });
+    localStorage.removeItem(key);
+  });
+
+  it('defaults an empty navigation from per-user profile location', async () => {
+    localStorage.removeItem('gones.events.search.v1.44444444-4444-4444-4444-444444444444');
+    const profile = { ...verifiedUserProfile, locationCountry: 'FR', locationRegion: 'ARA', locationCity: 'Lyon' } as UserProfileResponse;
+    const { component } = setup({
+      bareParams: true,
+      profile,
+      geoCountries: [{ code: 'FR', name: 'France' }],
+      geoRegions: [{ code: 'ARA', name: 'Auvergne-Rhône-Alpes' }]
+    });
+    component.ngOnInit();
+    await vi.waitFor(() => {
+      expect(component.query()).toMatchObject({ country: 'France', region: 'Auvergne-Rhône-Alpes', city: 'Lyon' });
+    });
+  });
+});
+
+describe('PublicEventListComponent past-event toggle', () => {
+  const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
+
+  it('renders hide-past checkbox after list button, checked by default', () => {
+    const listButton = source.indexOf('data-cy="list-view"');
+    const checkbox = source.indexOf('data-cy="event-list-hide-past"');
+    expect(listButton).toBeGreaterThan(-1);
+    expect(checkbox).toBeGreaterThan(listButton);
+    expect(source.slice(checkbox, source.indexOf('</label>', checkbox))).toContain("i18n.t('event.hidePast')");
+  });
+
+  it('calendar view applies the checked hide-past state to day cells', async () => {
+    const started = { ...event, id: 'started', startsAtUtc: '2000-01-01T00:00:00Z' };
+    const available = { ...eventB, startsAtUtc: '2099-01-01T00:00:00Z' };
+    const { component } = setup({ result: { items: [started, available] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(component.dayEvents(event.venueStartDate)).toEqual([available]);
+    component.hidePastEvents.set(false);
+    expect(component.dayEvents(event.venueStartDate)).toEqual([started, available]);
+  });
+
+  it('defaults to hiding past events and can show them', async () => {
+    const started = { ...event, id: 'started', startsAtUtc: '2000-01-01T00:00:00Z' };
+    const { component } = setup({ params: { view: 'list' }, result: { items: [started, eventB] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.hidePastEvents()).toBe(true);
+    expect(component.pagedItems()).toEqual([eventB]);
+
+    component.hidePastEvents.set(false);
+    expect(component.pagedItems()).toEqual([started, eventB]);
+  });
 });
 
 describe('PublicEventListComponent toolbar row', () => {
@@ -602,13 +785,20 @@ describe('PublicEventListComponent toolbar row', () => {
     expect(header).toContain('data-cy="event-list-create-event"');
   });
 
-  it('the create button wears the success green', () => {
+  it('the create button wears the success green and exposes its disabled reason as a tooltip', () => {
     const buttonStart = source.indexOf('data-cy="event-list-create-event"');
     const tagStart = source.lastIndexOf('<a', buttonStart);
     const tagEnd = source.indexOf('>', buttonStart);
     const tag = source.slice(tagStart, tagEnd);
     expect(tag).toContain('create-action-button');
     expect(tag).not.toContain('home-primary-action');
+    expect(tag).toContain('[routerLink]="canCreateEvent() ? \'/events/new\' : null"');
+    expect(tag).toContain('role="link"');
+    expect(tag).toContain('tabindex="0"');
+    expect(tag).toContain('[disabled]="!canCreateEvent()"');
+    expect(tag).toContain('[disabledInteractive]="!canCreateEvent()"');
+    expect(tag).toContain('[matTooltip]="disabledReason ?? \'\'"');
+    expect(tag).toContain('[matTooltipDisabled]="!disabledReason"');
   });
 
   it('the search input is a normal bordered input and its row is bare', () => {
@@ -793,6 +983,18 @@ function templateBlock(source: string, opening: string): string {
 }
 
 describe('PublicEventListComponent list pagination', () => {
+  it('list view hides events that already started while calendar keeps them', async () => {
+    const started = { ...event, id: 'started', slug: 'started', startsAtUtc: '2000-01-01T00:00:00Z' };
+    const available = { ...eventB, startsAtUtc: '2099-01-01T00:00:00Z' };
+    const { component } = setup({ params: { view: 'list' }, result: { items: [started, available] } });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.items()).toHaveLength(2);
+    expect(component.pagedItems()).toEqual([available]);
+  });
+
   it('the list renders only one page of events', async () => {
     const { component } = setup({ params: { view: 'list' }, itemCount: 45 });
     component.ngOnInit();
@@ -815,8 +1017,10 @@ describe('PublicEventListComponent list pagination', () => {
     // render it in, so the guard is asserted structurally — the nav must live inside the block that
     // only opens past one page, and nowhere else in the template.
     const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
-    expect(source.match(/data-cy="event-list-pagination"/g)).toHaveLength(1);
-    expect(templateBlock(source, '@if (pageCount() > 1) {')).toContain('data-cy="event-list-pagination"');
+    expect(source).toContain("place === 'top' ? 'event-list-pagination-top' : 'event-list-pagination'");
+    const listBlock = templateBlock(source.slice(source.indexOf('} @else {', source.indexOf("query().view === 'calendar'")) + 2), '@else {');
+    expect(listBlock).toContain("paginationNav; context: { $implicit: 'top' }");
+    expect(listBlock).toContain("paginationNav; context: { $implicit: 'bottom' }");
   });
 
   it('pagination appears past twenty', async () => {
@@ -828,18 +1032,32 @@ describe('PublicEventListComponent list pagination', () => {
     expect(component.pageCount()).toBe(2);
   });
 
-  it('moving page navigates with the page parameter', async () => {
+  it('clicking a page number navigates with the page parameter', async () => {
     const { component, navigate } = setup({ params: { view: 'list' }, itemCount: 45 });
     component.ngOnInit();
     await Promise.resolve();
     await Promise.resolve();
     navigate.mockClear();
 
-    component.movePage(1);
+    component.goPage(2);
 
     expect(navigate).toHaveBeenCalled();
     const [, extras] = navigate.mock.calls[0] as [unknown, { queryParams: Record<string, string> }];
     expect(extras.queryParams['page']).toBe('2');
+  });
+
+  it('uses the Global Rankings numbered page window', async () => {
+    const { component } = setup({ params: { view: 'list', page: '9' }, itemCount: 400 });
+    component.ngOnInit();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(component.pageWindow()).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);
+    const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
+    expect(source).toContain("@for (item of pageWindow(); track $index)");
+    expect(source).toContain("'event-list-page-number-' + place + '-' + item");
+    expect(source).not.toContain('event-list-page-prev');
+    expect(source).not.toContain('event-list-page-next');
   });
 
   it('searching resets to page one', async () => {
@@ -901,13 +1119,14 @@ describe('PublicEventListComponent list pagination', () => {
   it('the pagination nav exists in the list block only', () => {
     const source = readFileSync(join(__dirname, 'public-event-list.component.ts'), 'utf8');
     const listIndex = source.indexOf('data-cy="event-list-list"');
-    const paginationIndex = source.indexOf('data-cy="event-list-pagination"');
+    const paginationTemplate = source.indexOf('<ng-template #paginationNav');
     expect(listIndex).toBeGreaterThan(-1);
-    expect(paginationIndex).toBeGreaterThan(listIndex);
+    expect(paginationTemplate).toBeGreaterThan(listIndex);
 
-    const calendarViewStart = source.indexOf("query().view === 'calendar'");
-    const listViewStart = source.indexOf("} @else {", calendarViewStart);
-    expect(paginationIndex).toBeGreaterThan(listViewStart);
+    const calendarBlock = templateBlock(source, "@if (query().view === 'calendar') {");
+    expect(calendarBlock).not.toContain('#paginationNav');
+    const listViewStart = source.indexOf('} @else {', source.indexOf("query().view === 'calendar'"));
+    expect(paginationTemplate).toBeGreaterThan(listViewStart);
   });
 });
 
@@ -929,7 +1148,7 @@ describe('PublicEventListComponent day-cell events', () => {
 
     expect(calendarBlock).not.toContain('data-cy="event-list-list"');
     expect(calendarBlock).not.toContain('calendar-venue-date-');
-    expect(calendarBlock).not.toContain('data-cy="event-list-pagination"');
+    expect(calendarBlock).not.toContain('#paginationNav');
   });
 
   it('the list tab keeps its list', () => {
@@ -939,7 +1158,8 @@ describe('PublicEventListComponent day-cell events', () => {
     const listBlock = templateBlock(source.slice(elseStart + 2), '@else {');
 
     expect(listBlock).toContain('data-cy="event-list-list"');
-    expect(listBlock).toContain('data-cy="event-list-pagination"');
+    expect(listBlock).toContain("paginationNav; context: { $implicit: 'top' }");
+    expect(listBlock).toContain("paginationNav; context: { $implicit: 'bottom' }");
   });
 });
 
@@ -1064,7 +1284,7 @@ describe('PublicEventListComponent list card', () => {
 
     expect(activation.preventDefault).toHaveBeenCalled();
     expect(activation.stopPropagation).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events?month=2026-08&view=list&q=legacy&register=lyon-legacy' } });
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events?month=2026-08&view=list&from=2000-01-01&to=2100-01-01&q=legacy&register=lyon-legacy' } });
   });
 
   it('rechecks capability and never mutates before confirmation', async () => {
@@ -1120,7 +1340,7 @@ describe('PublicEventListComponent list card', () => {
 
     expect(capability).toHaveBeenCalledWith(event.id);
     expect(register).toHaveBeenCalledTimes(1);
-    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list&from=2000-01-01&to=2100-01-01', { replaceUrl: true });
   });
 
   it('resumed cancellation performs no mutation and strips register', async () => {
@@ -1131,7 +1351,7 @@ describe('PublicEventListComponent list card', () => {
     await component.resumeRegistrationIntent();
 
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list&from=2000-01-01&to=2100-01-01', { replaceUrl: true });
   });
 
   it('resumed ineligible intent shows server reason and strips register', async () => {
@@ -1143,7 +1363,7 @@ describe('PublicEventListComponent list card', () => {
 
     expect(component.registrationMessageKey()).toBe('registration.full');
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list&from=2000-01-01&to=2100-01-01', { replaceUrl: true });
   });
 
   it('resumed missing intent reports unavailable and strips register via replacement URL', async () => {
@@ -1154,7 +1374,7 @@ describe('PublicEventListComponent list card', () => {
 
     expect(component.registrationMessageKey()).toBe('registration.unavailable');
     expect(register).not.toHaveBeenCalled();
-    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list', { replaceUrl: true });
+    expect(navigateByUrl).toHaveBeenCalledWith('/events?month=2026-08&view=list&from=2000-01-01&to=2100-01-01', { replaceUrl: true });
   });
 
   it('the card lifts on hover and on keyboard focus', () => {

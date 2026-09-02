@@ -7,6 +7,7 @@ import { EventProposalReviewResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventProposalService } from './event-proposal.service';
+import { invalidateEventCaches } from './event-catalog-cache.service';
 
 type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused' | 'expired' | 'handled' | 'error';
 
@@ -47,6 +48,8 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dd data-cy="event-request-fact-organization">{{ review.organizationName || '—' }}</dd>
               <dt data-cy="event-request-fact-formats-label">{{ i18n.t('event.format') }}</dt>
               <dd data-cy="event-request-fact-formats">{{ review.formatNames.join(', ') }}</dd>
+              <dt data-cy="event-request-fact-type-label">{{ i18n.t('event.eventType') }}</dt>
+              <dd data-cy="event-request-fact-type">{{ review.event.eventType }}</dd>
               <dt data-cy="event-request-fact-venue-label">{{ i18n.t('common.location') }}</dt>
               <dd data-cy="event-request-fact-venue">{{ venueLine(review) }}</dd>
               <dt data-cy="event-request-fact-starts-label">{{ i18n.t('eventCreate.start') }}</dt>
@@ -129,6 +132,7 @@ export class EventRequestComponent {
     this.pending.set(true);
     try {
       const decision = await this.proposals.approveByToken(this.token);
+      invalidateEventCaches();
       this.slug.set(decision.slug ?? '');
       this.state.set('approved');
     } catch (error) {
@@ -153,7 +157,7 @@ export class EventRequestComponent {
 
   venueLine(review: EventProposalReviewResponse): string {
     const t = review.event;
-    return [t.streetAddress, t.postalCode, t.city, t.country].filter(Boolean).join(', ');
+    return [t.streetAddress, t.postalCode, t.city, t.region, t.country].filter(Boolean).join(', ');
   }
 
   private stateForError(error: unknown): EventRequestState {

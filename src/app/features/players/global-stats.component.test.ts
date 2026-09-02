@@ -473,7 +473,7 @@ describe('GlobalStatsComponent — numbered pagination', () => {
 
     comp.currentSize.set(10);
     expect(comp.totalPages()).toBe(20);
-    expect(comp.pageWindow()).toEqual([1, 2, 'gap', 20]);
+    expect(comp.pageWindow()).toEqual([1, 2, 3, 4, 'gap', 20]);
 
     comp.currentPage.set(9);
     expect(comp.pageWindow()).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);

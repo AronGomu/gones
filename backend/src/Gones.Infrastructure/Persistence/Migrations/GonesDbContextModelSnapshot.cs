@@ -278,6 +278,11 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ends_at_utc");
 
+                    b.Property<string>("EventType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("event_type");
+
                     b.Property<string>("LiveTournamentUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
@@ -297,6 +302,11 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("postal_code");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("region");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -371,11 +381,17 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasIndex("DeletedByUserId")
                         .HasDatabaseName("ix_events_deleted_by_user_id");
 
+                    b.HasIndex("EventType")
+                        .HasDatabaseName("ix_events_event_type");
+
                     b.HasIndex("NormalizedSearchText")
                         .HasDatabaseName("ix_events_normalized_search_text");
 
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("ix_events_organization_id");
+
+                    b.HasIndex("Region")
+                        .HasDatabaseName("ix_events_region");
 
                     b.HasIndex("Slug")
                         .IsUnique()
@@ -399,11 +415,16 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "StartsAtUtc")
                         .HasDatabaseName("ix_events_status_starts_at_utc");
 
+                    b.HasIndex("Country", "Region", "City")
+                        .HasDatabaseName("ix_events_country_region_city");
+
                     b.HasIndex("VenueStartDate", "VenueStartTime", "Id")
                         .HasDatabaseName("ix_events_venue_start_date_venue_start_time_id");
 
                     b.ToTable("events", null, t =>
                         {
+                            t.HasCheckConstraint("ck_event_type", "event_type IS NULL OR event_type IN ('Weekly', 'Monthly', 'Major')");
+
                             t.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
 
                             t.HasCheckConstraint("ck_scheduled_tournament_deleted_metadata", "(deleted_at IS NULL AND deleted_by_user_id IS NULL) OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL)");

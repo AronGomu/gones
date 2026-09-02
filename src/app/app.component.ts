@@ -31,11 +31,21 @@ interface HeaderTournament {
   selector: 'gones-root',
   standalone: true,
   imports: [RouterOutlet, RouterLink, MatButtonModule, MatToolbarModule],
+  host: { '[class.about-active]': 'showAboutNavigation()' },
   template: `
     @if (!isResultPage()) {
       <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
         <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')" data-cy="app-brand-link"><img src="assets/gones_logo.png" alt="Gones" data-cy="app-brand-logo"></a>
-        <span class="spacer" data-cy="app-header-spacer"></span>
+        @if (showAboutNavigation()) {
+          <nav class="about-header-nav" data-cy="about-header-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
+            <a href="#association" data-cy="about-header-nav-association">{{ i18n.t('about.nav.association') }}</a>
+            <a href="#tournaments" data-cy="about-header-nav-tournaments">{{ i18n.t('about.nav.tournaments') }}</a>
+            <a href="#staff" data-cy="about-header-nav-staff">{{ i18n.t('about.nav.staff') }}</a>
+            <a routerLink="/events" data-cy="about-header-nav-calendar">{{ i18n.t('about.nav.calendar') }}</a>
+          </nav>
+        } @else {
+          <span class="spacer" data-cy="app-header-spacer"></span>
+        }
         @if (showLiveTournamentActions() && power.enabled()) {
           <div class="header-actions live-tournament-header-actions" data-cy="app-live-tournament-header-actions">
             <button mat-stroked-button class="secondary-action" type="button" data-cy="live-tournament-advanced-settings-button" (click)="openLiveTournamentAdvancedSettings()">{{ i18n.t('header.advancedSettings') }}</button>
@@ -72,16 +82,18 @@ interface HeaderTournament {
           </div>
         }
       </mat-toolbar>
-      <nav class="breadcrumb-shell breadcrumb-shell--header" data-cy="app-breadcrumb-nav" [attr.aria-label]="i18n.t('nav.breadcrumb')">
-        <ol class="breadcrumbs" data-cy="breadcrumbs">
-          @for (item of breadcrumbs(); track item.label + $index) {
-            <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null" [attr.data-cy]="'app-breadcrumb-item-' + $index">
-              @if (!$last && item.link) { <a [routerLink]="item.link" [attr.data-cy]="'app-breadcrumb-link-' + $index">{{ item.label }}</a> }
-              @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null" [attr.lang]="item.lang">{{ item.label }}</span> }
-            </li>
-          }
-        </ol>
-      </nav>
+      @if (!showAboutNavigation()) {
+        <nav class="breadcrumb-shell breadcrumb-shell--header" data-cy="app-breadcrumb-nav" [attr.aria-label]="i18n.t('nav.breadcrumb')">
+          <ol class="breadcrumbs" data-cy="breadcrumbs">
+            @for (item of breadcrumbs(); track item.label + $index) {
+              <li class="breadcrumb-item" [class.active]="$last" [attr.aria-current]="$last ? 'page' : null" [attr.data-cy]="'app-breadcrumb-item-' + $index">
+                @if (!$last && item.link) { <a [routerLink]="item.link" [attr.data-cy]="'app-breadcrumb-link-' + $index">{{ item.label }}</a> }
+                @else { <span [attr.data-cy]="$last ? 'breadcrumb-current' : null" [attr.lang]="item.lang">{{ item.label }}</span> }
+              </li>
+            }
+          </ol>
+        </nav>
+      }
     }
     @if (auth.enabled && auth.profile() && !auth.profile()!.emailVerified) {
       <aside class="warning app-banner verification-banner" role="status" aria-live="polite" data-cy="unverified-banner">
@@ -111,6 +123,7 @@ export class AppComponent {
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
+  readonly showAboutNavigation = computed(() => this.pathOnly(this.currentUrl()) === '/about');
   readonly showSignInLink = computed(() => !AUTH_PATHS.includes(this.pathOnly(this.currentUrl())));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);

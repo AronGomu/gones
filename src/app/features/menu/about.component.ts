@@ -4,7 +4,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { I18nService } from '../../i18n/i18n.service';
 import type { MessageKey } from '../../i18n/messages';
 import { BackButtonComponent } from '../../shared/back-button.component';
-import { SyncBarComponent } from '../../shared/sync-bar.component';
 import { logBoundaryError } from '../../shared/app-logger';
 import { EventCatalogCacheService } from '../events/event-catalog-cache.service';
 import { EventDatePresentation, PublicEventView, eventDatePresentation } from '../events/public-event-list';
@@ -60,15 +59,15 @@ export const aboutContributors: readonly AboutContributor[] = [
 ];
 
 export const aboutTournamentBands: readonly AboutTournamentBand[] = [
-  { id: 'weekly', titleKey: 'about.tournament.weekly.title', whenKey: 'about.tournament.weekly.when', whereKey: 'about.tournament.weekly.where', fieldKey: 'about.tournament.weekly.field', bodyKey: 'about.tournament.weekly.body', actionKey: 'about.tournament.weekly.action', image: 'assets/images/2024-01-gones-legacy-brindas-01.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
+  { id: 'weekly', titleKey: 'about.tournament.weekly.title', whenKey: 'about.tournament.weekly.when', whereKey: 'about.tournament.weekly.where', fieldKey: 'about.tournament.weekly.field', bodyKey: 'about.tournament.weekly.body', actionKey: 'about.tournament.weekly.action', image: 'assets/images/002_weekly_legacy.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1152 },
   { id: 'monthly', titleKey: 'about.tournament.monthly.title', whenKey: 'about.tournament.monthly.when', whereKey: 'about.tournament.monthly.where', fieldKey: 'about.tournament.monthly.field', bodyKey: 'about.tournament.monthly.body', actionKey: 'about.tournament.monthly.action', image: 'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
   { id: 'salty', titleKey: 'about.tournament.salty.title', whenKey: 'about.tournament.salty.when', whereKey: 'about.tournament.salty.where', fieldKey: 'about.tournament.salty.field', bodyKey: 'about.tournament.salty.body', actionKey: 'about.tournament.salty.action', image: 'assets/images/2023-05-gones-legacy-fact-top-8.jpeg', imageAltKey: 'about.tournament.salty.imageAlt', imageWidth: 2048, imageHeight: 1536 },
-  { id: 'leagues', titleKey: 'about.tournament.leagues.title', whenKey: 'about.tournament.leagues.when', whereKey: 'about.tournament.leagues.where', fieldKey: 'about.tournament.leagues.field', bodyKey: 'about.tournament.leagues.body', actionKey: 'about.tournament.leagues.action', image: 'assets/images/2025-01-mtgones-10-years-top-2.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1152 }
+  { id: 'leagues', titleKey: 'about.tournament.leagues.title', whenKey: 'about.tournament.leagues.when', whereKey: 'about.tournament.leagues.where', fieldKey: 'about.tournament.leagues.field', bodyKey: 'about.tournament.leagues.body', actionKey: 'about.tournament.leagues.action', image: 'assets/images/007_league_final.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1536 }
 ];
 
 @Component({
   standalone: true,
-  imports: [RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
+  imports: [RouterLink, MatButtonModule, BackButtonComponent],
   host: { '[attr.lang]': 'i18n.language()', class: 'about-route' },
   styles: [`
     :host.about-route .about-next-up__skeleton {
@@ -82,32 +81,24 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
     }
   `],
   template: `
-    <gones-back-button data-cy="about-back-top" [link]="['/']" [label]="i18n.t('about.back')" position="top" />
-    <nav class="about-internal-nav" data-cy="about-internal-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
-      <a href="#association" data-cy="about-nav-association">{{ i18n.t('about.nav.association') }}</a>
-      <a href="#tournaments" data-cy="about-nav-tournaments">{{ i18n.t('about.nav.tournaments') }}</a>
-      <a href="#staff" data-cy="about-nav-staff">{{ i18n.t('about.nav.staff') }}</a>
-      <a routerLink="/events" data-cy="about-nav-calendar">{{ i18n.t('about.nav.calendar') }}</a>
-    </nav>
-    <div class="about-page" data-cy="about-page">
-      <section class="about-hero" data-cy="about-hero" aria-labelledby="about-title">
-        <img class="about-hero__image" src="assets/images/2025-01-ice-mtgones-10-years.jpeg" alt="MTGones players gathered at the 10-year anniversary Ice tournament" width="2048" height="1152" data-cy="about-hero-image">
+    <section class="about-hero" data-cy="about-hero" aria-labelledby="about-title">
+        <img class="about-hero__image" src="assets/images/000_about-hero-image.jpeg" [alt]="i18n.t('about.hero.imageAlt')" width="1583" height="878" data-cy="about-hero-image">
+        <h1 id="about-title" class="about-hero__title" data-cy="about-hero-title" data-reveal>{{ i18n.t('about.hero.title') }}</h1>
         <div class="about-hero__copy" data-cy="about-hero-copy">
-          <p class="kicker" data-cy="about-hero-kicker" data-reveal>{{ i18n.t('about.hero.kicker') }}</p>
-          <h1 id="about-title" data-cy="about-hero-title" data-reveal style="--reveal-delay: 70ms">{{ i18n.t('about.hero.title') }}</h1>
+          <p class="kicker" data-cy="about-hero-kicker" data-reveal style="--reveal-delay: 70ms">{{ i18n.t('about.hero.kicker') }}</p>
           <p class="about-hero__lede" data-cy="about-hero-lede" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.hero.lede') }}</p>
           <div class="info-actions" data-cy="about-hero-actions" data-reveal style="--reveal-delay: 210ms">
             <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-hero-calendar-link">{{ i18n.t('about.hero.calendar') }}</a>
             <a mat-stroked-button class="secondary-action" href="#tournaments" data-cy="about-hero-team-link">{{ i18n.t('about.hero.team') }}</a>
           </div>
         </div>
-      </section>
+    </section>
 
+    <div class="about-page" data-cy="about-page">
       <section class="about-next-up" data-cy="about-next-up" aria-labelledby="about-next-up-title">
         <header class="about-section-heading" data-cy="about-next-up-heading" data-reveal>
           <p class="kicker" data-cy="about-next-up-kicker">{{ i18n.t('about.nextUp.kicker') }}</p>
           <h2 id="about-next-up-title" data-cy="about-next-up-title">{{ i18n.t('about.nextUp.title') }}</h2>
-          <gones-sync-bar cyPrefix="about-next-up" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" data-cy="about-next-up-sync-bar" />
         </header>
         @if (loading()) {
           <div class="about-next-up__loading" aria-busy="true" aria-live="polite" data-cy="about-next-up-loading">
@@ -151,7 +142,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           <p data-cy="about-association-paragraph-1">{{ i18n.t('about.intro.paragraph1') }}</p>
           <p data-cy="about-association-paragraph-2">{{ i18n.t('about.intro.paragraph2') }}</p>
         </div>
-        <img class="about-content-image about-intro__image" src="assets/images/2019-10-mtglyon-mtgones-gathering.jpeg" alt="MTGones and MTGLyon players gathered together" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-association-image" data-reveal="scale" style="--reveal-delay: 140ms">
+        <img class="about-content-image about-intro__image" src="assets/images/001_keeping-community-alive.jpeg" alt="MTGones community members posing together" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-association-image" data-reveal="scale" style="--reveal-delay: 140ms">
       </section>
 
       <section id="tournaments" class="about-tournaments" data-cy="about-tournaments" aria-labelledby="tournaments-title">
@@ -176,7 +167,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           </article>
         }
         <article class="about-fire-ice" data-cy="about-fire-ice" aria-labelledby="about-fire-ice-title">
-          <div class="about-fire-ice__art" aria-hidden="true" data-art="assets/card-art/fire-ice.jpg" data-cy="about-fire-ice-art">
+          <div class="about-fire-ice__art" aria-hidden="true" data-art="assets/fire-about.webp|assets/ice-about.webp" data-cy="about-fire-ice-art">
             <div class="about-fire-ice__art-half about-fire-ice__art-half--fire" data-cy="about-fire-ice-art-fire"></div>
             <div class="about-fire-ice__art-half about-fire-ice__art-half--ice" data-cy="about-fire-ice-art-ice"></div>
           </div>
@@ -188,8 +179,8 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <div data-cy="about-fire-ice-edition-ice"><strong class="about-fire-ice__ice" data-cy="about-fire-ice-edition-ice-title">{{ i18n.t('about.fireIce.iceEdition') }}</strong><span data-cy="about-fire-ice-edition-ice-body">{{ i18n.t('about.fireIce.iceEditionBody') }}</span></div>
             </div>
             <div class="about-fire-ice__photos" data-cy="about-fire-ice-photos">
-              <img src="assets/images/2025-06-fire-team-orga.jpeg" alt="The Fire 2025 organizing team behind the prize table" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image" data-reveal="scale">
-              <img src="assets/images/2026-01-ice-01.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms">
+              <img src="assets/images/005_fire.jpeg" alt="Players competing in a packed Fire tournament hall" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image" data-reveal="scale">
+              <img src="assets/images/006_ice.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms">
             </div>
           </div>
         </article>
@@ -305,8 +296,6 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly upcomingEvents: WritableSignal<readonly PublicEventView[]> = signal<readonly PublicEventView[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
-  readonly stale = signal(false);
-  readonly syncedAt = signal<string | undefined>(undefined);
   readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2];
   readonly tournamentBands = aboutTournamentBands;
   readonly founders = aboutStaff.slice(0, 3);
@@ -330,16 +319,12 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
       const result = force ? await this.catalog.load({ force: true }) : await this.catalog.load();
       if (loadId !== this.upcomingLoadId) return;
       this.upcomingEvents.set(selectUpcomingEvents(result.items, new Date()));
-      this.syncedAt.set(result.fetchedAt);
-      this.stale.set(result.stale);
       this.error.set(false);
     } catch (error) {
       if (loadId !== this.upcomingLoadId) return;
       logBoundaryError('about.load-upcoming-events', error);
       this.upcomingEvents.set([]);
       this.error.set(true);
-      this.stale.set(false);
-      this.syncedAt.set(undefined);
     } finally {
       if (loadId === this.upcomingLoadId && !this.destroyRef.destroyed) {
         this.loading.set(false);
@@ -349,10 +334,6 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   retryUpcomingEvents(): void {
-    void this.loadUpcomingEvents(true);
-  }
-
-  syncUpcomingEvents(): void {
     void this.loadUpcomingEvents(true);
   }
 

@@ -52,6 +52,10 @@ The Calendar V1 record an organizer publishes and a User registers for: base tit
 _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
+**Event Type**:
+The Event cadence/category selected by its publisher: `weekly`, `monthly`, or `major`. It is app-owned public Event data and can be used to filter the Calendar.
+_Avoid_: lifecycle event type, Tournament Format
+
 **Scheduled Tournament**:
 Retired (ADR 0035). The word the Calendar V1 record carried before the rename. It survives only inside identifiers the rename deliberately left alone — `ScheduledTournamentStatus`, the import planner, the `account_owns_records` relation labels — never in product language.
 _Avoid_: as a name for anything new
@@ -319,6 +323,7 @@ _Avoid_: Migration, deployment
 - A **SpiceRack Import** is one possible kind of **Tournament Import**
 - An **Event** belongs to exactly one **Organization**
 - An **Event** has exactly one active **Tournament Format**
+- An **Event** has exactly one **Event Type**: `weekly`, `monthly`, or `major`
 - An **Event** may link to one **Live Tournament** and one **Archive Tournament**; links are navigation only, not data authority
 - An **Organization** may have zero or more members; with zero it is a **Draft Organization**
 - A **Draft Organization** may hold existing **Events** but may not publish a new one
@@ -489,7 +494,7 @@ _Avoid_: Migration, deployment
 - Sorting **Global Player Statistics** by Rating (or by `Decayed`) keeps **provisional** players below every ranked player in both directions, ordered by that same rating among themselves; **inactive** players stay inside the rating order. Every other column sorts on its value alone
 - Percentages in **Global Player Statistics** display as whole-number percentages; null values display as `—`
 - Rival cells in **Global Player Statistics** display as `Name (W-L)`; Archetype displays as `Name (N matches)`
-- **Power User** mode is a browser-local opt-in that reveals advanced mutation controls; it never grants server authority and never hides home cards or browse destinations including **Global Player Statistics**
+- **Power User** mode is a browser-local opt-in for Visitors and plain Users that reveals advanced mutation controls; Organizer and Admin roles force it on and do not see the toggle; it never grants server authority and never hides home cards or browse destinations including **Global Player Statistics**
 - Gones is unreleased with no production environment; local data may be reset or reshaped without production migration guarantees until the release-state note in `AGENT.md` is explicitly replaced
 - An **Event** has exactly one active Tournament Format; the optional `liveTournamentUrl` and `archiveTournamentUrl` are navigation strings, not data authority links
 - A **Tournament Result** is recalculated from the Tournament's Rounds after relevant data changes

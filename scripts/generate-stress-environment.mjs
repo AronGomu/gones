@@ -591,6 +591,8 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         postalCode: club.postalCode,
         city: club.city,
         country: 'France',
+        region: club.region,
+        eventType: 'weekly',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: `${pad(start, 2)}:00`,
@@ -623,6 +625,8 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         postalCode: club.postalCode,
         city: club.city,
         country: 'France',
+        region: club.region,
+        eventType: 'monthly',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: '10:00',
@@ -660,6 +664,8 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         postalCode: host.postalCode,
         city: host.city,
         country: 'France',
+        region,
+        eventType: 'major',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: '09:00',
@@ -696,6 +702,8 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
       postalCode: nationalPostalCode,
       city: nationalCity,
       country: 'France',
+      region: nationalRegion,
+      eventType: 'major',
       timeZoneId: 'Europe/Paris',
       startsAtLocalOffsetDays: days,
       startsAtLocalTime: time,
@@ -1185,11 +1193,11 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
   const liveTournaments = generateLiveTournaments(random, volumes, clubs, archive.leagueSeasons);
   const auditRecords = generateAuditRecords(random, volumes, accounts);
 
-  // `club`, `tier`, `region` and `year` are how this file reasons about an Event; the fixture format
-  // knows none of them, and `validateEnvironment` would not care but the seeder's payloads would carry
-  // them straight to the API. `events` keeps the labels — minus the club, which points back at a whole
+  // `club`, `tier` and `year` are how this file reasons about an Event; the fixture format knows none
+  // of them. Region is app-owned Event data and deliberately remains in the fixture. `events` keeps
+  // internal labels — minus the club, which points back at a whole
   // roster — for the console summary and for the tests that gate the tier mix.
-  const tournaments = events.map(({ club, tier, region, year, ...event }) => event);
+  const tournaments = events.map(({ club, tier, year, ...event }) => event);
   const labelled = events.map(({ club, ...event }) => event);
 
   return {

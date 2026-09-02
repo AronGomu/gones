@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of, throwError } from 'rxjs';
 import { API_BASE_URL } from '../../api/generated/gones-api';
 import { PublicEventView } from './public-event-list';
-import { EVENT_CATALOG_CACHE_KEY, EventCatalogCacheService } from './event-catalog-cache.service';
+import { EVENT_CATALOG_CACHE_KEY, EventCatalogCacheService, invalidateEventCaches } from './event-catalog-cache.service';
+import { EVENT_DETAIL_CACHE_PREFIX } from './public-event.service';
 
 function makeStorage(): Storage {
   const store = new Map<string, string>();
@@ -14,7 +15,7 @@ function makeStorage(): Storage {
     setItem: (key: string, value: string) => { store.set(key, value); },
     removeItem: (key: string) => { store.delete(key); },
     clear: () => { store.clear(); },
-    key: () => null,
+    key: (index: number) => [...store.keys()][index] ?? null,
     get length() { return store.size; }
   } as Storage;
 }
@@ -97,6 +98,14 @@ describe('EventCatalogCacheService', () => {
     const result = await service.load();
     expect(result.items).toEqual(items);
     expect(result.stale).toBe(true);
+  });
+
+  it('invalidates catalog plus real versioned detail cache keys', () => {
+    globalThis.localStorage!.setItem(EVENT_CATALOG_CACHE_KEY, '{}');
+    globalThis.localStorage!.setItem(`${EVENT_DETAIL_CACHE_PREFIX}detail`, '{}');
+    globalThis.localStorage!.setItem('gones.events.cache.legacy', '{}');
+    invalidateEventCaches();
+    expect(globalThis.localStorage!.length).toBe(0);
   });
 
   it('a failed first load rejects', async () => {

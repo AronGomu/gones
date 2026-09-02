@@ -1,10 +1,11 @@
 import { ParamMap } from '@angular/router';
 import { PublicEventSummaryResponse } from '../../api/generated/gones-api';
 import { safeReturnUrl } from '../../auth/return-url';
+import { EventListFilters, defaultEventListFilters } from './event-list-filters';
 
 export type CalendarView = 'calendar' | 'list';
 
-export interface EventListQuery {
+export interface EventListQuery extends EventListFilters {
   month: string;
   view: CalendarView;
   q: string;
@@ -20,7 +21,7 @@ export interface PublicEventView {
   displayTitle: string;
   slug: string;
   summary: string | undefined;
-  venue: PublicEventSummaryResponse['venue'];
+  venue: PublicEventSummaryResponse['venue'] & { region?: string };
   timeZoneId: string;
   venueStartDate: string;
   venueStartTime: string;
@@ -30,6 +31,7 @@ export interface PublicEventView {
   endsAtUtc: unknown;
   capacity: number | undefined;
   status: string;
+  eventType?: string;
   organization: PublicEventSummaryResponse['organization'];
   formats: PublicEventSummaryResponse['formats'];
 }
@@ -44,22 +46,43 @@ export interface EventDatePresentation {
   secondary?: string;
 }
 
-export function readEventListQuery(params: ParamMap, preferredView: CalendarView, now = new Date()): EventListQuery {
+export function readEventListQuery(
+  params: ParamMap,
+  preferredView: CalendarView,
+  now = new Date(),
+  fallback: Partial<EventListFilters> = {}
+): EventListQuery {
   const rawView = params.get('view');
+  const defaults = { ...defaultEventListFilters(now), ...fallback };
+  const eventType = clean(params.get('type')) || defaults.eventType;
+  const from = params.has('from') && params.get('from') === '' ? '' : validDate(params.get('from')) ?? defaults.from;
+  let to = params.has('to') && params.get('to') === '' ? '' : validDate(params.get('to')) ?? defaults.to;
+  if (from && to && from > to) to = from;
   return {
     month: validMonth(params.get('month')) ?? monthValue(now),
     view: rawView === 'list' || rawView === 'calendar' ? rawView : preferredView,
     past: params.get('past') === 'true',
     q: clean(params.get('q')),
-    page: readPage(params.get('page'))
+    page: readPage(params.get('page')),
+    from,
+    to,
+    country: clean(params.get('country')) || defaults.country,
+    region: clean(params.get('region')) || defaults.region,
+    city: clean(params.get('city')) || defaults.city,
+    format: clean(params.get('format')) || defaults.format,
+    eventType: eventType === 'weekly' || eventType === 'monthly' || eventType === 'major' ? eventType : ''
   };
 }
 
 export function buildEventListQueryParams(query: EventListQuery): Record<string, string> {
-  const result: Record<string, string> = { month: query.month };
+  const result: Record<string, string> = { month: query.month, view: query.view, from: query.from, to: query.to };
   if (query.q) result['q'] = query.q;
   if (query.past) result['past'] = 'true';
-  result['view'] = query.view;
+  if (query.country) result['country'] = query.country;
+  if (query.region) result['region'] = query.region;
+  if (query.city) result['city'] = query.city;
+  if (query.format) result['format'] = query.format;
+  if (query.eventType) result['type'] = query.eventType;
   if (query.page > 1) result['page'] = String(query.page);
   return result;
 }
@@ -143,12 +166,16 @@ export function hasEventStarted(event: Pick<PublicEventView, 'startsAtUtc'>, now
   return Number.isFinite(start) && start <= now.getTime();
 }
 
+export function filterAvailableEvents(items: PublicEventView[], now = new Date()): PublicEventView[] {
+  return items.filter(item => !hasEventStarted(item, now));
+}
+
 /**
  * Google Maps search link for a venue, or null when the venue carries no address. The host is
  * fixed and the address — API data — only ever reaches the URL percent-encoded.
  */
-export function venueMapsUrl(venue: { streetAddress?: string; postalCode?: string; city?: string; country?: string }): string | null {
-  const address = [venue.streetAddress, venue.postalCode, venue.city, venue.country].filter(Boolean).join(', ');
+export function venueMapsUrl(venue: { streetAddress?: string; postalCode?: string; city?: string; region?: string; country?: string }): string | null {
+  const address = [venue.streetAddress, venue.postalCode, venue.city, venue.region, venue.country].filter(Boolean).join(', ');
   return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
 }
 
@@ -206,7 +233,7 @@ export function groupEventsByVenueDate(items: PublicEventView[]): VenueDateGroup
 }
 
 export function eventDatePresentation(
-  event: Omit<PublicEventView, 'id'>,
+  event: Pick<PublicEventView, 'startsAtUtc' | 'timeZoneId' | 'venueStartDate' | 'venueStartTime'>,
   locale: string,
   viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 ): EventDatePresentation {
@@ -230,6 +257,12 @@ export function shiftMonth(month: string, amount: number): string {
 
 function validMonth(value: string | null): string | undefined {
   return value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : undefined;
+}
+
+function validDate(value: string | null): string | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : undefined;
 }
 
 function monthValue(date: Date): string {

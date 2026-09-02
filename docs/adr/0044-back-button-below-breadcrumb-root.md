@@ -7,8 +7,8 @@ Accepted. Planned by T2 in artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.m
 ## Context
 
 The rule was: every routed page carries a back button at the top and at the bottom
-(`gones-back-button`, `position="top"` and `position="bottom"`), with the auth pages as the single
-exception, keeping the top one only. `src/app/shared/back-button-coverage.test.ts` enforced it by
+(`gones-back-button`, `position="top"` and `position="bottom"`), with explicit exceptions for auth
+pages (top only) and About (bottom only). `src/app/shared/back-button-coverage.test.ts` enforces it by
 reading every routed component's source.
 
 The rule was written for the deep pages — a Tournament result four levels down genuinely needs a way
@@ -30,10 +30,13 @@ Every other routed path returns two or more items, the first of which is a link.
 
 - `/` (`features/menu/home-menu.component`) and `/admin` (`features/admin/admin-home.component`)
   render neither `position="top"` nor `position="bottom"`.
-- Every other routed page keeps both, unchanged.
+- Every routed page outside explicit exceptions keeps both, unchanged.
 - The auth pages keep their existing exception: top only.
-- `back-button-coverage.test.ts` holds the breadcrumb-root list explicitly and asserts those
-  components contain no `gones-back-button` at all, while every other routed page still has both.
+- `/about` keeps the bottom button only; its section navigation occupies the main header instead of a
+  second row over the hero.
+- `back-button-coverage.test.ts` holds breadcrumb-root and top-back-exception lists explicitly. It
+  asserts root components contain no `gones-back-button`, About omits only the top button, and every
+  other routed page keeps required coverage.
   `app-breadcrumbs.test.ts` pins that `/` and `/admin` are the only single-item breadcrumbs, so the
   two lists cannot drift apart silently.
 
@@ -43,10 +46,12 @@ honestly.
 
 ## Consequences
 
-- Two pages lose one navigation affordance each. Both keep the toolbar brand link to `/`, and the
-  admin page keeps its breadcrumb, which is its own root and therefore not a link.
+- `/` and `/admin` render no back controls. `/about` loses its top back control but retains the bottom
+  one. All keep the toolbar brand link to `/`; About hides its breadcrumb row and moves section
+  navigation into the main header.
 - Adding a new route whose breadcrumb starts a trail means adding it to `BREADCRUMB_ROOT_COMPONENTS`
-  as well as removing its back buttons; the coverage test fails loudly until both are done.
+  as well as removing its back buttons; adding a bottom-only exception means updating
+  `TOP_BACK_EXEMPT_COMPONENTS`. Coverage tests fail loudly until contract and component agree.
 - The `gones-back-button` component itself is unchanged, including its `goBack()` fallback to
   `/leagues-archive` when there is no history.
-- `AGENT.md`'s back-button bullet now names two exceptions instead of one.
+- `AGENT.md` names breadcrumb roots, auth pages, and About as the three explicit exception classes.

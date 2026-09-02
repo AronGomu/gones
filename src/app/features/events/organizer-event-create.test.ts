@@ -1,9 +1,20 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PreviewPublicationState, browserTimeZoneSuggestion, eventPayload } from './organizer-event-create';
 
 const preview = { previewTicket: 'ticket', expiresAt: '2027-01-01T00:00:00Z', render: {} } as never;
 
 describe('Organizer Event create state', () => {
+  it('associates required Event Type errors with its select', () => {
+    const source = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
+    const start = source.indexOf('id="event-type"');
+    const field = source.slice(start, source.indexOf('</div>', start));
+    expect(field).toContain("[attr.aria-invalid]=\"fieldError('eventType') ? 'true' : null\"");
+    expect(field).toContain("[attr.aria-describedby]=\"fieldError('eventType') ? 'event-type-error' : null\"");
+    expect(field).toContain('id="event-type-error"');
+  });
+
   it('uses browser zone only as editable initial suggestion', () => {
     expect(browserTimeZoneSuggestion(() => 'Europe/Paris')).toBe('Europe/Paris');
     expect(browserTimeZoneSuggestion(() => '')).toBe('');
@@ -13,11 +24,11 @@ describe('Organizer Event create state', () => {
   it('builds payload from explicit form zone without inferring a replacement', () => {
     expect(eventPayload({
       organizationId: 'org', title: ' Cup ', summary: ' ', bodyHtml: ' <p>Body</p> ', streetAddress: ' 1 Street ',
-      postalCode: '', city: ' Lyon ', country: ' France ', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
+      postalCode: '', city: ' Lyon ', country: ' France ', region: ' Rhône ', eventType: 'weekly', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: '', capacity: null, formatId: 'legacy', liveTournamentUrl: ' /live/123 ', archiveTournamentUrl: ' '
     })).toEqual({
       organizationId: 'org', title: 'Cup', summary: undefined, bodyHtml: '<p>Body</p>', streetAddress: '1 Street',
-      postalCode: undefined, city: 'Lyon', country: 'France', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
+      postalCode: undefined, city: 'Lyon', country: 'France', region: 'Rhône', eventType: 'weekly', timeZoneId: '', startsAtLocal: '2027-08-01T10:00',
       endsAtLocal: undefined, capacity: undefined, formatIds: ['legacy'], liveTournamentUrl: '/live/123', archiveTournamentUrl: undefined
     });
   });

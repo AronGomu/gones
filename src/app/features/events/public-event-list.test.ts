@@ -11,6 +11,7 @@ import {
   clampCalendarPage,
   groupEventsByVenueDate,
   hasEventStarted,
+  filterAvailableEvents,
   isPastCalendarDay,
   paginateEvents,
   readEventListQuery,
@@ -82,20 +83,25 @@ describe('public Calendar helpers', () => {
     expect(same.secondary).toBeUndefined();
   });
 
-  it('reads the reduced query', () => {
+  it('reads search and structured filters', () => {
     expect(readEventListQuery(params({
-      month: '2026-09', view: 'list', q: 'lyon', past: 'true'
+      month: '2026-09', view: 'list', q: 'lyon', past: 'true', from: '2026-03-01', to: '2026-09-01',
+      country: 'France', region: 'Auvergne-Rhône-Alpes', city: 'Lyon', format: 'legacy', type: 'weekly'
     }), 'calendar', new Date('2026-03-01T12:00:00Z'))).toEqual({
-      month: '2026-09', view: 'list', q: 'lyon', past: true, page: 1
+      month: '2026-09', view: 'list', q: 'lyon', past: true, page: 1, from: '2026-03-01', to: '2026-09-01',
+      country: 'France', region: 'Auvergne-Rhône-Alpes', city: 'Lyon', format: 'legacy', eventType: 'weekly'
     });
   });
 
-  it('drops removed parameters', () => {
-    const result = readEventListQuery(params({
-      month: '2026-08', status: 'Published', city: 'Lyon'
-    }), 'calendar');
+  it('drops removed status while keeping supported city', () => {
+    const result = readEventListQuery(params({ month: '2026-08', status: 'Published', city: 'Lyon' }), 'calendar');
     expect(result).not.toHaveProperty('status');
-    expect(result).not.toHaveProperty('city');
+    expect(result.city).toBe('Lyon');
+  });
+
+  it('normalizes reversed date bounds without persisting an impossible range', () => {
+    const result = readEventListQuery(params({ from: '2026-09-01', to: '2026-08-01' }), 'list');
+    expect(result.to).toBe('2026-09-01');
   });
 
   it('a missing page parameter reads as one', () => {
@@ -117,23 +123,25 @@ describe('public Calendar helpers', () => {
     expect(readEventListQuery(params({ view: 'calendar' }), 'list', new Date('2026-03-01T12:00:00Z')).view).toBe('calendar');
   });
 
-  it('builds only the reduced parameters', () => {
-    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
-      .toEqual({ month: '2026-09', view: 'calendar' });
+  const queryFilters = { from: '2026-03-01', to: '2026-09-01', country: '', region: '', city: '', format: '', eventType: '' as const };
+
+  it('builds required date parameters', () => {
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1, ...queryFilters }))
+      .toEqual({ month: '2026-09', view: 'calendar', from: '2026-03-01', to: '2026-09-01' });
   });
 
   it('keeps q when set', () => {
-    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false, page: 1 }))
-      .toEqual({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy' });
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: 'lyon\\,legacy', past: false, page: 1, ...queryFilters }))
+      .toEqual({ month: '2026-09', view: 'calendar', from: '2026-03-01', to: '2026-09-01', q: 'lyon\\,legacy' });
   });
 
   it('page one is not written to the url', () => {
-    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1 }))
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 1, ...queryFilters }))
       .not.toHaveProperty('page');
   });
 
   it('a later page is written to the url', () => {
-    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 4 })['page'])
+    expect(buildEventListQueryParams({ month: '2026-09', view: 'calendar', q: '', past: false, page: 4, ...queryFilters })['page'])
       .toBe('4');
   });
 
@@ -297,6 +305,26 @@ describe('hasEventStarted', () => {
 
   it('unparseable start is not started', () => {
     expect(hasEventStarted({ startsAtUtc: 'not-a-date' }, new Date('2026-09-01T18:00:00Z'))).toBe(false);
+  });
+});
+
+describe('filterAvailableEvents', () => {
+  it('hides events whose start instant has passed', () => {
+    const now = new Date('2026-08-12T12:00:00Z');
+    const available = { ...event, id: 'available', startsAtUtc: '2026-08-12T12:00:01Z' };
+    const started = { ...event, id: 'started', startsAtUtc: '2026-08-12T11:59:59Z' };
+
+    expect(filterAvailableEvents([available, started], now).map(item => item.id)).toEqual(['available']);
+  });
+
+  it('hides an event exactly at its start instant', () => {
+    const now = new Date('2026-08-12T12:00:00Z');
+    expect(filterAvailableEvents([{ ...event, startsAtUtc: now.toISOString() }], now)).toEqual([]);
+  });
+
+  it('keeps events with an invalid start for safe visibility', () => {
+    const invalid = { ...event, startsAtUtc: 'not-a-date' };
+    expect(filterAvailableEvents([invalid], new Date('2026-08-12T12:00:00Z'))).toEqual([invalid]);
   });
 });
 

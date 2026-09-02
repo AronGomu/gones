@@ -62,17 +62,19 @@ interface OwnedOrganizationSettings {
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="panel settings-panel" data-cy="settings-power-user-card">
-        <mat-card-content data-cy="settings-power-user-card-content">
-          <div class="settings-row" data-cy="settings-power-user-row">
-            <div data-cy="settings-power-user-copy">
-              <h2 data-cy="settings-power-user-title">{{ i18n.t('settings.powerUser') }}</h2>
-              <p class="muted" data-cy="settings-power-user-help">{{ i18n.t('settings.powerUserHelp') }}</p>
+      @if (!power.forced()) {
+        <mat-card class="panel settings-panel" data-cy="settings-power-user-card">
+          <mat-card-content data-cy="settings-power-user-card-content">
+            <div class="settings-row" data-cy="settings-power-user-row">
+              <div data-cy="settings-power-user-copy">
+                <h2 data-cy="settings-power-user-title">{{ i18n.t('settings.powerUser') }}</h2>
+                <p class="muted" data-cy="settings-power-user-help">{{ i18n.t('settings.powerUserHelp') }}</p>
+              </div>
+              <mat-checkbox data-cy="settings-power-user-checkbox" [ngModel]="power.enabled()" (ngModelChange)="power.setEnabled($event)">{{ i18n.t('settings.powerUserEnable') }}</mat-checkbox>
             </div>
-            <mat-checkbox data-cy="settings-power-user-checkbox" [ngModel]="power.enabled()" (ngModelChange)="power.setEnabled($event)">{{ i18n.t('settings.powerUserEnable') }}</mat-checkbox>
-          </div>
-        </mat-card-content>
-      </mat-card>
+          </mat-card-content>
+        </mat-card>
+      }
 
       @if (authV1()) {
         <mat-card class="panel settings-panel" data-cy="settings-account-card">

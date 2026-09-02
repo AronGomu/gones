@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subscription, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
@@ -30,6 +31,7 @@ import {
   sortEventsForList,
   eventDatePresentation,
   eventsByDate,
+  filterAvailableEvents,
   MAX_DAY_CELL_EVENTS,
   MonthDay,
   buildMonthDays,
@@ -40,20 +42,31 @@ import { EventCatalogCacheService } from './event-catalog-cache.service';
 import { PublicEventService } from './public-event.service';
 import { filterEvents } from './event-fuzzy-search';
 import { HighlightPart, highlightSearchText } from '../../shared/search-highlight';
-import { EventRegistrationCapabilityResponse } from '../../api/generated/gones-api';
+import { Client, EventRegistrationCapabilityResponse } from '../../api/generated/gones-api';
 import { MessageKey } from '../../i18n/messages';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { EventRegistrationService, registrationErrorKey } from './event-registration.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
-import { canManageArchive } from '../../data/archive-command-ux';
-import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { GeoService } from '../../shared/geo.service';
+import {
+  EVENT_TYPES,
+  EventListFilters,
+  defaultEventListFilters,
+  eventFilterOptions,
+  filterEventList,
+  readStoredEventSearch,
+  writeStoredEventSearch
+} from './event-list-filters';
+
+import { paginationPageWindow } from '../../shared/pagination';
 
 const VIEW_KEY = 'gones.events.view';
+const SEARCH_KEY = 'gones.events.search.v1';
 const SEARCH_DEBOUNCE_MS = 300;
 
 @Component({
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, BackButtonComponent, SyncBarComponent],
+  imports: [CommonModule, FormsModule, RouterLink, MatButtonModule, MatTooltipModule, BackButtonComponent, SyncBarComponent],
   template: `
     <div class="calendar-top-actions" data-cy="event-list-top-actions">
       <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-list-back-top" />
@@ -65,8 +78,10 @@ const SEARCH_DEBOUNCE_MS = 300;
         <div class="calendar-view-tabs" role="group" [attr.aria-label]="i18n.t('event.viewAria')" data-cy="event-list-view-tabs">
           <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'calendar'" data-cy="event-list-view" (click)="setView('calendar')">{{ i18n.t('event.tabCalendar') }}</button>
           <button mat-stroked-button type="button" [attr.aria-pressed]="query().view === 'list'" data-cy="list-view" (click)="setView('list')">{{ i18n.t('event.listView') }}</button>
-          @if (canCreateEvent()) {
-            <a mat-flat-button class="create-action-button calendar-create-tournament" routerLink="/events/new" data-cy="event-list-create-event">{{ i18n.t('event.createEvent') }}</a>
+          <label class="event-past-toggle" data-cy="event-list-hide-past-label"><input type="checkbox" data-cy="event-list-hide-past" [ngModel]="hidePastEvents()" (ngModelChange)="hidePastEvents.set($event)" name="hidePastEvents">{{ i18n.t('event.hidePast') }}</label>
+          @if (showCreateEvent()) {
+            @let disabledReason = createEventDisabledReason();
+            <a mat-flat-button class="create-action-button calendar-create-tournament" [routerLink]="canCreateEvent() ? '/events/new' : null" role="link" tabindex="0" data-cy="event-list-create-event" [disabled]="!canCreateEvent()" [disabledInteractive]="!canCreateEvent()" [matTooltip]="disabledReason ?? ''" [matTooltipDisabled]="!disabledReason">{{ i18n.t('event.createEvent') }}</a>
           }
         </div>
       </header>
@@ -76,7 +91,15 @@ const SEARCH_DEBOUNCE_MS = 300;
                [attr.aria-label]="i18n.t('common.search')"
                [attr.placeholder]="i18n.t('event.searchPlaceholder')"
                [ngModel]="searchDraft()" (ngModelChange)="setSearchDraft($event)">
+        <div class="calendar-filter-field" data-cy="event-list-filter-from-field"><label for="event-filter-from" data-cy="event-list-filter-from-label">{{ i18n.t('event.filterFrom') }}</label><input id="event-filter-from" name="from" type="date" data-cy="event-list-filter-from" [ngModel]="query().from" (ngModelChange)="setFilter('from', $event)"></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-to-field"><label for="event-filter-to" data-cy="event-list-filter-to-label">{{ i18n.t('event.filterTo') }}</label><input id="event-filter-to" name="to" type="date" data-cy="event-list-filter-to" [min]="query().from" [ngModel]="query().to" (ngModelChange)="setFilter('to', $event)"></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-country-field"><label for="event-filter-country" data-cy="event-list-filter-country-label">{{ i18n.t('profile.locationCountry') }}</label><select id="event-filter-country" name="country" data-cy="event-list-filter-country" [ngModel]="query().country" (ngModelChange)="setCountryFilter($event)"><option value="" data-cy="event-list-filter-country-all">{{ i18n.t('event.allCountries') }}</option>@for (country of filterOptions().countries; track country) { <option [value]="country" [attr.data-cy]="'event-list-filter-country-' + $index">{{ country }}</option> }</select></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-region-field"><label for="event-filter-region" data-cy="event-list-filter-region-label">{{ i18n.t('profile.locationRegion') }}</label><select id="event-filter-region" name="region" data-cy="event-list-filter-region" [ngModel]="query().region" (ngModelChange)="setRegionFilter($event)"><option value="" data-cy="event-list-filter-region-all">{{ i18n.t('event.allRegions') }}</option>@for (region of filterOptions().regions; track region) { <option [value]="region" [attr.data-cy]="'event-list-filter-region-' + $index">{{ region }}</option> }</select></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-city-field"><label for="event-filter-city" data-cy="event-list-filter-city-label">{{ i18n.t('profile.locationCity') }}</label><select id="event-filter-city" name="city" data-cy="event-list-filter-city" [ngModel]="query().city" (ngModelChange)="setFilter('city', $event)"><option value="" data-cy="event-list-filter-city-all">{{ i18n.t('event.allCities') }}</option>@for (city of filterOptions().cities; track city) { <option [value]="city" [attr.data-cy]="'event-list-filter-city-' + $index">{{ city }}</option> }</select></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-format-field"><label for="event-filter-format" data-cy="event-list-filter-format-label">{{ i18n.t('event.format') }}</label><select id="event-filter-format" name="format" data-cy="event-list-filter-format" [ngModel]="query().format" (ngModelChange)="setFilter('format', $event)"><option value="" data-cy="event-list-filter-format-all">{{ i18n.t('event.allFormats') }}</option>@for (format of filterOptions().formats; track format.id) { <option [value]="format.id" [attr.data-cy]="'event-list-filter-format-' + format.id">{{ format.name }}</option> }</select></div>
+        <div class="calendar-filter-field" data-cy="event-list-filter-type-field"><label for="event-filter-type" data-cy="event-list-filter-type-label">{{ i18n.t('event.eventType') }}</label><select id="event-filter-type" name="eventType" data-cy="event-list-filter-type" [ngModel]="query().eventType" (ngModelChange)="setFilter('eventType', $event)"><option value="" data-cy="event-list-filter-type-all">{{ i18n.t('event.allEventTypes') }}</option>@for (type of eventTypes; track type) { <option [value]="type" [attr.data-cy]="'event-list-filter-type-' + type">{{ eventTypeLabel(type) }}</option> }</select></div>
       </form>
+      <p class="sr-only" role="status" aria-live="polite" data-cy="event-list-filter-status">{{ i18n.t('event.filterResultCount', { count: availableItems().length }) }}</p>
 
       @if (registrationMessageKey(); as messageKey) { <p class="registration-live-status" role="status" aria-live="polite" data-cy="event-list-registration-message">{{ i18n.t(messageKey) }}</p> }
       @if (error()) {
@@ -118,9 +141,12 @@ const SEARCH_DEBOUNCE_MS = 300;
               </div>
             }
           </section>
-          @if (!items().length) { <ng-container *ngTemplateOutlet="emptyState" /> }
+          @if (!availableItems().length) { <ng-container *ngTemplateOutlet="emptyState" /> }
         } @else {
           @if (groups().length) {
+            @if (pageCount() > 1) {
+              <ng-container *ngTemplateOutlet="paginationNav; context: { $implicit: 'top' }" />
+            }
             <section class="public-calendar-list" data-cy="event-list-list">
               @for (group of groups(); track group.date) {
                 <section class="venue-date-group" [attr.data-venue-date]="group.date" [attr.data-cy]="'event-list-venue-date-' + group.date"><h2 data-cy="event-list-venue-date-label">{{ formatGroupDate(group) }}</h2>
@@ -129,16 +155,36 @@ const SEARCH_DEBOUNCE_MS = 300;
               }
             </section>
             @if (pageCount() > 1) {
-              <nav class="calendar-pagination" [attr.aria-label]="i18n.t('event.paginationAria')" data-cy="event-list-pagination">
-                <button mat-stroked-button type="button" data-cy="event-list-page-prev" [disabled]="currentPage() <= 1" (click)="movePage(-1)">{{ i18n.t('common.previous') }}</button>
-                <span class="muted" role="status" aria-live="polite" data-cy="event-list-page-status">{{ i18n.t('event.pageStatus', { page: currentPage(), total: pageCount() }) }}</span>
-                <button mat-stroked-button type="button" data-cy="event-list-page-next" [disabled]="currentPage() >= pageCount()" (click)="movePage(1)">{{ i18n.t('common.next') }}</button>
-              </nav>
+              <ng-container *ngTemplateOutlet="paginationNav; context: { $implicit: 'bottom' }" />
             }
           } @else { <ng-container *ngTemplateOutlet="emptyState" /> }
         }
       }
 
+      <ng-template #paginationNav let-place>
+        <nav class="calendar-pagination" [class.calendar-pagination--top]="place === 'top'" [attr.aria-label]="i18n.t(place === 'top' ? 'event.paginationTopAria' : 'event.paginationBottomAria')" [attr.data-cy]="place === 'top' ? 'event-list-pagination-top' : 'event-list-pagination'">
+          <span class="calendar-page-numbers" [attr.data-cy]="'event-list-page-numbers-' + place">
+            @for (item of pageWindow(); track $index) {
+              @if (item === 'gap') {
+                <span class="calendar-page-gap" aria-hidden="true" [attr.data-cy]="'event-list-page-gap-' + place + '-' + $index">…</span>
+              } @else {
+                <button
+                  type="button"
+                  class="calendar-page-number"
+                  [class.is-current]="item === currentPage()"
+                  [attr.aria-current]="item === currentPage() ? 'page' : null"
+                  [attr.aria-label]="i18n.t('event.pageAria', { page: item })"
+                  [attr.data-cy]="'event-list-page-number-' + place + '-' + item"
+                  (click)="goPage(item)"
+                >{{ item }}</button>
+              }
+            }
+          </span>
+          @if (place === 'bottom') {
+            <span class="muted" role="status" aria-live="polite" data-cy="event-list-page-status">{{ i18n.t('event.pageStatus', { page: currentPage(), total: pageCount() }) }}</span>
+          }
+        </nav>
+      </ng-template>
       <ng-template #emptyState><section class="panel calendar-state" data-cy="event-list-empty"><h2 data-cy="event-list-empty-title">{{ i18n.t('event.emptyTitle') }}</h2><p data-cy="event-list-empty-body">{{ i18n.t('event.emptyBody') }}</p></section></ng-template>
       <ng-template #monthEventBody let-event><span class="public-month-event__time" data-cy="event-list-month-day-event-time">{{ event.venueStartTime.slice(0, 5) }}</span><span class="public-month-event__title" data-cy="event-list-month-day-event-title">@for (part of highlightParts(event.title); track $index) { <span [class.match-highlight]="part.highlighted" [attr.data-cy]="'event-list-month-day-event-title-part-' + event.slug + '-' + $index">{{ part.text }}</span> }</span></ng-template>
       <ng-template #eventCard let-item><article class="panel public-tournament-card" role="link" tabindex="0" [attr.aria-label]="item.displayTitle" [attr.data-cy]="'event-' + item.slug" (click)="openEvent(item)" (keydown.enter)="openEvent(item)" (keydown.space)="openEvent(item, $event)">
@@ -158,16 +204,20 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly power = inject(PowerUserSettingsService);
+  private readonly client = inject(Client);
+  private readonly geo = inject(GeoService);
+  private readonly initialParams = this.route.snapshot.queryParamMap;
   private readonly initialRegisterSlug = eventRegisterIntent(this.router.url);
   private subscription?: Subscription;
   private searchDebounce?: ReturnType<typeof setTimeout>;
   private loadId = 0;
   private capabilityGeneration = 0;
+  private createCapabilityGeneration = 0;
   @ViewChild('monthGrid') private monthGrid?: ElementRef<HTMLElement>;
   @ViewChild('calendarPage') private calendarPage?: ElementRef<HTMLElement>;
 
   readonly skeletons = Array.from({ length: 6 });
+  readonly eventTypes = EVENT_TYPES;
   readonly weekdays = computed(() => {
     const formatter = new Intl.DateTimeFormat(this.i18n.locale(), { weekday: 'short' });
     return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(Date.UTC(2026, 5, 1 + index))));
@@ -187,10 +237,14 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   readonly loading = signal(true);
   readonly stale = signal(false);
   readonly error = signal(false);
-  readonly items = computed(() => filterEvents(this.allItems(), this.searchDraft()));
-  readonly sortedItems = computed(() => sortEventsForList(this.items()));
+  readonly filterOptions = computed(() => eventFilterOptions(this.allItems(), this.query()));
+  readonly items = computed(() => filterEvents(filterEventList(this.allItems(), this.query()), this.searchDraft()));
+  readonly hidePastEvents = signal(true);
+  readonly availableItems = computed(() => this.hidePastEvents() ? filterAvailableEvents(this.items()) : this.items());
+  readonly sortedItems = computed(() => sortEventsForList(this.availableItems()));
   readonly pageCount = computed(() => calendarPageCount(this.sortedItems().length));
   readonly currentPage = computed(() => clampCalendarPage(this.query().page, this.sortedItems().length));
+  readonly pageWindow = computed(() => paginationPageWindow(this.currentPage(), this.pageCount()));
   readonly pagedItems = computed(() => paginateEvents(this.sortedItems(), this.query().page));
   readonly groups = computed(() => groupEventsByVenueDate(this.pagedItems()));
   readonly monthLabel = computed(() => this.i18n.formatDate(`${this.query().month}-01`, { month: 'long', year: 'numeric' }));
@@ -199,11 +253,20 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   readonly monthWeeks = computed(() => chunkIntoWeeks(this.monthDays()));
   // Named apart from the `eventsByDate` helper it wraps: the two would otherwise differ only by a
   // `this.`, which is a trap for the next reader rather than a nicety.
-  readonly dayEventIndex = computed(() => eventsByDate(this.items()));
-  readonly canCreateEvent = computed(() => canUsePowerMutation(
-    this.power.enabled(),
-    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
-  ));
+  readonly dayEventIndex = computed(() => eventsByDate(this.availableItems()));
+  readonly createEventMembershipState = signal<'idle' | 'loading' | 'enabled' | 'empty' | 'failed'>('idle');
+  readonly showCreateEvent = computed(() => {
+    const role = this.auth.profile()?.globalRole;
+    return role === 'Organizer' || role === 'Admin';
+  });
+  readonly canCreateEvent = computed(() => this.auth.profile()?.emailVerified === true && this.createEventMembershipState() === 'enabled');
+  readonly createEventDisabledReason = computed(() => {
+    if (!this.showCreateEvent() || this.canCreateEvent()) return null;
+    if (this.auth.profile()?.emailVerified !== true) return this.i18n.t('event.createRequiresVerifiedEmail');
+    if (this.createEventMembershipState() === 'empty') return this.i18n.t('event.createRequiresOrganization');
+    if (this.createEventMembershipState() === 'failed') return this.i18n.t('event.createOrganizationsUnavailable');
+    return this.i18n.t('event.createCheckingOrganizations');
+  });
   readonly registrationCapabilities = signal<Record<string, EventRegistrationCapabilityResponse>>({});
   readonly pendingEventId = signal<string | null>(null);
   readonly registrationMessageKey = signal<MessageKey | null>(null);
@@ -213,14 +276,14 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     const visible = this.pagedItems();
     queueMicrotask(() => { void this.refreshVisibleCapabilities(view === 'list' ? visible : [], profile); });
   });
+  private readonly createCapabilityWatcher = effect(() => {
+    const profile = this.auth.profile();
+    queueMicrotask(() => { void this.loadCreateCapability(profile); });
+  });
 
   ngOnInit(): void {
     this.subscription = this.route.queryParamMap.subscribe(params => {
       const query = readEventListQuery(params, this.preferredView());
-      if (params.get('month') !== query.month || params.get('view') !== query.view) {
-        void this.router.navigate([], { relativeTo: this.route, queryParams: buildEventListQueryParams(query), replaceUrl: true });
-        return;
-      }
       this.query.set(query);
       this.searchDraft.set(query.q);
     });
@@ -230,7 +293,9 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
     this.capabilityWatcher.destroy();
+    this.createCapabilityWatcher.destroy();
     this.capabilityGeneration++;
+    this.createCapabilityGeneration++;
     if (this.searchDebounce) clearTimeout(this.searchDebounce);
   }
 
@@ -259,7 +324,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     this.pageMinHeight.set(null);
   }
 
-  sync(): void { void this.load({ force: true }); }
+  sync(): void { void Promise.all([this.load({ force: true }), this.loadCreateCapability()]); }
   /**
    * Month navigation is a query-param navigation on the same route, so the router's
    * `scrollPositionRestoration: 'enabled'` treats it as a fresh page and scrolls back to the top —
@@ -281,8 +346,21 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* Preference is optional. */ }
     void this.navigate({ ...this.query(), view, page: 1 });
   }
-  movePage(amount: number): void {
-    const next = clampCalendarPage(this.currentPage() + amount, this.sortedItems().length);
+  setFilter<K extends keyof EventListFilters>(field: K, value: EventListFilters[K]): void {
+    const next = { ...this.query(), [field]: value, page: 1 };
+    if (field === 'from' && value && next.to && value > next.to) next.to = String(value);
+    if (field === 'to' && value && next.from && value < next.from) next.from = String(value);
+    void this.navigate(next);
+  }
+  setCountryFilter(country: string): void {
+    void this.navigate({ ...this.query(), country, region: '', city: '', page: 1 });
+  }
+  setRegionFilter(region: string): void {
+    void this.navigate({ ...this.query(), region, city: '', page: 1 });
+  }
+  eventTypeLabel(type: typeof EVENT_TYPES[number]): string { return this.i18n.t(`event.type.${type}`); }
+  goPage(page: number): void {
+    const next = clampCalendarPage(page, this.sortedItems().length);
     if (next === this.currentPage()) return;
     void this.navigate({ ...this.query(), page: next });
   }
@@ -332,7 +410,7 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     if (this.auth.profile() === null) return;
     await this.confirmAndRegister(item, true);
   }
-  venue(item: PublicEventView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.country].filter(Boolean).join(', '); }
+  venue(item: PublicEventView): string { return [item.venue.streetAddress, item.venue.postalCode, item.venue.city, item.venue.region, item.venue.country].filter(Boolean).join(', '); }
   cardMapsUrl(item: PublicEventView): string | null { return venueMapsUrl(item.venue); }
   formatGroupDate(group: VenueDateGroup): string { return this.i18n.formatDate(group.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
   isPast(date: string): boolean { return isPastCalendarDay(date, this.today()); }
@@ -342,9 +420,58 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   hiddenDayEventCount(date: string): number { return Math.max(0, this.dayEvents(date).length - MAX_DAY_CELL_EVENTS); }
 
   private async initialize(): Promise<void> {
-    await this.load();
-    await this.auth.whenSessionReady();
+    await Promise.all([this.load(), this.auth.whenSessionReady()]);
+    await this.initializeSearch();
+    await this.loadCreateCapability();
     await this.resumeRegistrationIntent();
+  }
+
+  private async initializeSearch(): Promise<void> {
+    if (hasSearchFilterParams(this.initialParams)) return;
+    const stored = readStoredEventSearch(localStorage, this.searchStorageKey());
+    const location = stored ? {} : await this.profileLocation();
+    const filters = stored?.filters ?? defaultEventListFilters(new Date(), location);
+    const query = { ...this.query(), ...filters, q: stored?.q ?? this.query().q, page: 1 };
+    this.query.set(query);
+    this.searchDraft.set(query.q);
+    await this.navigate(query, { replaceUrl: true });
+  }
+
+  private async profileLocation(): Promise<Partial<Pick<EventListFilters, 'country' | 'region' | 'city'>>> {
+    const profile = this.auth.profile();
+    if (!profile) return {};
+    let country = profile.locationCountry?.trim() ?? '';
+    let region = profile.locationRegion?.trim() ?? '';
+    try {
+      const countries = await this.geo.countries();
+      const selectedCountry = countries.find(option => option.code === country || option.name === country);
+      if (selectedCountry) {
+        country = selectedCountry.name;
+        const regions = await this.geo.regions(selectedCountry.code);
+        region = regions.find(option => option.code === region || option.name === region)?.name ?? region;
+      }
+    } catch { /* Profile text remains usable when geo assets fail. */ }
+    return { country, region, city: profile.locationCity?.trim() ?? '' };
+  }
+
+  private async loadCreateCapability(profile = this.auth.profile()): Promise<void> {
+    const generation = ++this.createCapabilityGeneration;
+    const role = profile?.globalRole;
+    if (!profile || (role !== 'Organizer' && role !== 'Admin') || profile.emailVerified !== true) {
+      this.createEventMembershipState.set('idle');
+      return;
+    }
+    this.createEventMembershipState.set('loading');
+    try {
+      const organizations = await firstValueFrom(this.client.organizationsAll());
+      if (generation === this.createCapabilityGeneration && this.auth.profile()?.id === profile.id) {
+        this.createEventMembershipState.set(organizations.length ? 'enabled' : 'empty');
+      }
+    } catch {
+      if (generation === this.createCapabilityGeneration && this.auth.profile()?.id === profile.id) {
+        this.createEventMembershipState.set('failed');
+      }
+    }
   }
 
   private async confirmAndRegister(item: PublicEventView, resumed: boolean): Promise<void> {
@@ -407,13 +534,29 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
     }
   }
 
-  private navigate(query: EventListQuery, extras: { scroll?: 'manual' } = {}): Promise<boolean> { return this.router.navigate([], { relativeTo: this.route, queryParams: buildEventListQueryParams(query), ...extras }); }
+  private navigate(query: EventListQuery, extras: { scroll?: 'manual'; replaceUrl?: boolean } = {}): Promise<boolean> {
+    writeStoredEventSearch(localStorage, this.searchStorageKey(), query.q, {
+      from: query.from,
+      to: query.to,
+      country: query.country,
+      region: query.region,
+      city: query.city,
+      format: query.format,
+      eventType: query.eventType
+    });
+    return this.router.navigate([], { relativeTo: this.route, queryParams: buildEventListQueryParams(query), ...extras });
+  }
+  private searchStorageKey(): string { return `${SEARCH_KEY}.${this.auth.profile()?.id ?? 'anonymous'}`; }
   private preferredView(): CalendarView {
     try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'calendar'; } catch { return 'calendar'; }
   }
 }
 
 /** Splits the flat 42-cell month into the seven-day rows ARIA's grid pattern requires. */
+function hasSearchFilterParams(params: import('@angular/router').ParamMap): boolean {
+  return ['q', 'from', 'to', 'country', 'region', 'city', 'format', 'type'].some(key => params.has(key));
+}
+
 function chunkIntoWeeks(days: MonthDay[]): MonthDay[][] {
   const weeks: MonthDay[][] = [];
   for (let index = 0; index < days.length; index += 7) weeks.push(days.slice(index, index + 7));

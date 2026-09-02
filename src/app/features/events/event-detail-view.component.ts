@@ -18,6 +18,7 @@ export type EventDetailView = PublicEventDetailResponse | EventPreviewRenderResp
         <h1 id="event-title" data-cy="event-detail-title"><span data-cy="event-detail-title-text">{{ event().displayTitle }}</span></h1>
         @if (showIcsAction() && icsUrl(); as url) { <a mat-stroked-button class="event-hero-ics" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
+        @if (event().eventType; as type) { <p class="muted" data-cy="event-detail-type">{{ eventTypeLabel(type) }}</p> }
         <p class="event-when" data-cy="event-detail-when-row"><span data-cy="event-detail-when">{{ naturalDate() }}</span><span data-cy="event-detail-when-separator">-</span><span class="event-starting-hour" data-cy="event-detail-starting-hour">{{ i18n.t('event.startingHour') }} : {{ startTime() }}</span></p>
         @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
         <p class="event-where" data-cy="event-detail-where-row">@if (mapsUrl(); as url) { <a data-cy="event-detail-where-link" [href]="url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue() })"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ venue() }}</a> } @else { <span data-cy="event-detail-where">{{ venue() }}</span> }</p>
@@ -51,8 +52,13 @@ export class EventDetailViewComponent {
     return /^https?:\/\//i.test(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};
   }
 
+  eventTypeLabel(type: string): string {
+    if (type === 'weekly' || type === 'monthly' || type === 'major') return this.i18n.t(`event.type.${type}`);
+    return type;
+  }
+
   venue(): string {
     const venue = this.event().venue;
-    return [venue.streetAddress, venue.postalCode, venue.city, venue.country].filter(Boolean).join(', ');
+    return [venue.streetAddress, venue.postalCode, venue.city, venue.region, venue.country].filter(Boolean).join(', ');
   }
 }

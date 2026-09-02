@@ -9,7 +9,7 @@ function makeItem(overrides: Partial<PublicEventView>): PublicEventView {
     title: 'Legacy Open',
     slug: 'legacy-open',
     summary: 'A long description mentioning zzzq nowhere else in this fixture.',
-    venue: { streetAddress: '1 Rue de la Republique', postalCode: '69001', city: 'Lyon', country: 'France' },
+    venue: { streetAddress: '1 Rue de la Republique', postalCode: '69001', city: 'Lyon', region: 'Auvergne-Rhône-Alpes', country: 'France' },
     timeZoneId: 'Europe/Paris',
     venueStartDate: '2026-09-12',
     venueStartTime: '09:00:00',
@@ -19,6 +19,7 @@ function makeItem(overrides: Partial<PublicEventView>): PublicEventView {
     endsAtUtc: '2026-09-12T16:00:00Z',
     capacity: 64,
     status: 'published',
+    eventType: 'weekly',
     organization: { id: 'org-1', name: 'Gones Events', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: [{ id: 'format-1', name: 'Legacy', slug: 'legacy', sortOrder: 0 }],
     ...overrides
@@ -103,13 +104,17 @@ describe('filterEvents', () => {
     expect(filterEvents(items, 'cancelled')).toEqual([cancelledLegacy]);
   });
 
+  it('keeps Region and Event Type in whole-card fuzzy content', () => {
+    expect(filterEvents([lyonLegacy], 'auvergne weekly')).toEqual([lyonLegacy]);
+  });
+
   it('matches on venue date', () => {
     const result = filterEvents(items, '2026-09-12');
     expect(result).toHaveLength(4);
   });
 
   it('ignores accents and case', () => {
-    expect(filterEvents(items, 'RHONE')).toEqual([rhoneModern]);
+    expect(filterEvents(items, 'RHONE MODERN')).toEqual([rhoneModern]);
   });
 
   it('ANDs multiple terms', () => {

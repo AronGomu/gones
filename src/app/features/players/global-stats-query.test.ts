@@ -517,24 +517,31 @@ describe('sortGlobalStatsRows', () => {
 // Page window
 // ---------------------------------------------------------------------------
 describe('globalStatsPageWindow', () => {
-  it('lists every page when there is no run to elide', () => {
+  it('lists every page when fewer than five exist', () => {
     expect(globalStatsPageWindow(1, 1)).toEqual([1]);
     expect(globalStatsPageWindow(2, 4)).toEqual([1, 2, 3, 4]);
-    expect(globalStatsPageWindow(3, 5)).toEqual([1, 2, 3, 4, 5]);
   });
 
-  it('elides the run between the first page and the current neighbourhood', () => {
+  it('shows exactly five numbered items from the start', () => {
+    expect(globalStatsPageWindow(1, 20)).toEqual([1, 2, 3, 4, 'gap', 20]);
+    expect(globalStatsPageWindow(3, 20)).toEqual([1, 2, 3, 4, 'gap', 20]);
+  });
+
+  it('moves the window forward when page four is selected', () => {
+    expect(globalStatsPageWindow(4, 30)).toEqual([1, 'gap', 3, 4, 5, 'gap', 30]);
+  });
+
+  it('shows exactly five numbered items around the current page', () => {
     expect(globalStatsPageWindow(9, 20)).toEqual([1, 'gap', 8, 9, 10, 'gap', 20]);
   });
 
-  it('keeps the edges adjacent rather than printing a gap over one page', () => {
-    expect(globalStatsPageWindow(3, 20)).toEqual([1, 2, 3, 4, 'gap', 20]);
+  it('shows exactly five numbered items at the end', () => {
     expect(globalStatsPageWindow(18, 20)).toEqual([1, 'gap', 17, 18, 19, 20]);
+    expect(globalStatsPageWindow(20, 20)).toEqual([1, 'gap', 17, 18, 19, 20]);
   });
 
-  it('never repeats the first or the last page', () => {
-    expect(globalStatsPageWindow(1, 20)).toEqual([1, 2, 'gap', 20]);
-    expect(globalStatsPageWindow(20, 20)).toEqual([1, 'gap', 19, 20]);
+  it('keeps the next page visible before the end window', () => {
+    expect(globalStatsPageWindow(17, 20)).toEqual([1, 'gap', 16, 17, 18, 'gap', 20]);
   });
 
   it('clamps a page outside the range', () => {

@@ -1,5 +1,6 @@
 import { Params } from '@angular/router';
 import { ArchiveGlobalPlayerStatisticsRow } from '../../api/generated/gones-api';
+import { paginationPageWindow } from '../../shared/pagination';
 
 export const GLOBAL_STATS_PAGE_SIZES = [10, 25, 50, 100] as const;
 export type GlobalStatsPageSize = (typeof GLOBAL_STATS_PAGE_SIZES)[number];
@@ -169,21 +170,7 @@ export function toggleGlobalStatsSort(query: GlobalStatsQuery, col: GlobalStatsS
  * stay one click away however deep the reader is.
  */
 export function globalStatsPageWindow(page: number, totalPages: number): (number | 'gap')[] {
-  const current = Math.min(Math.max(page, 1), totalPages);
-  const wanted = new Set<number>([1, totalPages]);
-  for (let candidate = current - 1; candidate <= current + 1; candidate++) {
-    if (candidate >= 1 && candidate <= totalPages) wanted.add(candidate);
-  }
-  const pages = [...wanted].sort((left, right) => left - right);
-  const window: (number | 'gap')[] = [];
-  pages.forEach((value, index) => {
-    // A gap over a single page would be wider than the page it hides, so print the page instead.
-    const previous = pages[index - 1];
-    if (index > 0 && value - previous === 2) window.push(value - 1);
-    else if (index > 0 && value - previous > 2) window.push('gap');
-    window.push(value);
-  });
-  return window;
+  return paginationPageWindow(page, totalPages);
 }
 
 /** Columns a player can legitimately have no value for — null sorts last in both directions. */
