@@ -129,6 +129,11 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         using var notModified = await Client.SendAsync(notModifiedRequest);
         Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
 
+        using var unicodeDetail = await Client.GetAsync("/api/events/cancelled-cup");
+        Assert.Equal(HttpStatusCode.OK, unicodeDetail.StatusCode);
+        var unicodeDetailBody = await unicodeDetail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("<p>Before😀After</p>", unicodeDetailBody.GetProperty("bodyHtml").GetString());
+
         using var participants = await Client.GetAsync("/api/events/search-cup/participants");
         Assert.Equal(HttpStatusCode.OK, participants.StatusCode);
         var participantsBody = await participants.Content.ReadFromJsonAsync<JsonElement>();
@@ -251,7 +256,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var cancelled = Event.Create(
             alpha.Id,
             user.Id,
-            Draft("Cancelled Cup", "cancelled-cup", new LocalDateTime(2035, 3, 5, 10, 0), "Paris", "Cancelled", "Cancelled body"),
+            Draft("Cancelled Cup", "cancelled-cup", new LocalDateTime(2035, 3, 5, 10, 0), "Paris", "Cancelled", "Before\u0001\uFFFE\uFFFF😀After"),
             [legacy],
             Now);
         cancelled.Cancel(Now.Plus(Duration.FromMinutes(1)));

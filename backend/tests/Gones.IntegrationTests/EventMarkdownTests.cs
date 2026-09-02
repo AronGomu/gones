@@ -5,15 +5,20 @@ namespace Gones.IntegrationTests;
 
 public sealed class EventMarkdownTests
 {
-    public static IEnumerable<object[]> GoldenCases() => JsonSerializer
+    public static IEnumerable<object?[]> GoldenCases() => JsonSerializer
         .Deserialize<GoldenCase[]>(File.ReadAllText(FixturePath()), new JsonSerializerOptions(JsonSerializerDefaults.Web))!
-        .Select(item => new object[] { item.Name, item.Markdown, item.Html });
+        .Select(item => new object?[] { item.Name, item.Markdown, item.MarkdownCodeUnits, item.Html });
 
     [Theory]
     [MemberData(nameof(GoldenCases))]
-    public void EventMarkdown_golden_corpus_matches_frontend_contract(string name, string markdown, string expectedHtml)
+    public void EventMarkdown_golden_corpus_matches_frontend_contract(
+        string name,
+        string? markdown,
+        int[]? markdownCodeUnits,
+        string expectedHtml)
     {
         _ = name;
+        markdown ??= new string(markdownCodeUnits!.Select(codeUnit => (char)codeUnit).ToArray());
         var renderer = new EventMarkdownRenderer();
 
         Assert.Equal(expectedHtml, renderer.RenderAndSanitize(markdown));
@@ -41,5 +46,5 @@ public sealed class EventMarkdownTests
         return Path.Combine(directory?.FullName ?? throw new InvalidOperationException("Repository root not found."), "fixtures", "event-markdown-golden.json");
     }
 
-    private sealed record GoldenCase(string Name, string Markdown, string Html);
+    private sealed record GoldenCase(string Name, string? Markdown, int[]? MarkdownCodeUnits, string Html);
 }

@@ -128,15 +128,15 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Preview_removes_XML_invalid_control_chars_from_derived_HTML()
+    public async Task Preview_removes_XML_invalid_scalars_without_losing_valid_supplementary_text()
     {
         using var preview = await PreviewAsync(
             seed.Organizer.Id,
-            Payload(seed.Alpha.Id) with { BodyMarkdown = "Before\u0001After" });
+            Payload(seed.Alpha.Id) with { BodyMarkdown = "Before\u0000\u0001\uFFFE\uFFFF😀After" });
 
         Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
         var render = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("render");
-        Assert.Equal("<p>BeforeAfter</p>", render.GetProperty("bodyHtml").GetString());
+        Assert.Equal("<p>Before😀After</p>", render.GetProperty("bodyHtml").GetString());
     }
 
     [Fact]

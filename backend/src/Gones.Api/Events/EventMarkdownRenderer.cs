@@ -31,7 +31,7 @@ internal sealed class EventMarkdownRenderer : IEventMarkdownRenderer
     public string RenderAndSanitize(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return string.Empty;
-        var normalizedMarkdown = RemoveXmlInvalidControlCharacters(markdown);
+        var normalizedMarkdown = RemoveXmlInvalidCharacters(markdown);
         var markdownDocument = Markdown.Parse(normalizedMarkdown, Pipeline);
         foreach (var block in markdownDocument.Descendants<HtmlBlock>().ToArray()) block.Remove();
         foreach (var inline in markdownDocument.Descendants<HtmlInline>().ToArray()) inline.Remove();
@@ -132,6 +132,30 @@ internal sealed class EventMarkdownRenderer : IEventMarkdownRenderer
 
     private static string EscapeAttribute(string value) => EscapeText(value).Replace("\"", "&quot;", StringComparison.Ordinal);
 
-    private static string RemoveXmlInvalidControlCharacters(string value) => string.Concat(value.Where(character =>
-        character is '\t' or '\n' or '\r' || character >= ' '));
+    private static string RemoveXmlInvalidCharacters(string value)
+    {
+        var normalized = new char[value.Length];
+        var length = 0;
+        for (var index = 0; index < value.Length; index++)
+        {
+            var character = value[index];
+            if (char.IsHighSurrogate(character))
+            {
+                if (index + 1 < value.Length && char.IsLowSurrogate(value[index + 1]))
+                {
+                    normalized[length++] = character;
+                    normalized[length++] = value[++index];
+                }
+                continue;
+            }
+            if (char.IsLowSurrogate(character)) continue;
+            if (character is '\t' or '\n' or '\r'
+                || character is >= ' ' and <= '\uD7FF'
+                || character is >= '\uE000' and <= '\uFFFD')
+            {
+                normalized[length++] = character;
+            }
+        }
+        return new string(normalized, 0, length);
+    }
 }

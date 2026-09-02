@@ -148,7 +148,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Update_then_public_detail_remove_XML_invalid_control_chars_from_derived_HTML()
+    public async Task Update_then_public_detail_remove_XML_invalid_scalars_without_losing_valid_supplementary_text()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Control Cup");
         using var update = await SendJsonAsync(
@@ -156,14 +156,14 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             $"/api/events/{tournament.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
-            Details("Control Cup") with { BodyMarkdown = "Before\u0001After" },
+            Details("Control Cup") with { BodyMarkdown = "Before\u0001\uFFFE\uFFFF😀After" },
             ifMatch: StrongETag.Encode(tournament.Version));
 
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         using var detail = await Client.GetAsync($"/api/events/{tournament.Slug}");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("<p>BeforeAfter</p>", body.GetProperty("bodyHtml").GetString());
+        Assert.Equal("<p>Before😀After</p>", body.GetProperty("bodyHtml").GetString());
     }
 
     [Fact]

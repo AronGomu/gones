@@ -20,8 +20,23 @@
     "html": "<blockquote><p>Quote</p></blockquote><ol><li>First</li><li>Second</li></ol><p><code>inline</code></p><pre><code>block &lt;tag&gt;\n</code></pre><hr><p>Entity ©</p>"
   },
   {
-    "name": "xml invalid control characters are removed",
-    "markdown": "Before\u0001After",
+    "name": "xml invalid bmp scalars are removed",
+    "markdown": "Before\u0000\u0001\ufffe\uffffAfter",
     "html": "<p>BeforeAfter</p>"
+  },
+  {
+    "name": "isolated utf-16 surrogates are removed",
+    "markdownCodeUnits": [55296, 66, 101, 102, 111, 114, 101, 56320, 65, 102, 116, 101, 114, 55296],
+    "html": "<p>BeforeAfter</p>"
+  },
+  {
+    "name": "valid supplementary pairs are preserved",
+    "markdown": "Before😀After",
+    "html": "<p>Before😀After</p>"
+  },
+  {
+    "name": "allowed xml whitespace controls are preserved",
+    "markdown": "Before\tAfter\n\nLine feed\r\rCarriage return",
+    "html": "<p>Before\tAfter</p><p>Line feed</p><p>Carriage return</p>"
   }
 ]
