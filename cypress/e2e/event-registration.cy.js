@@ -77,7 +77,7 @@ describe('public participant registration', () => {
       req.reply({ statusCode: 201, body: { attemptId: 'calendar-attempt', eventId: event.id, userId: 'user', status: 'Confirmed', registeredAt: '2035-01-01T00:00:00Z' } });
     }).as('calendarRegister');
 
-    visit('/events?view=list');
+    visit('/events?month=2026-08&view=list');
     cy.get('[data-cy="event-card-status"], [data-cy="event-card-date"]').should('not.exist');
     cy.get('[data-cy="event-list-card-title"]').should('contain.text', event.displayTitle);
     cy.get('[data-cy="event-list-card-start-time"]').should('contain.text', '10:00');

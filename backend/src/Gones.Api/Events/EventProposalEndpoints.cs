@@ -8,15 +8,18 @@ using Gones.Api.Identity;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Validation;
+using Gones.Application.Events;
 using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using NodaTime;
+using NodaTime.Serialization.SystemTextJson;
 
 namespace Gones.Api.Events;
 
@@ -72,6 +75,15 @@ internal static class EventProposalEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
+        app.MapGet("/api/event-requests/{token}/images/{imageId:guid}/variants/{width:int}", ReadProposalImageVariantAsync)
+            .WithName("ReadProposalImageVariant")
+            .AllowAnonymous()
+            .RequireRateLimiting(AuthRateLimiting.IpPolicy)
+            .Produces(StatusCodes.Status200OK, contentType: "image/webp")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     }
 
     /// <summary>
@@ -143,12 +155,14 @@ internal static class EventProposalEndpoints
     private static async Task<IResult> GetByTokenAsync(
         string token,
         GonesDbContext database,
+        IEventMarkdownRenderer markdown,
         IClock clock,
         CancellationToken cancellationToken)
     {
         var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
-        var payload = Payload(proposal);
+        var envelope = Envelope(proposal);
+        var payload = envelope.Event;
         var organizationName = await database.Organizations.AsNoTracking()
             .Where(organization => organization.Id == payload.OrganizationId && organization.DeletedAt == null)
             .Select(organization => organization.Name)
@@ -161,12 +175,70 @@ internal static class EventProposalEndpoints
         return Results.Ok(new EventProposalReviewResponse(
             proposal.Id,
             payload,
+            payload.BodyMarkdown is null ? null : markdown.RenderAndSanitize(payload.BodyMarkdown),
+            envelope.Location.TimeZoneId,
+            DerivedEnd(payload.StartsAtLocal),
             proposal.Status.ToString(),
             await UsernameAsync(database, proposal.SubmittedByUserId, cancellationToken),
             await UsernameAsync(database, recipient.UserId, cancellationToken),
             proposal.ExpiresAt,
             organizationName,
-            formatNames));
+            formatNames,
+            await ProposalImagesAsync(database, proposal.Id, token, cancellationToken)));
+    }
+
+    private static async Task<IResult> ReadProposalImageVariantAsync(
+        string token,
+        Guid imageId,
+        int width,
+        HttpResponse response,
+        GonesDbContext database,
+        IEventImageObjectStore objects,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var (proposal, _) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        if (!proposal.IsPending) throw new ResourceNotFoundException();
+        var image = await database.EventImages.AsNoTracking()
+            .SingleOrDefaultAsync(item =>
+                item.Id == imageId
+                && item.ProposalId == proposal.Id
+                && item.State == EventImageState.ProposalOwned,
+                cancellationToken)
+            ?? throw new ResourceNotFoundException();
+        if (!EventImage.VariantWidthsFor(image.Width).Contains(width)) throw new ResourceNotFoundException();
+        response.Headers.CacheControl = "no-store";
+        try
+        {
+            var content = await objects.OpenReadAsync(EventImageObjectKeys.Variant(image.Id, width), cancellationToken);
+            return Results.Stream(content, "image/webp");
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new ResourceNotFoundException();
+        }
+    }
+
+    private static async Task<IReadOnlyList<EventImageResponse>> ProposalImagesAsync(
+        GonesDbContext database,
+        Guid proposalId,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var images = await database.EventImages.AsNoTracking()
+            .Where(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned)
+            .OrderBy(image => image.SortOrder)
+            .ToListAsync(cancellationToken);
+        var escapedToken = Uri.EscapeDataString(token);
+        return images.Select(image => new EventImageResponse(
+            image.Id,
+            image.AltText,
+            EventImage.VariantWidthsFor(image.Width).Select(width => new EventImageVariantResponse(
+                width,
+                Math.Max(1, (int)Math.Round(image.Height * (double)width / image.Width, MidpointRounding.AwayFromZero)),
+                $"/api/event-requests/{escapedToken}/images/{image.Id:D}/variants/{width}"))
+                .ToArray()))
+            .ToArray();
     }
 
     /// <summary>
@@ -191,12 +263,9 @@ internal static class EventProposalEndpoints
         IClock clock,
         CancellationToken cancellationToken)
     {
-        var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        var (proposal, _) = await ResolveTokenAsync(token, database, clock, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
         var proposalId = proposal.Id;
-        var approverUserId = recipient.UserId;
-        var submitterUserId = proposal.SubmittedByUserId;
-        var payload = Payload(proposal);
 
         database.ChangeTracker.Clear();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
@@ -206,20 +275,36 @@ internal static class EventProposalEndpoints
             await transaction.RollbackAsync(cancellationToken);
             throw new ResourceConflictException();
         }
+        if (claimed.ExpiresAt <= clock.GetCurrentInstant())
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw new ResourceNotFoundException();
+        }
+        var envelope = Envelope(claimed);
+        var payload = envelope.Event;
+        var recipient = await LockDecisionRecipientAsync(
+            token,
+            database,
+            proposalId,
+            payload.OrganizationId,
+            cancellationToken);
+        var approverUserId = recipient.UserId;
+        var submitterUserId = claimed.SubmittedByUserId;
 
         var outcome = await publication.PublishEventAsync(
             payload,
             submitterUserId,
             isAdmin: false,
             $"tournament-proposal:{proposalId:D}",
-            previewTicket: null,
+            envelope.Location,
             cancellationToken,
             // The *submitter* is not a member of the target organization — that is the whole reason
             // the proposal exists, and T26 kept it that way. What T26 narrowed is the other side:
             // the token above resolves only for someone who represents this organization, so the
             // consent this publish acts on is the organization's. Only this path relaxes the check;
             // PublishAsync keeps the default. ADR 0024 records the split.
-            requireMembership: false);
+            requireMembership: false,
+            proposalId: proposalId);
 
         // Publishing may have cleared the change tracker on a slug retry, so the proposal is read
         // again rather than carried across that boundary. The row lock this transaction already
@@ -249,6 +334,8 @@ internal static class EventProposalEndpoints
         string token,
         EventProposalRejectRequest request,
         GonesDbContext database,
+        EventImageCleanupService imageCleanup,
+        ILogger<EventImageCleanupService> cleanupLogger,
         INotificationOutbox outbox,
         IConfiguration configuration,
         IClock clock,
@@ -257,10 +344,9 @@ internal static class EventProposalEndpoints
         var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
         var proposalId = proposal.Id;
-        var approverUserId = recipient.UserId;
         var submitterUserId = proposal.SubmittedByUserId;
         var eventName = Payload(proposal).Title;
-        var approverUsername = await UsernameAsync(database, approverUserId, cancellationToken);
+        var approverUsername = await UsernameAsync(database, recipient.UserId, cancellationToken);
         var submitterProfile = await database.UserProfiles.AsNoTracking()
             .SingleOrDefaultAsync(profile => profile.UserId == submitterUserId, cancellationToken)
             ?? throw new ResourceNotFoundException();
@@ -283,6 +369,19 @@ internal static class EventProposalEndpoints
         }
 
         var now = clock.GetCurrentInstant();
+        if (locked.ExpiresAt <= now)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw new ResourceNotFoundException();
+        }
+        var lockedPayload = Payload(locked);
+        var lockedRecipient = await LockDecisionRecipientAsync(
+            token,
+            database,
+            proposalId,
+            lockedPayload.OrganizationId,
+            cancellationToken);
+        var approverUserId = lockedRecipient.UserId;
         locked.Reject(approverUserId, request.Reason, now);
         database.AuditRecords.Add(Audit(
             approverUserId,
@@ -309,6 +408,21 @@ internal static class EventProposalEndpoints
             submitterUserId));
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await imageCleanup.CleanupProposalImagesAsync(proposalId, cleanupTimeout.Token);
+        }
+        catch (Exception exception)
+        {
+            cleanupLogger.LogWarning(
+                EventImageCleanupLogEvents.ProposalPostCommitCleanupFailed,
+                "Proposal image post-commit cleanup deferred; Event={Event}; ProposalId={ProposalId}; ExceptionType={ExceptionType}",
+                "event_image.proposal_cleanup.post_commit_deferred",
+                proposalId,
+                exception.GetType().Name);
+        }
         return Results.NoContent();
     }
 
@@ -354,6 +468,57 @@ internal static class EventProposalEndpoints
     }
 
     /// <summary>
+    /// Revalidates one recipient while holding every row that grants their decision authority. The
+    /// lock order follows membership writers: membership, user, then profile. A concurrent removal,
+    /// demotion, or closure that commits first therefore makes this decision return 404; a decision
+    /// that takes these locks first commits before that later revocation.
+    /// </summary>
+    private static async Task<EventProposalRecipient> LockDecisionRecipientAsync(
+        string token,
+        GonesDbContext database,
+        Guid proposalId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var tokenHash = AccountLifecycleService.Hash(token);
+        var recipient = await database.EventProposalRecipients
+            .FromSqlInterpolated($$"""
+                SELECT * FROM event_proposal_recipients
+                WHERE proposal_id = {{proposalId}} AND token_hash = {{tokenHash}}
+                FOR UPDATE
+                """)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (recipient is null || !FixedTimeEquals(recipient.TokenHash, tokenHash))
+        {
+            throw new ResourceNotFoundException();
+        }
+
+        var membership = await database.OrganizationMembers
+            .FromSqlInterpolated($$"""
+                SELECT * FROM organization_members
+                WHERE organization_id = {{organizationId}} AND user_id = {{recipient.UserId}}
+                FOR UPDATE
+                """)
+            .SingleOrDefaultAsync(cancellationToken);
+        var user = await database.Users
+            .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE id = {recipient.UserId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        var profile = await database.UserProfiles
+            .FromSqlInterpolated($"SELECT * FROM user_profiles WHERE user_id = {recipient.UserId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (user is null
+            || profile is null
+            || profile.ClosedAt is not null
+            || (user.GlobalRole != GlobalRoles.Admin
+                && (user.GlobalRole != GlobalRoles.Organizer || membership is null)))
+        {
+            throw new ResourceNotFoundException();
+        }
+
+        return recipient;
+    }
+
+    /// <summary>
     /// Re-reads the proposal under a row lock so two approvers deciding at the same instant are
     /// serialized rather than both seeing <c>Pending</c>. The optimistic version is the second net.
     /// </summary>
@@ -391,9 +556,40 @@ internal static class EventProposalEndpoints
             Convert.FromHexString(storedHash),
             Convert.FromHexString(computedHash));
 
-    private static EventPayloadRequest Payload(EventProposal proposal) =>
-        JsonSerializer.Deserialize<EventPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
-            ?? throw new InvalidOperationException("Stored tournament proposal payload is invalid.");
+    private static string DerivedEnd(string startsAtLocal) =>
+        startsAtLocal.Length >= 10 ? $"{startsAtLocal[..10]}T23:59:59" : string.Empty;
+
+    private static EventPayloadRequest Payload(EventProposal proposal) => Envelope(proposal).Event;
+
+    private static EventProposalEnvelope Envelope(EventProposal proposal)
+    {
+        var envelope = JsonSerializer.Deserialize<EventProposalEnvelope>(proposal.PayloadJson, PayloadJsonOptions)
+            ?? throw new ResourceConflictException();
+        if (envelope.Version != EventProposalEnvelope.CurrentVersion
+            || envelope.Event is null
+            || envelope.Event.Location is null
+            || envelope.Event.Images is null
+            || envelope.Location is null
+            || string.IsNullOrWhiteSpace(envelope.PayloadHash)
+            || string.IsNullOrWhiteSpace(envelope.EnvelopeHash))
+        {
+            throw new ResourceConflictException();
+        }
+        try
+        {
+            EventPublicationService.ValidatePayloadShape(envelope.Event);
+        }
+        catch (ApiValidationException)
+        {
+            throw new ResourceConflictException();
+        }
+        if (!envelope.HasValidIntegrity()
+            || !EventPublicationService.LocationMatches(envelope.Event.Location, envelope.Location))
+        {
+            throw new ResourceConflictException();
+        }
+        return envelope;
+    }
 
     private static async Task<string> UsernameAsync(GonesDbContext database, Guid userId, CancellationToken cancellationToken) =>
         await database.UserProfiles.AsNoTracking()
@@ -430,7 +626,14 @@ internal static class EventProposalEndpoints
     /// The single serializer contract for the stored payload: submission writes it and every decision
     /// reads it back, so the two must never drift apart.
     /// </summary>
-    internal static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
+    internal static readonly JsonSerializerOptions PayloadJsonOptions = CreatePayloadJsonOptions();
+
+    private static JsonSerializerOptions CreatePayloadJsonOptions()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
+        return options;
+    }
 }
 
 internal sealed class EventProposalService(
@@ -462,21 +665,23 @@ internal sealed class EventProposalService(
 
         // Shape first: the recipient rule below is scoped to the target organization, so the payload
         // has to be a well-formed one before it can say which organization that is.
-        ValidatePayloadShape(request.Event);
-        var recipients = await LoadRecipientsAsync(request.Event.OrganizationId, request.RecipientUserIds, cancellationToken);
-        await publication.ValidateProposalPayloadAsync(submitterUserId, request.Event, cancellationToken);
+        var payload = request.Event;
+        ValidatePayloadShape(payload);
+        var recipients = await LoadRecipientsAsync(payload.OrganizationId, request.RecipientUserIds, cancellationToken);
+        var location = await publication.ValidateProposalPayloadAsync(submitterUserId, payload, cancellationToken);
 
         var formatNames = await database.TournamentFormats.AsNoTracking()
-            .Where(format => request.Event.FormatIds.Contains(format.Id))
+            .Where(format => payload.FormatIds.Contains(format.Id))
             .OrderBy(format => format.SortOrder).ThenBy(format => format.Slug)
             .Select(format => format.Name)
             .ToListAsync(cancellationToken);
 
         var reviewOrigin = AccountLifecycleOptions.Load(configuration).PublicOrigin;
         var now = clock.GetCurrentInstant();
+        var envelope = EventProposalEnvelope.Create(payload, location);
         var proposal = EventProposal.Create(
             submitterUserId,
-            JsonSerializer.Serialize(request.Event, StoredJsonOptions),
+            JsonSerializer.Serialize(envelope, StoredJsonOptions),
             now);
         // Distinct token per recipient: the approver behind a review link has to be provable from
         // the token alone, so two recipients must never share one.
@@ -490,6 +695,12 @@ internal sealed class EventProposalService(
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         database.EventProposals.Add(proposal);
+        await publication.AttachImagesToProposalAsync(
+            proposal.Id,
+            submitterUserId,
+            payload.Images,
+            proposal.ExpiresAt,
+            cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
 
         // Enqueued only once the proposal is durable: no mail may point at a review link that
@@ -503,14 +714,14 @@ internal sealed class EventProposalService(
                 new TournamentProposalTemplateModel(
                     recipient.Username,
                     submitterProfile.Username,
-                    request.Event.Title,
-                    Present(request.Event.Summary),
-                    VenueAddress(request.Event),
-                    Present(request.Event.StartsAtLocal),
-                    Present(request.Event.EndsAtLocal),
-                    request.Event.TimeZoneId,
+                    payload.Title,
+                    Present(payload.Summary),
+                    VenueAddress(payload),
+                    Present(payload.StartsAtLocal),
+                    Present(ProposalEnd(payload.StartsAtLocal)),
+                    location.TimeZoneId,
                     formatNames.Count > 0 ? string.Join(", ", formatNames) : AbsentValue,
-                    request.Event.Capacity?.ToString(CultureInfo.InvariantCulture) ?? AbsentValue,
+                    payload.Capacity.ToString(CultureInfo.InvariantCulture),
                     reviewUrl),
                 recipient.UserId));
         }
@@ -566,35 +777,21 @@ internal sealed class EventProposalService(
     /// The endpoint filter only validates the top-level request, so the nested payload's own
     /// annotations are applied here — the proposal must satisfy the same contract as a direct publish.
     /// </summary>
-    private static void ValidatePayloadShape(EventPayloadRequest payload)
-    {
-        var results = new List<ValidationResult>();
-        if (Validator.TryValidateObject(payload, new ValidationContext(payload), results, validateAllProperties: true)) return;
-        var failures = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var result in results)
-        {
-            foreach (var member in result.MemberNames.DefaultIfEmpty("event"))
-            {
-                var key = $"event.{JsonNamingPolicy.CamelCase.ConvertName(member)}";
-                if (!failures.TryGetValue(key, out var messages)) failures[key] = messages = [];
-                messages.Add(result.ErrorMessage ?? "Invalid value.");
-            }
-        }
-
-        throw new ApiValidationException(failures.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value.Distinct(StringComparer.Ordinal).ToArray(),
-            StringComparer.Ordinal));
-    }
+    private static void ValidatePayloadShape(EventPayloadRequest payload) =>
+        EventPublicationService.ValidatePayloadShape(payload, "event.");
 
     private static string VenueAddress(EventPayloadRequest payload) => string.Join(
         ", ",
         new[]
         {
-            payload.StreetAddress,
-            string.IsNullOrWhiteSpace(payload.PostalCode) ? payload.City : $"{payload.PostalCode} {payload.City}",
-            payload.Country
+            payload.Location.StreetAddress,
+            $"{payload.Location.PostalCode} {payload.Location.City}",
+            payload.Location.Region,
+            payload.Location.Country
         }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private static string ProposalEnd(string startsAtLocal) =>
+        startsAtLocal.Length >= 10 ? $"{startsAtLocal[..10]}T23:59:59" : AbsentValue;
 
     private static string Present(string? value) => string.IsNullOrWhiteSpace(value) ? AbsentValue : value.Trim();
 
@@ -606,6 +803,57 @@ internal sealed class EventProposalService(
 
 internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);
 
+internal sealed record EventProposalEnvelope(
+    int Version,
+    string PayloadHash,
+    string EnvelopeHash,
+    EventPayloadRequest Event,
+    ValidatedEventLocation Location)
+{
+    public const int CurrentVersion = 2;
+
+    public static EventProposalEnvelope Create(EventPayloadRequest payload, ValidatedEventLocation location)
+    {
+        var payloadHash = EventPublicationService.PayloadHash(payload);
+        return new(CurrentVersion, payloadHash, Hash(CurrentVersion, payloadHash, location), payload, location);
+    }
+
+    public bool HasValidIntegrity() =>
+        EventPublicationService.FixedTimePayloadHash(PayloadHash, EventPublicationService.PayloadHash(Event))
+        && EventPublicationService.FixedTimePayloadHash(EnvelopeHash, Hash(Version, PayloadHash, Location));
+
+    private static string Hash(int version, string payloadHash, ValidatedEventLocation location) =>
+        Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
+            new EventProposalEnvelopeClaims(
+                version,
+                payloadHash,
+                location.PlaceId,
+                location.StreetAddress,
+                location.PostalCode,
+                location.City,
+                location.Country,
+                location.Region,
+                location.Latitude,
+                location.Longitude,
+                location.TimeZoneId,
+                location.ExpiresAt.ToUnixTimeTicks()),
+            EventProposalEndpoints.PayloadJsonOptions))).ToLowerInvariant();
+
+    private sealed record EventProposalEnvelopeClaims(
+        int Version,
+        string PayloadHash,
+        string PlaceId,
+        string StreetAddress,
+        string PostalCode,
+        string City,
+        string Country,
+        string Region,
+        decimal Latitude,
+        decimal Longitude,
+        string TimeZoneId,
+        long ExpiresAtUnixTicks);
+}
+
 internal sealed record EventProposalRequest(
     [property: Required] EventPayloadRequest Event,
     [property: Required, MinLength(1), MaxLength(EventProposalEndpoints.MaximumRecipientCount)]
@@ -616,12 +864,16 @@ internal sealed record EventProposalResponse(Guid Id, string Status, Instant Exp
 internal sealed record EventProposalReviewResponse(
     Guid Id,
     EventPayloadRequest Event,
+    string? BodyHtml,
+    string TimeZoneId,
+    string EndsAtLocal,
     string Status,
     string SubmittedByUsername,
     string ApproverUsername,
     Instant ExpiresAt,
     string OrganizationName,
-    IReadOnlyList<string> FormatNames);
+    IReadOnlyList<string> FormatNames,
+    IReadOnlyList<EventImageResponse> Images);
 
 internal sealed record EventProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 

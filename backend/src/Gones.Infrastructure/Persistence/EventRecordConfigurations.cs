@@ -17,13 +17,18 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.Title).HasMaxLength(Event.MaximumTitleLength);
         builder.Property(tournament => tournament.Slug).HasMaxLength(Event.MaximumSlugLength);
         builder.Property(tournament => tournament.Summary).HasMaxLength(Event.MaximumSummaryLength);
-        builder.Property(tournament => tournament.BodyHtml).HasMaxLength(Event.MaximumBodyHtmlLength);
+        builder.Property(tournament => tournament.BodyMarkdown).HasMaxLength(Event.MaximumBodyMarkdownLength);
         builder.Property(tournament => tournament.LiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.ArchiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.StreetAddress).HasMaxLength(Event.MaximumAddressLength);
-        builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength);
+        builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength).IsRequired();
         builder.Property(tournament => tournament.City).HasMaxLength(Event.MaximumCityLength);
         builder.Property(tournament => tournament.Country).HasMaxLength(Event.MaximumCountryLength);
+        builder.Property(tournament => tournament.Region).HasMaxLength(Event.MaximumRegionLength).IsRequired();
+        builder.Property(tournament => tournament.ProviderPlaceId).HasMaxLength(Event.MaximumProviderPlaceIdLength).IsRequired();
+        builder.Property(tournament => tournament.Latitude).HasPrecision(9, 6);
+        builder.Property(tournament => tournament.Longitude).HasPrecision(9, 6);
+        builder.Property(tournament => tournament.EventType).HasConversion<string>().HasMaxLength(20).HasColumnName("event_type");
         builder.Property(tournament => tournament.TimeZoneId).HasMaxLength(Event.MaximumTimeZoneLength);
         builder.Property(tournament => tournament.Status).HasConversion<string>().HasMaxLength(20);
         builder.Property(tournament => tournament.DeletedReason).HasMaxLength(Event.MaximumDeletedReasonLength);
@@ -36,6 +41,9 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.HasIndex(tournament => new { tournament.Status, tournament.StartsAtUtc });
         builder.HasIndex(tournament => new { tournament.Status, tournament.EndsAtUtc });
         builder.HasIndex(tournament => new { tournament.City, tournament.Country });
+        builder.HasIndex(tournament => new { tournament.Country, tournament.Region, tournament.City });
+        builder.HasIndex(tournament => tournament.Region);
+        builder.HasIndex(tournament => tournament.EventType);
         builder.HasIndex(tournament => tournament.OrganizationId);
         builder.HasIndex(tournament => tournament.NormalizedSearchText);
         builder.HasOne<Organization>().WithMany().HasForeignKey(tournament => tournament.OrganizationId).OnDelete(DeleteBehavior.Cascade);
@@ -45,11 +53,59 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Navigation(tournament => tournament.Formats).AutoInclude(false);
         builder.ToTable(table =>
         {
-            table.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
+            table.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity > 0");
             table.HasCheckConstraint("ck_scheduled_tournament_time_order", "ends_at_utc >= starts_at_utc");
             table.HasCheckConstraint("ck_scheduled_tournament_status", "status IN ('Published', 'InProgress', 'Completed', 'Cancelled')");
+            table.HasCheckConstraint("ck_event_type", "event_type IS NULL OR event_type IN ('Weekly', 'Monthly', 'Major')");
             table.HasCheckConstraint("ck_scheduled_tournament_deleted_metadata", "(deleted_at IS NULL AND deleted_by_user_id IS NULL) OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL)");
         });
+    }
+}
+
+internal sealed class EventImageConfiguration : IEntityTypeConfiguration<EventImage>
+{
+    public void Configure(EntityTypeBuilder<EventImage> builder)
+    {
+        builder.ToTable("event_images");
+        builder.HasKey(image => image.Id);
+        builder.Property(image => image.State).HasConversion<string>().HasMaxLength(20);
+        builder.Property(image => image.AltText).HasMaxLength(EventImage.MaximumAltTextLength);
+        builder.HasIndex(image => new { image.UploadedByUserId, image.State });
+        builder.HasIndex(image => new { image.State, image.ExpiresAt });
+        builder.HasIndex(image => new { image.EventId, image.SortOrder })
+            .IsUnique()
+            .HasFilter("event_id IS NOT NULL");
+        builder.HasIndex(image => new { image.ProposalId, image.SortOrder })
+            .IsUnique()
+            .HasFilter("proposal_id IS NOT NULL");
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(image => image.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<Event>().WithMany().HasForeignKey(image => image.EventId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<EventProposal>().WithMany().HasForeignKey(image => image.ProposalId).OnDelete(DeleteBehavior.Restrict);
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("ck_event_images_state", "state IN ('Temporary','ProposalOwned','EventOwned')");
+            table.HasCheckConstraint("ck_event_images_alt_text", $"alt_text IS NULL OR length(alt_text) <= {EventImage.MaximumAltTextLength}");
+            table.HasCheckConstraint("ck_event_images_dimensions", "width > 0 AND height > 0");
+            table.HasCheckConstraint(
+                "ck_event_images_ownership",
+                "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND sort_order IS NULL AND expires_at IS NOT NULL) OR " +
+                "(state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND sort_order IS NOT NULL AND expires_at IS NOT NULL) OR " +
+                "(state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND sort_order IS NOT NULL AND expires_at IS NULL)");
+        });
+    }
+}
+
+internal sealed class EventImageObjectDeletionConfiguration : IEntityTypeConfiguration<EventImageObjectDeletion>
+{
+    public void Configure(EntityTypeBuilder<EventImageObjectDeletion> builder)
+    {
+        builder.ToTable("event_image_object_deletions");
+        builder.HasKey(deletion => deletion.ObjectKey);
+        builder.Property(deletion => deletion.ObjectKey).HasMaxLength(EventImageObjectDeletion.MaximumObjectKeyLength);
+        builder.Property(deletion => deletion.LastError).HasMaxLength(EventImageObjectDeletion.MaximumLastErrorLength);
+        builder.HasIndex(deletion => deletion.ImageId);
+        builder.HasIndex(deletion => deletion.NextAttemptAt);
+        builder.ToTable(table => table.HasCheckConstraint("ck_event_image_object_deletions_attempts", "attempts >= 0"));
     }
 }
 

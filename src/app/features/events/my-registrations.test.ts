@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { Instant, EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
+import { EventRegistrationHistoryResponse } from '../../api/generated/gones-api';
 import { translate } from '../../i18n/messages';
 import { partitionRegistrationAttempts, registrationVenueTime } from './my-registrations';
 
 const current: EventRegistrationHistoryResponse = {
   attemptId: 'current', eventId: 'event', eventSlug: 'future', eventTitle: 'Future', organizationName: 'Gones',
-  startsAtUtc: '2035-03-04T09:00:00Z' as unknown as Instant, timeZoneId: 'Europe/Paris', status: 'Confirmed', isCurrent: true,
-  registeredByUserId: 'user', registeredAt: '2030-01-01T00:00:00Z' as unknown as Instant, statusChangedByUserId: undefined, statusChangedAt: undefined
+  startsAtUtc: '2035-03-04T09:00:00Z', timeZoneId: 'Europe/Paris', status: 'Confirmed', isCurrent: true,
+  registeredByUserId: 'user', registeredAt: '2030-01-01T00:00:00Z', statusChangedByUserId: undefined, statusChangedAt: undefined
 };
 
 describe('My Registrations presentation', () => {

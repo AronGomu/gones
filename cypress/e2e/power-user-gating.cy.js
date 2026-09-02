@@ -7,7 +7,7 @@ const profile = {
 };
 const managedEvent = {
   id: eventId, organizationId: '22222222-2222-2222-2222-222222222222', organizationName: 'Owned Club', title: 'Power Gate Event', slug: 'power-gate-event',
-  summary: 'Summary', bodyHtml: '<p>Body</p>', streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+  summary: 'Summary', bodyMarkdown: 'Body', streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
   timeZoneId: 'Europe/Paris', venueStartDate: '2030-08-01', venueStartTime: '10:00:00', venueEndDate: '2030-08-01',
   venueEndTime: '18:00:00', startsAtUtc: '2030-08-01T08:00:00Z', endsAtUtc: '2030-08-01T16:00:00Z', capacity: 32,
   status: 'Published', formatIds: ['33333333-3333-3333-3333-333333333333'], version: 3, eTag: '"3"'
@@ -15,6 +15,8 @@ const managedEvent = {
 const publicEvent = {
   ...managedEvent,
   displayTitle: 'Legacy — Power Gate Event',
+  bodyHtml: '<p>Body</p>',
+  images: [],
   venue: { streetAddress: managedEvent.streetAddress, postalCode: managedEvent.postalCode, city: managedEvent.city, country: managedEvent.country },
   organization: { id: managedEvent.organizationId, name: managedEvent.organizationName, description: '', website: '', contactEmail: '' },
   formats: [{ id: managedEvent.formatIds[0], name: 'Legacy', slug: 'legacy', sortOrder: 1 }],

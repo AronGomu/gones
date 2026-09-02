@@ -15,18 +15,17 @@ function seedStorage(win) {
 // request out of its own cache: the document never travels through the Cypress proxy, so Cypress
 // cannot install its hook and `onBeforeLoad` is never called — no error, no seed. Re-apply from the
 // loaded window and visit once more when the hook was skipped.
-function visit(path, origin = '') {
-  const url = `${origin}${path}`;
-  cy.visit(url, { onBeforeLoad: seedStorage });
+function visit(path) {
+  cy.visit(path, { onBeforeLoad: seedStorage });
   cy.window({ log: false }).then(win => {
     if (win.localStorage.getItem(SEED_MARKER) === 'true') return;
     seedStorage(win);
-    cy.visit(url);
+    cy.visit(path);
   });
 }
 
-function login(origin = '') {
-  visit('/login', origin);
+function login() {
+  visit('/login');
   cy.get('[data-cy="auth-email"]').type(email);
   cy.get('[data-cy="auth-password"]').type(password, { log: false });
   cy.get('[data-cy="auth-submit"]').click();
@@ -43,13 +42,6 @@ function login(origin = '') {
 // itself: a signed-in user must see no anchor to /login anywhere on the page, and an anonymous one
 // must see at least one.
 const SIGN_IN_LINK = 'a[href="/login"], a[href^="/login?"]';
-
-function alternateLoopbackOrigin() {
-  const origin = new URL(Cypress.config('baseUrl')).origin;
-  const url = new URL(origin);
-  url.hostname = url.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
-  return url.origin;
-}
 
 function assertNoAuthSecretsInStorage() {
   cy.window().then((win) => {
@@ -78,7 +70,7 @@ describe('session persistence across a reload', () => {
   });
 
   it('keeps the user signed in after Ctrl-F5-equivalent forced reload', () => {
-    login(alternateLoopbackOrigin());
+    login();
     cy.get('[data-cy="profile-link"]').should('be.visible').and('contain.text', 'cypress-user');
     cy.getCookie('gones_refresh').should((cookie) => {
       expect(cookie).not.to.be.null;

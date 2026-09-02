@@ -13,7 +13,9 @@ using Gones.Api.Notifications;
 using Gones.Api.Security;
 using Gones.Api.Serialization;
 using Gones.Api.Testing;
+using Gones.Application.Events;
 using Gones.Infrastructure.Configuration;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
@@ -24,6 +26,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Net.Http.Headers;
+using Microsoft.OpenApi;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
@@ -32,6 +35,11 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
+var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(
+    builder.Configuration,
+    useFakeLocationProvider: builder.Environment.IsDevelopment()
+        || builder.Configuration.GetValue<bool>("GONES_EVENT_LOCATION_USE_FAKE"));
+builder.Services.AddSingleton<IEventLocationTokenService, EventLocationTokenService>();
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
 if (forwardedProxies.Enabled) builder.Services.Configure<ForwardedHeadersOptions>(forwardedProxies.Apply);
@@ -53,7 +61,26 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new UtcDateTimeOffsetJsonConverter());
     options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 });
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddOperationTransformer((operation, context, _) =>
+{
+    if (context.Description.HttpMethod == HttpMethods.Post
+        && context.Description.RelativePath?.TrimEnd('/') == "api/events"
+        && operation.Responses?[StatusCodes.Status201Created.ToString()] is OpenApiResponse created)
+    {
+        created.Headers ??= new Dictionary<string, IOpenApiHeader>();
+        created.Headers["Location"] = new OpenApiHeader
+        {
+            Description = "Relative URL of the published Event.",
+            Required = true
+        };
+        created.Headers["ETag"] = new OpenApiHeader
+        {
+            Description = "Strong entity tag for the published Event.",
+            Required = true
+        };
+    }
+    return Task.CompletedTask;
+}));
 builder.Services.AddProblemDetails();
 // The public catalogs are the payloads that need this (ADR 0042), but compression is cheap for every
 // anonymous read, so it is registered app-wide and narrowed at the middleware below.
@@ -95,6 +122,10 @@ builder.Services.AddGonesAuthRateLimiting(RateLimitSettings.Load(
 var brevoWebhookOptions = BrevoWebhookOptions.TryLoad(builder.Configuration);
 
 var healthChecks = builder.Services.AddHealthChecks();
+if (eventProviderRegistrations.ImageStorage is not null)
+{
+    healthChecks.AddCheck<EventImageStorageHealthCheck>("eventImageStorage");
+}
 var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
 if (string.IsNullOrWhiteSpace(connectionString))
 {
@@ -112,7 +143,10 @@ else
         builder.Services.AddScoped<BrevoWebhookService>();
     }
     builder.Services.AddScoped<OrganizationAccessService>();
+    builder.Services.AddSingleton<IEventMarkdownRenderer, EventMarkdownRenderer>();
     builder.Services.AddScoped<EventPublicationService>();
+    builder.Services.AddScoped<EventImageUploadService>();
+    builder.Services.AddScoped<EventImageCleanupService>();
     builder.Services.AddScoped<EventProposalService>();
     builder.Services.AddScoped<EventLifecycleService>();
     builder.Services.AddScoped<EventRegistrationService>();
@@ -130,7 +164,6 @@ else
     builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, EventOrganizationDeleteDependency>();
     builder.Services.AddScoped<IOrganizationDeleteDependency, RegistrationOrganizationDeleteDependency>();
-    builder.Services.AddSingleton<EventPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
         builder.Services.AddGonesLocalIdentity();
@@ -211,6 +244,19 @@ app.UseStatusCodePages(async statusContext =>
     problem.Extensions["traceId"] = statusContext.HttpContext.TraceIdentifier;
     await response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
 });
+// A deleted literal endpoint overlaps the public `{slug}` GET template. Endpoint routing would
+// otherwise answer POST with 405 even though no POST endpoint exists; deleted APIs must be 404.
+app.Use(async (context, next) =>
+{
+    await next();
+    if (!context.Response.HasStarted
+        && context.Response.StatusCode == StatusCodes.Status405MethodNotAllowed
+        && HttpMethods.IsPost(context.Request.Method)
+        && context.Request.Path.Equals("/api/events/preview", StringComparison.Ordinal))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
+});
 app.UseMiddleware<ApiRequestSizeMiddleware>();
 app.UseAuthentication();
 app.UseRateLimiter();
@@ -218,6 +264,7 @@ app.UseAuthorization();
 
 app.MapGet("/health/live", () => new HealthStatusResponse("live")).Produces<HealthStatusResponse>().AllowAnonymous();
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { ResponseWriter = ReadinessResponseWriter.WriteAsync }).AllowAnonymous();
+app.MapEventLocationEndpoints();
 if (app.Environment.IsDevelopment()) app.MapOpenApi().AllowAnonymous();
 else if (builder.Configuration.GetValue<bool>("GONES_OPENAPI_ENABLED")) app.MapOpenApi().RequireAuthorization(AuthorizationPolicies.Admin);
 app.MapContractTestEndpoints();
@@ -245,6 +292,7 @@ if (!string.IsNullOrWhiteSpace(connectionString))
     app.MapLiveCommandEndpoints();
     app.MapPublicEventEndpoints();
     app.MapEventPublicationEndpoints();
+    app.MapEventImageEndpoints();
     app.MapEventProposalEndpoints();
     app.MapEventLifecycleEndpoints();
     app.MapEventRegistrationEndpoints();

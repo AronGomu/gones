@@ -7,16 +7,17 @@
  * process if a base image overrides it later.
  *
  * Checks, per image: Linux OCI, requested architecture, non-root numeric account, OCI provenance
- * labels, declared stop signal, no baked-in volumes, no cloud SDK payload or credential environment,
- * a root filesystem that is genuinely read-only, and — for the API — a live health endpoint plus a
+ * labels, declared stop signal, no baked-in volumes, no cloud SDK beyond the exact S3-compatible
+ * client adapter or credential environment, a root filesystem that is genuinely read-only, and — for the API — a live health endpoint plus a
  * graceful SIGTERM exit.
  *
  * Run `npm run images:build` first.
  */
-import { RELEASE_IMAGES, capture, run, tagFor } from './release-images.mjs';
+import { RELEASE_IMAGES, capture, imageRevisionMatchesHead, run, tagFor, unsupportedCloudSdkPayload } from './release-images.mjs';
 
 const reference = process.env.GONES_IMAGE_REFERENCE ?? 'local';
 const expectedArchitecture = (process.env.GONES_IMAGE_PLATFORM ?? 'linux/amd64').split('/')[1];
+const headRevision = capture('git', ['rev-parse', 'HEAD']);
 const failures = [];
 const check = (condition, message) => {
   if (condition) return;
@@ -51,6 +52,9 @@ for (const image of RELEASE_IMAGES) {
     check(Boolean(labels[`org.opencontainers.image.${label}`]), `${tag} is missing org.opencontainers.image.${label}`);
   }
   check(labels['org.opencontainers.image.title'] === image.title, `${tag} title label must be ${image.title}`);
+  check(
+    imageRevisionMatchesHead(labels, headRevision),
+    `${tag} revision label must equal HEAD ${headRevision} (got ${labels['org.opencontainers.image.revision'] || 'missing'})`);
   const environment = inspected.Config?.Env ?? [];
   for (const prefix of CLOUD_ENVIRONMENT) {
     check(!environment.some((entry) => entry.startsWith(prefix)), `${tag} must not preset cloud credential environment ${prefix}*`);
@@ -72,13 +76,14 @@ for (const image of RELEASE_IMAGES) {
   ]);
   check(readOnly.stdout.trim() === 'read-only', `${tag} root filesystem must be read-only (got ${readOnly.stdout.trim()})`);
 
-  // No cloud SDK ships inside the image payload either.
+  // Infrastructure carries one exact S3-compatible client adapter; every other cloud SDK stays out.
   const payload = run('docker', [
     'run', '--rm', '--read-only', '--tmpfs', '/tmp',
     '--entrypoint', 'sh', tag,
     '-c', 'ls /app 2>/dev/null | grep -Ei "aws|azure|amazon|google\\.cloud|alibaba" || true'
   ]);
-  check(payload.stdout.trim() === '', `${tag} must not ship a cloud SDK assembly (found ${payload.stdout.trim()})`);
+  const unsupportedPayload = unsupportedCloudSdkPayload(payload.stdout.split('\n'));
+  check(unsupportedPayload.length === 0, `${tag} must not ship a cloud SDK outside the S3-compatible client adapter (found ${unsupportedPayload.join(', ')})`);
   if (failures.length === postureFailures) pass(`${tag} runtime posture`);
 }
 

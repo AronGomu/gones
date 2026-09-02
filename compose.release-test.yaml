@@ -86,6 +86,49 @@ services:
     networks: [core]
     restart: "no"
 
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER_FILE: /secrets/event-images-s3-access-key
+      MINIO_ROOT_PASSWORD_FILE: /secrets/event-images-s3-secret-key
+    volumes:
+      - event-image-data:/data
+      - secrets:/secrets:ro
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [core]
+
+  event-image-bucket-bootstrap:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "-ec"]
+    environment:
+      MC_CONFIG_DIR: /tmp/mc
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$(cat /secrets/event-images-s3-access-key)" "$$(cat /secrets/event-images-s3-secret-key)"
+        mc mb --ignore-existing local/gones-event-images
+        mc anonymous set none local/gones-event-images
+    volumes:
+      - secrets:/secrets:ro
+    depends_on:
+      minio: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp:size=4m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [core]
+    restart: "no"
+
   api:
     <<: *dotnet-runtime
     build:
@@ -112,6 +155,13 @@ services:
       # The rehearsal replays whole role journeys from one address; the per-account auth limiter is
       # a C40 concern with its own tests (RateLimitPolicyTests) and would only add noise here.
       GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: "1000"
+      # Event location resolution stays inside isolated network through deterministic provider fixture.
+      GONES_EVENT_LOCATION_USE_FAKE: "true"
+      GONES_EVENT_IMAGES_S3_ENDPOINT: http://minio:9000
+      GONES_EVENT_IMAGES_S3_BUCKET: gones-event-images
+      GONES_EVENT_IMAGES_S3_REGION: us-east-1
+      GONES_EVENT_IMAGES_S3_ACCESS_KEY_FILE: /secrets/event-images-s3-access-key
+      GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE: /secrets/event-images-s3-secret-key
       # Self-hosted fake identity provider: no live Google/Facebook credential exists in this stack.
       GONES_AUTH_PROVIDER: External
       GONES_OAUTH_CALLBACK_ORIGIN: https://localhost:8443
@@ -134,6 +184,7 @@ services:
       - secrets:/secrets:ro
     depends_on:
       permissions: { condition: service_completed_successfully }
+      event-image-bucket-bootstrap: { condition: service_completed_successfully }
       otel-collector: { condition: service_started }
     networks: [core]
     restart: unless-stopped
@@ -158,6 +209,11 @@ services:
       GONES_FEATURES__LIVE_SERVER: "true"
       GONES_AUTH_PROVIDER: Local
       GONES_ALLOWED_ORIGINS: https://localhost:8443
+      GONES_EVENT_IMAGES_S3_ENDPOINT: http://minio:9000
+      GONES_EVENT_IMAGES_S3_BUCKET: gones-event-images
+      GONES_EVENT_IMAGES_S3_REGION: us-east-1
+      GONES_EVENT_IMAGES_S3_ACCESS_KEY_FILE: /secrets/event-images-s3-access-key
+      GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE: /secrets/event-images-s3-secret-key
       # Provider-neutral transport pointed at the local fake; no Brevo account is involved.
       GONES_EMAIL_TRANSPORT: Brevo
       GONES_BREVO_API_BASE_URL: https://fake-brevo:8443/v3/
@@ -177,6 +233,7 @@ services:
       - secrets:/secrets:ro
     depends_on:
       permissions: { condition: service_completed_successfully }
+      event-image-bucket-bootstrap: { condition: service_completed_successfully }
     networks: [core]
     # Singleton by contract: leadership is a PostgreSQL advisory lock, not a scheduler feature.
     deploy:
@@ -340,6 +397,7 @@ networks:
 
 volumes:
   postgres-data:
+  event-image-data:
   certs:
   secrets:
   backups:

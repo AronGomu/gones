@@ -22,6 +22,7 @@ public sealed class AuthenticationFailedException() : ApiException("invalid_cred
 public sealed class InvalidAccountActionTokenException() : ApiException("invalid_account_action", "Account action link is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class RateLimitExceededException() : ApiException("rate_limited", "Too many requests. Try again later.", StatusCodes.Status429TooManyRequests);
 public sealed class ResourceNotFoundException() : ApiException("not_found", "Resource not found.", StatusCodes.Status404NotFound);
+public sealed class EventImageNotFoundException() : ApiException("image_not_found", "Event image not found.", StatusCodes.Status404NotFound);
 public sealed class ConcurrencyConflictException(string? currentETag = null, long? currentDocumentVersion = null)
     : ApiException("stale_version", "Resource changed since it was read.", StatusCodes.Status412PreconditionFailed)
 {
@@ -59,10 +60,20 @@ public sealed class InvalidOAuthStateException() : ApiException("invalid_oauth_s
 public sealed class InvalidOAuthTicketException() : ApiException("invalid_oauth_ticket", "OAuth completion link is invalid or expired.", StatusCodes.Status400BadRequest);
 public sealed class OAuthProviderRejectedException() : ApiException("oauth_provider_rejected", "OAuth provider response could not be accepted.", StatusCodes.Status400BadRequest);
 public sealed class OAuthProviderUnavailableException() : ApiException("oauth_provider_unavailable", "OAuth provider is unavailable.", StatusCodes.Status404NotFound);
+
+public static class EventProviderProblemCatalog
+{
+    public const string LocationUnresolved = "location_unresolved";
+    public const string LocationProviderUnavailable = "location_provider_unavailable";
+    public const string ImageStorageUnavailable = "image_storage_unavailable";
+    public const string LocationUnresolvedMessage = "Choose a complete resolved location.";
+    public const string LocationProviderUnavailableMessage = "Event location provider is unavailable.";
+    public const string ImageStorageUnavailableMessage = "Event image storage is unavailable.";
+}
 public sealed class ExistingEmailRequiresLinkException() : ApiException("existing_email_requires_link", "Sign in with your existing account, then link this provider from account settings.", StatusCodes.Status409Conflict);
 public sealed class LastLoginMethodException() : ApiException("last_login_method", "Final login method cannot be removed.", StatusCodes.Status409Conflict);
-public sealed class InvalidEventPreviewTicketException() : ApiException("invalid_preview_ticket", "Tournament preview ticket is invalid or expired.", StatusCodes.Status400BadRequest);
-public sealed class EventPreviewReplayException() : ApiException("preview_ticket_replayed", "Tournament preview ticket was already published.", StatusCodes.Status409Conflict);
+public sealed class LocationTokenInvalidException() : ApiException("location_token_invalid", "Event location token is invalid.", StatusCodes.Status400BadRequest);
+public sealed class LocationTokenExpiredException() : ApiException("location_token_expired", "Event location token expired.", StatusCodes.Status400BadRequest);
 public sealed class IdempotencyConflictException() : ApiException("idempotency_conflict", "Idempotency key was already used for another request.", StatusCodes.Status409Conflict);
 public sealed class EmailVerificationRequiredException() : ApiException("email_verification_required", "Verified email is required to register.", StatusCodes.Status403Forbidden);
 /// <summary>

@@ -118,8 +118,14 @@ function zonedLocalToUtc(localIso, timeZoneId) {
 }
 
 /** The search column the server derives from an Event's own fields, byte for byte (`Event.BuildSearchText`). */
-function searchText(event) {
-  return [event.title, event.summary, event.city, event.country]
+export function storedEventType(value) {
+  const mapped = { weekly: 'Weekly', monthly: 'Monthly', major: 'Major' }[value];
+  if (mapped === undefined) fail(`Bulk load refused: unsupported Event Type ${value}.`);
+  return mapped;
+}
+
+export function searchText(event) {
+  return [event.title, event.summary, event.city, event.region, event.country, storedEventType(event.eventType)]
     .filter((value) => value !== null && value !== undefined && String(value).trim() !== '')
     .map((value) => String(value).trim())
     .join(' ')
@@ -191,11 +197,16 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
       literal(event.title),
       literal(slug),
       nullable(event.summary),
-      nullable(event.bodyHtml),
+      nullable(event.bodyMarkdown),
       literal(event.streetAddress),
-      nullable(event.postalCode),
+      literal(event.postalCode),
       literal(event.city),
       literal(event.country),
+      literal(event.region),
+      literal(`stress-${event.key}`),
+      String(45.764),
+      String(4.8357),
+      literal(storedEventType(event.eventType)),
       literal(event.timeZoneId),
       literal(startsLocal.slice(0, 10)),
       literal(`${startsLocal.slice(11)}:00`),
@@ -203,7 +214,7 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
       literal(`${endsLocal.slice(11)}:00`),
       literal(zonedLocalToUtc(startsLocal, event.timeZoneId).toISOString()),
       literal(zonedLocalToUtc(endsLocal, event.timeZoneId).toISOString()),
-      event.capacity === null || event.capacity === undefined ? 'NULL' : String(event.capacity),
+      String(event.capacity),
       literal('Published'),
       literal(requireUser(event.organizerEmail)),
       literal(nowIso),
@@ -301,8 +312,8 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
   const script = [
     'BEGIN;',
     ...insertStatements('events', [
-      'id', 'organization_id', 'title', 'slug', 'summary', 'body_html', 'street_address', 'postal_code',
-      'city', 'country', 'time_zone_id', 'venue_start_date', 'venue_start_time', 'venue_end_date',
+      'id', 'organization_id', 'title', 'slug', 'summary', 'body_markdown', 'street_address', 'postal_code',
+      'city', 'country', 'region', 'provider_place_id', 'latitude', 'longitude', 'event_type', 'time_zone_id', 'venue_start_date', 'venue_start_time', 'venue_end_date',
       'venue_end_time', 'starts_at_utc', 'ends_at_utc', 'capacity', 'status', 'created_by_user_id',
       'created_at', 'updated_at', 'normalized_search_text', 'version'
     ], eventRows),

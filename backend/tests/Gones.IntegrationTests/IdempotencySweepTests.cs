@@ -20,7 +20,7 @@ public sealed class IdempotencySweepTests : IAsyncLifetime
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task Sweeper_deletes_expired_records_and_tickets_and_keeps_live_rows()
+    public async Task Sweeper_deletes_expired_records_and_keeps_live_rows()
     {
         var now = clock.GetCurrentInstant();
         await using (var seed = CreateContext())
@@ -28,22 +28,17 @@ public sealed class IdempotencySweepTests : IAsyncLifetime
             seed.IdempotencyRecords.AddRange(
                 Record("expired", now - Duration.FromHours(1), now),
                 Record("live", now + Duration.FromHours(1), now));
-            seed.ConsumedEventPreviewTickets.AddRange(
-                new ConsumedEventPreviewTicket { TicketHash = new string('a', 64), ExpiresAt = now - Duration.FromHours(1) },
-                new ConsumedEventPreviewTicket { TicketHash = new string('b', 64), ExpiresAt = now + Duration.FromHours(1) });
             await seed.SaveChangesAsync();
         }
 
         await using (var sweep = CreateContext())
         {
-            Assert.Equal(2, await new IdempotencyRecordSweeper(sweep, clock).SweepBatchAsync(CancellationToken.None));
+            Assert.Equal(1, await new IdempotencyRecordSweeper(sweep, clock).SweepBatchAsync(CancellationToken.None));
         }
 
         await using var verify = CreateContext();
         Assert.False(await verify.IdempotencyRecords.AnyAsync(item => item.Key == "expired"));
         Assert.True(await verify.IdempotencyRecords.AnyAsync(item => item.Key == "live"));
-        Assert.False(await verify.ConsumedEventPreviewTickets.AnyAsync(item => item.TicketHash == new string('a', 64)));
-        Assert.True(await verify.ConsumedEventPreviewTickets.AnyAsync(item => item.TicketHash == new string('b', 64)));
     }
 
     [Fact]

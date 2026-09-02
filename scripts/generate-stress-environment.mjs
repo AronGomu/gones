@@ -260,7 +260,7 @@ const TIERS = {
   local: { minimum: 8, maximum: 30, skew: 1.3, capacity: 32 },
   monthly: { minimum: 30, maximum: 100, skew: 2.2, capacity: 104 },
   regional: { minimum: 100, maximum: 300, skew: 2.0, capacity: 320 },
-  national: { minimum: 1000, maximum: 1100, skew: 1, capacity: null }
+  national: { minimum: 1000, maximum: 1100, skew: 1, capacity: 1100 }
 };
 
 /** Swiss rounds a field of this size is really paired for. */
@@ -558,9 +558,9 @@ function localWeeks(random, club, volumes) {
 
 const summarize = (value) => (value.length <= 50 ? value : `${value.slice(0, 47)}...`);
 
-function eventBody(format, club, tierLabel) {
-  return `<p>${tierLabel} en ${format.name} chez ${club.name}, ${club.city}.</p>`
-    + '<ul><li>Ronde 1 à l\'heure annoncée</li><li>Decklists obligatoires au-delà de 32 joueurs</li></ul>';
+function eventBodyMarkdown(format, club, tierLabel) {
+  return `${tierLabel} en ${format.name} chez ${club.name}, ${club.city}.`
+    + '\n\n- Ronde 1 à l\'heure annoncée\n- Decklists obligatoires au-delà de 32 joueurs';
 }
 
 /**
@@ -586,11 +586,13 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: club.organizerEmails[0],
         title,
         summary: summarize(`${club.format.name} — locale ${club.city}`),
-        bodyHtml: eventBody(club.format, club, 'Locale hebdomadaire'),
+        bodyMarkdown: eventBodyMarkdown(club.format, club, 'Locale hebdomadaire'),
         streetAddress: club.streetAddress,
         postalCode: club.postalCode,
         city: club.city,
         country: 'France',
+        region: club.region,
+        eventType: 'weekly',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: `${pad(start, 2)}:00`,
@@ -618,11 +620,13 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: club.organizerEmails[club.organizerEmails.length - 1],
         title: `${monthlySeries} ${club.city} #${pad(monthlyEdition, 2)} — ${club.name}`,
         summary: summarize(`${club.format.name} — Open ${club.city}`),
-        bodyHtml: eventBody(club.format, club, 'Open mensuel'),
+        bodyMarkdown: eventBodyMarkdown(club.format, club, 'Open mensuel'),
         streetAddress: club.streetAddress,
         postalCode: club.postalCode,
         city: club.city,
         country: 'France',
+        region: club.region,
+        eventType: 'monthly',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: '10:00',
@@ -655,11 +659,13 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
         organizerEmail: host.organizerEmails[0],
         title: `Championnat Régional ${region} #${pad(edition, 2)}`,
         summary: summarize(`${host.format.name} — CR ${region}`),
-        bodyHtml: eventBody(host.format, host, `Championnat Régional ${region}`),
+        bodyMarkdown: eventBodyMarkdown(host.format, host, `Championnat Régional ${region}`),
         streetAddress: host.streetAddress,
         postalCode: host.postalCode,
         city: host.city,
         country: 'France',
+        region,
+        eventType: 'major',
         timeZoneId: 'Europe/Paris',
         startsAtLocalOffsetDays: offset,
         startsAtLocalTime: '09:00',
@@ -690,12 +696,14 @@ function generateEvents(random, volumes, clubs, formatsByKey) {
       organizerEmail: nationalHost.organizerEmails[0],
       title,
       summary: summarize(`${nationalFormat.name} — CdF ${year} ${nationalCity}`),
-      bodyHtml: `<p>Championnat de France ${year} en ${nationalFormat.name}, ${nationalCity}.</p>`
-        + '<ul><li>Ronde 1 à 9h00</li><li>Decklists obligatoires</li><li>Top 8 le dimanche</li></ul>',
+      bodyMarkdown: `Championnat de France ${year} en ${nationalFormat.name}, ${nationalCity}.`
+        + '\n\n- Ronde 1 à 9h00\n- Decklists obligatoires\n- Top 8 le dimanche',
       streetAddress: `Parc des expositions, ${nationalCity}`,
       postalCode: nationalPostalCode,
       city: nationalCity,
       country: 'France',
+      region: nationalRegion,
+      eventType: 'major',
       timeZoneId: 'Europe/Paris',
       startsAtLocalOffsetDays: days,
       startsAtLocalTime: time,
@@ -1185,11 +1193,11 @@ export function generateStressEnvironment({ seed = DEFAULT_SEED, scale = 1, root
   const liveTournaments = generateLiveTournaments(random, volumes, clubs, archive.leagueSeasons);
   const auditRecords = generateAuditRecords(random, volumes, accounts);
 
-  // `club`, `tier`, `region` and `year` are how this file reasons about an Event; the fixture format
-  // knows none of them, and `validateEnvironment` would not care but the seeder's payloads would carry
-  // them straight to the API. `events` keeps the labels — minus the club, which points back at a whole
+  // `club`, `tier` and `year` are how this file reasons about an Event; the fixture format knows none
+  // of them. Region is app-owned Event data and deliberately remains in the fixture. `events` keeps
+  // internal labels — minus the club, which points back at a whole
   // roster — for the console summary and for the tests that gate the tier mix.
-  const tournaments = events.map(({ club, tier, region, year, ...event }) => event);
+  const tournaments = events.map(({ club, tier, year, ...event }) => event);
   const labelled = events.map(({ club, ...event }) => event);
 
   return {

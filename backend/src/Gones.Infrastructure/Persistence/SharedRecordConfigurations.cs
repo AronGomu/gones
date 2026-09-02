@@ -56,16 +56,6 @@ internal sealed class AuditRecordConfiguration : VersionedEntityConfiguration<Au
     }
 }
 
-internal sealed class ConsumedEventPreviewTicketConfiguration : IEntityTypeConfiguration<ConsumedEventPreviewTicket>
-{
-    public void Configure(EntityTypeBuilder<ConsumedEventPreviewTicket> builder)
-    {
-        builder.HasKey(entity => entity.TicketHash);
-        builder.Property(entity => entity.TicketHash).HasMaxLength(64);
-        builder.HasIndex(entity => entity.ExpiresAt);
-    }
-}
-
 internal sealed class OutboxRecordConfiguration : VersionedEntityConfiguration<OutboxRecord>
 {
     public override void Configure(EntityTypeBuilder<OutboxRecord> builder)

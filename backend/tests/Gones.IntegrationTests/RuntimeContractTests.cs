@@ -79,7 +79,15 @@ public sealed class RuntimeContractTests
     [Fact]
     public void Secret_file_keys_never_widen_to_arbitrary_configuration()
     {
-        Assert.Equal(["GONES_DB_CONNECTION", "GONES_AUTH_SIGNING_KEY"], GonesSecretFiles.SupportedKeys);
+        Assert.Equal(
+        [
+            "GONES_DB_CONNECTION",
+            "GONES_AUTH_SIGNING_KEY",
+            "GONES_GOOGLE_MAPS_API_KEY",
+            "GONES_EVENT_IMAGES_S3_ACCESS_KEY",
+            "GONES_EVENT_IMAGES_S3_SECRET_KEY"
+        ],
+        GonesSecretFiles.SupportedKeys);
     }
 
     [Fact]

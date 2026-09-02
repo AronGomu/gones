@@ -18,7 +18,7 @@ const securityHeaders = [
   'add_header Cross-Origin-Resource-Policy same-origin always;',
   `add_header Permissions-Policy "accelerometer=(), autoplay=(), camera=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), usb=(), xr-spatial-tracking=()" always;`,
   'add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;',
-  `add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' \${GONES_API_ORIGIN}; worker-src 'self'; manifest-src 'self'; object-src 'none'; media-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;`,
+  `add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' \${GONES_API_ORIGIN}; worker-src 'self'; manifest-src 'self'; object-src 'none'; media-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" always;`,
 ];
 
 // Both anchors match a brace or keyword at the start of an indented line, never a bare substring: the
@@ -51,6 +51,15 @@ describe('nginx security headers', () => {
     expect(block).toContain('access_log off;');
     expect(block).toContain('default_type text/plain;');
     expect(block).toContain("return 200 'live';");
+  });
+
+  it('allows Blob-backed Event image previews only through img-src', () => {
+    const policies = template.match(/add_header Content-Security-Policy "[^"]+" always;/g) ?? [];
+    expect(policies).toHaveLength(3);
+    for (const policy of policies) {
+      expect(policy).toContain("img-src 'self' data: blob:");
+      expect(policy.replace("img-src 'self' data: blob:", '')).not.toContain('blob:');
+    }
   });
 
   it('no location sets Content-Type by appending a header', () => {

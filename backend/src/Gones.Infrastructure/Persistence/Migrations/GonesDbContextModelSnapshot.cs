@@ -232,12 +232,12 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("archive_tournament_url");
 
-                    b.Property<string>("BodyHtml")
-                        .HasMaxLength(10000)
-                        .HasColumnType("character varying(10000)")
-                        .HasColumnName("body_html");
+                    b.Property<string>("BodyMarkdown")
+                        .HasMaxLength(20000)
+                        .HasColumnType("character varying(20000)")
+                        .HasColumnName("body_markdown");
 
-                    b.Property<int?>("Capacity")
+                    b.Property<int>("Capacity")
                         .HasColumnType("integer")
                         .HasColumnName("capacity");
 
@@ -278,10 +278,25 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ends_at_utc");
 
+                    b.Property<string>("EventType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("event_type");
+
+                    b.Property<decimal>("Latitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)")
+                        .HasColumnName("latitude");
+
                     b.Property<string>("LiveTournamentUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("live_tournament_url");
+
+                    b.Property<decimal>("Longitude")
+                        .HasPrecision(9, 6)
+                        .HasColumnType("numeric(9,6)")
+                        .HasColumnName("longitude");
 
                     b.Property<string>("NormalizedSearchText")
                         .IsRequired()
@@ -294,9 +309,22 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnName("organization_id");
 
                     b.Property<string>("PostalCode")
+                        .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("postal_code");
+
+                    b.Property<string>("ProviderPlaceId")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("provider_place_id");
+
+                    b.Property<string>("Region")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("region");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -371,11 +399,17 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasIndex("DeletedByUserId")
                         .HasDatabaseName("ix_events_deleted_by_user_id");
 
+                    b.HasIndex("EventType")
+                        .HasDatabaseName("ix_events_event_type");
+
                     b.HasIndex("NormalizedSearchText")
                         .HasDatabaseName("ix_events_normalized_search_text");
 
                     b.HasIndex("OrganizationId")
                         .HasDatabaseName("ix_events_organization_id");
+
+                    b.HasIndex("Region")
+                        .HasDatabaseName("ix_events_region");
 
                     b.HasIndex("Slug")
                         .IsUnique()
@@ -399,12 +433,17 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status", "StartsAtUtc")
                         .HasDatabaseName("ix_events_status_starts_at_utc");
 
+                    b.HasIndex("Country", "Region", "City")
+                        .HasDatabaseName("ix_events_country_region_city");
+
                     b.HasIndex("VenueStartDate", "VenueStartTime", "Id")
                         .HasDatabaseName("ix_events_venue_start_date_venue_start_time_id");
 
                     b.ToTable("events", null, t =>
                         {
-                            t.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
+                            t.HasCheckConstraint("ck_event_type", "event_type IS NULL OR event_type IN ('Weekly', 'Monthly', 'Major')");
+
+                            t.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity > 0");
 
                             t.HasCheckConstraint("ck_scheduled_tournament_deleted_metadata", "(deleted_at IS NULL AND deleted_by_user_id IS NULL) OR (deleted_at IS NOT NULL AND deleted_by_user_id IS NOT NULL)");
 
@@ -437,6 +476,130 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_event_formats_tournament_format_id");
 
                     b.ToTable("event_formats", (string)null);
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AltText")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("alt_text");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("EventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("event_id");
+
+                    b.Property<Instant?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<Guid?>("ProposalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("proposal_id");
+
+                    b.Property<int?>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("state");
+
+                    b.Property<Guid>("UploadedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("uploaded_by_user_id");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id")
+                        .HasName("pk_event_images");
+
+                    b.HasIndex("EventId", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_images_event_id_sort_order")
+                        .HasFilter("event_id IS NOT NULL");
+
+                    b.HasIndex("ProposalId", "SortOrder")
+                        .IsUnique()
+                        .HasDatabaseName("ix_event_images_proposal_id_sort_order")
+                        .HasFilter("proposal_id IS NOT NULL");
+
+                    b.HasIndex("State", "ExpiresAt")
+                        .HasDatabaseName("ix_event_images_state_expires_at");
+
+                    b.HasIndex("UploadedByUserId", "State")
+                        .HasDatabaseName("ix_event_images_uploaded_by_user_id_state");
+
+                    b.ToTable("event_images", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_event_images_alt_text", "alt_text IS NULL OR length(alt_text) <= 300");
+
+                            t.HasCheckConstraint("ck_event_images_dimensions", "width > 0 AND height > 0");
+
+                            t.HasCheckConstraint("ck_event_images_ownership", "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND sort_order IS NULL AND expires_at IS NOT NULL) OR (state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND sort_order IS NOT NULL AND expires_at IS NOT NULL) OR (state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND sort_order IS NOT NULL AND expires_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_event_images_state", "state IN ('Temporary','ProposalOwned','EventOwned')");
+                        });
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventImageObjectDeletion", b =>
+                {
+                    b.Property<string>("ObjectKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("object_key");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Instant>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ImageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("image_id");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("last_error");
+
+                    b.Property<Instant>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.HasKey("ObjectKey")
+                        .HasName("pk_event_image_object_deletions");
+
+                    b.HasIndex("ImageId")
+                        .HasDatabaseName("ix_event_image_object_deletions_image_id");
+
+                    b.HasIndex("NextAttemptAt")
+                        .HasDatabaseName("ix_event_image_object_deletions_next_attempt_at");
+
+                    b.ToTable("event_image_object_deletions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_event_image_object_deletions_attempts", "attempts >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Gones.Domain.Calendar.EventLifecycleEntry", b =>
@@ -2122,26 +2285,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Gones.Domain.Persistence.ConsumedEventPreviewTicket", b =>
-                {
-                    b.Property<string>("TicketHash")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("ticket_hash");
-
-                    b.Property<Instant>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expires_at");
-
-                    b.HasKey("TicketHash")
-                        .HasName("pk_consumed_event_preview_tickets");
-
-                    b.HasIndex("ExpiresAt")
-                        .HasDatabaseName("ix_consumed_event_preview_tickets_expires_at");
-
-                    b.ToTable("consumed_event_preview_tickets");
-                });
-
             modelBuilder.Entity("Gones.Domain.Persistence.IdempotencyRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2737,6 +2880,28 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_event_formats_tournament_formats_tournament_format_id");
+                });
+
+            modelBuilder.Entity("Gones.Domain.Calendar.EventImage", b =>
+                {
+                    b.HasOne("Gones.Domain.Calendar.Event", null)
+                        .WithMany()
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_event_images_events_event_id");
+
+                    b.HasOne("Gones.Domain.Calendar.EventProposal", null)
+                        .WithMany()
+                        .HasForeignKey("ProposalId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_event_images_event_proposals_proposal_id");
+
+                    b.HasOne("Gones.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UploadedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_event_images_asp_net_users_uploaded_by_user_id");
                 });
 
             modelBuilder.Entity("Gones.Domain.Calendar.EventLifecycleEntry", b =>

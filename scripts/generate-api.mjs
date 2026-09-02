@@ -8,7 +8,20 @@ const backend = join(root, 'backend');
 const snapshot = join(backend, 'openapi', 'gones.json');
 const generated = join(root, 'src', 'app', 'api', 'generated', 'gones-api.ts');
 const check = process.argv.includes('--check');
-const normalizeGenerated = value => value.replaceAll('\r\n', '\n').replace(/[ \t]+$/gm, '');
+const normalizeGenerated = value => value
+  .replaceAll('\r\n', '\n')
+  .replace(/[ \t]+$/gm, '')
+  .replace(
+    /(?:export interface FileParameter \{ data: Blob; fileName\?: string; \}\n\n)?export const API_BASE_URL = new InjectionToken<string>\('API_BASE_URL'\);/,
+    "export interface FileParameter { data: Blob; fileName?: string; }\n\nexport const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');")
+  // NSwag 14 emits nullable enum `oneOf` refs as empty interfaces. Keep generated DTOs typed to
+  // OpenAPI's canonical Event Type enum instead of forcing every consumer through unsafe casts.
+  .replace(/export interface (EventType\d*) \{\n\n    \[key: string\]: any;\n\}/g, 'export type $1 = `${PublicCalendarEventType}`;')
+  .replace(/export enum (EventPayloadRequestEventType|UpdateEventDetailsRequestEventType) \{\n    Weekly = "weekly",\n    Monthly = "monthly",\n    Major = "major",\n\}/g, 'export type $1 = "weekly" | "monthly" | "major";')
+  .replace(/eventImagesPOST\(file: FileParameter \| undefined\)/g, 'eventImagesPOST(file: FileParameter)')
+  .replace('export interface EventImageUploadForm {\n    file: string;', 'export interface EventImageUploadForm {\n    file: Blob;')
+  .replace('    state: EventImageUploadResponseState;', '    state: "Temporary";')
+  .replace(/\nexport enum EventImageUploadResponseState \{\n    Temporary = "Temporary",\n\}\n/g, '\n');
 const listenUrl = 'http://127.0.0.1:0';
 const temp = mkdtempSync(join(tmpdir(), 'gones-api-'));
 const tempSnapshot = join(temp, 'gones.json');
@@ -52,6 +65,58 @@ try {
   }
   if (!document) throw new Error(`API OpenAPI endpoint did not start.\n${output}`);
   document.servers = [{ url: '' }];
+  // ASP.NET OpenAPI currently drops `AllowedValuesAttribute` from query-string schemas. Preserve
+  // server's explicit Event Type allowlist in published contract plus generated client.
+  const eventTypeValues = ['weekly', 'monthly', 'major'];
+  const eventTypeParameter = document.paths?.['/api/events']?.get?.parameters
+    ?.find(parameter => parameter.name === 'eventType' && parameter.in === 'query');
+  if (eventTypeParameter) eventTypeParameter.schema = { type: 'string', enum: eventTypeValues };
+  const eventTypeSchema = document.components?.schemas?.PublicCalendarEventType;
+  if (eventTypeSchema) Object.assign(eventTypeSchema, { type: 'string', enum: eventTypeValues });
+  for (const schemaName of ['EventPayloadRequest', 'UpdateEventDetailsRequest']) {
+    const property = document.components?.schemas?.[schemaName]?.properties?.eventType;
+    if (property) document.components.schemas[schemaName].properties.eventType = { type: 'string', enum: eventTypeValues };
+  }
+  // ASP.NET OpenAPI emits NodaTime Instant as an empty object and drops date-time metadata from
+  // location token expiry fields. Keep every generated timestamp on its RFC 3339 string contract.
+  const dateTimeString = { type: 'string', format: 'date-time' };
+  const instant = document.components?.schemas?.Instant;
+  if (instant) Object.assign(instant, dateTimeString);
+  const resolvedLocationExpiry = document.components?.schemas?.ResolvedEventLocationResponse?.properties?.expiresAt;
+  if (resolvedLocationExpiry) Object.assign(resolvedLocationExpiry, dateTimeString);
+  const managementLocationExpiry = document.components?.schemas?.EventManagementResponse?.properties?.locationTokenExpiresAt;
+  if (managementLocationExpiry) Object.assign(managementLocationExpiry, dateTimeString);
+  // Runtime accepts omissions so endpoint can return per-field errors instead of framework-level
+  // malformed_request. They remain required in public contract plus generated callers.
+  const locationAutocompleteParameters = document.paths?.['/api/event-locations/autocomplete']?.get?.parameters ?? [];
+  for (const name of ['input', 'sessionToken', 'language']) {
+    const index = locationAutocompleteParameters.findIndex(candidate => candidate.name === name && candidate.in === 'query');
+    if (index >= 0) {
+      const parameter = { ...locationAutocompleteParameters[index] };
+      delete parameter.required;
+      delete parameter.schema;
+      locationAutocompleteParameters[index] = { ...parameter, required: true, schema: { type: 'string' } };
+    }
+  }
+  const eventImageResponse = document.components?.schemas?.EventImageUploadResponse;
+  if (eventImageResponse?.properties?.state) eventImageResponse.properties.state = { type: 'string', enum: ['Temporary'] };
+  if (eventImageResponse?.properties?.expiresAt) eventImageResponse.properties.expiresAt = { type: 'string', format: 'date-time' };
+  for (const path of [
+    '/api/event-images/{imageId}/variants/{width}',
+    '/api/event-requests/{token}/images/{imageId}/variants/{width}'
+  ]) {
+    const response = document.paths?.[path]?.get?.responses?.['200'];
+    if (response) response.content = { 'image/webp': { schema: { type: 'string', format: 'binary' } } };
+  }
+  const proposalImageResponse = document.paths?.['/api/event-requests/{token}/images/{imageId}/variants/{width}']?.get?.responses?.['200'];
+  if (proposalImageResponse) {
+    proposalImageResponse.headers = {
+      'Cache-Control': {
+        description: 'Private proposal media must never be cached.',
+        schema: { type: 'string', enum: ['no-store'] }
+      }
+    };
+  }
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [

@@ -13,15 +13,17 @@ import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ApiProblemError } from '../../api/api-boundary';
 import { OrganizerEventCreateComponent } from './organizer-event-create.component';
-import { eventPayload } from './organizer-event-create';
 import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
+import { EventImageSelection } from './event-image-uploader.component';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -58,23 +60,29 @@ function setup(dialogAfterClosed: unknown) {
   return { component, dialogStub, proposalsStub };
 }
 
+const source = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
+
 function fillValidForm(component: OrganizerEventCreateComponent): void {
   component.form.setValue({
     organizationId: 'org1',
     title: 'My Event',
     summary: '',
-    bodyHtml: '',
+    bodyMarkdown: '',
     streetAddress: '1 rue Test',
-    postalCode: '',
+    postalCode: '69001',
     city: 'Lyon',
     country: 'France',
+    region: 'Auvergne-Rhône-Alpes',
+    locationToken: 'signed-location-token',
+    latitude: 45.764,
+    longitude: 4.8357,
+    eventType: 'weekly',
     timeZoneId: 'Europe/Paris',
-    startsAtLocal: '2027-08-01T10:00',
-    endsAtLocal: '',
-    capacity: null,
+    startDate: '2027-08-01',
+    startTime: '10:00',
+    capacity: 32,
     formatId: 'fmt1',
-    liveTournamentUrl: '',
-    archiveTournamentUrl: ''
+    images: []
   });
 }
 
@@ -112,12 +120,55 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
     expect(component.proposalError()).toBeTruthy();
   });
 
-  it('confirming posts the payload and recipients', async () => {
+  it('shows the uploader to a plain User proposal submitter', () => {
+    expect(source).toMatch(/<div[^>]+data-cy="event-row-images"[^>]*><gones-event-image-uploader/);
+    expect(source).toContain("[blockedMessageKey]=\"canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'\"");
+  });
+
+  it('blocks proposal submit while an image upload or preview has failed', async () => {
+    const { component, dialogStub, proposalsStub } = setup(['id1']);
+    fillValidForm(component);
+    component.imagePublishBlocked.set(true);
+
+    await component.submitForApproval();
+
+    expect(dialogStub.open).not.toHaveBeenCalled();
+    expect(proposalsStub.submit).not.toHaveBeenCalled();
+  });
+
+  it('confirming posts the payload with ordered images and recipients', async () => {
     const { component, proposalsStub } = setup(['id1']);
     fillValidForm(component);
+    const images = [
+      {
+        imageId: 'img-2',
+        altText: 'Second',
+        response: { id: 'img-2', variants: [] },
+        previewUrl: 'blob:second',
+        srcset: ''
+      },
+      {
+        imageId: 'img-1',
+        altText: null,
+        response: { id: 'img-1', variants: [] },
+        previewUrl: 'blob:first',
+        srcset: ''
+      }
+    ] as unknown as EventImageSelection[];
+    component.onImagesChange(images);
+
     await component.submitForApproval();
+
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
-    expect(proposalsStub.submit).toHaveBeenCalledWith(eventPayload(component.form.getRawValue()), ['id1']);
+    expect(proposalsStub.submit).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'weekly',
+      formatIds: ['fmt1'],
+      images: [
+        { imageId: 'img-2', altText: 'Second' },
+        { imageId: 'img-1', altText: undefined }
+      ],
+      location: expect.objectContaining({ region: 'Auvergne-Rhône-Alpes', country: 'France', city: 'Lyon' })
+    }), ['id1']);
   });
 
   it('success shows the confirmation panel', async () => {

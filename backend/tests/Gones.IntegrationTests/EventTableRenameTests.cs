@@ -26,8 +26,7 @@ public sealed class EventTableRenameTests : IAsyncLifetime
         "event_registration_attempts",
         "event_lifecycle_entries",
         "event_proposals",
-        "event_proposal_recipients",
-        "consumed_event_preview_tickets"
+        "event_proposal_recipients"
     ];
 
     private static readonly string[] RetiredTables =
@@ -38,7 +37,8 @@ public sealed class EventTableRenameTests : IAsyncLifetime
         "tournament_lifecycle_events",
         "tournament_proposals",
         "tournament_proposal_recipients",
-        "consumed_tournament_preview_tickets"
+        "consumed_tournament_preview_tickets",
+        "consumed_event_preview_tickets"
     ];
 
     private readonly PostgreSqlTestContainer postgres = new();

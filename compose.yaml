@@ -63,6 +63,65 @@ services:
       migrator: { condition: service_completed_successfully }
     restart: "no"
 
+  event-image-secret-init:
+    image: alpine:3.22
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        test -s /secrets/access-key || head -c 10 /dev/urandom | od -An -tx1 | tr -d ' \n' > /secrets/access-key
+        test -s /secrets/secret-key || head -c 20 /dev/urandom | od -An -tx1 | tr -d ' \n' > /secrets/secret-key
+        chmod 0444 /secrets/access-key /secrets/secret-key
+    volumes:
+      - event-image-secrets:/secrets
+    read_only: true
+    tmpfs: ["/tmp:size=1m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/event-images/access-key
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/event-images/secret-key
+    volumes:
+      - event-image-data:/data
+      - event-image-secrets:/run/secrets/event-images:ro
+    depends_on:
+      event-image-secret-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+
+  event-image-bucket-bootstrap:
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    entrypoint: ["/bin/sh", "-ec"]
+    environment:
+      MC_CONFIG_DIR: /tmp/mc
+    command:
+      - |
+        mc alias set local http://minio:9000 "$$(cat /run/secrets/event-images/access-key)" "$$(cat /run/secrets/event-images/secret-key)"
+        mc mb --ignore-existing local/gones-event-images
+        mc anonymous set none local/gones-event-images
+    volumes:
+      - event-image-secrets:/run/secrets/event-images:ro
+    depends_on:
+      minio: { condition: service_healthy }
+    read_only: true
+    tmpfs: ["/tmp:size=4m"]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    restart: "no"
+
   api:
     <<: *dotnet-runtime
     build:
@@ -86,6 +145,13 @@ services:
       GONES_GOOGLE_CLIENT_ID: ${GONES_GOOGLE_CLIENT_ID:-}
       GONES_GOOGLE_CLIENT_SECRET: ${GONES_GOOGLE_CLIENT_SECRET:-}
       GONES_GOOGLE_CLIENT_SECRET_FILE: ${GONES_GOOGLE_CLIENT_SECRET_FILE:-}
+      GONES_GOOGLE_MAPS_API_KEY: ${GONES_GOOGLE_MAPS_API_KEY:-}
+      GONES_GOOGLE_MAPS_API_KEY_FILE: ${GONES_GOOGLE_MAPS_API_KEY_FILE:-}
+      GONES_EVENT_IMAGES_S3_ENDPOINT: http://minio:9000
+      GONES_EVENT_IMAGES_S3_BUCKET: gones-event-images
+      GONES_EVENT_IMAGES_S3_REGION: us-east-1
+      GONES_EVENT_IMAGES_S3_ACCESS_KEY_FILE: /run/secrets/event-images/access-key
+      GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE: /run/secrets/event-images/secret-key
       GONES_FACEBOOK_CLIENT_ID: ${GONES_FACEBOOK_CLIENT_ID:-}
       GONES_FACEBOOK_CLIENT_SECRET: ${GONES_FACEBOOK_CLIENT_SECRET:-}
       GONES_FACEBOOK_CLIENT_SECRET_FILE: ${GONES_FACEBOOK_CLIENT_SECRET_FILE:-}
@@ -95,8 +161,11 @@ services:
       GONES_OTEL_CONSOLE_EXPORTER: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     ports: ["127.0.0.1:5080:8080"]
+    volumes:
+      - event-image-secrets:/run/secrets/event-images:ro
     depends_on:
       permissions: { condition: service_completed_successfully }
+      event-image-bucket-bootstrap: { condition: service_completed_successfully }
 
   worker:
     <<: *dotnet-runtime
@@ -110,11 +179,21 @@ services:
       GONES_EMAIL_SINK_PATH: /tmp/gones-email-sink
       GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS: ${GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS:-false}
       GONES_PUBLIC_APP_ORIGIN: ${GONES_PUBLIC_APP_ORIGIN:-https://localhost:4200}
+      GONES_GOOGLE_MAPS_API_KEY: ${GONES_GOOGLE_MAPS_API_KEY:-}
+      GONES_GOOGLE_MAPS_API_KEY_FILE: ${GONES_GOOGLE_MAPS_API_KEY_FILE:-}
+      GONES_EVENT_IMAGES_S3_ENDPOINT: http://minio:9000
+      GONES_EVENT_IMAGES_S3_BUCKET: gones-event-images
+      GONES_EVENT_IMAGES_S3_REGION: us-east-1
+      GONES_EVENT_IMAGES_S3_ACCESS_KEY_FILE: /run/secrets/event-images/access-key
+      GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE: /run/secrets/event-images/secret-key
       GONES_NOTIFICATION_POLL_MILLISECONDS: "500"
       GONES_OTEL_CONSOLE_EXPORTER: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    volumes:
+      - event-image-secrets:/run/secrets/event-images:ro
     depends_on:
       permissions: { condition: service_completed_successfully }
+      event-image-bucket-bootstrap: { condition: service_completed_successfully }
 
   otel-collector:
     profiles: [observability]
@@ -181,4 +260,6 @@ services:
       api: { condition: service_healthy }
 
 volumes:
+  event-image-data:
+  event-image-secrets:
   postgres-data:

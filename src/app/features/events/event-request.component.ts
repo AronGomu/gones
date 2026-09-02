@@ -3,16 +3,22 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { ApiProblemError } from '../../api/api-boundary';
-import { EventProposalReviewResponse } from '../../api/generated/gones-api';
+import { EventImageResponse, EventProposalReviewResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventProposalService } from './event-proposal.service';
+import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
 type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused' | 'expired' | 'handled' | 'error';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, BackButtonComponent],
+  imports: [RouterLink, FormsModule, MatButtonModule, BackButtonComponent, ServerSanitizedHtmlComponent],
+  styles: [`
+    .event-request-images { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin: 1rem 0; padding: 0; list-style: none; }
+    .event-request-images figure { margin: 0; }
+    .event-request-images img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--forge); }
+  `],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-request-back-top" />
     <section class="info-page" data-cy="event-request-page" aria-labelledby="event-request-title">
@@ -52,15 +58,30 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dt data-cy="event-request-fact-starts-label">{{ i18n.t('eventCreate.start') }}</dt>
               <dd data-cy="event-request-fact-starts">{{ review.event.startsAtLocal }}</dd>
               <dt data-cy="event-request-fact-ends-label">{{ i18n.t('eventCreate.end') }}</dt>
-              <dd data-cy="event-request-fact-ends">{{ review.event.endsAtLocal || '—' }}</dd>
+              <dd data-cy="event-request-fact-ends">{{ review.endsAtLocal || '—' }}</dd>
               <dt data-cy="event-request-fact-timezone-label">{{ i18n.t('eventCreate.zone') }}</dt>
-              <dd data-cy="event-request-fact-timezone">{{ review.event.timeZoneId }}</dd>
+              <dd data-cy="event-request-fact-timezone">{{ review.timeZoneId }}</dd>
               <dt data-cy="event-request-fact-capacity-label">{{ i18n.t('event.capacity') }}</dt>
-              <dd data-cy="event-request-fact-capacity">{{ review.event.capacity ?? '—' }}</dd>
+              <dd data-cy="event-request-fact-capacity">{{ review.event.capacity }}</dd>
               <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
-            <pre class="tournament-request-body" data-cy="event-request-body">{{ review.event.bodyHtml || '' }}</pre>
+            <gones-server-sanitized-html class="tournament-request-body" data-cy="event-request-body" [html]="review.bodyHtml || ''" />
+            @if (review.images.length) {
+              <section data-cy="event-request-images" aria-labelledby="event-request-images-title">
+                <h2 id="event-request-images-title" data-cy="event-request-images-title">{{ i18n.t('eventImages.title') }}</h2>
+                <ul class="event-request-images" data-cy="event-request-image-list">
+                  @for (image of review.images; track image.id) {
+                    <li [attr.data-cy]="'event-request-image-item-' + image.id">
+                      <figure [attr.data-cy]="'event-request-image-figure-' + image.id">
+                        <img [src]="reviewImageUrl(image)" [attr.srcset]="reviewImageSrcset(image)" sizes="(max-width: 480px) 100vw, 320px" [alt]="image.altText || ''" loading="eager" [attr.data-cy]="'event-request-image-' + image.id" />
+                        @if (image.altText) { <figcaption [attr.data-cy]="'event-request-image-caption-' + image.id">{{ image.altText }}</figcaption> }
+                      </figure>
+                    </li>
+                  }
+                </ul>
+              </section>
+            }
             <div class="info-actions" data-cy="event-request-actions">
               <button mat-flat-button class="home-primary-action" type="button" data-cy="event-request-validate" [disabled]="pending()" (click)="approve()">{{ i18n.t('proposal.validate') }}</button>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="event-request-refuse" [disabled]="pending()" (click)="state.set('reason')">{{ i18n.t('proposal.refuse') }}</button>
@@ -153,7 +174,18 @@ export class EventRequestComponent {
 
   venueLine(review: EventProposalReviewResponse): string {
     const t = review.event;
-    return [t.streetAddress, t.postalCode, t.city, t.country].filter(Boolean).join(', ');
+    return [t.location.streetAddress, t.location.postalCode, t.location.city, t.location.country].filter(Boolean).join(', ');
+  }
+
+  reviewImageUrl(image: EventImageResponse): string {
+    return [...image.variants].sort((left, right) => left.width - right.width).at(-1)?.url ?? '';
+  }
+
+  reviewImageSrcset(image: EventImageResponse): string {
+    return [...image.variants]
+      .sort((left, right) => left.width - right.width)
+      .map(variant => `${variant.url} ${variant.width}w`)
+      .join(', ');
   }
 
   private stateForError(error: unknown): EventRequestState {

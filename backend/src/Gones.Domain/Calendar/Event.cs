@@ -1,8 +1,5 @@
 using System.Globalization;
-using System.Security;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 using Gones.Domain.Catalog;
 using Gones.Domain.Persistence;
 using NodaTime;
@@ -21,6 +18,13 @@ public enum TournamentChangeSeverity
 {
     None,
     Minor,
+    Major
+}
+
+public enum CalendarEventType
+{
+    Weekly,
+    Monthly,
     Major
 }
 
@@ -82,7 +86,7 @@ public sealed record ScheduledTournamentDraft(
     string Title,
     string Slug,
     string? Summary,
-    string? BodyHtml,
+    string? BodyMarkdown,
     string StreetAddress,
     string? PostalCode,
     string City,
@@ -92,19 +96,26 @@ public sealed record ScheduledTournamentDraft(
     LocalDateTime? EndsAtLocal,
     int? Capacity,
     string? LiveTournamentUrl = null,
-    string? ArchiveTournamentUrl = null);
+    string? ArchiveTournamentUrl = null,
+    string? Region = null,
+    CalendarEventType? EventType = null,
+    string? ProviderPlaceId = null,
+    decimal? Latitude = null,
+    decimal? Longitude = null);
 
 public sealed class Event : VersionedEntity
 {
     public const int MaximumTitleLength = 160;
     public const int MaximumSlugLength = 120;
     public const int MaximumSummaryLength = 50;
-    public const int MaximumBodyHtmlLength = 10000;
+    public const int MaximumBodyMarkdownLength = 20000;
     public const int MaximumAddressLength = 240;
     public const int MaximumPostalCodeLength = 32;
     public const int MaximumCityLength = 120;
     public const int MaximumCountryLength = 120;
+    public const int MaximumRegionLength = 120;
     public const int MaximumTimeZoneLength = 100;
+    public const int MaximumProviderPlaceIdLength = 512;
     public const int MaximumDeletedReasonLength = 300;
     public const int MaximumSearchTextLength = 600;
     public const int MaximumTournamentUrlLength = 2048;
@@ -115,13 +126,18 @@ public sealed class Event : VersionedEntity
     public string Title { get; private set; } = string.Empty;
     public string Slug { get; private set; } = string.Empty;
     public string? Summary { get; private set; }
-    public string? BodyHtml { get; private set; }
+    public string? BodyMarkdown { get; private set; }
     public string? LiveTournamentUrl { get; private set; }
     public string? ArchiveTournamentUrl { get; private set; }
     public string StreetAddress { get; private set; } = string.Empty;
-    public string? PostalCode { get; private set; }
+    public string PostalCode { get; private set; } = string.Empty;
     public string City { get; private set; } = string.Empty;
     public string Country { get; private set; } = string.Empty;
+    public string Region { get; private set; } = string.Empty;
+    public string ProviderPlaceId { get; private set; } = "legacy-unresolved";
+    public decimal Latitude { get; private set; }
+    public decimal Longitude { get; private set; }
+    public CalendarEventType? EventType { get; private set; }
     public string TimeZoneId { get; private set; } = string.Empty;
     public LocalDate VenueStartDate { get; private set; }
     public LocalTime VenueStartTime { get; private set; }
@@ -129,7 +145,7 @@ public sealed class Event : VersionedEntity
     public LocalTime VenueEndTime { get; private set; }
     public Instant StartsAtUtc { get; private set; }
     public Instant EndsAtUtc { get; private set; }
-    public int? Capacity { get; private set; }
+    public int Capacity { get; private set; }
     public ScheduledTournamentStatus Status { get; private set; } = ScheduledTournamentStatus.Published;
     public Guid CreatedByUserId { get; private init; }
     public Instant CreatedAt { get; private init; }
@@ -163,33 +179,44 @@ public sealed class Event : VersionedEntity
         return tournament;
     }
 
-    public TournamentChangeSeverity ClassifyChange(ScheduledTournamentDraft draft, IReadOnlyCollection<TournamentFormat> selectedFormats)
+    public TournamentChangeSeverity ClassifyChange(
+        ScheduledTournamentDraft draft,
+        IReadOnlyCollection<TournamentFormat> selectedFormats,
+        bool imagesChanged = false)
     {
         var normalized = NormalizeDraft(draft, selectedFormats);
         var major = StartsAtUtc != normalized.StartsAtUtc
-            || EndsAtUtc != normalized.EndsAtUtc
             || TimeZoneId != normalized.TimeZone.Id
+            || (normalized.ProviderPlaceId is not null
+                && (ProviderPlaceId != normalized.ProviderPlaceId
+                    || Latitude != normalized.Latitude!.Value
+                    || Longitude != normalized.Longitude!.Value))
             || StreetAddress != normalized.StreetAddress
             || PostalCode != normalized.PostalCode
             || City != normalized.City
             || Country != normalized.Country
+            || Region != normalized.Region
+            || EventType != normalized.EventType
             || Capacity != normalized.Capacity
             || !Formats.Select(format => format.TournamentFormatId).OrderBy(id => id).SequenceEqual(selectedFormats.Select(format => format.Id).OrderBy(id => id));
         if (major) return TournamentChangeSeverity.Major;
 
-        var minor = Title != normalized.Title
+        var minor = imagesChanged
+            || Title != normalized.Title
             || Slug != normalized.Slug
             || Summary != normalized.Summary
-            || BodyHtml != normalized.BodyHtml
-            || LiveTournamentUrl != normalized.LiveTournamentUrl
-            || ArchiveTournamentUrl != normalized.ArchiveTournamentUrl;
+            || BodyMarkdown != normalized.BodyMarkdown;
         return minor ? TournamentChangeSeverity.Minor : TournamentChangeSeverity.None;
     }
 
     public void UpdateDetails(ScheduledTournamentDraft draft, IReadOnlyCollection<TournamentFormat> selectedFormats, Instant now)
     {
         EnsureEditable(now);
+        var liveTournamentUrl = LiveTournamentUrl;
+        var archiveTournamentUrl = ArchiveTournamentUrl;
         ApplyDraft(draft, selectedFormats, now);
+        LiveTournamentUrl = liveTournamentUrl;
+        ArchiveTournamentUrl = archiveTournamentUrl;
     }
 
     public void AdvanceLifecycle(Instant now)
@@ -247,13 +274,21 @@ public sealed class Event : VersionedEntity
         Title = normalized.Title;
         Slug = normalized.Slug;
         Summary = normalized.Summary;
-        BodyHtml = normalized.BodyHtml;
+        BodyMarkdown = normalized.BodyMarkdown;
         LiveTournamentUrl = normalized.LiveTournamentUrl;
         ArchiveTournamentUrl = normalized.ArchiveTournamentUrl;
         StreetAddress = normalized.StreetAddress;
         PostalCode = normalized.PostalCode;
         City = normalized.City;
         Country = normalized.Country;
+        Region = normalized.Region;
+        if (normalized.ProviderPlaceId is not null && normalized.Latitude is not null && normalized.Longitude is not null)
+        {
+            ProviderPlaceId = normalized.ProviderPlaceId;
+            Latitude = normalized.Latitude.Value;
+            Longitude = normalized.Longitude.Value;
+        }
+        EventType = normalized.EventType;
         TimeZoneId = normalized.TimeZone.Id;
         VenueStartDate = normalized.StartsAtLocal.Date;
         VenueStartTime = normalized.StartsAtLocal.TimeOfDay;
@@ -262,7 +297,7 @@ public sealed class Event : VersionedEntity
         StartsAtUtc = normalized.StartsAtUtc;
         EndsAtUtc = normalized.EndsAtUtc;
         Capacity = normalized.Capacity;
-        NormalizedSearchText = BuildSearchText(Title, Summary, City, Country);
+        NormalizedSearchText = BuildSearchText(Title, Summary, City, Region, Country, EventType?.ToString());
         Formats.Clear();
         foreach (var format in selectedFormats.OrderBy(format => format.Slug, StringComparer.Ordinal))
         {
@@ -287,13 +322,21 @@ public sealed class Event : VersionedEntity
         var title = ValidateRequired(draft.Title, nameof(draft.Title), MaximumTitleLength);
         var slug = TournamentSlug.Normalize(draft.Slug);
         var summary = ValidateOptional(draft.Summary, nameof(draft.Summary), MaximumSummaryLength);
-        var bodyHtml = TournamentContentSanitizer.Sanitize(draft.BodyHtml);
+        var bodyMarkdown = ValidateMarkdown(draft.BodyMarkdown, nameof(draft.BodyMarkdown));
         var liveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.LiveTournamentUrl);
         var archiveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.ArchiveTournamentUrl);
         var streetAddress = ValidateRequired(draft.StreetAddress, nameof(draft.StreetAddress), MaximumAddressLength);
-        var postalCode = ValidateOptional(draft.PostalCode, nameof(draft.PostalCode), MaximumPostalCodeLength);
+        var postalCode = ValidateOptional(draft.PostalCode, nameof(draft.PostalCode), MaximumPostalCodeLength) ?? "Unknown";
         var city = ValidateRequired(draft.City, nameof(draft.City), MaximumCityLength);
         var country = ValidateRequired(draft.Country, nameof(draft.Country), MaximumCountryLength);
+        var region = ValidateOptional(draft.Region, nameof(draft.Region), MaximumRegionLength) ?? "Unknown";
+        var providerPlaceId = draft.ProviderPlaceId is null
+            ? null
+            : ValidateRequired(draft.ProviderPlaceId, nameof(draft.ProviderPlaceId), MaximumProviderPlaceIdLength);
+        if ((providerPlaceId is null) != (draft.Latitude is null || draft.Longitude is null))
+        {
+            throw new ArgumentException("Provider place ID and coordinates must be supplied together.", nameof(draft));
+        }
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(ValidateRequired(draft.TimeZoneId, nameof(draft.TimeZoneId), MaximumTimeZoneLength))
             ?? throw new ArgumentException("Time zone must be a valid IANA zone.", nameof(draft));
         var endLocal = draft.EndsAtLocal ?? draft.StartsAtLocal.Date.At(new LocalTime(23, 59, 59));
@@ -301,7 +344,8 @@ public sealed class Event : VersionedEntity
         var endsAtUtc = ResolveEnd(zone, endLocal);
         if (endsAtUtc < startsAtUtc) throw new ArgumentException("Tournament end cannot be before start.", nameof(draft));
         if (draft.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(draft), "Capacity must be positive when present.");
-        return new NormalizedDraft(title, slug, summary, bodyHtml, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
+        var capacity = draft.Capacity ?? int.MaxValue;
+        return new NormalizedDraft(title, slug, summary, bodyMarkdown, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, providerPlaceId, draft.Latitude, draft.Longitude, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, capacity);
     }
 
     private static Instant ResolveRequiredStart(DateTimeZone zone, LocalDateTime local)
@@ -338,6 +382,13 @@ public sealed class Event : VersionedEntity
         return trimmed;
     }
 
+    private static string? ValidateMarkdown(string? value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (value.Length > MaximumBodyMarkdownLength) throw new ArgumentException($"Value cannot exceed {MaximumBodyMarkdownLength} characters.", parameterName);
+        return value;
+    }
+
     private static string BuildSearchText(params string?[] values)
     {
         var text = string.Join(' ', values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()))
@@ -350,19 +401,24 @@ public sealed class Event : VersionedEntity
         string Title,
         string Slug,
         string? Summary,
-        string? BodyHtml,
+        string? BodyMarkdown,
         string? LiveTournamentUrl,
         string? ArchiveTournamentUrl,
         string StreetAddress,
-        string? PostalCode,
+        string PostalCode,
         string City,
         string Country,
+        string Region,
+        string? ProviderPlaceId,
+        decimal? Latitude,
+        decimal? Longitude,
+        CalendarEventType? EventType,
         DateTimeZone TimeZone,
         LocalDateTime StartsAtLocal,
         LocalDateTime EndsAtLocal,
         Instant StartsAtUtc,
         Instant EndsAtUtc,
-        int? Capacity);
+        int Capacity);
 }
 
 public sealed class EventFormat
@@ -440,76 +496,4 @@ public static class EventTournamentUrl
 public static class EventDisplayTitle
 {
     public static string From(string title, string formatName) => $"{formatName} — {title}";
-}
-
-public static class TournamentContentSanitizer
-{
-    private static readonly HashSet<string> AllowedElements = new(StringComparer.Ordinal)
-    {
-        "p", "br", "strong", "em", "ul", "ol", "li", "h2", "h3", "a"
-    };
-
-    public static string? Sanitize(string? html)
-    {
-        if (string.IsNullOrWhiteSpace(html)) return null;
-        if (html.Length > Event.MaximumBodyHtmlLength) throw new ArgumentException($"Body HTML cannot exceed {Event.MaximumBodyHtmlLength} characters.", nameof(html));
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Prohibit,
-            XmlResolver = null
-        };
-
-        try
-        {
-            using var reader = XmlReader.Create(new StringReader($"<root>{html}</root>"), settings);
-            var document = XDocument.Load(reader, LoadOptions.None);
-            return string.Concat(document.Root!.Nodes().Select(RenderNode));
-        }
-        catch (XmlException exception)
-        {
-            throw new ArgumentException("Body HTML must be well-formed allowed markup.", nameof(html), exception);
-        }
-    }
-
-    private static string RenderNode(XNode node) => node switch
-    {
-        XText text => SecurityElement.Escape(text.Value) ?? string.Empty,
-        XElement element => RenderElement(element),
-        _ => throw new ArgumentException("Body HTML contains unsupported markup.", nameof(node))
-    };
-
-    private static string RenderElement(XElement element)
-    {
-        var name = element.Name.LocalName.ToLowerInvariant();
-        if (!string.IsNullOrEmpty(element.Name.NamespaceName) || !AllowedElements.Contains(name))
-        {
-            throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-        }
-
-        if (name == "br")
-        {
-            if (element.HasAttributes || element.Nodes().Any()) throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-            return "<br>";
-        }
-
-        var attributes = string.Empty;
-        if (name == "a")
-        {
-            var href = element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == "href" && string.IsNullOrEmpty(attribute.Name.NamespaceName));
-            if (href is null || element.Attributes().Count() != 1) throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-            if (!Uri.TryCreate(href.Value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || string.IsNullOrWhiteSpace(uri.Host))
-            {
-                throw new ArgumentException("Body HTML links must use absolute HTTPS URLs.", nameof(element));
-            }
-
-            attributes = $" href=\"{SecurityElement.Escape(uri.AbsoluteUri)}\"";
-        }
-        else if (element.HasAttributes)
-        {
-            throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-        }
-
-        var content = string.Concat(element.Nodes().Select(RenderNode));
-        return string.Create(CultureInfo.InvariantCulture, $"<{name}{attributes}>{content}</{name}>");
-    }
 }

@@ -251,6 +251,10 @@ export function validateEnvironment(environment, { today = new Date() } = {}) {
     if (!organizationKeys.has(tournament.organizationKey)) {
       problems.push(`${label}: tournament ${tournament.key} references unknown organization ${tournament.organizationKey}`);
     }
+    if (!nonEmptyString(tournament.region)) problems.push(`${label}: tournament ${tournament.key} needs a non-empty region`);
+    if (!['weekly', 'monthly', 'major'].includes(tournament.eventType)) {
+      problems.push(`${label}: tournament ${tournament.key} has Event Type "${tournament.eventType}", expected weekly, monthly, or major`);
+    }
     if (!Array.isArray(tournament.formatKeys) || tournament.formatKeys.length !== 1) {
       problems.push(`${label}: tournament ${tournament.key} must reference exactly one format`);
     }

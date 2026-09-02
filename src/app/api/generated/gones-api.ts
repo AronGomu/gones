@@ -12,6 +12,8 @@ import { Observable, throwError as _observableThrow, of as _observableOf } from 
 import { Injectable, Inject, Optional, InjectionToken } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpResponse, HttpResponseBase } from '@angular/common/http';
 
+export interface FileParameter { data: Blob; fileName?: string; }
+
 export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL');
 
 export interface IClient {
@@ -122,6 +124,8 @@ export interface IClient {
      * @param to (optional)
      * @param city (optional)
      * @param country (optional)
+     * @param region (optional)
+     * @param eventType (optional)
      * @param organization (optional)
      * @param format (optional)
      * @param status (optional)
@@ -132,11 +136,11 @@ export interface IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse>;
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, region: string | undefined, eventType: EventType | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse>;
     /**
      * @return Created
      */
-    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse>;
+    eventsPOST(idempotency_Key: string, body: EventPayloadRequest): Observable<EventPublishResponse>;
     /**
      * @param from (optional)
      * @return OK
@@ -157,6 +161,10 @@ export interface IClient {
      */
     eventsGET3(slug: string): Observable<void>;
     /**
+     * @return OK
+     */
+    readProposalImageVariant(token: string, imageId: string, width: number): Observable<FileResponse>;
+    /**
      * @param search (optional)
      * @param page (optional)
      * @param pageSize (optional)
@@ -167,6 +175,14 @@ export interface IClient {
      * @return OK
      */
     organizationsGET2(organizationId: string): Observable<PublicOrganizationResponse>;
+    /**
+     * @return OK
+     */
+    autocompleteEventLocations(input: string, sessionToken: string, language: string): Observable<EventLocationAutocompleteResponse>;
+    /**
+     * @return OK
+     */
+    resolveEventLocation(body: ResolveEventLocationRequest): Observable<ResolvedEventLocationResponse>;
     /**
      * @return Accepted
      */
@@ -446,9 +462,18 @@ export interface IClient {
      */
     finalizeLiveTournament(id: string, if_Match: string | undefined, idempotency_Key: string | undefined): Observable<LiveFinalizeResponse>;
     /**
+     * @param file (optional)
+     * @return Created
+     */
+    eventImagesPOST(file: FileParameter): Observable<EventImageUploadResponse>;
+    /**
+     * @return No Content
+     */
+    eventImagesDELETE(imageId: string): Observable<void>;
+    /**
      * @return OK
      */
-    preview(body: EventPayloadRequest): Observable<EventPreviewResponse>;
+    variants(imageId: string, width: number): Observable<FileResponse>;
     /**
      * @return OK
      */
@@ -2057,6 +2082,8 @@ export class Client implements IClient {
      * @param to (optional)
      * @param city (optional)
      * @param country (optional)
+     * @param region (optional)
+     * @param eventType (optional)
      * @param organization (optional)
      * @param format (optional)
      * @param status (optional)
@@ -2067,7 +2094,7 @@ export class Client implements IClient {
      * @param pageSize (optional)
      * @return OK
      */
-    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse> {
+    eventsGET(from: string | undefined, to: string | undefined, city: string | undefined, country: string | undefined, region: string | undefined, eventType: EventType | undefined, organization: string | undefined, format: string | undefined, status: string | undefined, search: string | undefined, past: boolean | undefined, includePast: boolean | undefined, page: number | undefined, pageSize: number | undefined): Observable<PublicEventListResponse> {
         let url_ = this.baseUrl + "/api/events?";
         if (from === null)
             throw new globalThis.Error("The parameter 'from' cannot be null.");
@@ -2085,6 +2112,14 @@ export class Client implements IClient {
             throw new globalThis.Error("The parameter 'country' cannot be null.");
         else if (country !== undefined)
             url_ += "country=" + encodeURIComponent("" + country) + "&";
+        if (region === null)
+            throw new globalThis.Error("The parameter 'region' cannot be null.");
+        else if (region !== undefined)
+            url_ += "region=" + encodeURIComponent("" + region) + "&";
+        if (eventType === null)
+            throw new globalThis.Error("The parameter 'eventType' cannot be null.");
+        else if (eventType !== undefined)
+            url_ += "eventType=" + encodeURIComponent("" + eventType) + "&";
         if (organization === null)
             throw new globalThis.Error("The parameter 'organization' cannot be null.");
         else if (organization !== undefined)
@@ -2175,7 +2210,7 @@ export class Client implements IClient {
     /**
      * @return Created
      */
-    eventsPOST(idempotency_Key: string, body: PublishEventRequest): Observable<EventPublishResponse> {
+    eventsPOST(idempotency_Key: string, body: EventPayloadRequest): Observable<EventPublishResponse> {
         let url_ = this.baseUrl + "/api/events";
         url_ = url_.replace(/[?&]$/, "");
 
@@ -2248,6 +2283,12 @@ export class Client implements IClient {
             let result409: any = null;
             result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -2519,6 +2560,88 @@ export class Client implements IClient {
     }
 
     /**
+     * @return OK
+     */
+    readProposalImageVariant(token: string, imageId: string, width: number): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/event-requests/{token}/images/{imageId}/variants/{width}";
+        if (token === undefined || token === null)
+            throw new globalThis.Error("The parameter 'token' must be defined.");
+        url_ = url_.replace("{token}", encodeURIComponent("" + token));
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        if (width === undefined || width === null)
+            throw new globalThis.Error("The parameter 'width' must be defined.");
+        url_ = url_.replace("{width}", encodeURIComponent("" + width));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "image/webp"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processReadProposalImageVariant(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processReadProposalImageVariant(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<FileResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<FileResponse>;
+        }));
+    }
+
+    protected processReadProposalImageVariant(response: HttpResponseBase): Observable<FileResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
      * @param search (optional)
      * @param page (optional)
      * @param pageSize (optional)
@@ -2639,6 +2762,158 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    autocompleteEventLocations(input: string, sessionToken: string, language: string): Observable<EventLocationAutocompleteResponse> {
+        let url_ = this.baseUrl + "/api/event-locations/autocomplete?";
+        if (input === undefined || input === null)
+            throw new globalThis.Error("The parameter 'input' must be defined and cannot be null.");
+        else
+            url_ += "input=" + encodeURIComponent("" + input) + "&";
+        if (sessionToken === undefined || sessionToken === null)
+            throw new globalThis.Error("The parameter 'sessionToken' must be defined and cannot be null.");
+        else
+            url_ += "sessionToken=" + encodeURIComponent("" + sessionToken) + "&";
+        if (language === undefined || language === null)
+            throw new globalThis.Error("The parameter 'language' must be defined and cannot be null.");
+        else
+            url_ += "language=" + encodeURIComponent("" + language) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processAutocompleteEventLocations(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processAutocompleteEventLocations(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<EventLocationAutocompleteResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<EventLocationAutocompleteResponse>;
+        }));
+    }
+
+    protected processAutocompleteEventLocations(response: HttpResponseBase): Observable<EventLocationAutocompleteResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventLocationAutocompleteResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    resolveEventLocation(body: ResolveEventLocationRequest): Observable<ResolvedEventLocationResponse> {
+        let url_ = this.baseUrl + "/api/event-locations/resolve";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_ : any = {
+            body: content_,
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            })
+        };
+
+        return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processResolveEventLocation(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processResolveEventLocation(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<ResolvedEventLocationResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<ResolvedEventLocationResponse>;
+        }));
+    }
+
+    protected processResolveEventLocation(response: HttpResponseBase): Observable<ResolvedEventLocationResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ResolvedEventLocationResponse;
+            return _observableOf(result200);
+            }));
+        } else if (status === 400) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result400: any = null;
+            result400 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Bad Request", status, _responseText, _headers, result400);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -6294,50 +6569,54 @@ export class Client implements IClient {
     }
 
     /**
-     * @return OK
+     * @param file (optional)
+     * @return Created
      */
-    preview(body: EventPayloadRequest): Observable<EventPreviewResponse> {
-        let url_ = this.baseUrl + "/api/events/preview";
+    eventImagesPOST(file: FileParameter): Observable<EventImageUploadResponse> {
+        let url_ = this.baseUrl + "/api/event-images";
         url_ = url_.replace(/[?&]$/, "");
 
-        const content_ = JSON.stringify(body);
+        const content_ = new FormData();
+        if (file === null || file === undefined)
+            throw new globalThis.Error("The parameter 'file' cannot be null.");
+        else
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
 
         let options_ : any = {
             body: content_,
             observe: "response",
             responseType: "blob",
             headers: new HttpHeaders({
-                "Content-Type": "application/json",
                 "Accept": "application/json"
             })
         };
 
         return this.http.request("post", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processPreview(response_);
+            return this.processEventImagesPOST(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processPreview(response_ as any);
+                    return this.processEventImagesPOST(response_ as any);
                 } catch (e) {
-                    return _observableThrow(e) as any as Observable<EventPreviewResponse>;
+                    return _observableThrow(e) as any as Observable<EventImageUploadResponse>;
                 }
             } else
-                return _observableThrow(response_) as any as Observable<EventPreviewResponse>;
+                return _observableThrow(response_) as any as Observable<EventImageUploadResponse>;
         }));
     }
 
-    protected processPreview(response: HttpResponseBase): Observable<EventPreviewResponse> {
+    protected processEventImagesPOST(response: HttpResponseBase): Observable<EventImageUploadResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
             (response as any).error instanceof Blob ? (response as any).error : undefined;
 
         let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
-        if (status === 200) {
+        if (status === 201) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventPreviewResponse;
-            return _observableOf(result200);
+            let result201: any = null;
+            result201 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as EventImageUploadResponse;
+            return _observableOf(result201);
             }));
         } else if (status === 400) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -6357,11 +6636,170 @@ export class Client implements IClient {
             result403 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Forbidden", status, _responseText, _headers, result403);
             }));
+        } else if (status === 413) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result413: any = null;
+            result413 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Payload Too Large", status, _responseText, _headers, result413);
+            }));
+        } else if (status === 415) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result415: any = null;
+            result415 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unsupported Media Type", status, _responseText, _headers, result415);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return No Content
+     */
+    eventImagesDELETE(imageId: string): Observable<void> {
+        let url_ = this.baseUrl + "/api/event-images/{imageId}";
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+            })
+        };
+
+        return this.http.request("delete", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processEventImagesDELETE(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processEventImagesDELETE(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<void>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<void>;
+        }));
+    }
+
+    protected processEventImagesDELETE(response: HttpResponseBase): Observable<void> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return _observableOf(null as any);
+            }));
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
         } else if (status === 404) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 409) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result409: any = null;
+            result409 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Conflict", status, _responseText, _headers, result409);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    variants(imageId: string, width: number): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/event-images/{imageId}/variants/{width}";
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        if (width === undefined || width === null)
+            throw new globalThis.Error("The parameter 'width' must be defined.");
+        url_ = url_.replace("{width}", encodeURIComponent("" + width));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "image/webp"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processVariants(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processVariants(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<FileResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<FileResponse>;
+        }));
+    }
+
+    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
+        } else if (status === 401) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result401: any = null;
+            result401 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Unauthorized", status, _responseText, _headers, result401);
+            }));
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -6806,7 +7244,7 @@ export class Client implements IClient {
      * @return OK
      */
     updateEventDetails(eventId: string, if_Match: string | undefined, body: UpdateEventDetailsRequest): Observable<EventManagementResponse> {
-        let url_ = this.baseUrl + "/api/events/{eventId}/details";
+        let url_ = this.baseUrl + "/api/organizer/events/{eventId}/details";
         if (eventId === undefined || eventId === null)
             throw new globalThis.Error("The parameter 'eventId' must be defined.");
         url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
@@ -10200,7 +10638,7 @@ export class Client implements IClient {
 
 export interface AccessTokenResponse {
     accessToken: string;
-    expiresAt: Instant;
+    expiresAt: string;
     tokenType: string;
 
     [key: string]: any;
@@ -10261,7 +10699,7 @@ export interface AdminAuditRecordResponse {
     entityType: string;
     entityId: string;
     redactedDiff: string;
-    occurredAt: Instant;
+    occurredAt: string;
 
     [key: string]: any;
 }
@@ -10269,9 +10707,9 @@ export interface AdminAuditRecordResponse {
 export interface AdminDeckArchetypeResponse {
     id: string;
     name: string;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10281,9 +10719,9 @@ export interface AdminFormatResponse {
     name: string;
     slug: string;
     sortOrder: number;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10307,10 +10745,10 @@ export interface AdminNotificationResponse {
     providerMessageId: string | undefined;
     attemptCount: number;
     lastErrorCode: string | undefined;
-    createdAt: Instant;
-    lastAttemptAt: Instant | undefined;
-    sentAt: Instant | undefined;
-    deadLetteredAt: Instant | undefined;
+    createdAt: string;
+    lastAttemptAt: string | undefined;
+    sentAt: string | undefined;
+    deadLetteredAt: string | undefined;
     canRetry: boolean;
 
     [key: string]: any;
@@ -10343,7 +10781,7 @@ export interface AdminOrganizationMemberResponse {
     email: string;
     globalRole: string;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -10354,9 +10792,9 @@ export interface AdminOrganizationResponse {
     description: string | undefined;
     website: string | undefined;
     contactEmail: string | undefined;
-    deletedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    deletedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
     version: number;
     memberCount: number;
     isDraft?: boolean;
@@ -10373,9 +10811,9 @@ export interface AdminUserDetailResponse {
     firstName: string;
     lastName: string;
     isClosed: boolean;
-    closedAt: Instant | undefined;
-    createdAt: Instant;
-    updatedAt: Instant;
+    closedAt: string | undefined;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10398,7 +10836,7 @@ export interface AdminUserSummaryResponse {
     firstName: string;
     lastName: string;
     isClosed: boolean;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -10430,7 +10868,7 @@ export interface ArchiveCatalogResponseOfArchiveTournamentSummary {
 export interface ArchiveCommandResponse {
     id: string;
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -10514,7 +10952,7 @@ export interface ArchiveLeagueSeasonSummary {
     name: string;
     leagueId: string;
     status: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
     tournamentCount: number;
     playerCount: number;
@@ -10527,8 +10965,8 @@ export interface ArchiveLeagueSeasonSummary {
 export interface ArchiveLeagueSummary {
     id: string;
     name: string;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
     documentVersion: number;
 
     [key: string]: any;
@@ -10595,7 +11033,7 @@ export interface ArchiveTournamentCommandResponse {
     rounds: RoundDocument[];
     playerArchetypes: PlayerArchetypeDocument[];
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -10610,7 +11048,7 @@ export interface ArchiveTournamentDetailResponse {
     rounds: RoundDocument[];
     playerArchetypes: PlayerArchetypeDocument[];
     documentVersion: number;
-    updatedAt: Instant;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -10633,7 +11071,7 @@ export interface ArchiveTournamentSummary {
     seasonId: string | undefined;
     tournamentDate: string;
     status: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
     playerCount: number;
 
@@ -10657,7 +11095,7 @@ export interface ArchiveYearsResponse {
 export interface BlockOrganizationUserRequest {
     userId: string;
     reason: string;
-    expiresAt: Instant | undefined;
+    expiresAt: string | undefined;
 
     [key: string]: any;
 }
@@ -10796,6 +11234,71 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
+export interface EventImageInput {
+    imageId: string;
+    altText: string | undefined;
+
+    [key: string]: any;
+}
+
+export interface EventImageResponse {
+    id: string;
+    altText: string | undefined;
+    variants: EventImageVariantResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventImageUploadForm {
+    file: Blob;
+
+    [key: string]: any;
+}
+
+export interface EventImageUploadResponse {
+    id: string;
+    state: "Temporary";
+    width: number;
+    height: number;
+    expiresAt: string;
+    variants: EventImageVariantResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventImageVariantResponse {
+    width: number;
+    height: number;
+    url: string;
+
+    [key: string]: any;
+}
+
+export interface EventLocationAutocompleteResponse {
+    suggestions: EventLocationSuggestionResponse[];
+
+    [key: string]: any;
+}
+
+export interface EventLocationInput {
+    streetAddress: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    region: string;
+    locationToken: string;
+
+    [key: string]: any;
+}
+
+export interface EventLocationSuggestionResponse {
+    placeId: string;
+    primaryText: string;
+    secondaryText: string;
+
+    [key: string]: any;
+}
+
 export interface EventManagementListResponse {
     items: EventManagementResponse[];
     page: number;
@@ -10813,25 +11316,31 @@ export interface EventManagementResponse {
     displayTitle: string;
     slug: string;
     summary: string | undefined;
-    bodyHtml: string | undefined;
+    bodyMarkdown: string | undefined;
     liveTournamentUrl: string | undefined;
     archiveTournamentUrl: string | undefined;
+    location: EventLocationInput;
+    locationTokenExpiresAt: string;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;
     country: string;
+    region: string | undefined;
+    eventType: PublicCalendarEventType | undefined;
     timeZoneId: string;
+    startsAtLocal: string;
     venueStartDate: string;
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
+    startsAtUtc: string;
+    endsAtUtc: string;
     capacity: number | undefined;
     status: string;
-    deletedAt: Instant | undefined;
+    deletedAt: string | undefined;
     deletedReason: string | undefined;
     formatIds: string[];
+    images: EventImageResponse[];
     version: number;
     eTag: string;
 
@@ -10851,51 +11360,14 @@ export interface EventMutationResponse {
 export interface EventPayloadRequest {
     organizationId: string;
     title: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    timeZoneId: string;
+    location: EventLocationInput;
+    eventType: EventPayloadRequestEventType;
     startsAtLocal: string;
-    endsAtLocal: string | undefined;
-    capacity: number | undefined;
+    capacity: number;
     formatIds: string[];
-    liveTournamentUrl?: string | undefined;
-    archiveTournamentUrl?: string | undefined;
-
-    [key: string]: any;
-}
-
-export interface EventPreviewRenderResponse {
-    title: string;
-    displayTitle: string;
-    slug: string;
-    summary: string | undefined;
-    bodyHtml: string | undefined;
-    liveTournamentUrl: string | undefined;
-    archiveTournamentUrl: string | undefined;
-    venue: PublicEventVenueResponse;
-    timeZoneId: string;
-    venueStartDate: string;
-    venueStartTime: string;
-    venueEndDate: string;
-    venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
-    status: string;
-    organization: PublicEventOrganizationResponse;
-    formats: PublicTournamentFormatResponse[];
-
-    [key: string]: any;
-}
-
-export interface EventPreviewResponse {
-    render: EventPreviewRenderResponse;
-    previewTicket: string;
-    expiresAt: Instant;
+    images: EventImageInput[];
+    summary?: string | undefined;
+    bodyMarkdown?: string | undefined;
 
     [key: string]: any;
 }
@@ -10924,7 +11396,7 @@ export interface EventProposalRequest {
 export interface EventProposalResponse {
     id: string;
     status: string;
-    expiresAt: Instant;
+    expiresAt: string;
     recipientCount: number;
 
     [key: string]: any;
@@ -10933,12 +11405,16 @@ export interface EventProposalResponse {
 export interface EventProposalReviewResponse {
     id: string;
     event: EventPayloadRequest;
+    bodyHtml: string | undefined;
+    timeZoneId: string;
+    endsAtLocal: string;
     status: string;
     submittedByUsername: string;
     approverUsername: string;
-    expiresAt: Instant;
+    expiresAt: string;
     organizationName: string;
     formatNames: string[];
+    images: EventImageResponse[];
 
     [key: string]: any;
 }
@@ -10967,14 +11443,14 @@ export interface EventRegistrationHistoryResponse {
     eventSlug: string;
     eventTitle: string;
     organizationName: string;
-    startsAtUtc: Instant;
+    startsAtUtc: string;
     timeZoneId: string;
     status: string;
     isCurrent: boolean;
     registeredByUserId: string;
-    registeredAt: Instant;
+    registeredAt: string;
     statusChangedByUserId: string | undefined;
-    statusChangedAt: Instant | undefined;
+    statusChangedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -10993,8 +11469,8 @@ export interface EventRegistrationMutationResponse {
     eventId: string;
     userId: string;
     status: string;
-    registeredAt: Instant;
-    statusChangedAt: Instant | undefined;
+    registeredAt: string;
+    statusChangedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11003,8 +11479,8 @@ export interface ExternalIdentityResponse {
     provider: string;
     providerEmail: string | undefined;
     providerEmailVerified: boolean;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -11033,11 +11509,6 @@ export interface ImportDeckArchetypesRequest {
     [key: string]: any;
 }
 
-export interface Instant {
-
-    [key: string]: any;
-}
-
 export interface LeagueResult {
     scope: string;
     startDate: string;
@@ -11052,7 +11523,7 @@ export interface LeagueResult {
 export interface LiveCommandResponse {
     document: LiveTournamentDocument;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
     eTag: string;
 
     [key: string]: any;
@@ -11151,7 +11622,7 @@ export interface LiveTournamentDocument {
 export interface LiveTournamentDocumentResponse {
     document: LiveTournamentDocument;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
 
     [key: string]: any;
 }
@@ -11218,7 +11689,7 @@ export interface MyOrganizationResponse {
     website: string | undefined;
     contactEmail: string | undefined;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -11226,7 +11697,7 @@ export interface MyOrganizationResponse {
 export interface OAuthFlowResponse {
     status: string;
     accessToken: string | undefined;
-    expiresAt: Instant | undefined;
+    expiresAt: string | undefined;
     tokenType: string | undefined;
     completionTicket: string | undefined;
     email: string | undefined;
@@ -11267,8 +11738,8 @@ export interface OrganizationBlockedUserResponse {
     username: string;
     reason: string;
     blockedByUserId: string | undefined;
-    blockedAt: Instant;
-    expiresAt: Instant | undefined;
+    blockedAt: string;
+    expiresAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11286,7 +11757,7 @@ export interface OrganizationMemberResponse {
     userId: string;
     username: string;
     role: string;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -11295,7 +11766,7 @@ export interface OrganizationNotificationSettingsResponse {
     organizationId: string;
     notifyOnRegistration: boolean;
     notifyOnUnregistration: boolean;
-    updatedAt: Instant;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -11441,7 +11912,7 @@ export interface PrivateEventParticipantResponse {
     firstName: string;
     lastName: string;
     email: string;
-    registeredAt: Instant;
+    registeredAt: string;
     registeredByUserId: string;
 
     [key: string]: any;
@@ -11465,6 +11936,12 @@ export interface ProposalApproverResponse {
     [key: string]: any;
 }
 
+export enum PublicCalendarEventType {
+    Weekly = "weekly",
+    Monthly = "monthly",
+    Major = "major",
+}
+
 export interface PublicDeckArchetypeResponse {
     id: string;
     name: string;
@@ -11474,7 +11951,7 @@ export interface PublicDeckArchetypeResponse {
 
 export interface PublicEventCatalogResponse {
     items: PublicEventSummaryResponse[];
-    generatedAt: Instant;
+    generatedAt: string;
     count: number;
     truncated: boolean;
 
@@ -11496,12 +11973,14 @@ export interface PublicEventDetailResponse {
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
+    startsAtUtc: string;
+    endsAtUtc: string;
+    capacity: number;
     status: string;
+    eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
+    images: EventImageResponse[];
 
     [key: string]: any;
 }
@@ -11560,10 +12039,11 @@ export interface PublicEventSummaryResponse {
     venueStartTime: string;
     venueEndDate: string;
     venueEndTime: string;
-    startsAtUtc: Instant;
-    endsAtUtc: Instant;
-    capacity: number | undefined;
+    startsAtUtc: string;
+    endsAtUtc: string;
+    capacity: number;
     status: string;
+    eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
 
@@ -11572,9 +12052,10 @@ export interface PublicEventSummaryResponse {
 
 export interface PublicEventVenueResponse {
     streetAddress: string;
-    postalCode: string | undefined;
+    postalCode: string;
     city: string;
     country: string;
+    region: string;
 
     [key: string]: any;
 }
@@ -11605,7 +12086,7 @@ export interface PublicLiveTournamentDetailResponse {
     createdAt: string;
     updatedAt: string;
     documentVersion: number;
-    serverUpdatedAt: Instant;
+    serverUpdatedAt: string;
 
     [key: string]: any;
 }
@@ -11624,7 +12105,7 @@ export interface PublicLiveTournamentSummaryResponse {
     name: string;
     tournamentDate: string;
     stage: string;
-    updatedAt: Instant;
+    updatedAt: string;
     documentVersion: number;
 
     [key: string]: any;
@@ -11636,7 +12117,7 @@ export interface PublicOrganizationResponse {
     description: string | undefined;
     website: string | undefined;
     contactEmail: string | undefined;
-    createdAt: Instant;
+    createdAt: string;
 
     [key: string]: any;
 }
@@ -11646,13 +12127,6 @@ export interface PublicTournamentFormatResponse {
     name: string;
     slug: string;
     sortOrder: number;
-
-    [key: string]: any;
-}
-
-export interface PublishEventRequest {
-    previewTicket: string;
-    payload: EventPayloadRequest;
 
     [key: string]: any;
 }
@@ -11730,6 +12204,29 @@ export interface ReplaceArchiveRoundRequest {
 export interface ResetPasswordRequest {
     token: string;
     password: string;
+
+    [key: string]: any;
+}
+
+export interface ResolvedEventLocationResponse {
+    streetAddress: string;
+    postalCode: string;
+    city: string;
+    country: string;
+    region: string;
+    latitude: number;
+    longitude: number;
+    timeZoneId: string;
+    locationToken: string;
+    expiresAt: string;
+
+    [key: string]: any;
+}
+
+export interface ResolveEventLocationRequest {
+    placeId: string;
+    sessionToken: string;
+    language: string;
 
     [key: string]: any;
 }
@@ -11828,18 +12325,13 @@ export interface UpdateArchivePlayerArchetypeRequest {
 export interface UpdateEventDetailsRequest {
     title: string;
     summary: string | undefined;
-    bodyHtml: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    timeZoneId: string;
+    bodyMarkdown: string | undefined;
+    location: EventLocationInput;
+    eventType: UpdateEventDetailsRequestEventType;
     startsAtLocal: string;
-    endsAtLocal: string | undefined;
-    capacity: number | undefined;
+    capacity: number;
     formatIds: string[];
-    liveTournamentUrl?: string | undefined;
-    archiveTournamentUrl?: string | undefined;
+    images: EventImageInput[];
 
     [key: string]: any;
 }
@@ -11888,9 +12380,9 @@ export interface UpsertFormatRequest {
 export interface UserEmailHistoryResponse {
     id: string;
     email: string | undefined;
-    recordedAt: Instant;
-    retainUntil: Instant;
-    redactedAt: Instant | undefined;
+    recordedAt: string;
+    retainUntil: string;
+    redactedAt: string | undefined;
 
     [key: string]: any;
 }
@@ -11913,8 +12405,8 @@ export interface UserProfileResponse {
     isLocationPublic: boolean;
     isBirthDatePublic: boolean;
     isPreferredLanguagePublic: boolean;
-    createdAt: Instant;
-    updatedAt: Instant;
+    createdAt: string;
+    updatedAt: string;
 
     [key: string]: any;
 }
@@ -11925,6 +12417,15 @@ export interface VerifyOAuthEmailRequest {
 
     [key: string]: any;
 }
+
+export enum EventType {
+    Weekly = "weekly",
+    Monthly = "monthly",
+    Major = "major",
+}
+
+
+export type EventPayloadRequestEventType = "weekly" | "monthly" | "major";
 
 export enum RoundEntryByeRoundEntryKind {
     Bye = "bye",
@@ -11937,6 +12438,8 @@ export enum RoundEntryInvalidRoundEntryKind {
 export enum RoundEntryMatchRoundEntryKind {
     Match = "match",
 }
+
+export type UpdateEventDetailsRequestEventType = "weekly" | "monthly" | "major";
 
 export interface FileResponse {
     data: Blob;

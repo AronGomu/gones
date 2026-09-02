@@ -946,6 +946,25 @@
             }
           },
           {
+            "name": "region",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventType",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "weekly",
+                "monthly",
+                "major"
+              ]
+            }
+          },
+          {
             "name": "organization",
             "in": "query",
             "schema": {
@@ -1056,7 +1075,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishEventRequest"
+                "$ref": "#/components/schemas/EventPayloadRequest"
               }
             }
           },
@@ -1065,6 +1084,16 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "Location": {
+                "description": "Relative URL of the published Event.",
+                "required": true
+              },
+              "ETag": {
+                "description": "Strong entity tag for the published Event.",
+                "required": true
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -1115,6 +1144,16 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1310,6 +1349,97 @@
         }
       }
     },
+    "/api/event-requests/{token}/images/{imageId}/variants/{width}": {
+      "get": {
+        "tags": [
+          "EventProposalEndpoints"
+        ],
+        "operationId": "ReadProposalImageVariant",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "Private proposal media must never be cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/organizations": {
       "get": {
         "tags": [
@@ -1401,6 +1531,142 @@
           },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-locations/autocomplete": {
+      "get": {
+        "tags": [
+          "EventLocationEndpoints"
+        ],
+        "operationId": "AutocompleteEventLocations",
+        "parameters": [
+          {
+            "name": "input",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionToken",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventLocationAutocompleteResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-locations/resolve": {
+      "post": {
+        "tags": [
+          "EventLocationEndpoints"
+        ],
+        "operationId": "ResolveEventLocation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveEventLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedEventLocationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4053,28 +4319,28 @@
         }
       }
     },
-    "/api/events/preview": {
+    "/api/event-images": {
       "post": {
         "tags": [
-          "EventPublicationEndpoints"
+          "EventImageEndpoints"
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/EventPayloadRequest"
+                "$ref": "#/components/schemas/EventImageUploadForm"
               }
             }
           },
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EventPreviewResponse"
+                  "$ref": "#/components/schemas/EventImageUploadResponse"
                 }
               }
             }
@@ -4109,8 +4375,153 @@
               }
             }
           },
+          "413": {
+            "description": "Payload Too Large",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported Media Type",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-images/{imageId}": {
+      "delete": {
+        "tags": [
+          "EventImageEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/event-images/{imageId}/variants/{width}": {
+      "get": {
+        "tags": [
+          "EventImageEndpoints"
+        ],
+        "operationId": "Variants",
+        "parameters": [
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -4490,7 +4901,7 @@
         }
       }
     },
-    "/api/events/{eventId}/details": {
+    "/api/organizer/events/{eventId}/details": {
       "patch": {
         "tags": [
           "EventLifecycleEndpoints"
@@ -9630,6 +10041,211 @@
           }
         }
       },
+      "EventImageInput": {
+        "required": [
+          "imageId",
+          "altText"
+        ],
+        "type": "object",
+        "properties": {
+          "imageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "altText": {
+            "maxLength": 300,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "EventImageResponse": {
+        "required": [
+          "id",
+          "altText",
+          "variants"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "altText": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageVariantResponse"
+            }
+          }
+        }
+      },
+      "EventImageUploadForm": {
+        "required": [
+          "file"
+        ],
+        "type": "object",
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/IFormFile"
+          }
+        }
+      },
+      "EventImageUploadResponse": {
+        "required": [
+          "id",
+          "state",
+          "width",
+          "height",
+          "expiresAt",
+          "variants"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "Temporary"
+            ]
+          },
+          "width": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageVariantResponse"
+            }
+          }
+        }
+      },
+      "EventImageVariantResponse": {
+        "required": [
+          "width",
+          "height",
+          "url"
+        ],
+        "type": "object",
+        "properties": {
+          "width": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "height": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "EventLocationAutocompleteResponse": {
+        "required": [
+          "suggestions"
+        ],
+        "type": "object",
+        "properties": {
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventLocationSuggestionResponse"
+            }
+          }
+        }
+      },
+      "EventLocationInput": {
+        "required": [
+          "streetAddress",
+          "postalCode",
+          "city",
+          "country",
+          "region",
+          "locationToken"
+        ],
+        "type": "object",
+        "properties": {
+          "streetAddress": {
+            "maxLength": 240,
+            "type": "string"
+          },
+          "postalCode": {
+            "maxLength": 32,
+            "type": "string"
+          },
+          "city": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "country": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "region": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "locationToken": {
+            "maxLength": 2048,
+            "type": "string"
+          }
+        }
+      },
+      "EventLocationSuggestionResponse": {
+        "required": [
+          "placeId",
+          "primaryText",
+          "secondaryText"
+        ],
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string"
+          },
+          "primaryText": {
+            "type": "string"
+          },
+          "secondaryText": {
+            "type": "string"
+          }
+        }
+      },
       "EventManagementListResponse": {
         "required": [
           "items",
@@ -9680,14 +10296,19 @@
           "displayTitle",
           "slug",
           "summary",
-          "bodyHtml",
+          "bodyMarkdown",
           "liveTournamentUrl",
           "archiveTournamentUrl",
+          "location",
+          "locationTokenExpiresAt",
           "streetAddress",
           "postalCode",
           "city",
           "country",
+          "region",
+          "eventType",
           "timeZoneId",
+          "startsAtLocal",
           "venueStartDate",
           "venueStartTime",
           "venueEndDate",
@@ -9699,6 +10320,7 @@
           "deletedAt",
           "deletedReason",
           "formatIds",
+          "images",
           "version",
           "eTag"
         ],
@@ -9730,7 +10352,7 @@
               "string"
             ]
           },
-          "bodyHtml": {
+          "bodyMarkdown": {
             "type": [
               "null",
               "string"
@@ -9748,6 +10370,13 @@
               "string"
             ]
           },
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
+          },
+          "locationTokenExpiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
           "streetAddress": {
             "type": "string"
           },
@@ -9763,7 +10392,26 @@
           "country": {
             "type": "string"
           },
+          "region": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
+          },
           "timeZoneId": {
+            "type": "string"
+          },
+          "startsAtLocal": {
             "type": "string"
           },
           "venueStartDate": {
@@ -9819,6 +10467,12 @@
               "format": "uuid"
             }
           },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
+            }
+          },
           "version": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -9869,17 +10523,12 @@
         "required": [
           "organizationId",
           "title",
-          "summary",
-          "bodyHtml",
-          "streetAddress",
-          "postalCode",
-          "city",
-          "country",
-          "timeZoneId",
+          "location",
+          "eventType",
           "startsAtLocal",
-          "endsAtLocal",
           "capacity",
-          "formatIds"
+          "formatIds",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -9891,6 +10540,46 @@
             "maxLength": 160,
             "type": "string"
           },
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "major"
+            ]
+          },
+          "startsAtLocal": {
+            "type": "string"
+          },
+          "capacity": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "formatIds": {
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "images": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageInput"
+            }
+          },
           "summary": {
             "maxLength": 50,
             "type": [
@@ -9898,197 +10587,12 @@
               "string"
             ]
           },
-          "bodyHtml": {
-            "maxLength": 10000,
+          "bodyMarkdown": {
+            "maxLength": 20000,
             "type": [
               "null",
               "string"
             ]
-          },
-          "streetAddress": {
-            "maxLength": 240,
-            "type": "string"
-          },
-          "postalCode": {
-            "maxLength": 32,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "city": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "country": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "timeZoneId": {
-            "maxLength": 100,
-            "type": "string"
-          },
-          "startsAtLocal": {
-            "type": "string"
-          },
-          "endsAtLocal": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "capacity": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "null",
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "formatIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "liveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "archiveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "EventPreviewRenderResponse": {
-        "required": [
-          "title",
-          "displayTitle",
-          "slug",
-          "summary",
-          "bodyHtml",
-          "liveTournamentUrl",
-          "archiveTournamentUrl",
-          "venue",
-          "timeZoneId",
-          "venueStartDate",
-          "venueStartTime",
-          "venueEndDate",
-          "venueEndTime",
-          "startsAtUtc",
-          "endsAtUtc",
-          "capacity",
-          "status",
-          "organization",
-          "formats"
-        ],
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string"
-          },
-          "displayTitle": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "summary": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "bodyHtml": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "liveTournamentUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "archiveTournamentUrl": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "venue": {
-            "$ref": "#/components/schemas/PublicEventVenueResponse"
-          },
-          "timeZoneId": {
-            "type": "string"
-          },
-          "venueStartDate": {
-            "type": "string"
-          },
-          "venueStartTime": {
-            "type": "string"
-          },
-          "venueEndDate": {
-            "type": "string"
-          },
-          "venueEndTime": {
-            "type": "string"
-          },
-          "startsAtUtc": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "endsAtUtc": {
-            "$ref": "#/components/schemas/Instant"
-          },
-          "capacity": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "null",
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "status": {
-            "type": "string"
-          },
-          "organization": {
-            "$ref": "#/components/schemas/PublicEventOrganizationResponse"
-          },
-          "formats": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/PublicTournamentFormatResponse"
-            }
-          }
-        }
-      },
-      "EventPreviewResponse": {
-        "required": [
-          "render",
-          "previewTicket",
-          "expiresAt"
-        ],
-        "type": "object",
-        "properties": {
-          "render": {
-            "$ref": "#/components/schemas/EventPreviewRenderResponse"
-          },
-          "previewTicket": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "$ref": "#/components/schemas/Instant"
           }
         }
       },
@@ -10182,12 +10686,16 @@
         "required": [
           "id",
           "event",
+          "bodyHtml",
+          "timeZoneId",
+          "endsAtLocal",
           "status",
           "submittedByUsername",
           "approverUsername",
           "expiresAt",
           "organizationName",
-          "formatNames"
+          "formatNames",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -10197,6 +10705,18 @@
           },
           "event": {
             "$ref": "#/components/schemas/EventPayloadRequest"
+          },
+          "bodyHtml": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "timeZoneId": {
+            "type": "string"
+          },
+          "endsAtLocal": {
+            "type": "string"
           },
           "status": {
             "type": "string"
@@ -10217,6 +10737,12 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -10486,6 +11012,10 @@
           }
         }
       },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
+      },
       "ImportArchiveRoundRequest": {
         "required": [
           "text"
@@ -10514,7 +11044,10 @@
           }
         }
       },
-      "Instant": {},
+      "Instant": {
+        "type": "string",
+        "format": "date-time"
+      },
       "LeagueResult": {
         "required": [
           "scope",
@@ -12104,6 +12637,14 @@
           }
         }
       },
+      "PublicCalendarEventType": {
+        "type": "string",
+        "enum": [
+          "weekly",
+          "monthly",
+          "major"
+        ]
+      },
       "PublicDeckArchetypeResponse": {
         "required": [
           "id",
@@ -12171,8 +12712,10 @@
           "endsAtUtc",
           "capacity",
           "status",
+          "eventType",
           "organization",
-          "formats"
+          "formats",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -12240,7 +12783,6 @@
           "capacity": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
               "integer",
               "string"
             ],
@@ -12249,6 +12791,16 @@
           "status": {
             "type": "string"
           },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
+          },
           "organization": {
             "$ref": "#/components/schemas/PublicEventOrganizationResponse"
           },
@@ -12256,6 +12808,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PublicTournamentFormatResponse"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -12464,6 +13022,7 @@
           "endsAtUtc",
           "capacity",
           "status",
+          "eventType",
           "organization",
           "formats"
         ],
@@ -12515,7 +13074,6 @@
           "capacity": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
               "integer",
               "string"
             ],
@@ -12523,6 +13081,16 @@
           },
           "status": {
             "type": "string"
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
           },
           "organization": {
             "$ref": "#/components/schemas/PublicEventOrganizationResponse"
@@ -12540,7 +13108,8 @@
           "streetAddress",
           "postalCode",
           "city",
-          "country"
+          "country",
+          "region"
         ],
         "type": "object",
         "properties": {
@@ -12548,15 +13117,15 @@
             "type": "string"
           },
           "postalCode": {
-            "type": [
-              "null",
-              "string"
-            ]
+            "type": "string"
           },
           "city": {
             "type": "string"
           },
           "country": {
+            "type": "string"
+          },
+          "region": {
             "type": "string"
           }
         }
@@ -12833,21 +13402,6 @@
               "string"
             ],
             "format": "int32"
-          }
-        }
-      },
-      "PublishEventRequest": {
-        "required": [
-          "previewTicket",
-          "payload"
-        ],
-        "type": "object",
-        "properties": {
-          "previewTicket": {
-            "type": "string"
-          },
-          "payload": {
-            "$ref": "#/components/schemas/EventPayloadRequest"
           }
         }
       },
@@ -13150,6 +13704,83 @@
           }
         }
       },
+      "ResolvedEventLocationResponse": {
+        "required": [
+          "streetAddress",
+          "postalCode",
+          "city",
+          "country",
+          "region",
+          "latitude",
+          "longitude",
+          "timeZoneId",
+          "locationToken",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "streetAddress": {
+            "type": "string"
+          },
+          "postalCode": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "region": {
+            "type": "string"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "timeZoneId": {
+            "type": "string"
+          },
+          "locationToken": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        }
+      },
+      "ResolveEventLocationRequest": {
+        "required": [
+          "placeId",
+          "sessionToken",
+          "language"
+        ],
+        "type": "object",
+        "properties": {
+          "placeId": {
+            "type": "string"
+          },
+          "sessionToken": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        }
+      },
       "RoundDocument": {
         "required": [
           "id",
@@ -13431,16 +14062,13 @@
         "required": [
           "title",
           "summary",
-          "bodyHtml",
-          "streetAddress",
-          "postalCode",
-          "city",
-          "country",
-          "timeZoneId",
+          "bodyMarkdown",
+          "location",
+          "eventType",
           "startsAtLocal",
-          "endsAtLocal",
           "capacity",
-          "formatIds"
+          "formatIds",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -13455,74 +14083,52 @@
               "string"
             ]
           },
-          "bodyHtml": {
-            "maxLength": 10000,
+          "bodyMarkdown": {
+            "maxLength": 20000,
             "type": [
               "null",
               "string"
             ]
           },
-          "streetAddress": {
-            "maxLength": 240,
-            "type": "string"
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
           },
-          "postalCode": {
-            "maxLength": 32,
-            "type": [
-              "null",
-              "string"
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "weekly",
+              "monthly",
+              "major"
             ]
-          },
-          "city": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "country": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "timeZoneId": {
-            "maxLength": 100,
-            "type": "string"
           },
           "startsAtLocal": {
             "type": "string"
           },
-          "endsAtLocal": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "capacity": {
+            "maximum": 2147483647,
+            "minimum": 1,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
               "integer",
               "string"
             ],
             "format": "int32"
           },
           "formatIds": {
+            "maxItems": 1,
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
           },
-          "liveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "archiveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
+          "images": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageInput"
+            }
           }
         }
       },
@@ -13870,7 +14476,13 @@
       "name": "EventPublicationEndpoints"
     },
     {
+      "name": "EventProposalEndpoints"
+    },
+    {
       "name": "OrganizationEndpoints"
+    },
+    {
+      "name": "EventLocationEndpoints"
     },
     {
       "name": "LocalIdentityEndpoints"
@@ -13888,7 +14500,7 @@
       "name": "PlayerNameMaintenanceEndpoints"
     },
     {
-      "name": "EventProposalEndpoints"
+      "name": "EventImageEndpoints"
     },
     {
       "name": "EventLifecycleEndpoints"

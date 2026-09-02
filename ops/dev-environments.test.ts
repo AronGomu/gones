@@ -32,11 +32,13 @@ interface DevEnvironmentTournament {
   organizerEmail: string;
   title: string;
   summary: string;
-  bodyHtml: string;
+  bodyMarkdown: string;
   streetAddress: string;
   postalCode: string;
   city: string;
   country: string;
+  region: string;
+  eventType: 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
   startsAtLocalOffsetDays: number;
   startsAtLocalTime: string;
@@ -316,7 +318,7 @@ describe('shipped development environments', () => {
       expect(children.map((event) => metadata(event!))).toEqual(children.map(() => metadata(children[0]!)));
 
       for (const child of children) {
-        const text = `${child!.summary} ${child!.bodyHtml}`.toLowerCase();
+        const text = `${child!.summary} ${child!.bodyMarkdown}`.toLowerCase();
         const ownFormat = formatsByKey.get(child!.formatKeys[0])!.name.toLowerCase();
         expect(text, child!.key).toContain(ownFormat);
         for (const siblingKey of formatKeys.filter((key) => key !== child!.formatKeys[0])) {
@@ -438,6 +440,19 @@ describe('environment validation', () => {
     }) as string[];
 
     expect(problems).toContain('x: resetDatabase=false but the environment carries data');
+  });
+
+  it.each([
+    [{ region: '', eventType: 'weekly' }, 'needs a non-empty region'],
+    [{ region: 'Auvergne-Rhône-Alpes', eventType: 'other' }, 'expected weekly, monthly, or major']
+  ])('rejects invalid Event location/type metadata', (metadata, expected) => {
+    const fixture = validEnvironment();
+    fixture['accounts'] = [{ email: 'o@gones.test', username: 'o', firstName: 'O', lastName: 'O', role: 'Organizer' }];
+    fixture['organizations'] = [{ key: 'org', memberEmails: ['o@gones.test'] }];
+    fixture['formats'] = [{ key: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 10 }];
+    fixture['tournaments'] = [{ key: 'open', organizationKey: 'org', organizerEmail: 'o@gones.test', title: 'Open', formatKeys: ['legacy'], ...metadata }];
+    const problems = validateEnvironment(fixture) as string[];
+    expect(problems.some((problem) => problem.includes(expected))).toBe(true);
   });
 
   it.each([{ formatKeys: [] }, { formatKeys: ['legacy', 'modern'] }])('rejects Events with $formatKeys formats', ({ formatKeys }) => {

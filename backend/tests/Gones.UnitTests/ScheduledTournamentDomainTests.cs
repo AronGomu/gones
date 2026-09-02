@@ -75,7 +75,7 @@ public sealed class ScheduledTournamentDomainTests
         {
             Slug = "  Legacy-Cup ",
             Summary = "  Prizes ",
-            BodyHtml = "<p>Hello <strong>Legacy</strong><br /></p>",
+            BodyMarkdown = "  # Hello **Legacy**  ",
             StartsAtLocal = new LocalDateTime(2026, 3, 29, 10, 0),
             EndsAtLocal = null,
             TimeZoneId = "Europe/Paris"
@@ -83,8 +83,8 @@ public sealed class ScheduledTournamentDomainTests
 
         Assert.Equal("legacy-cup", tournament.Slug);
         Assert.Equal("Prizes", tournament.Summary);
-        Assert.Equal("<p>Hello <strong>Legacy</strong><br></p>", tournament.BodyHtml);
-        Assert.Equal("LEGACY CUP PRIZES LYON FRANCE", tournament.NormalizedSearchText);
+        Assert.Equal("  # Hello **Legacy**  ", tournament.BodyMarkdown);
+        Assert.Equal("LEGACY CUP PRIZES LYON AUVERGNE-RHÔNE-ALPES FRANCE WEEKLY", tournament.NormalizedSearchText);
         Assert.Equal(new LocalTime(23, 59, 59), tournament.VenueEndTime);
         Assert.Equal(new LocalDate(2026, 3, 29), tournament.VenueEndDate);
         Assert.True(tournament.EndsAtUtc > tournament.StartsAtUtc);
@@ -176,28 +176,33 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft(), [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Title = "Renamed Cup" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Summary = "Side events" }, [legacy]));
-        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyHtml = "<p>Changed</p>" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyMarkdown = "Changed" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft(), [legacy], imagesChanged: true));
+        Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft() with { EndsAtLocal = null }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { StartsAtLocal = new LocalDateTime(2026, 8, 2, 11, 0) }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
-    }
-
-    [Theory]
-    [InlineData("<script>alert(1)</script>")]
-    [InlineData("<p style=\"color:red\">x</p>")]
-    [InlineData("<p onclick=\"x()\">x</p>")]
-    [InlineData("<img src=\"https://example.test/x.png\" />")]
-    [InlineData("<a href=\"http://example.test\">x</a>")]
-    [InlineData("<a href=\"/relative\">x</a>")]
-    public void Sanitizer_rejects_unsupported_markup_and_urls(string html)
-    {
-        Assert.Throws<ArgumentException>(() => TournamentContentSanitizer.Sanitize(html));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { Region = "Île-de-France" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { EventType = CalendarEventType.Major }, [legacy]));
     }
 
     [Fact]
-    public void Sanitizer_allows_canonical_safe_markup()
+    public void Provider_place_identity_or_coordinates_change_is_major_even_when_visible_location_and_zone_match()
     {
-        var sanitized = TournamentContentSanitizer.Sanitize("<h2>Title</h2><p>See <a href=\"https://example.test/path?q=1\">rules</a></p><ul><li><em>One</em></li></ul>");
-        Assert.Equal("<h2>Title</h2><p>See <a href=\"https://example.test/path?q=1\">rules</a></p><ul><li><em>One</em></li></ul>", sanitized);
+        var legacy = TournamentFormat.CreateLegacy(Now);
+        var resolvedDraft = Draft() with { ProviderPlaceId = "place-1", Latitude = 45.764m, Longitude = 4.8357m };
+        var tournament = Event.Create(OrganizationId, UserId, resolvedDraft, [legacy], Now);
+
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { ProviderPlaceId = "place-2" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Latitude = 45.765m }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Longitude = 4.836m }, [legacy]));
+    }
+
+    [Fact]
+    public void Body_markdown_is_nullable_and_capped_at_twenty_thousand_characters()
+    {
+        Assert.Null(Create(Draft() with { BodyMarkdown = "  " }).BodyMarkdown);
+        Assert.Equal(new string('x', Event.MaximumBodyMarkdownLength), Create(Draft() with { BodyMarkdown = new string('x', Event.MaximumBodyMarkdownLength) }).BodyMarkdown);
+        Assert.Throws<ArgumentException>(() => Create(Draft() with { BodyMarkdown = new string('x', Event.MaximumBodyMarkdownLength + 1) }));
     }
 
     private static Event Create(ScheduledTournamentDraft? draft = null) =>
@@ -207,7 +212,7 @@ public sealed class ScheduledTournamentDomainTests
         Title: "Legacy Cup",
         Slug: "legacy-cup",
         Summary: "Prizes",
-        BodyHtml: "<p>Welcome</p>",
+        BodyMarkdown: "Welcome",
         StreetAddress: "12 Rue de la Paix",
         PostalCode: "69001",
         City: "Lyon",
@@ -215,5 +220,7 @@ public sealed class ScheduledTournamentDomainTests
         TimeZoneId: "Europe/Paris",
         StartsAtLocal: new LocalDateTime(2026, 8, 2, 10, 0),
         EndsAtLocal: new LocalDateTime(2026, 8, 2, 18, 0),
-        Capacity: 64);
+        Capacity: 64,
+        Region: "Auvergne-Rhône-Alpes",
+        EventType: CalendarEventType.Weekly);
 }

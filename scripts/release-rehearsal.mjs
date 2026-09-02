@@ -12,7 +12,7 @@
  *
  * C43 adds the product half: the server-mode SPA behind the same TLS edge, the configured bootstrap
  * User verifying through the local email sink, the Admin bootstrap CLI and its safe second run, the
- * whole Visitor/User/fake-OAuth/Organizer/Owner/Admin journey set, the private migration bundle set,
+ * whole Visitor/User/fake-OAuth/Organizer/Admin journey set, the private migration bundle set,
  * reminder planning with a simulated clock, replanning on date change/unregistration/cancellation,
  * the provider retry ladder into dead letter, operator reconciliation replay, and OTel correlation.
  *
@@ -23,6 +23,14 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
+import {
+  acquireReleaseRehearsalLock,
+  assertFreshStateVolumes,
+  cleanupReleaseRehearsal,
+  installSignalCleanup,
+  listReleaseProjectVolumes,
+  resetReleaseTestStack
+} from './release-rehearsal-guard.mjs';
 import { run } from './release-images.mjs';
 
 const root = process.cwd();
@@ -125,9 +133,25 @@ const secureFetch = (path) => new Promise((resolve, reject) => {
   call.end();
 });
 
+const rehearsalLock = await acquireReleaseRehearsalLock();
+let cleanupPromise;
+const cleanup = () => {
+  if (cleanupPromise) return cleanupPromise;
+  console.log('\n=== tearing the release-test stack down ===');
+  cleanupPromise = cleanupReleaseRehearsal({
+    compose,
+    exportDirectory,
+    lock: rehearsalLock,
+    listProjectVolumes: () => listReleaseProjectVolumes(run)
+  }).then((cleanupFailures) => { failures.push(...cleanupFailures); });
+  return cleanupPromise;
+};
+const uninstallSignalCleanup = installSignalCleanup(cleanup);
+
 try {
   console.log('=== resetting the release-test stack ===');
-  compose(['down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
+  resetReleaseTestStack(compose, () => listReleaseProjectVolumes(run));
+  console.log('  ok   initial teardown completed and old release-test project volumes are absent');
   rmSync(exportDirectory, { recursive: true, force: true });
   mkdirSync(exportDirectory, { recursive: true });
 
@@ -136,6 +160,8 @@ try {
   // which would silently rehearse yesterday's journey runner. Build everything up front instead.
   if (compose(['--profile', 'tools', 'build']).status !== 0) throw new Error('release-test images failed to build');
   if (compose(['up', '--build', '--detach']).status !== 0) throw new Error('release-test stack failed to start');
+  const freshStateVolumes = assertFreshStateVolumes(listReleaseProjectVolumes(run));
+  console.log(`  ok   fresh PostgreSQL and MinIO volumes created (${freshStateVolumes.join(', ')})`);
 
   // Startup ordering: the schema job must complete before the API is allowed to serve.
   const migratorExit = await waitFor(async () => containerState('migrator', '{{.State.Status}}') === 'exited');
@@ -226,8 +252,9 @@ try {
   const adminCount = psql("select count(*) from asp_net_users where global_role = 'Admin';");
   check(adminCount === '1', `exactly one Admin exists after two bootstrap runs (${adminCount})`);
 
-  console.log('\n=== V1 role journeys: Organizer, Owner, Admin and the fake-OAuth User ===');
-  journey('roles', 'the Organizer/Owner/Admin/fake-OAuth journeys all pass without a live provider');
+  console.log('\n=== V1 role journeys: Organizer, Admin and the fake-OAuth User ===');
+  journey('roles', 'the Organizer/Admin/fake-OAuth journeys all pass without a live provider');
+  journey('event-lifecycle', 'the clean-volume Event lifecycle traverses real API, Postgres and MinIO');
   journey('delete-restore', 'soft delete hides the tournament and the Admin restores it');
   const tournamentId = journeyState.tournamentId;
   check(typeof tournamentId === 'string', `the role journey published a tournament (${tournamentId ?? 'none'})`);
@@ -372,9 +399,8 @@ try {
   const workerStatus = containerState('worker', '{{.State.Status}}');
   check(workerStatus === 'running', `the singleton Worker stayed up across the API restart (${workerStatus})`);
 } finally {
-  console.log('\n=== tearing the release-test stack down ===');
-  compose(['--profile', 'tools', 'down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
-  rmSync(exportDirectory, { recursive: true, force: true });
+  await cleanup();
+  uninstallSignalCleanup();
 }
 
 if (failures.length > 0) {

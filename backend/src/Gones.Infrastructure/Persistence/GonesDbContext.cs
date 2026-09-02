@@ -18,7 +18,6 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<SchemaVersion> SchemaVersions => Set<SchemaVersion>();
     public DbSet<IdempotencyRecord> IdempotencyRecords => Set<IdempotencyRecord>();
     public DbSet<AuditRecord> AuditRecords => Set<AuditRecord>();
-    public DbSet<ConsumedEventPreviewTicket> ConsumedEventPreviewTickets => Set<ConsumedEventPreviewTicket>();
     public DbSet<OutboxRecord> OutboxRecords => Set<OutboxRecord>();
     public DbSet<NotificationOutboxRecord> NotificationOutboxRecords => Set<NotificationOutboxRecord>();
     public DbSet<NotificationDeliveryEvent> NotificationDeliveryEvents => Set<NotificationDeliveryEvent>();
@@ -42,6 +41,8 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<EventProposal> EventProposals => Set<EventProposal>();
     public DbSet<EventProposalRecipient> EventProposalRecipients => Set<EventProposalRecipient>();
     public DbSet<EventLifecycleEntry> EventLifecycleEntries => Set<EventLifecycleEntry>();
+    public DbSet<EventImage> EventImages => Set<EventImage>();
+    public DbSet<EventImageObjectDeletion> EventImageObjectDeletions => Set<EventImageObjectDeletion>();
     public DbSet<EventRegistrationAttempt> EventRegistrationAttempts => Set<EventRegistrationAttempt>();
     public DbSet<ScheduledNotification> ScheduledNotifications => Set<ScheduledNotification>();
     public DbSet<NotificationHistory> NotificationHistory => Set<NotificationHistory>();

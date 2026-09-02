@@ -36,7 +36,7 @@ const event: PublicEventView = {
   displayTitle: 'Legacy — Lyon Legacy',
   slug: 'lyon-legacy',
   summary: 'Legacy event',
-  venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
+  venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
   venueStartTime: '23:30:00',

@@ -8,14 +8,15 @@ vi.mock('@angular/core', async (importOriginal) => {
   return { ...actual, effect: () => ({ destroy: () => {} }) };
 });
 
-import { Injector, runInInjectionContext, signal } from '@angular/core';
+import { Injector, createComponent, runInInjectionContext, signal } from '@angular/core';
+import { createApplication } from '@angular/platform-browser';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { EventDetailViewComponent } from './event-detail-view.component';
+import { EventDetailViewComponent, trapDialogFocus } from './event-detail-view.component';
 
 // The required input is swapped for a plain signal; rendered text and geometry are asserted in
 // cypress/e2e/public-calendar.cy.js, which reads the real browser DOM.
@@ -26,6 +27,12 @@ const event = {
   slug: 'gones-night',
   summary: 'Weekly night',
   bodyHtml: '<p>Body</p>',
+  images: [
+    { id: 'image-1', altText: 'Hero alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }, { width: 960, height: 540, url: '/api/event-images/image-1/variants/960' }] },
+    { id: 'image-2', altText: undefined, variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }] },
+    { id: 'image-3', altText: 'Third alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-3/variants/320' }] },
+    { id: 'image-4', altText: 'Fourth alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-4/variants/320' }] }
+  ],
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
@@ -57,7 +64,7 @@ const whenRow = source.slice(source.indexOf('data-cy="event-detail-when-row"'), 
 
 describe('EventDetailViewComponent hero', () => {
   it('renders the backend display title without reconstructing format or capacity', () => {
-    expect(title).toContain('{{ event().displayTitle }}');
+    expect(title).toContain('{{ displayTitle() }}');
     expect(title).not.toContain('event().title');
     expect(title).not.toContain('titleFormat');
     expect(title).not.toContain('event().capacity');
@@ -90,7 +97,7 @@ describe('EventDetailViewComponent hero', () => {
     expect(whenRow).toContain('data-cy="event-detail-when-separator"');
     expect(whenRow).toContain('data-cy="event-detail-starting-hour"');
     expect(whereRow).toContain('data-cy="event-detail-where"');
-    expect(whereRow).toContain('{{ venue() }}');
+    expect(whereRow).toContain('{{ venueDisplay() }}');
     expect(stylesheet).toContain('.event-when,');
   });
 
@@ -111,7 +118,7 @@ describe('EventDetailViewComponent hero', () => {
     const component = build({ venue: {} } as Partial<PublicEventDetailResponse>);
     expect(component.mapsUrl()).toBeNull();
     expect(whereRow).toContain('@if (mapsUrl(); as url)');
-    expect(whereRow).toContain('@else { <span data-cy="event-detail-where">{{ venue() }}</span> }');
+    expect(whereRow).toContain('@else { <span data-cy="event-detail-where" [class.muted]="showVenuePlaceholder()">{{ venueDisplay() }}</span> }');
   });
 
   it('organization fact block is gone', () => {
@@ -159,7 +166,7 @@ describe('EventDetailViewComponent hero', () => {
 
   it('keeps a plain kicker with no website', () => {
     expect(source).toContain('data-cy="event-detail-kicker"');
-    expect(source).toContain('@else { <p class="kicker" data-cy="event-detail-kicker">');
+    expect(source).toContain('@else { <p class="kicker" data-cy="event-detail-kicker"');
   });
 
   it('keeps an ics action', () => {
@@ -228,7 +235,7 @@ describe('EventDetailViewComponent hero', () => {
 
   it('title holds only the title text', () => {
     expect(title).toContain('data-cy="event-detail-title-text"');
-    expect(title).toContain('{{ event().displayTitle }}');
+    expect(title).toContain('{{ displayTitle() }}');
     expect(title).not.toContain('event-detail-player-count');
     expect(title).not.toContain('event-detail-starting-hour');
   });
@@ -267,6 +274,102 @@ describe('EventDetailViewComponent hero', () => {
 
   it('no when-where hook survives', () => {
     expect(source).not.toContain('event-detail-when-where');
+  });
+
+  it('renders ordered responsive hero and gallery media with exact alt fallback', () => {
+    const component = build();
+    expect(component.imageAlt(event.images[0], 0)).toBe('Hero alt');
+    expect(component.imageAlt(event.images[1], 1)).toBe('Modern — AURA Open — image 2');
+    expect(component.imageSource(event.images[0])).toBe('/api/event-images/image-1/variants/960');
+    expect(component.imageSourceSet(event.images[0])).toBe('/api/event-images/image-1/variants/320 320w, /api/event-images/image-1/variants/960 960w');
+    expect(source).toContain('data-cy="event-detail-media-hero"');
+    expect(source).toContain('data-cy="event-detail-media-gallery"');
+    expect(source).toContain('@for (image of galleryImages(); track image.id; let position = $index)');
+    expect(stylesheet).toMatch(/\.event-media-hero[^}]*aspect-ratio:\s*16\s*\/\s*9/);
+    expect(stylesheet).toMatch(/\.event-media-image[^}]*object-fit:\s*contain/);
+    expect(stylesheet).toMatch(/\.event-media-gallery[^}]*grid-template-columns:\s*repeat\(3,/);
+    expect(stylesheet).toMatch(/@media[^}]*max-width:\s*700px[\s\S]*\.event-media-gallery[^}]*grid-template-columns:\s*1fr/);
+  });
+
+  it('implements dialog keyboard navigation, focus trap, Escape close and trigger focus restore', () => {
+    const component = build();
+    const trigger = document.createElement('button');
+    const focus = vi.spyOn(trigger, 'focus');
+
+    component.openLightbox(1, trigger);
+    expect(component.lightboxIndex()).toBe(1);
+    component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true }));
+    expect(component.lightboxIndex()).toBe(2);
+    component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true }));
+    expect(component.lightboxIndex()).toBe(1);
+    component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+    expect(component.lightboxIndex()).toBeNull();
+    expect(focus).toHaveBeenCalledOnce();
+
+    const dialog = document.createElement('div');
+    dialog.innerHTML = '<button id="first">First</button><button id="last">Last</button>';
+    document.body.append(dialog);
+    const first = dialog.querySelector<HTMLElement>('#first')!;
+    const last = dialog.querySelector<HTMLElement>('#last')!;
+    last.focus();
+    trapDialogFocus(new KeyboardEvent('keydown', { key: 'Tab', cancelable: true }), dialog);
+    expect(document.activeElement).toBe(first);
+    first.focus();
+    trapDialogFocus(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, cancelable: true }), dialog);
+    expect(document.activeElement).toBe(last);
+    dialog.remove();
+
+    expect(source).toContain('role="dialog"');
+    expect(source).toContain('aria-modal="true"');
+    expect(source).toContain('(keydown)="onLightboxKeydown($event)"');
+  });
+
+  it('renders and operates the accessible lightbox in the real component DOM', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const application = await createApplication({ providers: [DeckArchetypeSettingsService, I18nService] });
+    const reference = createComponent(EventDetailViewComponent, { hostElement: host, environmentInjector: application.injector });
+    Object.defineProperty(reference.instance, 'event', { value: signal({ ...event, bodyHtml: undefined }) });
+    application.attachView(reference.hostView);
+    reference.changeDetectorRef.detectChanges();
+
+    const heroTrigger = host.querySelector<HTMLButtonElement>('[data-cy="event-detail-media-hero"]')!;
+    heroTrigger.focus();
+    heroTrigger.click();
+    reference.changeDetectorRef.detectChanges();
+    await new Promise(resolve => setTimeout(resolve));
+
+    const dialog = host.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-label')).toBe(translate('fr', 'event.imageDialogLabel'));
+    expect(dialog.querySelector('img')?.getAttribute('alt')).toBe('Hero alt');
+    expect(document.activeElement).toBe(dialog.querySelector('[data-cy="event-detail-lightbox-close"]'));
+
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    reference.changeDetectorRef.detectChanges();
+    expect(dialog.querySelector('img')?.getAttribute('alt')).toBe('Modern — AURA Open — image 2');
+    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    reference.changeDetectorRef.detectChanges();
+    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(heroTrigger);
+
+    application.detachView(reference.hostView);
+    reference.destroy();
+    application.destroy();
+    host.remove();
+  });
+
+  it('shows muted title and location placeholders only in explicit draft mode', () => {
+    const publicView = build({ displayTitle: '', venue: {} } as Partial<PublicEventDetailResponse>);
+    expect(publicView.displayTitle()).toBe('');
+    expect(publicView.venueDisplay()).toBe('');
+
+    const draftView = build({ displayTitle: '', venue: {} } as Partial<PublicEventDetailResponse>);
+    Object.defineProperty(draftView, 'draftPlaceholderMode', { value: signal(true) });
+    expect(draftView.displayTitle()).toBe(translate('fr', 'event.draftTitlePlaceholder'));
+    expect(draftView.venueDisplay()).toBe(translate('fr', 'event.draftLocationPlaceholder'));
+    expect(source).toContain("[class.muted]=\"showTitlePlaceholder()\"");
+    expect(source).toContain("[class.muted]=\"showVenuePlaceholder()\"");
   });
 
   it('is the last hero child', () => {

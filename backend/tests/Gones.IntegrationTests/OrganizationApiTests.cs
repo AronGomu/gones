@@ -629,8 +629,8 @@ public sealed class OrganizationApiTests : IAsyncLifetime
 
         // Re-authenticating hands out the promoted role, and it really is an Organizer token.
         var (organizerToken, organizerCookie) = await LoginWithCookieAsync(subjectEmail);
-        using var previewAllowed = await SendAuthorizedAsync(HttpMethod.Post, "/api/events/preview", organizerToken, new { organizationId = orgId });
-        Assert.NotEqual(HttpStatusCode.Forbidden, previewAllowed.StatusCode);
+        using var organizerRouteAllowed = await SendAuthorizedAsync(HttpMethod.Get, "/api/organizer/events", organizerToken);
+        Assert.Equal(HttpStatusCode.OK, organizerRouteAllowed.StatusCode);
 
         using var remove = await SendAuthorizedAsync(HttpMethod.Delete, $"/api/organizations/{orgId:D}/members/{subject.Id:D}", adminToken);
         Assert.Equal(HttpStatusCode.NoContent, remove.StatusCode);
@@ -639,15 +639,15 @@ public sealed class OrganizationApiTests : IAsyncLifetime
         // The stale Organizer token is refused on the next request - not at the next refresh.
         using var afterDemotion = await SendAuthorizedAsync(HttpMethod.Get, "/api/users/me/organizations", organizerToken);
         Assert.Equal(HttpStatusCode.Unauthorized, afterDemotion.StatusCode);
-        using var staleOrganizerPreview = await SendAuthorizedAsync(HttpMethod.Post, "/api/events/preview", organizerToken, new { organizationId = orgId });
-        Assert.Equal(HttpStatusCode.Unauthorized, staleOrganizerPreview.StatusCode);
+        using var staleOrganizerRoute = await SendAuthorizedAsync(HttpMethod.Get, "/api/organizer/events", organizerToken);
+        Assert.Equal(HttpStatusCode.Unauthorized, staleOrganizerRoute.StatusCode);
         using var refreshAfterDemotion = await RefreshAsync(organizerCookie);
         Assert.Equal(HttpStatusCode.Unauthorized, refreshAfterDemotion.StatusCode);
 
         // And a fresh login is back to a plain User, refused by the Organizer policy.
         var demotedToken = await LoginAsync(subjectEmail);
-        using var demotedPreview = await SendAuthorizedAsync(HttpMethod.Post, "/api/events/preview", demotedToken, new { organizationId = orgId });
-        Assert.Equal(HttpStatusCode.Forbidden, demotedPreview.StatusCode);
+        using var demotedOrganizerRoute = await SendAuthorizedAsync(HttpMethod.Get, "/api/organizer/events", demotedToken);
+        Assert.Equal(HttpStatusCode.Forbidden, demotedOrganizerRoute.StatusCode);
     }
 
     /// <summary>
@@ -689,8 +689,8 @@ public sealed class OrganizationApiTests : IAsyncLifetime
 
         // Re-authenticating hands out the derived role, which opens the Organizer-only route.
         var organizerToken = await LoginAsync(ownerEmail);
-        using var preview = await SendAuthorizedAsync(HttpMethod.Post, "/api/events/preview", organizerToken, new { organizationId = orgId });
-        Assert.NotEqual(HttpStatusCode.Forbidden, preview.StatusCode);
+        using var organizerRoute = await SendAuthorizedAsync(HttpMethod.Get, "/api/organizer/events", organizerToken);
+        Assert.Equal(HttpStatusCode.OK, organizerRoute.StatusCode);
 
         // An Admin member is left alone here too.
         var adminOwnerToken = await LoginAsync(adminOwnerEmail);

@@ -1,25 +1,25 @@
-import { EventPayloadRequest, EventPreviewResponse } from '../../api/generated/gones-api';
+import type { EventImageInput, EventPayloadRequest } from '../../api/generated/gones-api';
 
 export interface EventDraftValue {
   organizationId: string;
   title: string;
   summary: string;
-  bodyHtml: string;
+  bodyMarkdown: string;
   streetAddress: string;
   postalCode: string;
   city: string;
   country: string;
+  region: string;
+  locationToken: string;
+  latitude: number | null;
+  longitude: number | null;
+  eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
-  startsAtLocal: string;
-  endsAtLocal: string;
+  startDate: string;
+  startTime: string;
   capacity: number | null;
   formatId: string;
-  liveTournamentUrl: string;
-  archiveTournamentUrl: string;
-}
-
-export function browserTimeZoneSuggestion(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone): string {
-  try { return resolve() || ''; } catch { return ''; }
+  images: EventImageInput[];
 }
 
 export function eventPayload(value: EventDraftValue): EventPayloadRequest {
@@ -27,32 +27,35 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     organizationId: value.organizationId,
     title: value.title.trim(),
     summary: optional(value.summary),
-    bodyHtml: optional(value.bodyHtml),
-    streetAddress: value.streetAddress.trim(),
-    postalCode: optional(value.postalCode),
-    city: value.city.trim(),
-    country: value.country.trim(),
-    timeZoneId: value.timeZoneId.trim(),
-    startsAtLocal: value.startsAtLocal,
-    endsAtLocal: value.endsAtLocal || undefined,
-    capacity: value.capacity ?? undefined,
+    bodyMarkdown: optionalMarkdown(value.bodyMarkdown),
+    location: {
+      streetAddress: value.streetAddress.trim(),
+      postalCode: value.postalCode.trim(),
+      city: value.city.trim(),
+      country: value.country.trim(),
+      region: value.region.trim(),
+      locationToken: value.locationToken
+    },
+    eventType: eventTypeValue(value.eventType),
+    startsAtLocal: `${value.startDate}T${value.startTime}`,
+    capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    liveTournamentUrl: optional(value.liveTournamentUrl),
-    archiveTournamentUrl: optional(value.archiveTournamentUrl)
+    images: value.images.map(image => ({
+      imageId: image.imageId,
+      altText: optional(image.altText ?? '')
+    }))
   };
 }
 
-export class PreviewPublicationState {
-  preview?: EventPreviewResponse;
+export function eventTypeValue(value: EventDraftValue['eventType']): Exclude<EventDraftValue['eventType'], ''> {
+  if (!value) throw new Error('Event Type is required.');
+  return value;
+}
+
+export class DirectPublicationState {
   private publishKey?: string;
 
-  accept(preview: EventPreviewResponse): void {
-    this.preview = preview;
-    this.publishKey = undefined;
-  }
-
-  invalidate(): void {
-    this.preview = undefined;
+  reset(): void {
     this.publishKey = undefined;
   }
 
@@ -60,6 +63,10 @@ export class PreviewPublicationState {
     this.publishKey ??= create();
     return this.publishKey;
   }
+}
+
+export function optionalMarkdown(value: string): string | undefined {
+  return value.trim() ? value : undefined;
 }
 
 function optional(value: string): string | undefined {
