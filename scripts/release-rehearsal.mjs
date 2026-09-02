@@ -138,8 +138,12 @@ let cleanupPromise;
 const cleanup = () => {
   if (cleanupPromise) return cleanupPromise;
   console.log('\n=== tearing the release-test stack down ===');
-  cleanupPromise = cleanupReleaseRehearsal({ compose, exportDirectory, lock: rehearsalLock })
-    .then((cleanupFailures) => { failures.push(...cleanupFailures); });
+  cleanupPromise = cleanupReleaseRehearsal({
+    compose,
+    exportDirectory,
+    lock: rehearsalLock,
+    listProjectVolumes: () => listReleaseProjectVolumes(run)
+  }).then((cleanupFailures) => { failures.push(...cleanupFailures); });
   return cleanupPromise;
 };
 const uninstallSignalCleanup = installSignalCleanup(cleanup);

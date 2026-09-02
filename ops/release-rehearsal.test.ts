@@ -117,11 +117,13 @@ describe('release rehearsal process guard', () => {
     const lockPath = join(scratchDirectory(), 'rehearsal.lock');
     const lock = await acquireReleaseRehearsalLock({ lockPath });
     const report = vi.fn();
+    const listProjectVolumes = vi.fn(() => []);
 
     const errors = await cleanupReleaseRehearsal({
       compose: () => { throw new Error('teardown exploded'); },
       exportDirectory: join(scratchDirectory(), 'export'),
       lock,
+      listProjectVolumes,
       removeExport: () => { throw new Error('export cleanup exploded'); },
       report
     });
@@ -130,19 +132,63 @@ describe('release rehearsal process guard', () => {
       'Release-test final teardown failed: teardown exploded',
       'Release-test export cleanup failed: export cleanup exploded'
     ]);
+    expect(listProjectVolumes).not.toHaveBeenCalled();
     expect(report).toHaveBeenCalledTimes(2);
     const next = await acquireReleaseRehearsalLock({ lockPath });
     await expect(releaseReleaseRehearsalLock(next)).resolves.toBe(true);
   });
 
-  it('releases the kernel lock when writing owner metadata fails', async () => {
+  it('propagates leftover final volumes after successful teardown and releases the lock', async () => {
+    const lockPath = join(scratchDirectory(), 'rehearsal.lock');
+    const lock = await acquireReleaseRehearsalLock({ lockPath });
+    const report = vi.fn();
+
+    const errors = await cleanupReleaseRehearsal({
+      compose: () => ({ status: 0 }),
+      exportDirectory: join(scratchDirectory(), 'export'),
+      lock,
+      listProjectVolumes: () => [
+        { name: 'gones-release-test_event-image-data', logicalName: 'event-image-data' },
+        { name: 'gones-release-test_postgres-data', logicalName: 'postgres-data' }
+      ],
+      report
+    });
+
+    expect(errors).toEqual([
+      'Release-test final teardown left project volumes: gones-release-test_event-image-data, gones-release-test_postgres-data'
+    ]);
+    expect(report).toHaveBeenCalledWith(errors[0]);
+    const next = await acquireReleaseRehearsalLock({ lockPath });
+    await expect(releaseReleaseRehearsalLock(next)).resolves.toBe(true);
+  });
+
+  it('releases the kernel lock when reading Linux process identity fails', async () => {
+    const lockPath = join(scratchDirectory(), 'rehearsal.lock');
+    const readProcessStartIdentity = vi.fn(() => { throw new Error('injected /proc identity read failure'); });
+
+    await expect(acquireReleaseRehearsalLock({
+      lockPath,
+      readProcessStartIdentity
+    })).rejects.toThrow('injected /proc identity read failure');
+
+    expect(readProcessStartIdentity).toHaveBeenCalledWith(process.pid);
+    expect(readFileSync(lockPath, 'utf8')).toBe('');
+    const acquired = await acquireReleaseRehearsalLock({ lockPath });
+    await expect(releaseReleaseRehearsalLock(acquired)).resolves.toBe(true);
+  });
+
+  it('releases the kernel lock and clears owned metadata when writing owner metadata fails', async () => {
     const lockPath = join(scratchDirectory(), 'rehearsal.lock');
 
     await expect(acquireReleaseRehearsalLock({
       lockPath,
-      writeOwnerMetadata: () => { throw new Error('metadata write exploded'); }
+      writeOwnerMetadata: (path: string, owner: object) => {
+        writeFileSync(path, `${JSON.stringify(owner)}\n`);
+        throw new Error('metadata write exploded');
+      }
     })).rejects.toThrow('metadata write exploded');
 
+    expect(readFileSync(lockPath, 'utf8')).toBe('');
     const acquired = await acquireReleaseRehearsalLock({ lockPath });
     await expect(releaseReleaseRehearsalLock(acquired)).resolves.toBe(true);
   });
@@ -173,6 +219,7 @@ describe('release rehearsal process guard', () => {
     expect(freshVolumes).toBeGreaterThan(reset);
     expect(firstJourney).toBeGreaterThan(freshVolumes);
     expect(source).toContain('installSignalCleanup(cleanup)');
+    expect(source).toContain('listProjectVolumes: () => listReleaseProjectVolumes(run)');
     expect(source).toMatch(/finally \{\s*await cleanup\(\);/);
   });
 });

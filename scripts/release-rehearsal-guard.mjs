@@ -83,10 +83,14 @@ function readOwner(lockPath) {
 function linuxProcessStartIdentity(pid) {
   const processStat = readFileSync(`/proc/${pid}/stat`, 'utf8');
   const commandEnd = processStat.lastIndexOf(')');
+  if (commandEnd < 0) {
+    throw new Error(`Could not read Linux process start identity for pid ${pid}.`);
+  }
+
   const fieldsAfterCommand = processStat.slice(commandEnd + 2).trim().split(/\s+/);
   const startTime = fieldsAfterCommand[19];
   const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
-  if (commandEnd < 0 || !/^\d+$/.test(startTime) || bootId.length === 0) {
+  if (!/^\d+$/.test(startTime) || bootId.length === 0) {
     throw new Error(`Could not read Linux process start identity for pid ${pid}.`);
   }
   return `linux:${bootId}:${startTime}`;
@@ -95,6 +99,14 @@ function linuxProcessStartIdentity(pid) {
 function writeOwner(lockPath, owner) {
   writeFileSync(lockPath, `${JSON.stringify(owner)}\n`, { mode: 0o600 });
   chmodSync(lockPath, 0o600);
+}
+
+/** Clears metadata only while caller still holds the kernel lock and owns the recorded token. */
+function clearOwnedMetadata(lockPath, token) {
+  if (readOwner(lockPath)?.token !== token) return false;
+  writeFileSync(lockPath, '', { mode: 0o600 });
+  chmodSync(lockPath, 0o600);
+  return true;
 }
 
 function startKernelLockHolder(lockPath) {
@@ -171,25 +183,29 @@ async function stopKernelLockHolder(holder) {
 export async function acquireReleaseRehearsalLock({
   lockPath = RELEASE_REHEARSAL_LOCK_PATH,
   pid = process.pid,
+  readProcessStartIdentity = linuxProcessStartIdentity,
   writeOwnerMetadata = writeOwner
 } = {}) {
   const token = randomUUID();
   const holder = await startKernelLockHolder(lockPath);
-  const owner = {
-    pid,
-    token,
-    processStartIdentity: linuxProcessStartIdentity(pid),
-    startedAt: new Date().toISOString()
-  };
 
   try {
+    const owner = {
+      pid,
+      token,
+      processStartIdentity: readProcessStartIdentity(pid),
+      startedAt: new Date().toISOString()
+    };
     writeOwnerMetadata(lockPath, owner);
+    return { lockPath, token, holder, released: false };
   } catch (error) {
-    await stopKernelLockHolder(holder);
+    try {
+      clearOwnedMetadata(lockPath, token);
+    } finally {
+      await stopKernelLockHolder(holder);
+    }
     throw error;
   }
-
-  return { lockPath, token, holder, released: false };
 }
 
 /** Releases caller's kernel lock; persistent metadata file is harmless without that lock. */
@@ -214,6 +230,7 @@ export async function cleanupReleaseRehearsal({
   compose,
   exportDirectory,
   lock,
+  listProjectVolumes,
   removeExport = (path) => rmSync(path, { recursive: true, force: true }),
   report = (message) => console.error(message)
 }) {
@@ -221,7 +238,14 @@ export async function cleanupReleaseRehearsal({
 
   try {
     const down = compose(['--profile', 'tools', 'down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
-    if (down.status !== 0) errors.push(`Release-test final teardown failed: docker compose down exited ${down.status}`);
+    if (down.status !== 0) {
+      errors.push(`Release-test final teardown failed: docker compose down exited ${down.status}`);
+    } else {
+      const leftovers = listProjectVolumes();
+      if (leftovers.length > 0) {
+        errors.push(`Release-test final teardown left project volumes: ${leftovers.map((volume) => volume.name).sort().join(', ')}`);
+      }
+    }
   } catch (error) {
     errors.push(`Release-test final teardown failed: ${errorMessage(error)}`);
   }
