@@ -125,7 +125,7 @@ public sealed class Worker(
                     try
                     {
                         var swept = await scope.ServiceProvider.GetRequiredService<EventImageCleanupService>().SweepExpiredAsync(stoppingToken);
-                        logger.LogInformation(WorkerLogEvents.EventImagesSwept, "Event={Event}; Count={Count}", "event_image.temporary.swept", swept);
+                        logger.LogInformation(WorkerLogEvents.EventImagesSwept, "Event={Event}; Count={Count}", "event_image.expired.swept", swept);
                         nextEventImageCleanup = swept >= EventImageCleanupService.BatchSize ? now : now + Duration.FromMinutes(15);
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

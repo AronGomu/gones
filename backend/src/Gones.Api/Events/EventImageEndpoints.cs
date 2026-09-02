@@ -34,6 +34,7 @@ internal static class EventImageEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
         images.MapGet("/{imageId:guid}/variants/{width:int}", ReadVariantAsync)
+            .WithName("Variants")
             .AllowAnonymous()
             .Produces(StatusCodes.Status200OK, contentType: "image/webp")
             .ProducesProblem(StatusCodes.Status401Unauthorized)

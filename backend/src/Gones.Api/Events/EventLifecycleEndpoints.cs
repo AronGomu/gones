@@ -492,11 +492,12 @@ internal sealed class EventLifecycleService(
 
     private static void ValidateDetailsRequest(UpdateEventDetailsRequest request)
     {
+        var eventType = request.EventType ?? throw Validation("eventType", "Event Type is required.");
         EventPublicationService.ValidatePayloadShape(new EventPayloadRequest(
             Guid.Empty,
             request.Title,
             request.Location,
-            request.EventType,
+            eventType,
             request.StartsAtLocal,
             request.Capacity,
             request.FormatIds,

@@ -101,8 +101,22 @@ try {
   const eventImageResponse = document.components?.schemas?.EventImageUploadResponse;
   if (eventImageResponse?.properties?.state) eventImageResponse.properties.state = { type: 'string', enum: ['Temporary'] };
   if (eventImageResponse?.properties?.expiresAt) eventImageResponse.properties.expiresAt = { type: 'string', format: 'date-time' };
-  const eventImageVariant = document.paths?.['/api/event-images/{imageId}/variants/{width}']?.get?.responses?.['200'];
-  if (eventImageVariant) eventImageVariant.content = { 'image/webp': { schema: { type: 'string', format: 'binary' } } };
+  for (const path of [
+    '/api/event-images/{imageId}/variants/{width}',
+    '/api/event-requests/{token}/images/{imageId}/variants/{width}'
+  ]) {
+    const response = document.paths?.[path]?.get?.responses?.['200'];
+    if (response) response.content = { 'image/webp': { schema: { type: 'string', format: 'binary' } } };
+  }
+  const proposalImageResponse = document.paths?.['/api/event-requests/{token}/images/{imageId}/variants/{width}']?.get?.responses?.['200'];
+  if (proposalImageResponse) {
+    proposalImageResponse.headers = {
+      'Cache-Control': {
+        description: 'Private proposal media must never be cached.',
+        schema: { type: 'string', enum: ['no-store'] }
+      }
+    };
+  }
   writeFileSync(tempSnapshot, `${JSON.stringify(document, null, 2)}\n`);
 
   const generation = spawnSync('dotnet', [

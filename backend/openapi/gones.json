@@ -1349,6 +1349,97 @@
         }
       }
     },
+    "/api/event-requests/{token}/images/{imageId}/variants/{width}": {
+      "get": {
+        "tags": [
+          "EventProposalEndpoints"
+        ],
+        "operationId": "ReadProposalImageVariant",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "headers": {
+              "Cache-Control": {
+                "description": "Private proposal media must never be cached.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/organizations": {
       "get": {
         "tags": [
@@ -4375,6 +4466,7 @@
         "tags": [
           "EventImageEndpoints"
         ],
+        "operationId": "Variants",
         "parameters": [
           {
             "name": "imageId",
@@ -10527,85 +10619,6 @@
           }
         }
       },
-      "EventProposalPayloadRequest": {
-        "required": [
-          "organizationId",
-          "title",
-          "location",
-          "eventType",
-          "startsAtLocal",
-          "capacity",
-          "formatIds",
-          "images"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "title": {
-            "maxLength": 160,
-            "type": "string"
-          },
-          "location": {
-            "$ref": "#/components/schemas/EventLocationInput"
-          },
-          "eventType": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/PublicCalendarEventType"
-              }
-            ]
-          },
-          "startsAtLocal": {
-            "type": "string"
-          },
-          "capacity": {
-            "maximum": 2147483647,
-            "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int32"
-          },
-          "formatIds": {
-            "maxItems": 1,
-            "minItems": 1,
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          "images": {
-            "maxItems": 0,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageInput"
-            }
-          },
-          "summary": {
-            "maxLength": 50,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "bodyMarkdown": {
-            "maxLength": 20000,
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "EventProposalRejectRequest": {
         "required": [
           "reason"
@@ -10627,7 +10640,7 @@
         "type": "object",
         "properties": {
           "event": {
-            "$ref": "#/components/schemas/EventProposalPayloadRequest"
+            "$ref": "#/components/schemas/EventPayloadRequest"
           },
           "recipientUserIds": {
             "maxItems": 10,
@@ -10681,7 +10694,8 @@
           "approverUsername",
           "expiresAt",
           "organizationName",
-          "formatNames"
+          "formatNames",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -10723,6 +10737,12 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -14456,6 +14476,9 @@
       "name": "EventPublicationEndpoints"
     },
     {
+      "name": "EventProposalEndpoints"
+    },
+    {
       "name": "OrganizationEndpoints"
     },
     {
@@ -14478,9 +14501,6 @@
     },
     {
       "name": "EventImageEndpoints"
-    },
-    {
-      "name": "EventProposalEndpoints"
     },
     {
       "name": "EventLifecycleEndpoints"

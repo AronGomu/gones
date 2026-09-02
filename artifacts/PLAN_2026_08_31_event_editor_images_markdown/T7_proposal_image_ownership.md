@@ -109,23 +109,41 @@ Reject/expire: decision/expiry commits -> row/object deletion job; retry until c
 
 ## Impl steps
 
-- [ ] 1. Add failing backend state/race/token-route/cleanup tests.
-- [ ] 2. Add failing proposal editor/review DOM tests.
-- [ ] 3. Implement submit/approve transitions under existing tx/locks.
-- [ ] 4. Implement token-scoped variant read + post-commit reject/expiry cleanup.
-- [ ] 5. Enable uploader in proposal UI + review gallery.
-- [ ] 6. Regenerate API/client + update proposal Cypress/fixtures.
-- [ ] 7. Run gates.
+- [x] 1. Add failing backend state/race/token-route/cleanup tests. Validate: targeted `EventProposal` backend tests fail for missing T7 behavior before production edits.
+- [x] 2. Add failing proposal editor/review DOM tests. Validate: targeted Vitest files fail for missing uploader/review-gallery behavior before production edits.
+- [x] 3. Implement submit/approve transitions under existing tx/locks. Validate: targeted backend submit/approval ownership tests pass.
+- [x] 4. Implement token-scoped variant read + post-commit reject/expiry cleanup. Validate: targeted backend token-route/reject/expiry/race/storage-failure tests pass.
+- [x] 5. Enable uploader in proposal UI + review gallery. Validate: targeted proposal editor/review DOM tests pass.
+- [x] 6. Regenerate API/client + update proposal Cypress/fixtures. Validate: `npm run api:generate && npm run api:check` passes and proposal Cypress spec passes.
+- [x] 7. Run gates. Validate: every command and observable check under `Validation` has evidence or remains unchecked with blocker recorded.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal"`
-- [ ] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-request.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: submit imgs as plain User; token review; approve; public gallery
-- [ ] no silent-failure swallow on added path — list retry-safe reject/expiry object cleanup sites + logs
-- [ ] app functional — proposal img private until approval; reject/expiry leaves no durable media
-- [ ] commit msg draft: `feat(events): carry private media through proposal consent`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal"`
+- [x] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-request.component.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [ ] manual check: submit imgs as plain User; token review; approve; public gallery. Blocker: no interactive browser check; segmented backend, component, and Cypress evidence substituted.
+- [x] no silent-failure swallow on added path — list retry-safe reject/expiry object cleanup sites + logs
+- [x] app functional — proposal img private until approval; reject/expiry leaves no durable media
+- [x] commit msg draft: `feat(events): carry private media through proposal consent`
+
+## Review repair
+
+- [x] 8. Revalidate and lock recipient authority inside approve/reject decision transactions after locking the proposal; reject rechecks expiry while locked. Validate: targeted concurrent revocation and reject-vs-expiry integration tests pass with loser 404 and no notification.
+- [x] 9. Refresh submission clock after image row locks and cover near-expiry lock timing. Validate: targeted submission timing integration test passes and expired image remains Temporary.
+- [x] 10. Prove real transaction rollback after attachment failure. Validate: injected failure leaves proposal/outbox absent and images Temporary.
+- [x] 11. Restore exact `EventPayloadRequest` proposal contract, generated client method names, image response `Cache-Control`, and proposal wording. Validate: API generation check, typecheck, lint, and translation assertions pass.
+- [x] 12. Add actual proposal editor DOM coverage for plain User uploader and pending/failed upload submit blocking; preserve unrelated EventOwned images. Validate: targeted DOM/backend tests and proposal Cypress pass.
+- [x] 13. Commit only intentional repair paths without push or merge. Validate: commit exists on `ticket/event-editor-T7`; `git status --short` empty; no staged files.
+
+## Review repair validation
+
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal|FullyQualifiedName~EventImage"`
+- [x] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-proposal-submit.dom.test.ts src/app/features/events/event-request.component.test.ts src/app/features/events/event-image-uploader.component.test.ts src/app/i18n/messages.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`

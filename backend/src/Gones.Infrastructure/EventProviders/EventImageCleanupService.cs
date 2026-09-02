@@ -24,15 +24,35 @@ public sealed class EventImageCleanupService(
     public void Enqueue(EventImage image)
     {
         ArgumentNullException.ThrowIfNull(image);
+        EnqueueAndRemove([image], clock.GetCurrentInstant());
+    }
+
+    public async Task<int> CleanupProposalImagesAsync(Guid proposalId, CancellationToken cancellationToken)
+    {
+        if (proposalId == Guid.Empty) throw new ArgumentException("Proposal ID cannot be empty.", nameof(proposalId));
+        database.ChangeTracker.Clear();
         var now = clock.GetCurrentInstant();
-        foreach (var width in EventImage.VariantWidthsFor(image.Width))
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        var proposal = await database.EventProposals
+            .FromSqlInterpolated($"SELECT * FROM event_proposals WHERE id = {proposalId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken);
+        if (proposal is null
+            || (proposal.Status != TournamentProposalStatus.Rejected
+                && !(proposal.IsPending && proposal.ExpiresAt <= now)))
         {
-            database.EventImageObjectDeletions.Add(EventImageObjectDeletion.Create(
-                image.Id,
-                EventImageObjectKeys.Variant(image.Id, width),
-                now));
+            await transaction.RollbackAsync(cancellationToken);
+            return 0;
         }
-        database.EventImages.Remove(image);
+
+        var images = await database.EventImages
+            .Where(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned)
+            .OrderBy(image => image.SortOrder)
+            .ToListAsync(cancellationToken);
+        EnqueueAndRemove(images, now);
+        if (images.Count > 0) await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await ProcessDueObjectDeletionsAsync(cancellationToken);
+        return images.Count;
     }
 
     public async Task<int> ProcessImageObjectDeletionsAsync(Guid imageId, CancellationToken cancellationToken) =>
@@ -43,33 +63,62 @@ public sealed class EventImageCleanupService(
 
     public async Task<int> SweepExpiredAsync(CancellationToken cancellationToken)
     {
+        database.ChangeTracker.Clear();
         var now = clock.GetCurrentInstant();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        var expired = await database.EventImages.FromSqlInterpolated($$"""
-            SELECT * FROM event_images
-            WHERE state = 'Temporary' AND expires_at <= {{now}}
-            ORDER BY expires_at, id
+        var proposals = await database.EventProposals.FromSqlInterpolated($$"""
+            SELECT proposal.* FROM event_proposals proposal
+            WHERE (proposal.status = 'Rejected' OR (proposal.status = 'Pending' AND proposal.expires_at <= {{now}}))
+              AND EXISTS (
+                SELECT 1 FROM event_images image
+                WHERE image.proposal_id = proposal.id AND image.state = 'ProposalOwned'
+              )
+            ORDER BY proposal.expires_at, proposal.id
             LIMIT {{BatchSize}}
             FOR UPDATE SKIP LOCKED
             """).ToListAsync(cancellationToken);
-        if (expired.Count > 0)
+        var proposalIds = proposals.Select(proposal => proposal.Id).ToArray();
+        var expired = proposalIds.Length == 0
+            ? []
+            : await database.EventImages
+                .Where(image => image.ProposalId != null
+                    && proposalIds.Contains(image.ProposalId.Value)
+                    && image.State == EventImageState.ProposalOwned)
+                .OrderBy(image => image.ProposalId)
+                .ThenBy(image => image.SortOrder)
+                .Take(BatchSize)
+                .ToListAsync(cancellationToken);
+        var remaining = BatchSize - expired.Count;
+        if (remaining > 0)
         {
-            foreach (var image in expired)
-            {
-                foreach (var width in EventImage.VariantWidthsFor(image.Width))
-                {
-                    database.EventImageObjectDeletions.Add(EventImageObjectDeletion.Create(
-                        image.Id,
-                        EventImageObjectKeys.Variant(image.Id, width),
-                        now));
-                }
-            }
-            database.EventImages.RemoveRange(expired);
-            await database.SaveChangesAsync(cancellationToken);
+            expired.AddRange(await database.EventImages.FromSqlInterpolated($$"""
+                SELECT * FROM event_images
+                WHERE state = 'Temporary' AND expires_at <= {{now}}
+                ORDER BY expires_at, id
+                LIMIT {{remaining}}
+                FOR UPDATE SKIP LOCKED
+                """).ToListAsync(cancellationToken));
         }
+        EnqueueAndRemove(expired, now);
+        if (expired.Count > 0) await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await ProcessDueObjectDeletionsAsync(cancellationToken);
         return expired.Count;
+    }
+
+    private void EnqueueAndRemove(IReadOnlyCollection<EventImage> images, Instant now)
+    {
+        foreach (var image in images)
+        {
+            foreach (var width in EventImage.VariantWidthsFor(image.Width))
+            {
+                database.EventImageObjectDeletions.Add(EventImageObjectDeletion.Create(
+                    image.Id,
+                    EventImageObjectKeys.Variant(image.Id, width),
+                    now));
+            }
+        }
+        database.EventImages.RemoveRange(images);
     }
 
     private async Task<IReadOnlyList<EventImageObjectDeletion>> ClaimDueAsync(Guid? imageId, CancellationToken cancellationToken)
@@ -141,4 +190,5 @@ public static class EventImageCleanupLogEvents
 {
     public static readonly EventId ObjectDeleteFailed = new(5901, "EventImageObjectDeleteFailed");
     public static readonly EventId PostCommitCleanupFailed = new(5903, "EventImagePostCommitCleanupFailed");
+    public static readonly EventId ProposalPostCommitCleanupFailed = new(5904, "EventImageProposalPostCommitCleanupFailed");
 }
