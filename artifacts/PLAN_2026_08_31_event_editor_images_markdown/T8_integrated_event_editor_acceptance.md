@@ -143,3 +143,17 @@ required targets:
 - [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed sequentially with persistent stale metadata file present; clean reset, full Event lifecycle, and final teardown passed again.
 - [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; residue count 0; added-line high-confidence secret scan clean; release volumes/containers 0; kernel lock free.
 - [x] commit msg draft: `fix(release): enforce exclusive rehearsal ownership`
+
+## LAST LOCK LEAK REPAIR
+
+- [x] 18. Guard every post-kernel-acquire step, including `linuxProcessStartIdentity(pid)`, with owned cleanup. — evidence: focused ops test injected `injected /proc identity read failure`, observed empty metadata, then immediately reacquired; metadata-write-after-owner test did same.
+- [x] 19. Make successful `down --volumes` cleanup assert zero project volumes without leaking lock when assertion fails. — evidence: focused ops test returned exact leftover-volume failure, then immediately reacquired.
+- [x] 20. Run final focused evidence and commit exact repair paths without push/merge. — evidence: focused ops tests, acceptance matrix, one release rehearsal, diff/residue/secret scans passed; repair commit `e0c775c` exists on `ticket/event-editor-T8`; no push/merge.
+
+## LAST LOCK LEAK REPAIR validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 21 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal — `npm run release:rehearsal` passed once; clean reset, full Event lifecycle, final teardown, zero-volume executable assertion passed.
+- [x] diff/residue/secrets — `git diff --check` and `git diff --cached --check` passed; residue count 0; added-line high-confidence secret scan clean; release volumes/containers 0; kernel lock free.
+- [x] commit msg draft: `fix(release): close lock on setup and cleanup failures`
