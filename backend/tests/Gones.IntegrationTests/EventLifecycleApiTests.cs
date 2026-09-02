@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Gones.Application.Concurrency;
+using Gones.Application.Events;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -15,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
+using NodaTime.Text;
 
 namespace Gones.IntegrationTests;
 
@@ -22,6 +25,8 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
 {
     private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
+    private readonly RecordingObjectStore objects = new();
+    private readonly RejectingLocationProvider locations = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
     private SeedRows seed = null!;
@@ -45,7 +50,11 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IClock>();
+                services.RemoveAll<IEventImageObjectStore>();
+                services.RemoveAll<IEventLocationProvider>();
                 services.AddSingleton<IClock>(clock);
+                services.AddSingleton<IEventImageObjectStore>(objects);
+                services.AddSingleton<IEventLocationProvider>(locations);
             });
         });
         client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -92,59 +101,82 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Update_requires_fresh_if_match_rejects_cross_org_fields_and_records_major_marker_atomically()
+    public async Task Update_requires_fresh_if_match_preserves_hidden_urls_and_records_major_marker_atomically()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Edit Cup");
-        var details = Details("Renamed Cup") with
+        const string hiddenLiveUrl = "  /live/%2fKeep?x=%20  ";
+        const string hiddenArchiveUrl = " HTTPS://Example.TEST/%2fPath?x=%20 ";
+        await using (var database = CreateContext())
         {
-            LiveTournamentUrl = "/live/edit-cup",
-            ArchiveTournamentUrl = "https://example.test/archive/edit-cup"
-        };
+            await database.Database.ExecuteSqlInterpolatedAsync($$"""
+                UPDATE events SET live_tournament_url = {{hiddenLiveUrl}}, archive_tournament_url = {{hiddenArchiveUrl}}
+                WHERE id = {{tournament.Id}}
+                """);
+        }
+        var details = Details(tournament, "Renamed Cup");
+        Assert.DoesNotContain("liveTournamentUrl", JsonSerializer.Serialize(details), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("archiveTournamentUrl", JsonSerializer.Serialize(details), StringComparison.OrdinalIgnoreCase);
 
-        using var zeroFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [] }, ifMatch: StrongETag.Encode(tournament.Version));
+        using var zeroFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [] }, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.BadRequest, zeroFormats.StatusCode);
-        using var twoFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [seed.Legacy.Id, seed.Modern.Id] }, ifMatch: StrongETag.Encode(tournament.Version));
+        using var twoFormats = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details with { FormatIds = [seed.Legacy.Id, seed.Modern.Id] }, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.BadRequest, twoFormats.StatusCode);
 
-        using var missing = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details);
+        using var missing = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details);
         Assert.Equal(HttpStatusCode.PreconditionFailed, missing.StatusCode);
-        using var stale = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(99));
+        using var stale = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(99));
         Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
-        using var outsider = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Outsider.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
+        using var outsider = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Outsider.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.NotFound, outsider.StatusCode);
 
-        var massAssignment = JsonSerializer.Serialize(details).TrimEnd('}') + $",\"organizationId\":\"{seed.Beta.Id:D}\",\"slug\":\"hijack\",\"status\":\"Cancelled\"}}";
-        using var rejected = await SendRawJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", massAssignment, StrongETag.Encode(tournament.Version));
+        var massAssignment = JsonSerializer.Serialize(details).TrimEnd('}') + $",\"organizationId\":\"{seed.Beta.Id:D}\",\"liveTournamentUrl\":\"/hijack\",\"slug\":\"hijack\",\"status\":\"Cancelled\"}}";
+        using var rejected = await SendRawJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", massAssignment, StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
 
-        using var minor = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
+        using var minor = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", details, ifMatch: StrongETag.Encode(tournament.Version));
         Assert.Equal(HttpStatusCode.OK, minor.StatusCode);
         Assert.Equal(StrongETag.Encode(tournament.Version + 1), minor.Headers.ETag?.Tag);
         var minorBody = await minor.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("Legacy — Renamed Cup", minorBody.GetProperty("displayTitle").GetString());
-        Assert.Equal("/live/edit-cup", minorBody.GetProperty("liveTournamentUrl").GetString());
-        Assert.Equal("https://example.test/archive/edit-cup", minorBody.GetProperty("archiveTournamentUrl").GetString());
+        Assert.Equal("Renamed Cup", minorBody.GetProperty("title").GetString());
+        Assert.Equal("12 Rue de la Paix", minorBody.GetProperty("location").GetProperty("streetAddress").GetString());
 
-        var majorDetails = details with { StreetAddress = "99 Major Street", Region = "Auvergne-Rhône-Alpes", EventType = "major", StartsAtLocal = "2035-03-05T10:00:00", EndsAtLocal = "2035-03-05T18:00:00", BodyMarkdown = "Secret changed body" };
-        using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
+        var majorDetails = Details(
+            tournament,
+            "Renamed Cup",
+            streetAddress: "99 Major Street",
+            region: "Auvergne-Rhône-Alpes",
+            startsAtLocal: "2035-03-05T10:00",
+            eventType: "major",
+            bodyMarkdown: "Secret changed body");
+        using var major = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{tournament.Id:D}/details", seed.Organizer.Id, "Organizer", majorDetails, ifMatch: minor.Headers.ETag?.Tag);
         Assert.Equal(HttpStatusCode.OK, major.StatusCode);
         var majorBody = await major.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal("Auvergne-Rhône-Alpes", majorBody.GetProperty("region").GetString());
+        Assert.Equal("Auvergne-Rhône-Alpes", majorBody.GetProperty("location").GetProperty("region").GetString());
         Assert.Equal("major", majorBody.GetProperty("eventType").GetString());
+        using var publicDetail = await Client.GetAsync($"/api/events/{tournament.Slug}");
+        Assert.Equal(HttpStatusCode.OK, publicDetail.StatusCode);
+        var publicBody = await publicDetail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(hiddenLiveUrl, publicBody.GetProperty("liveTournamentUrl").GetString());
+        Assert.Equal(hiddenArchiveUrl, publicBody.GetProperty("archiveTournamentUrl").GetString());
 
-        await using var database = CreateContext();
-        var markers = await database.EventLifecycleEntries.Where(item => item.EventId == tournament.Id).ToListAsync();
+        await using var verify = CreateContext();
+        var markers = await verify.EventLifecycleEntries.Where(item => item.EventId == tournament.Id).ToListAsync();
         var marker = Assert.Single(markers);
         Assert.Equal(TournamentLifecycleEventType.MajorDetailsUpdated, marker.EventType);
-        var changed = await database.Events.SingleAsync(item => item.Id == tournament.Id);
+        var changed = await verify.Events.SingleAsync(item => item.Id == tournament.Id);
         Assert.Equal("Auvergne-Rhône-Alpes", changed.Region);
         Assert.Equal(CalendarEventType.Major, changed.EventType);
+        Assert.Equal(hiddenLiveUrl, changed.LiveTournamentUrl);
+        Assert.Equal(hiddenArchiveUrl, changed.ArchiveTournamentUrl);
+        Assert.Equal(new LocalDate(2035, 3, 5), changed.VenueEndDate);
+        Assert.Equal(new LocalTime(23, 59, 59), changed.VenueEndTime);
         Assert.Equal(TournamentReminderPlanAction.RecalculateFuture, marker.ReminderPlanAction);
-        var audits = await database.AuditRecords.Where(item => item.EntityId == tournament.Id.ToString("D") && item.Action == "tournament.details.updated").OrderBy(item => item.OccurredAt).ToListAsync();
+        var audits = await verify.AuditRecords.Where(item => item.EntityId == tournament.Id.ToString("D") && item.Action == "tournament.details.updated").OrderBy(item => item.OccurredAt).ToListAsync();
         Assert.Equal(2, audits.Count);
         Assert.Contains("bodyChanged", audits[1].RedactedDiff, StringComparison.Ordinal);
         Assert.DoesNotContain("Secret changed body", audits[1].RedactedDiff, StringComparison.Ordinal);
-        Assert.Equal(seed.Alpha.Id, (await database.Events.SingleAsync(item => item.Id == tournament.Id)).OrganizationId);
+        Assert.Equal(seed.Alpha.Id, changed.OrganizationId);
     }
 
     [Fact]
@@ -153,10 +185,10 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Control Cup");
         using var update = await SendJsonAsync(
             HttpMethod.Patch,
-            $"/api/events/{tournament.Id:D}/details",
+            $"/api/organizer/events/{tournament.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
-            Details("Control Cup") with { BodyMarkdown = "Before\u0001\uFFFE\uFFFF😀After" },
+            Details(tournament, "Control Cup") with { BodyMarkdown = "Before\u0001\uFFFE\uFFFF😀After" },
             ifMatch: StrongETag.Encode(tournament.Version));
 
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
@@ -164,6 +196,204 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         var body = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("<p>Before😀After</p>", body.GetProperty("bodyHtml").GetString());
+    }
+
+    [Fact]
+    public async Task Management_load_issues_actor_bound_location_token_and_ordered_images_without_provider_call()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Load Cup");
+        var image = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Poster");
+
+        using var response = await SendAsync(HttpMethod.Get, "/api/organizer/events?pageSize=100", seed.Organizer.Id, "Organizer");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var item = body.GetProperty("items").EnumerateArray().Single(value => value.GetProperty("id").GetGuid() == tournament.Id);
+        var location = item.GetProperty("location");
+        Assert.Equal("12 Rue de la Paix", location.GetProperty("streetAddress").GetString());
+        Assert.False(string.IsNullOrWhiteSpace(location.GetProperty("locationToken").GetString()));
+        Assert.Equal(image.Id, item.GetProperty("images")[0].GetProperty("id").GetGuid());
+        Assert.Equal("Poster", item.GetProperty("images")[0].GetProperty("altText").GetString());
+        Assert.Equal(new[] { 320 }, item.GetProperty("images")[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
+        Assert.Equal(0, locations.Calls);
+
+        using var edit = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, "Loaded Edit", locationToken: location.GetProperty("locationToken").GetString(), images: [new(image.Id, "Poster")]),
+            ifMatch: item.GetProperty("eTag").GetString());
+        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
+        Assert.Equal(0, locations.Calls);
+    }
+
+    [Fact]
+    public async Task Fresh_media_edit_reorders_promotes_and_removes_atomically_then_deletes_objects_post_commit()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Media Cup");
+        var stable = await CreateOwnedImageAsync(tournament.Id, seed.Outsider.Id, 0, "Stable");
+        var retained = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 1, "Old alt");
+        var removed = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 2, "Remove me");
+        var temporary = await CreateTemporaryImageAsync(seed.Organizer.Id);
+
+        using var response = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, tournament.Title, images: [new(stable.Id, "Stable"), new(temporary.Id, null), new(retained.Id, "New alt")]),
+            ifMatch: StrongETag.Encode(tournament.Version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(new[] { stable.Id, temporary.Id, retained.Id }, body.GetProperty("images").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
+        Assert.Equal(StrongETag.Encode(tournament.Version + 1), response.Headers.ETag?.Tag);
+        await using var database = CreateContext();
+        Assert.False(await database.EventImages.AnyAsync(item => item.Id == removed.Id));
+        var images = await database.EventImages.Where(item => item.EventId == tournament.Id).OrderBy(item => item.SortOrder).ToListAsync();
+        Assert.Equal(new[] { stable.Id, temporary.Id, retained.Id }, images.Select(item => item.Id));
+        Assert.Equal("New alt", images[2].AltText);
+        Assert.Equal(EventImageState.EventOwned, images[1].State);
+        Assert.Equal(new int?[] { 0, 1, 2 }, images.Select(item => item.SortOrder));
+        Assert.Empty(await database.EventImageObjectDeletions.Where(item => item.ImageId == removed.Id).ToListAsync());
+        Assert.Contains(EventImageObjectKeys.Variant(removed.Id, 320), objects.DeleteKeys);
+        Assert.Equal(0, await database.EventLifecycleEntries.CountAsync(item => item.EventId == tournament.Id));
+    }
+
+    [Fact]
+    public async Task Stale_media_removal_is_no_op_across_rows_and_objects()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Stale Media Cup");
+        var image = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Keep me");
+        var temporary = await CreateTemporaryImageAsync(seed.Organizer.Id);
+        var staleTag = StrongETag.Encode(tournament.Version);
+        using var winner = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, "Winner", images: [new(image.Id, "Keep me")]),
+            ifMatch: staleTag);
+        Assert.Equal(HttpStatusCode.OK, winner.StatusCode);
+        objects.Reset();
+
+        using var stale = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, "Stale loser", images: [new(temporary.Id, "New")]),
+            ifMatch: staleTag);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, stale.StatusCode);
+        await using var database = CreateContext();
+        var stored = await database.EventImages.SingleAsync(item => item.Id == image.Id);
+        var storedTemporary = await database.EventImages.SingleAsync(item => item.Id == temporary.Id);
+        Assert.Equal(tournament.Id, stored.EventId);
+        Assert.Equal(EventImageState.Temporary, storedTemporary.State);
+        Assert.Null(storedTemporary.EventId);
+        Assert.Empty(await database.EventImageObjectDeletions.Where(item => item.ImageId == image.Id).ToListAsync());
+        Assert.Empty(objects.DeleteKeys);
+    }
+
+    [Fact]
+    public async Task Concurrent_media_edits_allow_one_ETag_winner_and_one_no_op_loser()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Concurrent Media Cup");
+        var first = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "First");
+        var second = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 1, "Second");
+        var etag = StrongETag.Encode(tournament.Version);
+
+        var responses = await Task.WhenAll(
+            SendJsonAsync(
+                HttpMethod.Patch,
+                $"/api/organizer/events/{tournament.Id:D}/details",
+                seed.Organizer.Id,
+                "Organizer",
+                Details(tournament, tournament.Title, images: [new(second.Id, "Second"), new(first.Id, "First")]),
+                ifMatch: etag),
+            SendJsonAsync(
+                HttpMethod.Patch,
+                $"/api/organizer/events/{tournament.Id:D}/details",
+                seed.Organizer.Id,
+                "Organizer",
+                Details(tournament, tournament.Title, images: [new(first.Id, "First")]),
+                ifMatch: etag));
+        using var reorder = responses[0];
+        using var removal = responses[1];
+
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.OK);
+        Assert.Single(responses, response => response.StatusCode == HttpStatusCode.PreconditionFailed);
+        await using var database = CreateContext();
+        var storedEvent = await database.Events.SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal(tournament.Version + 1, storedEvent.Version);
+        var storedImages = await database.EventImages.Where(item => item.EventId == tournament.Id).OrderBy(item => item.SortOrder).ToListAsync();
+        if (reorder.StatusCode == HttpStatusCode.OK)
+        {
+            Assert.Equal(new[] { second.Id, first.Id }, storedImages.Select(image => image.Id));
+        }
+        else
+        {
+            Assert.Equal(new[] { first.Id }, storedImages.Select(image => image.Id));
+        }
+    }
+
+    [Fact]
+    public async Task Media_edit_rejects_missing_and_foreign_attached_images_without_mutation()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Conflict Media Cup");
+        var own = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Own");
+        var foreignTournament = await CreateTournamentAsync(seed.Beta.Id, seed.Outsider.Id, "Foreign Media Cup");
+        var foreign = await CreateOwnedImageAsync(foreignTournament.Id, seed.Outsider.Id, 0, "Foreign");
+
+        using var missing = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, tournament.Title, images: [new(Guid.NewGuid(), null)]),
+            ifMatch: StrongETag.Encode(tournament.Version));
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        using var conflict = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, tournament.Title, images: [new(foreign.Id, null)]),
+            ifMatch: StrongETag.Encode(tournament.Version));
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.Equal("image_state_conflict", (await conflict.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString());
+
+        await using var database = CreateContext();
+        var ownStored = await database.EventImages.SingleAsync(item => item.Id == own.Id);
+        Assert.Equal(tournament.Id, ownStored.EventId);
+        Assert.Equal(0, ownStored.SortOrder);
+        Assert.Equal(tournament.Title, (await database.Events.SingleAsync(item => item.Id == tournament.Id)).Title);
+    }
+
+    [Fact]
+    public async Task Media_removal_returns_success_when_object_delete_fails_and_leaves_durable_retry_state()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Retry Media Cup");
+        var image = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Retry");
+        objects.FailDeletes = true;
+
+        using var response = await SendJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            Details(tournament, tournament.Title, images: []),
+            ifMatch: StrongETag.Encode(tournament.Version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var database = CreateContext();
+        Assert.False(await database.EventImages.AnyAsync(item => item.Id == image.Id));
+        var retry = Assert.Single(await database.EventImageObjectDeletions.Where(item => item.ImageId == image.Id).ToListAsync());
+        Assert.Equal(1, retry.Attempts);
+        Assert.Equal(nameof(EventImageStorageUnavailableException), retry.LastError);
+        Assert.True(retry.NextAttemptAt > clock.GetCurrentInstant());
     }
 
     [Fact]
@@ -207,7 +437,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         clock.Set(Instant.FromUtc(2030, 1, 1, 12, 0));
         var started = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Started Cup");
         clock.Set(started.StartsAtUtc);
-        using var lateUpdate = await SendJsonAsync(HttpMethod.Patch, $"/api/events/{started.Id:D}/details", seed.Organizer.Id, "Organizer", Details("Too Late"), ifMatch: StrongETag.Encode(started.Version));
+        using var lateUpdate = await SendJsonAsync(HttpMethod.Patch, $"/api/organizer/events/{started.Id:D}/details", seed.Organizer.Id, "Organizer", Details(started, "Too Late"), ifMatch: StrongETag.Encode(started.Version));
         Assert.Equal(HttpStatusCode.Conflict, lateUpdate.StatusCode);
         using var lateDelete = await SendJsonAsync(HttpMethod.Delete, $"/api/events/{started.Id:D}", seed.Organizer.Id, "Organizer", new { }, "delete-late", StrongETag.Encode(started.Version));
         Assert.Equal(HttpStatusCode.Conflict, lateDelete.StatusCode);
@@ -219,10 +449,10 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         var zero = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Zero Mail Cup");
         using var zeroUpdate = await SendJsonAsync(
             HttpMethod.Patch,
-            $"/api/events/{zero.Id:D}/details",
+            $"/api/organizer/events/{zero.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
-            Details("Zero Mail Cup") with { StreetAddress = "99 Zero Street" },
+            Details(zero, "Zero Mail Cup", streetAddress: "99 Zero Street"),
             ifMatch: StrongETag.Encode(zero.Version));
         Assert.Equal(HttpStatusCode.OK, zeroUpdate.StatusCode);
         await using (var zeroDatabase = CreateContext())
@@ -240,15 +470,10 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         }
         using var manyUpdate = await SendJsonAsync(
             HttpMethod.Patch,
-            $"/api/events/{many.Id:D}/details",
+            $"/api/organizer/events/{many.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
-            Details("Many Mail Cup") with
-            {
-                StreetAddress = "99 Many Street",
-                StartsAtLocal = "2035-03-05T10:00:00",
-                EndsAtLocal = "2035-03-05T18:00:00"
-            },
+            Details(many, "Many Mail Cup", streetAddress: "99 Many Street", startsAtLocal: "2035-03-05T10:00"),
             ifMatch: StrongETag.Encode(many.Version));
         Assert.Equal(HttpStatusCode.OK, manyUpdate.StatusCode);
         using var cancelled = await SendJsonAsync(
@@ -397,9 +622,59 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         return tournament;
     }
 
-    private TournamentDetails Details(string title) => new(
-        title, "Summary", "Body", "12 Rue de la Paix", "75001", "Paris", "France", "Europe/Paris",
-        "2035-03-04T10:00:00", "2035-03-04T18:00:00", 64, [seed.Legacy.Id]);
+    private TournamentDetails Details(
+        Event tournament,
+        string title,
+        string? streetAddress = null,
+        string? region = null,
+        string? startsAtLocal = null,
+        string eventType = "weekly",
+        string? bodyMarkdown = "Body",
+        string? locationToken = null,
+        IReadOnlyList<TournamentImage>? images = null)
+    {
+        var location = new ResolvedEventLocation(
+            tournament.ProviderPlaceId,
+            streetAddress ?? tournament.StreetAddress,
+            tournament.PostalCode,
+            tournament.City,
+            tournament.Country,
+            region ?? tournament.Region,
+            tournament.Latitude,
+            tournament.Longitude,
+            tournament.TimeZoneId);
+        locationToken ??= factory!.Services.GetRequiredService<IEventLocationTokenService>()
+            .Issue(seed.Organizer.Id, location, clock.GetCurrentInstant());
+        return new TournamentDetails(
+            title,
+            "Summary",
+            bodyMarkdown,
+            new TournamentLocation(location.StreetAddress, location.PostalCode, location.City, location.Country, location.Region, locationToken),
+            eventType,
+            startsAtLocal ?? $"{LocalDatePattern.Iso.Format(tournament.VenueStartDate)}T{LocalTimePattern.CreateWithInvariantCulture("HH:mm").Format(tournament.VenueStartTime)}",
+            tournament.Capacity,
+            [seed.Legacy.Id],
+            images ?? []);
+    }
+
+    private async Task<EventImage> CreateOwnedImageAsync(Guid eventId, Guid userId, int sortOrder, string? altText)
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), userId, 320, 180, clock.GetCurrentInstant());
+        image.AttachToEvent(eventId, userId, sortOrder, altText, clock.GetCurrentInstant());
+        await using var database = CreateContext();
+        database.EventImages.Add(image);
+        await database.SaveChangesAsync();
+        return image;
+    }
+
+    private async Task<EventImage> CreateTemporaryImageAsync(Guid userId)
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), userId, 320, 180, clock.GetCurrentInstant());
+        await using var database = CreateContext();
+        database.EventImages.Add(image);
+        await database.SaveChangesAsync();
+        return image;
+    }
 
     private static ScheduledTournamentDraft Draft(string title, string slug) => new(
         title, slug, "Summary", "Body", "12 Rue de la Paix", "75001", "Paris", "France", "Europe/Paris",
@@ -478,7 +753,62 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
 
     private sealed record SeedRows(Organization Alpha, Organization Beta, ApplicationUser Organizer, ApplicationUser Outsider, ApplicationUser Admin, TournamentFormat Legacy, TournamentFormat Modern);
-    private sealed record TournamentDetails(string Title, string? Summary, string? BodyMarkdown, string StreetAddress, string? PostalCode, string City, string Country, string TimeZoneId, string StartsAtLocal, string? EndsAtLocal, int? Capacity, IReadOnlyList<Guid> FormatIds, string? LiveTournamentUrl = null, string? ArchiveTournamentUrl = null, string Region = "Île-de-France", string EventType = "weekly");
+    private sealed record TournamentDetails(
+        string Title,
+        string? Summary,
+        string? BodyMarkdown,
+        TournamentLocation Location,
+        string EventType,
+        string StartsAtLocal,
+        int Capacity,
+        IReadOnlyList<Guid> FormatIds,
+        IReadOnlyList<TournamentImage> Images);
+    private sealed record TournamentLocation(string StreetAddress, string PostalCode, string City, string Country, string Region, string LocationToken);
+    private sealed record TournamentImage(Guid ImageId, string? AltText);
+
+    private sealed class RecordingObjectStore : IEventImageObjectStore
+    {
+        public bool FailDeletes { get; set; }
+        public IReadOnlyList<string> DeleteKeys { get; private set; } = [];
+
+        public Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken) =>
+            Task.FromException<Stream>(new KeyNotFoundException());
+
+        public Task DeleteAsync(string key, CancellationToken cancellationToken)
+        {
+            DeleteKeys = [.. DeleteKeys, key];
+            return FailDeletes
+                ? Task.FromException(new EventImageStorageUnavailableException())
+                : Task.CompletedTask;
+        }
+
+        public void Reset()
+        {
+            DeleteKeys = [];
+            FailDeletes = false;
+        }
+    }
+
+    private sealed class RejectingLocationProvider : IEventLocationProvider
+    {
+        public int Calls { get; private set; }
+
+        public Task<IReadOnlyList<EventLocationSuggestion>> AutocompleteAsync(string input, string sessionToken, string language, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromException<IReadOnlyList<EventLocationSuggestion>>(new InvalidOperationException("Location provider must not be called while loading an editor."));
+        }
+
+        public Task<ResolvedEventLocation> ResolveAsync(string placeId, string sessionToken, string language, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromException<ResolvedEventLocation>(new InvalidOperationException("Location provider must not be called while loading an editor."));
+        }
+    }
+
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;

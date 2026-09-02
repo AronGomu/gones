@@ -177,6 +177,8 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Title = "Renamed Cup" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { Summary = "Side events" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft() with { BodyMarkdown = "Changed" }, [legacy]));
+        Assert.Equal(TournamentChangeSeverity.Minor, tournament.ClassifyChange(Draft(), [legacy], imagesChanged: true));
+        Assert.Equal(TournamentChangeSeverity.None, tournament.ClassifyChange(Draft() with { EndsAtLocal = null }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { StartsAtLocal = new LocalDateTime(2026, 8, 2, 11, 0) }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { Region = "Île-de-France" }, [legacy]));

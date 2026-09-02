@@ -7158,7 +7158,7 @@ export class Client implements IClient {
      * @return OK
      */
     updateEventDetails(eventId: string, if_Match: string | undefined, body: UpdateEventDetailsRequest): Observable<EventManagementResponse> {
-        let url_ = this.baseUrl + "/api/events/{eventId}/details";
+        let url_ = this.baseUrl + "/api/organizer/events/{eventId}/details";
         if (eventId === undefined || eventId === null)
             throw new globalThis.Error("The parameter 'eventId' must be defined.");
         url_ = url_.replace("{eventId}", encodeURIComponent("" + eventId));
@@ -11233,6 +11233,7 @@ export interface EventManagementResponse {
     bodyMarkdown: string | undefined;
     liveTournamentUrl: string | undefined;
     archiveTournamentUrl: string | undefined;
+    location: EventLocationInput;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;
@@ -11240,6 +11241,7 @@ export interface EventManagementResponse {
     region: string | undefined;
     eventType: PublicCalendarEventType | undefined;
     timeZoneId: string;
+    startsAtLocal: string;
     venueStartDate: string;
     venueStartTime: string;
     venueEndDate: string;
@@ -11251,6 +11253,7 @@ export interface EventManagementResponse {
     deletedAt: Instant | undefined;
     deletedReason: string | undefined;
     formatIds: string[];
+    images: EventImageResponse[];
     version: number;
     eTag: string;
 
@@ -12255,19 +12258,12 @@ export interface UpdateEventDetailsRequest {
     title: string;
     summary: string | undefined;
     bodyMarkdown: string | undefined;
-    streetAddress: string;
-    postalCode: string | undefined;
-    city: string;
-    country: string;
-    region: string;
+    location: EventLocationInput;
     eventType: UpdateEventDetailsRequestEventType;
-    timeZoneId: string;
     startsAtLocal: string;
-    endsAtLocal: string | undefined;
-    capacity: number | undefined;
+    capacity: number;
     formatIds: string[];
-    liveTournamentUrl?: string | undefined;
-    archiveTournamentUrl?: string | undefined;
+    images: EventImageInput[];
 
     [key: string]: any;
 }

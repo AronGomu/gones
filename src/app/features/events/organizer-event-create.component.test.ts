@@ -31,10 +31,10 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setupHarness(globalRole: string, client: Partial<Client> = {}) {
+function setupHarness(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
-  const route = { snapshot: { paramMap: paramMap() } } as unknown as ActivatedRoute;
+  const route = { snapshot: { paramMap: paramMap(routeValues) } } as unknown as ActivatedRoute;
 
   const injector = Injector.create({ providers: [
     { provide: Client, useValue: client },
@@ -54,8 +54,8 @@ function setupHarness(globalRole: string, client: Partial<Client> = {}) {
   };
 }
 
-function setup(globalRole: string, client: Partial<Client> = {}): OrganizerEventCreateComponent {
-  return setupHarness(globalRole, client).component;
+function setup(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}): OrganizerEventCreateComponent {
+  return setupHarness(globalRole, client, routeValues).component;
 }
 
 function locationClient(extra: Record<string, unknown> = {}): Partial<Client> {
@@ -433,6 +433,78 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
   });
 });
 
+describe('OrganizerEventCreateComponent edit concurrency', () => {
+  const managedEvent = {
+    id: 'event-1', organizationId: 'org-1', organizationName: 'Club', title: 'Original', displayTitle: 'Legacy — Original', slug: 'original',
+    summary: 'Summary', bodyMarkdown: 'Original body', liveTournamentUrl: '/live/keep', archiveTournamentUrl: '/archive/keep',
+    location: {
+      streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+      region: 'Auvergne-Rhône-Alpes', locationToken: 'fresh-editor-token'
+    },
+    streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
+    eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
+    venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01', venueEndTime: '23:59:59',
+    startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
+    status: 'Published', formatIds: ['fmt-1'], images: [{
+      id: 'image-1', altText: 'Original alt',
+      variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
+    }],
+    version: 3, eTag: '"3"'
+  };
+
+  it('sends nested ETag edit, keeps local draft on 412, then explicitly reloads canonical media and location', async () => {
+    const latest = {
+      ...managedEvent,
+      title: 'Server title',
+      bodyMarkdown: 'Server body',
+      location: { ...managedEvent.location, streetAddress: '9 Server Street', locationToken: 'latest-token' },
+      streetAddress: '9 Server Street',
+      images: [{
+        id: 'image-2', altText: 'Server image',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
+      }],
+      version: 4,
+      eTag: '"4"'
+    };
+    const updateEventDetails = vi.fn((_eventId: string, _ifMatch: string | undefined, _body: unknown) =>
+      throwError(() => new ApiProblemError(412, { code: 'stale_etag' })));
+    const listOrganizerEvents = vi.fn(() => of({ items: [latest], page: 1, pageSize: 100, totalCount: 1 }));
+    const component = setup('Organizer', { updateEventDetails, listOrganizerEvents } as unknown as Partial<Client>, { id: 'event-1' });
+    const editor = component as unknown as { applyCanonical(event: unknown): void };
+    component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    editor.applyCanonical(managedEvent);
+    component.form.controls.bodyMarkdown.setValue('Local draft body');
+    component.form.controls.images.setValue([{ imageId: 'image-1', altText: 'Local alt' }]);
+
+    await component.saveEdit();
+
+    expect(updateEventDetails).toHaveBeenCalledWith('event-1', '"3"', {
+      title: 'Original', summary: 'Summary', bodyMarkdown: 'Local draft body',
+      location: {
+        streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+        region: 'Auvergne-Rhône-Alpes', locationToken: 'fresh-editor-token'
+      },
+      eventType: 'weekly', startsAtLocal: '2027-08-01T10:00', capacity: 32, formatIds: ['fmt-1'],
+      images: [{ imageId: 'image-1', altText: 'Local alt' }]
+    });
+    const sent = updateEventDetails.mock.calls[0]![2] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('liveTournamentUrl');
+    expect(sent).not.toHaveProperty('archiveTournamentUrl');
+    expect(sent).not.toHaveProperty('endsAtLocal');
+    expect(component.form.controls.bodyMarkdown.value).toBe('Local draft body');
+    expect(component.staleEvent()).toBe(latest);
+    expect(component.staleChanges()).toEqual(expect.arrayContaining([expect.stringMatching(/image/i)]));
+
+    component.reloadLatest();
+
+    expect(component.form.controls.title.value).toBe('Server title');
+    expect(component.form.controls.streetAddress.value).toBe('9 Server Street');
+    expect(component.form.controls.locationToken.value).toBe('latest-token');
+    expect(component.form.controls.images.value).toEqual([{ imageId: 'image-2', altText: 'Server image' }]);
+    expect(component.baseEvent()).toBe(latest);
+  });
+});
+
 describe('OrganizerEventCreateComponent role gating', () => {
   it('disables submit for a plain user', () => {
     const component = setup('User');
@@ -449,12 +521,13 @@ describe('OrganizerEventCreateComponent role gating', () => {
     expect(component.canPublishDirectly()).toBe(true);
   });
 
-  it('uses one required format control plus optional tournament links', () => {
+  it('uses one required format control without retired end or tournament-link controls', () => {
     const component = setup('Organizer');
     expect(component.form.controls.formatId.value).toBe('');
     expect(component.form.controls.formatId.valid).toBe(false);
-    expect(component.form.controls.liveTournamentUrl.value).toBe('');
-    expect(component.form.controls.archiveTournamentUrl.value).toBe('');
+    expect('endsAtLocal' in component.form.controls).toBe(false);
+    expect('liveTournamentUrl' in component.form.controls).toBe(false);
+    expect('archiveTournamentUrl' in component.form.controls).toBe(false);
   });
 });
 

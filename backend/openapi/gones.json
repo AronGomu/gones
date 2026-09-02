@@ -4809,7 +4809,7 @@
         }
       }
     },
-    "/api/events/{eventId}/details": {
+    "/api/organizer/events/{eventId}/details": {
       "patch": {
         "tags": [
           "EventLifecycleEndpoints"
@@ -10207,6 +10207,7 @@
           "bodyMarkdown",
           "liveTournamentUrl",
           "archiveTournamentUrl",
+          "location",
           "streetAddress",
           "postalCode",
           "city",
@@ -10214,6 +10215,7 @@
           "region",
           "eventType",
           "timeZoneId",
+          "startsAtLocal",
           "venueStartDate",
           "venueStartTime",
           "venueEndDate",
@@ -10225,6 +10227,7 @@
           "deletedAt",
           "deletedReason",
           "formatIds",
+          "images",
           "version",
           "eTag"
         ],
@@ -10274,6 +10277,9 @@
               "string"
             ]
           },
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
+          },
           "streetAddress": {
             "type": "string"
           },
@@ -10306,6 +10312,9 @@
             ]
           },
           "timeZoneId": {
+            "type": "string"
+          },
+          "startsAtLocal": {
             "type": "string"
           },
           "venueStartDate": {
@@ -10359,6 +10368,12 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           },
           "version": {
@@ -14020,17 +14035,12 @@
           "title",
           "summary",
           "bodyMarkdown",
-          "streetAddress",
-          "postalCode",
-          "city",
-          "country",
-          "region",
+          "location",
           "eventType",
-          "timeZoneId",
           "startsAtLocal",
-          "endsAtLocal",
           "capacity",
-          "formatIds"
+          "formatIds",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -14052,28 +14062,8 @@
               "string"
             ]
           },
-          "streetAddress": {
-            "maxLength": 240,
-            "type": "string"
-          },
-          "postalCode": {
-            "maxLength": 32,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "city": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "country": {
-            "maxLength": 120,
-            "type": "string"
-          },
-          "region": {
-            "maxLength": 120,
-            "type": "string"
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
           },
           "eventType": {
             "type": "string",
@@ -14083,48 +14073,34 @@
               "major"
             ]
           },
-          "timeZoneId": {
-            "maxLength": 100,
-            "type": "string"
-          },
           "startsAtLocal": {
             "type": "string"
           },
-          "endsAtLocal": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "capacity": {
+            "maximum": 2147483647,
+            "minimum": 1,
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
               "integer",
               "string"
             ],
             "format": "int32"
           },
           "formatIds": {
+            "maxItems": 1,
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
               "format": "uuid"
             }
           },
-          "liveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "archiveTournamentUrl": {
-            "maxLength": 2048,
-            "type": [
-              "null",
-              "string"
-            ]
+          "images": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageInput"
+            }
           }
         }
       },

@@ -7,12 +7,11 @@ import { EventDraftValue, eventTypeValue, optionalMarkdown } from './organizer-e
 import { renderEventMarkdown } from './event-markdown';
 import { EventDetailView } from './event-detail-view.component';
 
-export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
-export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
+export type MajorEventField = 'start' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
+export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'images' | 'status';
 
 const defaultMajorLabels: Record<MajorEventField, string> = {
   start: 'start date/time',
-  end: 'end date/time',
   timeZone: 'time zone',
   streetAddress: 'street address',
   postalCode: 'postal code',
@@ -30,24 +29,21 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     title: event.title,
     summary: event.summary ?? '',
     bodyMarkdown: event.bodyMarkdown ?? '',
-    streetAddress: event.streetAddress,
-    postalCode: event.postalCode ?? '',
-    city: event.city,
-    country: event.country,
-    region: event.region ?? '',
-    locationToken: '',
+    streetAddress: event.location.streetAddress,
+    postalCode: event.location.postalCode,
+    city: event.location.city,
+    country: event.location.country,
+    region: event.location.region,
+    locationToken: event.location.locationToken,
     latitude: null,
     longitude: null,
     eventType: (event.eventType ?? '') as EventDraftValue['eventType'],
     timeZoneId: event.timeZoneId,
-    startDate: event.venueStartDate,
-    startTime: event.venueStartTime.slice(0, 5),
-    endsAtLocal: localDateTime(event.venueEndDate, event.venueEndTime),
+    startDate: event.startsAtLocal.slice(0, 10),
+    startTime: event.startsAtLocal.slice(11, 16),
     capacity: event.capacity ?? null,
     formatId: event.formatIds[0] ?? '',
-    liveTournamentUrl: event.liveTournamentUrl ?? '',
-    archiveTournamentUrl: event.archiveTournamentUrl ?? '',
-    images: []
+    images: event.images.map(image => ({ imageId: image.id, altText: image.altText }))
   };
 }
 
@@ -56,19 +52,22 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
     title: value.title.trim(),
     summary: optional(value.summary),
     bodyMarkdown: optionalMarkdown(value.bodyMarkdown),
-    streetAddress: value.streetAddress.trim(),
-    postalCode: optional(value.postalCode),
-    city: value.city.trim(),
-    country: value.country.trim(),
-    region: value.region.trim(),
+    location: {
+      streetAddress: value.streetAddress.trim(),
+      postalCode: value.postalCode.trim(),
+      city: value.city.trim(),
+      country: value.country.trim(),
+      region: value.region.trim(),
+      locationToken: value.locationToken
+    },
     eventType: eventTypeValue(value.eventType),
-    timeZoneId: value.timeZoneId.trim(),
     startsAtLocal: `${value.startDate}T${value.startTime}`,
-    endsAtLocal: value.endsAtLocal || undefined,
-    capacity: value.capacity ?? undefined,
+    capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    liveTournamentUrl: optional(value.liveTournamentUrl),
-    archiveTournamentUrl: optional(value.archiveTournamentUrl)
+    images: value.images.map(image => ({
+      imageId: image.imageId,
+      altText: optional(image.altText ?? '')
+    }))
   };
 }
 
@@ -79,8 +78,9 @@ export function majorEventChanges(
 ): string[] {
   const originalDraft = managementToDraft(original);
   const fields: Array<[MajorEventField, keyof EventDraftValue]> = [
-    ['end', 'endsAtLocal'], ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'],
-    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['capacity', 'capacity'], ['formats', 'formatId']
+    ['timeZone', 'timeZoneId'], ['streetAddress', 'streetAddress'], ['postalCode', 'postalCode'],
+    ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'],
+    ['capacity', 'capacity'], ['formats', 'formatId']
   ];
   const changed = fields.filter(([, key]) => !same(originalDraft[key], draft[key])).map(([field]) => label(field));
   if (originalDraft.startDate !== draft.startDate || originalDraft.startTime !== draft.startTime) changed.unshift(label('start'));
@@ -94,11 +94,19 @@ export function changedEventFields(
 ): string[] {
   const fields: Array<[ChangedEventField, keyof EventManagementResponse]> = [
     ['title', 'title'], ['summary', 'summary'], ['description', 'bodyMarkdown'], ['liveTournamentUrl', 'liveTournamentUrl'],
-    ['archiveTournamentUrl', 'archiveTournamentUrl'], ['streetAddress', 'streetAddress'],
-    ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['timeZone', 'timeZoneId'],
+    ['archiveTournamentUrl', 'archiveTournamentUrl'], ['eventType', 'eventType'], ['timeZone', 'timeZoneId'],
     ['start', 'startsAtUtc'], ['end', 'endsAtUtc'], ['capacity', 'capacity'], ['formats', 'formatIds'], ['status', 'status']
   ];
-  return fields.filter(([, key]) => !same(original[key], latest[key])).map(([field]) => label(field));
+  const changed = fields.filter(([, key]) => !same(original[key], latest[key])).map(([field]) => field);
+  const locationFields: Array<[ChangedEventField, keyof EventManagementResponse['location']]> = [
+    ['streetAddress', 'streetAddress'], ['postalCode', 'postalCode'], ['city', 'city'],
+    ['country', 'country'], ['region', 'region']
+  ];
+  changed.push(...locationFields
+    .filter(([, key]) => original.location[key] !== latest.location[key])
+    .map(([field]) => field));
+  if (!sameImages(original, latest)) changed.push('images');
+  return changed.map(label);
 }
 
 export function canEditEvent(event: EventManagementResponse, now = new Date()): boolean {
@@ -124,11 +132,11 @@ export function managementToDetail(
     liveTournamentUrl: event.liveTournamentUrl,
     archiveTournamentUrl: event.archiveTournamentUrl,
     venue: {
-      streetAddress: event.streetAddress,
-      postalCode: event.postalCode ?? '',
-      city: event.city,
-      country: event.country,
-      region: event.region ?? ''
+      streetAddress: event.location.streetAddress,
+      postalCode: event.location.postalCode,
+      city: event.location.city,
+      country: event.location.country,
+      region: event.location.region
     },
     timeZoneId: event.timeZoneId,
     venueStartDate: event.venueStartDate,
@@ -142,17 +150,22 @@ export function managementToDetail(
     eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 }),
-    images: []
+    images: event.images.map(image => ({
+      id: image.id,
+      altText: image.altText,
+      variants: image.variants.map(variant => ({ ...variant }))
+    }))
   };
-}
-
-function localDateTime(date: string, time: string): string {
-  return `${date}T${time.slice(0, 5)}`;
 }
 
 function optional(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function sameImages(left: EventManagementResponse, right: EventManagementResponse): boolean {
+  return left.images.length === right.images.length
+    && left.images.every((image, index) => image.id === right.images[index]?.id && image.altText === right.images[index]?.altText);
 }
 
 function same(left: unknown, right: unknown): boolean {

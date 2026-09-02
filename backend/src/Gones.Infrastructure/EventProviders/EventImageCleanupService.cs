@@ -17,6 +17,12 @@ public sealed class EventImageCleanupService(
 
     public async Task EnqueueAndDeleteAsync(EventImage image, CancellationToken cancellationToken)
     {
+        Enqueue(image);
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    public void Enqueue(EventImage image)
+    {
         ArgumentNullException.ThrowIfNull(image);
         var now = clock.GetCurrentInstant();
         foreach (var width in EventImage.VariantWidthsFor(image.Width))
@@ -27,7 +33,6 @@ public sealed class EventImageCleanupService(
                 now));
         }
         database.EventImages.Remove(image);
-        await database.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<int> ProcessImageObjectDeletionsAsync(Guid imageId, CancellationToken cancellationToken) =>

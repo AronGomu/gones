@@ -56,17 +56,24 @@ public sealed class EventImage
         {
             throw new InvalidOperationException("Event image is not attachable.");
         }
-        var normalizedAlt = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
-        if (normalizedAlt?.Length > MaximumAltTextLength)
-        {
-            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
-        }
         State = EventImageState.EventOwned;
         EventId = eventId;
         ProposalId = null;
         SortOrder = sortOrder;
-        AltText = normalizedAlt;
+        AltText = NormalizeAltText(altText);
         ExpiresAt = null;
+    }
+
+    public void UpdateEventDetails(Guid eventId, int sortOrder, string? altText)
+    {
+        if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
+        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
+        if (State != EventImageState.EventOwned || EventId != eventId)
+        {
+            throw new InvalidOperationException("Event image does not belong to this Event.");
+        }
+        SortOrder = sortOrder;
+        AltText = NormalizeAltText(altText);
     }
 
     public static IReadOnlyList<int> VariantWidthsFor(int sourceWidth)
@@ -75,6 +82,16 @@ public sealed class EventImage
         return sourceWidth < StandardVariantWidths[0]
             ? [sourceWidth]
             : StandardVariantWidths.Where(width => width <= sourceWidth).ToArray();
+    }
+
+    private static string? NormalizeAltText(string? altText)
+    {
+        var normalized = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
+        if (normalized?.Length > MaximumAltTextLength)
+        {
+            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
+        }
+        return normalized;
     }
 }
 
