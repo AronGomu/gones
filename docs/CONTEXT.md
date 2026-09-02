@@ -52,6 +52,18 @@ The Calendar V1 record an organizer publishes and a User registers for: base tit
 _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
+**Event Image**:
+An image attached to one Event in a deliberate order with optional alt text. Its object stays private in S3-compatible storage; DB ownership state controls Temporary, Proposal-owned, and Event-owned access and cleanup (ADR 0052).
+_Avoid_: public bucket image, URL-only image
+
+**Resolved Event Location**:
+A venue selected from Google-backed suggestions and carried to Event publication or edit by a short-lived signed server token. Clients do not submit trusted coordinates directly (ADR 0051).
+_Avoid_: free-text location, client-trusted latitude/longitude
+
+**Markdown Description**:
+The optional Markdown source stored on an Event. Public Event detail exposes server-rendered sanitized HTML; Markdown remains the editable source (ADR 0053).
+_Avoid_: stored HTML description, rich-text document
+
 **Event Type**:
 The Event cadence/category selected by its publisher: `weekly`, `monthly`, or `major`. It is app-owned public Event data and can be used to filter the Calendar.
 _Avoid_: lifecycle event type, Tournament Format

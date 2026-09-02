@@ -12,7 +12,7 @@
  *
  * C43 adds the product half: the server-mode SPA behind the same TLS edge, the configured bootstrap
  * User verifying through the local email sink, the Admin bootstrap CLI and its safe second run, the
- * whole Visitor/User/fake-OAuth/Organizer/Owner/Admin journey set, the private migration bundle set,
+ * whole Visitor/User/fake-OAuth/Organizer/Admin journey set, the private migration bundle set,
  * reminder planning with a simulated clock, replanning on date change/unregistration/cancellation,
  * the provider retry ladder into dead letter, operator reconciliation replay, and OTel correlation.
  *
@@ -226,8 +226,8 @@ try {
   const adminCount = psql("select count(*) from asp_net_users where global_role = 'Admin';");
   check(adminCount === '1', `exactly one Admin exists after two bootstrap runs (${adminCount})`);
 
-  console.log('\n=== V1 role journeys: Organizer, Owner, Admin and the fake-OAuth User ===');
-  journey('roles', 'the Organizer/Owner/Admin/fake-OAuth journeys all pass without a live provider');
+  console.log('\n=== V1 role journeys: Organizer, Admin and the fake-OAuth User ===');
+  journey('roles', 'the Organizer/Admin/fake-OAuth journeys all pass without a live provider');
   journey('delete-restore', 'soft delete hides the tournament and the Admin restores it');
   const tournamentId = journeyState.tournamentId;
   check(typeof tournamentId === 'string', `the role journey published a tournament (${tournamentId ?? 'none'})`);

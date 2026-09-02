@@ -20,6 +20,20 @@ describe('V1 acceptance matrix', () => {
     expect(result.totals.nonDeferred).toBeGreaterThan(50);
   });
 
+  it('maps integrated Event publication to every executable lifecycle target', () => {
+    const row = result.matrix.rows.find((candidate: { id: string }) => candidate.id === 'doc00-tournaments');
+    expect(row?.acceptance).toContain('product-organizer-lifecycle');
+    expect(row?.evidence.map((item: { target: string }) => item.target)).toEqual(expect.arrayContaining([
+      'backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventProposalTests.cs',
+      'backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs',
+      'cypress/e2e/organizer-event-create.cy.js',
+      'cypress/e2e/organizer-event-management.cy.js',
+      'cypress/e2e/event-proposal.cy.js'
+    ]));
+  });
+
   it('covers every V1 architecture document', () => {
     const covered = new Set(result.matrix.rows.map((row: { doc: string }) => row.doc));
     expect([...covered].sort()).toEqual([...docFiles].sort());

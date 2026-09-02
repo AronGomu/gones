@@ -194,34 +194,39 @@ async function rolesStage() {
   const organization = await call('/api/admin/organizations/', {
     method: 'POST',
     token: admin.token,
-    body: { name: `Release Rehearsal Club ${randomUUID().slice(0, 8)}`, ownerUserId: organizerId }
+    body: { name: `Release Rehearsal Club ${randomUUID().slice(0, 8)}` }
   });
   check(organization.status === 201, `an Admin creates the organization (${organization.status})`);
   const organizationId = organization.json.id;
 
-  // Publishing needs the global Organizer role, and an Admin is the only one who can attribute it.
-  // Granting it revokes the account's refresh sessions on purpose, so the Organizer signs in again.
-  const granted = await call(`/api/admin/users/${organizerId}/roles/Organizer/grant`, { method: 'POST', token: admin.token });
-  check(granted.status === 204, `the Admin attributes the Organizer role (${granted.status})`);
+  // Adding membership is the only source of the global Organizer role (ADR 0041). It revokes the
+  // account's refresh sessions on purpose, so each new member signs in again afterwards.
+  const addedOrganizer = await call(`/api/organizations/${organizationId}/members`, {
+    method: 'POST',
+    token: admin.token,
+    body: { userId: organizerId, role: 'Organizer' }
+  });
+  check(addedOrganizer.status === 201, `the Admin adds the Organizer member (${addedOrganizer.status})`);
   Object.assign(organizer, await login(organizerEmail));
 
   const members = await call(`/api/organizations/${organizationId}/members`, { token: organizer.token });
-  check(members.status === 200 && members.json.some((member) => member.role === 'Owner' && member.userId === organizerId),
-    'the organization Owner is the member the Admin nominated');
+  check(members.status === 200 && members.json.some((member) => member.role === 'Organizer' && member.userId === organizerId),
+    'the organization member the Admin nominated is an Organizer');
 
   const addedMember = await call(`/api/organizations/${organizationId}/members`, {
     method: 'POST',
-    token: organizer.token,
+    token: admin.token,
     body: { userId: standInId, role: 'Organizer' }
   });
-  check(addedMember.status === 201, `the Owner adds an Organizer member (${addedMember.status})`);
+  check(addedMember.status === 201, `the Admin adds a second Organizer member (${addedMember.status})`);
+  Object.assign(standIn, await login(standInEmail));
 
-  const notOwner = await call(`/api/organizations/${organizationId}/transfer-ownership`, {
+  const retiredTransfer = await call(`/api/organizations/${organizationId}/transfer-ownership`, {
     method: 'POST',
     token: standIn.token,
     body: { newOwnerUserId: standInId }
   });
-  check([403, 404, 409].includes(notOwner.status), `a non-Owner member cannot transfer ownership (${notOwner.status})`);
+  check(retiredTransfer.status === 404, `the retired ownership-transfer endpoint stays absent (${retiredTransfer.status})`);
 
   const formats = await call('/api/formats');
   check(formats.status === 200 && formats.json.length > 0, 'the public format catalog is populated');
@@ -235,11 +240,14 @@ async function rolesStage() {
     headers: idempotent(),
     body: payload
   });
+  const publishedLocation = published.headers.get('location') ?? '';
+  const publishedLocationPath = publishedLocation ? new URL(publishedLocation, edge).pathname : '';
+  const publishedETag = published.headers.get('etag') ?? '';
   check(published.status === 201
       && published.json.status === 'Published'
-      && published.headers.get('location') === `/api/events/${published.json.slug}`
-      && /^"\d+"$/.test(published.headers.get('etag') ?? ''),
-    `the Organizer directly publishes the Event with Location and ETag (${published.status} ${published.text.slice(0, 160)})`);
+      && publishedLocationPath === `/api/events/${published.json.slug}`
+      && /^"[^"]+"$/.test(publishedETag),
+    `the Organizer directly publishes the Event with Location and ETag (${published.status} location=${publishedLocation || 'missing'} etag=${publishedETag || 'missing'} ${published.text.slice(0, 120)})`);
   const tournamentId = published.json.id;
   const slug = published.json.slug;
 
@@ -387,7 +395,7 @@ async function dateChangeStage() {
   const entry = managed.json.items.find((item) => item.id === state.tournamentId);
   check(Boolean(entry), 'the Organizer can still manage the rehearsal tournament');
   const startsAtLocal = futureLocal(40);
-  const update = await call(`/api/events/${state.tournamentId}/details`, {
+  const update = await call(`/api/organizer/events/${state.tournamentId}/details`, {
     method: 'PATCH',
     token: organizer.token,
     headers: { 'if-match': entry.eTag },
@@ -395,17 +403,19 @@ async function dateChangeStage() {
       title: entry.title,
       summary: entry.summary,
       bodyMarkdown: entry.bodyMarkdown,
-      streetAddress: entry.streetAddress,
-      postalCode: entry.postalCode,
-      city: entry.city,
-      country: entry.country,
-      region: entry.region,
+      location: {
+        streetAddress: entry.location.streetAddress,
+        postalCode: entry.location.postalCode,
+        city: entry.location.city,
+        country: entry.location.country,
+        region: entry.location.region,
+        locationToken: entry.location.locationToken
+      },
       eventType: entry.eventType,
-      timeZoneId: entry.timeZoneId,
-      startsAtLocal,
-      endsAtLocal: startsAtLocal.replace('T09:00:00', 'T18:00:00'),
+      startsAtLocal: startsAtLocal.slice(0, 16),
       capacity: entry.capacity,
-      formatIds: entry.formatIds
+      formatIds: entry.formatIds,
+      images: entry.images.map((image) => ({ imageId: image.id, altText: image.altText }))
     }
   });
   check(update.status === 200, `the Organizer moves the tournament date (${update.status})`);

@@ -77,25 +77,29 @@ required targets:
 
 ## Impl steps
 
-- [ ] 1. Add failing integrated browser/API/rehearsal cases.
-- [ ] 2. Update acceptance matrix + fixture/reset harness only.
-- [ ] 3. Update durable vocabulary/docs + AGENT ADR list.
-- [ ] 4. Run scoped journeys, then full gates.
-- [ ] 5. Record exact failures; one bounded repair loop; stop on unresolved blocker.
+- [x] 1. Add failing integrated browser/API/rehearsal cases. — verify: scoped Cypress/API/rehearsal targets expose at least one pre-fix composition failure, then pass.
+- [x] 2. Update acceptance matrix + fixture/reset harness only. — verify: `npm run acceptance:matrix` passes after clean `npm run db:reset`.
+- [x] 3. Update durable vocabulary/docs + AGENT ADR list. — verify: `docs/GLOSSARY.md`, `docs/CONTEXT.md`, and `AGENT.md` contain required T8 vocabulary/ADR references or inspection proves no update needed.
+- [x] 4. Run scoped journeys, then full gates. — verify: every command and manual check under Validation records passing evidence.
+- [x] 5. Record exact failures; repair until green; stop only on a hard blocker. — verify: ticket report records `none` after all gates pass.
 
 ## Validation
 
-- [ ] `npm run db:reset`
-- [ ] `npm run api:check`
-- [ ] `npm run test`
-- [ ] `npm run backend:test`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] `npm run cy:run`
-- [ ] `npm run acceptance:matrix`
-- [ ] `npm run e2e:ci`
-- [ ] `npm run images:verify`
-- [ ] manual check: desktop split/retract + mobile preview ordering + keyboard lightbox/reorder
-- [ ] no silent-failure swallow on added path — list all retained sites + rationale, or `none`
-- [ ] app functional — clean reset supports create/edit/proposal/public detail with fake providers
-- [ ] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
+- [x] `npm run db:reset`
+- [x] `npm run api:check`
+- [x] `npm run test`
+- [x] `npm run backend:test`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] `npm run cy:run`
+- [x] `npm run acceptance:matrix`
+- [x] `npm run e2e:ci`
+- [x] `npm run images:verify`
+- [x] `npm run build`
+- [x] `npm run api:generate` leaves generated API paths unchanged
+- [x] `npm run release:rehearsal`
+- [x] residue/secrets: `git diff --check`; no `.orig`/`.rej`/backup residue; added-line high-confidence secret scan clean
+- [x] manual check: desktop split/retract + mobile preview ordering + keyboard lightbox/reorder
+- [x] no silent-failure swallow on added path — `none`
+- [x] app functional — clean reset supports create/edit/proposal/public detail with fake providers
+- [x] commit msg draft: `test(events): prove editor media and location contracts compose end to end`

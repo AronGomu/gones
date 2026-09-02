@@ -28,6 +28,13 @@ const resolvedLocation = {
   locationToken: 'signed-location-token',
   expiresAt: '2030-08-01T00:30:00Z'
 };
+const imageIds = [
+  '55555555-5555-5555-5555-555555555551',
+  '55555555-5555-5555-5555-555555555552',
+  '55555555-5555-5555-5555-555555555553',
+  '55555555-5555-5555-5555-555555555554',
+  '55555555-5555-5555-5555-555555555555'
+];
 const detail = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   title: 'Lyon Legacy Open',
@@ -98,13 +105,10 @@ function mockLocation() {
   }).as('locationResolve');
 }
 
-const SEED_MARKER = 'gones.e2e.storage-seeded';
-
 function seedLanguage(win, language) {
   win.localStorage.setItem('gones.settings.language', language);
   win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
   win.localStorage.setItem('gones.settings.power-user', 'true');
-  win.localStorage.setItem(SEED_MARKER, 'true');
 }
 
 // `onBeforeLoad` can be skipped after `ngsw-worker.js` controls release-profile navigation. Re-seed
@@ -113,8 +117,6 @@ function visit(path = '/events/new', language = 'en') {
   cy.visit(path, { onBeforeLoad: win => seedLanguage(win, language) });
   cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
   cy.window().then(win => {
-    if (win.localStorage.getItem(SEED_MARKER) === 'true'
-      && win.localStorage.getItem('gones.settings.language') === language) return;
     seedLanguage(win, language);
     win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: language }));
     win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.power-user', newValue: 'true' }));
@@ -122,8 +124,45 @@ function visit(path = '/events/new', language = 'en') {
   cy.document().its('documentElement.lang').should('eq', language);
 }
 
-function fillValidForm() {
-  cy.wait(['@myOrganizations', '@formats']);
+function mockImageUploads(ids) {
+  let uploadIndex = 0;
+  cy.intercept('POST', '**/api/event-images', req => {
+    const id = ids[uploadIndex++];
+    expect(id, 'unexpected image upload').to.be.a('string');
+    req.reply({
+      statusCode: 201,
+      body: {
+        id,
+        state: 'Temporary',
+        expiresAt: '2030-08-02T00:00:00Z',
+        width: 320,
+        height: 180,
+        variants: [{ width: 320, height: 180, url: `/api/event-images/${id}/variants/320` }]
+      }
+    });
+  }).as('imageUpload');
+  cy.intercept('GET', '**/api/event-images/*/variants/320', {
+    statusCode: 200,
+    headers: { 'content-type': 'image/webp', 'cache-control': 'no-store' },
+    fixture: 'event-proposal-private.webp,null'
+  }).as('imageVariant');
+}
+
+function selectImages(count) {
+  for (let index = 0; index < count; index++) {
+    cy.get('[data-cy="event-image-picker"]').selectFile({
+      contents: 'cypress/fixtures/event-proposal-private.webp',
+      fileName: `event-${index + 1}.webp`,
+      mimeType: 'image/webp'
+    });
+    cy.wait('@imageUpload');
+  }
+  cy.get('[data-cy^="event-image-card-local-"]').should('have.length', count);
+  cy.get('[data-cy="event-image-publish-blocked"]').should('not.exist');
+}
+
+function fillValidForm(referenceAlias = '@myOrganizations') {
+  cy.wait([referenceAlias, '@formats']);
   cy.get('[data-cy="event-title"]').type('Lyon Legacy Open');
   cy.get('[data-cy="event-summary"]').type('Raw summary');
   cy.get('[data-cy="event-body"]').type('**Live** body.');
@@ -154,13 +193,35 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-publish"]').should('be.enabled');
   });
 
-  it('publishes one exact nested payload directly and navigates to public detail', () => {
+  it('publishes 5 ordered images with alt text and renders faithful public Markdown detail', () => {
     mockSession();
     mockReferences();
     mockLocation();
+    mockImageUploads(imageIds);
     visit();
     fillValidForm();
+    selectImages(5);
 
+    const altTexts = ['Hero hall', 'Players', 'Pairings', 'Prizes', 'Venue'];
+    altTexts.forEach((alt, index) => cy.get(`[data-cy="event-image-alt-local-${index + 1}"]`).type(alt));
+    cy.get('[data-cy="event-image-move-left-local-5"]').focus().should('have.focus').type('{enter}{enter}');
+    const expectedOrder = [imageIds[0], imageIds[1], imageIds[4], imageIds[2], imageIds[3]];
+    const expectedAlt = [altTexts[0], altTexts[1], altTexts[4], altTexts[2], altTexts[3]];
+    cy.get('[data-cy^="event-image-card-local-"]').then($cards => {
+      expect([...$cards].map(card => card.getAttribute('data-cy'))).to.deep.eq([
+        'event-image-card-local-1', 'event-image-card-local-2', 'event-image-card-local-5',
+        'event-image-card-local-3', 'event-image-card-local-4'
+      ]);
+    });
+
+    const publishedDetail = {
+      ...detail,
+      images: expectedOrder.map((id, index) => ({
+        id,
+        altText: expectedAlt[index],
+        variants: [{ width: 320, height: 180, url: `/api/event-images/${id}/variants/320` }]
+      }))
+    };
     cy.intercept('POST', '**/api/events', req => {
       expect(req.body).not.to.have.property('payload');
       expect(req.body).not.to.have.property('previewTicket');
@@ -177,16 +238,30 @@ describe('Organizer Event direct create editor', () => {
       expect(req.body).not.to.have.property('longitude');
       expect(req.body.startsAtLocal).to.eq('2027-08-01T10:00');
       expect(req.body.formatIds).to.deep.eq([formatId]);
-      expect(req.body.images).to.deep.eq([]);
+      expect(req.body.images).to.deep.eq(expectedOrder.map((imageId, index) => ({ imageId, altText: expectedAlt[index] })));
       expect(req.headers['idempotency-key']).to.be.a('string').and.not.be.empty;
       req.reply({ statusCode: 201, body: { id: detail.id, slug: detail.slug, status: 'Published' } });
     }).as('publish');
-    cy.intercept('GET', `**/api/events/${detail.slug}`, detail).as('detail');
+    cy.intercept('GET', `**/api/events/${detail.slug}`, publishedDetail).as('detail');
+    cy.intercept('GET', '**/api/events/*/participants*', { items: [], page: 1, pageSize: 50, totalCount: 0 });
+    cy.intercept('GET', '**/api/events/*/registration-capability*', { canRegister: false, canUnregister: false, reason: 'organizer' });
 
     cy.get('[data-cy="event-publish"]').click();
     cy.wait('@publish');
     cy.location('pathname').should('eq', `/events/${detail.slug}`);
     cy.wait('@detail');
+    cy.get('[data-cy="event-detail-title-text"]').should('have.text', detail.displayTitle);
+    cy.get('[data-cy="event-detail-summary"]').should('have.text', detail.summary);
+    cy.get('[data-cy="event-detail-body"] strong').should('have.text', 'Live');
+    cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', altTexts[0]);
+    cy.get('[data-cy="event-detail-media-gallery-image-1"]').should('have.attr', 'alt', altTexts[4]);
+    cy.get('[data-cy="event-detail-media-hero"]').focus().should('have.focus').type('{enter}');
+    cy.get('[data-cy="event-detail-lightbox-close"]').should('have.focus');
+    cy.get('[data-cy="event-detail-lightbox"]').trigger('keydown', { key: 'ArrowRight' });
+    cy.get('[data-cy="event-detail-lightbox-image"]').should('have.attr', 'alt', altTexts[1]);
+    cy.get('[data-cy="event-detail-lightbox"]').trigger('keydown', { key: 'Escape' });
+    cy.get('[data-cy="event-detail-lightbox"]').should('not.exist');
+    cy.get('[data-cy="event-detail-media-hero"]').should('have.focus');
   });
 
   it('blocks unresolved and failed-upload states before publication', () => {
@@ -221,6 +296,12 @@ describe('Organizer Event direct create editor', () => {
         expect($preview[0].getBoundingClientRect().top).to.be.at.least($form[0].getBoundingClientRect().bottom);
       });
     });
+    cy.viewport(375, 812);
+    cy.get('[data-cy="event-create-form"]').then($form => {
+      cy.get('[data-cy="event-live-preview"]').then($preview => {
+        expect($preview[0].getBoundingClientRect().top).to.be.at.least($form[0].getBoundingClientRect().bottom);
+      });
+    });
 
     cy.viewport(1024, 800);
     cy.get('[data-cy="event-editor-shell"]').should('have.css', 'grid-template-columns').and('match', /px .*px/);
@@ -234,14 +315,32 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-controls', 'event-live-preview').and('have.attr', 'aria-expanded', 'false');
   });
 
-  it('keeps plain User proposal submission usable while gating proposal images', () => {
+  it('lets a plain verified User upload and submit ordered proposal images', () => {
     mockSession('User');
     mockPublicOrganizations();
+    mockLocation();
+    mockImageUploads([imageIds[0]]);
+    cy.intercept('GET', '**/api/event-proposals/approvers?*', [
+      { id: profile.id, username: 'organizer-user', globalRole: 'Organizer' }
+    ]).as('approvers');
+    cy.intercept('POST', '**/api/event-proposals', req => {
+      expect(req.body.event.images).to.deep.eq([{ imageId: imageIds[0], altText: 'Proposal poster' }]);
+      expect(req.body.event.bodyMarkdown).to.eq('**Live** body.');
+      expect(req.body.event.location.locationToken).to.eq(resolvedLocation.locationToken);
+      expect(req.body.recipientUserIds).to.deep.eq([profile.id]);
+      req.reply({ statusCode: 201, body: { id: 'proposal-1', status: 'Pending', expiresAt: '2030-08-08T00:00:00Z', recipientCount: 1 } });
+    }).as('proposal');
     visit();
-    cy.wait(['@publicOrganizations', '@formats']);
-    cy.location('pathname').should('eq', '/events/new');
-    cy.get('[data-cy="event-submit-for-approval"]').should('be.visible');
-    cy.get('[data-cy="event-image-editor"]').should('not.exist');
+    fillValidForm('@publicOrganizations');
+    selectImages(1);
+    cy.get('[data-cy="event-image-alt-local-1"]').type('Proposal poster');
+
+    cy.get('[data-cy="event-submit-for-approval"]').should('be.enabled').click();
+    cy.wait('@approvers');
+    cy.get(`[data-cy="approver-option-${profile.id}"]`).check();
+    cy.get('[data-cy="approver-dialog-submit"]').click();
+    cy.wait('@proposal');
+    cy.get('[data-cy="event-proposal-sent"]').should('be.visible').and('contain.text', '1');
     cy.get('[data-cy="event-publish"]').should('not.exist');
   });
 

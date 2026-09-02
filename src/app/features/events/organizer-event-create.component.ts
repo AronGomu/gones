@@ -184,13 +184,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                 </div>
 
-                @if (!editMode) {
-                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
-                }
-
-                @if (editMode) {
-                  <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImages]="initialEditorImages()" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
-                }
+                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImages]="initialEditorImages()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
               </div>
             </fieldset>
 
@@ -246,7 +240,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly editMode = Boolean(this.eventId);
   @ViewChild('titleInput') private titleInput?: ElementRef<HTMLInputElement>;
   @ViewChild('streetInput') private streetInput?: ElementRef<HTMLInputElement>;
-  @ViewChild('saveButton') private saveButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild('saveButton', { read: ElementRef }) private saveButton?: ElementRef<HTMLButtonElement>;
 
   readonly organizations = signal<EventOrganizationOption[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
@@ -446,7 +440,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   onImagesChange(images: readonly EventImageSelection[]): void {
     this.selectedImages.set(images);
-    this.form.controls.images.setValue(images.map(image => ({ imageId: image.imageId, altText: image.altText ?? undefined })));
+    const next = images.map(image => ({ imageId: image.imageId, altText: image.altText ?? undefined }));
+    const current = this.form.controls.images.value;
+    if (current.length === next.length && current.every((image, index) =>
+      image.imageId === next[index]?.imageId && (image.altText ?? null) === (next[index]?.altText ?? null))) return;
+    this.form.controls.images.setValue(next);
   }
 
   async loadReferences(): Promise<void> {
@@ -693,7 +691,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.staleEvent.set(null);
       this.staleChanges.set([]);
       this.success.set(this.i18n.t('eventManage.saved'));
-      queueMicrotask(() => this.saveButton?.nativeElement.focus());
+      setTimeout(() => this.saveButton?.nativeElement.focus());
     } catch (error) {
       this.applyFieldErrors(error);
       if (error instanceof ApiProblemError && error.problem.code === 'image_state_conflict') {

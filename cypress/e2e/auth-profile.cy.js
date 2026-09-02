@@ -164,6 +164,7 @@ describe('auth and profile', () => {
   it('logout sends to /login?returnUrl= and sign-in returns there', () => {
     login();
     cy.visit('/registrations');
+    cy.location('pathname').should('eq', '/registrations');
     cy.get('[data-cy="logout-button"]').click();
     cy.location('pathname').should('eq', '/login');
     cy.location('search').should('eq', '?returnUrl=%2Fregistrations');

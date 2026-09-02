@@ -4,6 +4,19 @@ const formatId = '33333333-3333-3333-3333-333333333333';
 const firstImageId = '55555555-5555-5555-5555-555555555555';
 const secondImageId = '66666666-6666-6666-6666-666666666666';
 const latestImageId = '77777777-7777-7777-7777-777777777777';
+const uploadedImageId = '88888888-8888-8888-8888-888888888888';
+const updatedLocation = {
+  streetAddress: '9 New Street',
+  postalCode: '69002',
+  city: 'Lyon',
+  country: 'France',
+  region: 'Auvergne-Rhône-Alpes',
+  latitude: 45.75,
+  longitude: 4.84,
+  timeZoneId: 'Europe/Paris',
+  locationToken: 'updated-location-token',
+  expiresAt: '2999-01-01T13:00:00Z'
+};
 const profile = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', email: 'organizer@example.test', emailVerified: true, globalRole: 'Organizer',
   username: 'organizer-user', firstName: 'Organizer', lastName: 'User', preferredLanguage: 'en', isFirstNamePublic: false,
@@ -163,6 +176,96 @@ describe('Organizer Event management', () => {
     cy.get('[data-cy="event-location-token"]').should('have.value', 'latest-location-token');
     cy.get(`[data-cy="event-image-card-existing-${latestImageId}"]`).should('be.visible');
     cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('not.exist');
+  });
+
+  it('resolves a changed location and commits Markdown plus remove/add/reorder media in one fresh PATCH', () => {
+    mockSession();
+    mockFormats();
+    const updated = {
+      ...event,
+      bodyMarkdown: 'Updated **Markdown** body',
+      location: updatedLocation,
+      streetAddress: updatedLocation.streetAddress,
+      postalCode: updatedLocation.postalCode,
+      city: updatedLocation.city,
+      country: updatedLocation.country,
+      region: updatedLocation.region,
+      images: [
+        { id: uploadedImageId, altText: 'New hero', variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }] },
+        event.images[1]
+      ],
+      version: 4,
+      eTag: '"4"'
+    };
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
+    cy.intercept('GET', '**/api/event-images/*/variants/320', {
+      statusCode: 200,
+      headers: { 'content-type': 'image/webp', 'cache-control': 'no-store' },
+      fixture: 'event-proposal-private.webp,null'
+    });
+    cy.intercept('POST', '**/api/event-images', {
+      statusCode: 201,
+      body: {
+        id: uploadedImageId,
+        state: 'Temporary',
+        expiresAt: '2999-01-02T00:00:00Z',
+        width: 320,
+        height: 180,
+        variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }]
+      }
+    }).as('imageUpload');
+    cy.intercept('GET', '**/api/event-locations/autocomplete?*', {
+      suggestions: [{ placeId: 'updated-google-place', primaryText: '9 New Street', secondaryText: '69002 Lyon, France' }]
+    }).as('locationAutocomplete');
+    cy.intercept('POST', '**/api/event-locations/resolve', req => {
+      expect(req.body.placeId).to.eq('updated-google-place');
+      req.reply(updatedLocation);
+    }).as('locationResolve');
+    cy.intercept('PATCH', `**/api/organizer/events/${eventId}/details`, req => {
+      expect(req.headers['if-match']).to.eq('"3"');
+      expect(req.body.bodyMarkdown).to.eq('Updated **Markdown** body');
+      expect(req.body.location).to.deep.eq({
+        streetAddress: updatedLocation.streetAddress,
+        postalCode: updatedLocation.postalCode,
+        city: updatedLocation.city,
+        country: updatedLocation.country,
+        region: updatedLocation.region,
+        locationToken: updatedLocation.locationToken
+      });
+      expect(req.body.images).to.deep.eq([
+        { imageId: uploadedImageId, altText: 'New hero' },
+        { imageId: secondImageId, altText: 'Second image' }
+      ]);
+      expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal');
+      req.reply({ statusCode: 200, body: updated });
+    }).as('update');
+
+    visit(`/organizer/events/${eventId}/edit`);
+    cy.wait(['@management', '@formats']);
+    cy.get(`[data-cy="event-image-remove-existing-${firstImageId}"]`).click();
+    cy.get('[data-cy="event-image-picker"]').selectFile({
+      contents: 'cypress/fixtures/event-proposal-private.webp',
+      fileName: 'new-hero.webp',
+      mimeType: 'image/webp'
+    });
+    cy.wait('@imageUpload');
+    cy.get('[data-cy="event-image-alt-local-1"]').type('New hero');
+    cy.get('[data-cy="event-image-move-left-local-1"]').click();
+    cy.get('[data-cy="event-body"]').clear().type('Updated **Markdown** body');
+    cy.get('[data-cy="event-street"]').clear().type('9 New');
+    cy.wait('@locationAutocomplete');
+    cy.get('[data-cy="event-location-suggestion-0"]').click();
+    cy.wait('@locationResolve');
+    cy.get('[data-cy="event-save"]').click();
+    cy.get('mat-dialog-container button').contains(/save changes|enregistrer les modifications/i).click();
+    cy.wait('@update');
+
+    cy.get('[data-cy="event-edit-success"]').should('be.visible');
+    cy.get('[data-cy="event-save"]').should('have.focus');
+    cy.get('[data-cy="event-body"]').should('have.value', 'Updated **Markdown** body');
+    cy.get('[data-cy="event-street"]').should('have.value', updatedLocation.streetAddress);
+    cy.get(`[data-cy="event-image-card-existing-${uploadedImageId}"]`).should('be.visible');
+    cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('not.exist');
   });
 
   it('confirms delete impact, restores as Admin, handles server rejection, and remains usable in French on mobile', () => {
