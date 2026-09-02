@@ -120,6 +120,7 @@ else
         builder.Services.AddScoped<BrevoWebhookService>();
     }
     builder.Services.AddScoped<OrganizationAccessService>();
+    builder.Services.AddSingleton<IEventMarkdownRenderer, EventMarkdownRenderer>();
     builder.Services.AddScoped<EventPublicationService>();
     builder.Services.AddScoped<EventImageUploadService>();
     builder.Services.AddScoped<EventImageCleanupService>();

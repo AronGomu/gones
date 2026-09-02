@@ -22,6 +22,7 @@ const render = {
   slug: 'lyon-legacy-open',
   summary: 'Server-normalized summary',
   bodyHtml: '<p><strong>Server-clean</strong> body.</p>',
+  images: [],
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2027-08-01',

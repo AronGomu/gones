@@ -1,13 +1,15 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 
-/**
- * Mirror of the server allowlist in `TournamentContentSanitizer` (C# `Event.cs`).
- * The server is the sanitizer of record; this list exists so a compromised or mis-deployed API
- * cannot turn `bypassSecurityTrustHtml` into stored XSS.
- */
-const ALLOWED_ELEMENTS = new Set(['p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h2', 'h3', 'a']);
-const ALLOWED_ATTRIBUTES: Record<string, ReadonlySet<string>> = { a: new Set(['href', 'target', 'rel']) };
+/** Server renderer remains authority; client repeats exact allowlist before trusting derived HTML. */
+const ALLOWED_ELEMENTS = new Set([
+  'p', 'br', 'strong', 'em', 'ul', 'ol', 'li', 'h2', 'h3', 'h4', 'a', 'blockquote',
+  'pre', 'code', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'del', 'input'
+]);
+const ALLOWED_ATTRIBUTES: Record<string, ReadonlySet<string>> = {
+  a: new Set(['href', 'target', 'rel']),
+  input: new Set(['type', 'disabled', 'checked'])
+};
 
 @Component({
   selector: 'gones-server-sanitized-html',
@@ -20,34 +22,45 @@ export class ServerSanitizedHtmlComponent {
 
   readonly trustedHtml = computed<SafeHtml>(() => {
     const body = withSafeExternalLinks(this.html());
-    // API contract guarantees sanitized bodyHtml; `withSafeExternalLinks` enforces the same
-    // allowlist client-side as defense in depth. Trust stays isolated to this component.
     return this.sanitizer.bypassSecurityTrustHtml(body);
   });
 }
 
-/**
- * Enforces the server allowlist and marks external links safe. Anything outside the allowlist is
- * unwrapped to its text content, and every event handler / unexpected attribute is dropped.
- */
 export function withSafeExternalLinks(html: string): string {
-  if (typeof DOMParser === 'undefined') return html;
+  if (typeof DOMParser === 'undefined') return '';
   const document = new DOMParser().parseFromString(html, 'text/html');
   scrub(document.body, document);
-  for (const anchor of Array.from(document.querySelectorAll('a[href]'))) {
+  for (const anchor of Array.from(document.querySelectorAll('a'))) {
     const href = anchor.getAttribute('href') ?? '';
-    if (!/^https?:\/\//i.test(href)) continue;
-    anchor.setAttribute('target', '_blank');
-    anchor.setAttribute('rel', 'noopener noreferrer');
+    anchor.removeAttribute('target');
+    anchor.removeAttribute('rel');
+    if (!isAllowedHref(href)) {
+      anchor.removeAttribute('href');
+      continue;
+    }
+    if (/^https?:\/\//i.test(href)) {
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+    }
   }
   return document.body.innerHTML;
 }
 
 function scrub(root: Element, document: Document): void {
-  for (const element of Array.from(root.children)) {
+  for (const node of Array.from(root.childNodes)) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (/^[\t\r\n ]+$/.test(node.textContent ?? '') && /[\r\n]/.test(node.textContent ?? '') && !['pre', 'code'].includes(root.tagName.toLowerCase())) {
+        node.remove();
+      }
+      continue;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      node.remove();
+      continue;
+    }
+    const element = node as Element;
     const name = element.tagName.toLowerCase();
     if (!ALLOWED_ELEMENTS.has(name)) {
-      // Drop the element but keep its readable text so content is never silently lost.
       element.replaceWith(document.createTextNode(element.textContent ?? ''));
       continue;
     }
@@ -58,10 +71,28 @@ function scrub(root: Element, document: Document): void {
         element.removeAttribute(attribute.name);
         continue;
       }
-      if (attributeName === 'href' && !/^https?:\/\//i.test(attribute.value) && !attribute.value.startsWith('/')) {
-        element.removeAttribute(attribute.name);
-      }
+      if (attributeName === 'href' && !isAllowedHref(attribute.value)) element.removeAttribute(attribute.name);
+    }
+    if (name === 'input' && !normalizeCheckbox(element)) {
+      element.remove();
+      continue;
     }
     scrub(element, document);
   }
+}
+
+function normalizeCheckbox(element: Element): boolean {
+  const isCheckbox = element.getAttribute('type')?.toLowerCase() === 'checkbox';
+  const disabled = element.hasAttribute('disabled');
+  const checked = element.hasAttribute('checked');
+  if (!isCheckbox || !disabled) return false;
+  for (const attribute of Array.from(element.attributes)) element.removeAttribute(attribute.name);
+  element.setAttribute('type', 'checkbox');
+  element.setAttribute('disabled', '');
+  if (checked) element.setAttribute('checked', '');
+  return true;
+}
+
+function isAllowedHref(href: string): boolean {
+  return /^https?:\/\//i.test(href) || href.startsWith('/');
 }

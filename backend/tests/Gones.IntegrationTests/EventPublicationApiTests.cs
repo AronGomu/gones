@@ -102,7 +102,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         {
             Title = "  Summer Cup  ",
             Summary = "  Featured  ",
-            BodyHtml = "<p>Safe &amp; <strong>bold</strong></p>",
+            BodyMarkdown = "Safe & **bold**",
             StreetAddress = "  12 Rue de la Paix  "
         };
         using var preview = await PreviewAsync(seed.Organizer.Id, payload);
@@ -113,6 +113,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Assert.Equal("Summer Cup", render.GetProperty("title").GetString());
         Assert.Equal("Featured", render.GetProperty("summary").GetString());
         Assert.Equal("<p>Safe &amp; <strong>bold</strong></p>", render.GetProperty("bodyHtml").GetString());
+        Assert.Equal(0, render.GetProperty("images").GetArrayLength());
         Assert.Equal("12 Rue de la Paix", render.GetProperty("venue").GetProperty("streetAddress").GetString());
         Assert.Equal("2035-03-04T09:00:00Z", render.GetProperty("startsAtUtc").GetString());
 
@@ -127,9 +128,21 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Preview_removes_XML_invalid_scalars_without_losing_valid_supplementary_text()
+    {
+        using var preview = await PreviewAsync(
+            seed.Organizer.Id,
+            Payload(seed.Alpha.Id) with { BodyMarkdown = "Before\u0000\u0001\uFFFE\uFFFF😀After" });
+
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var render = (await preview.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("render");
+        Assert.Equal("<p>Before😀After</p>", render.GetProperty("bodyHtml").GetString());
+    }
+
+    [Fact]
     public async Task Mutated_payload_is_rejected_original_publishes_once_and_retry_is_idempotent()
     {
-        var payload = Payload(seed.Alpha.Id);
+        var payload = Payload(seed.Alpha.Id) with { BodyMarkdown = "  Welcome  \n" };
         var ticket = await GetTicketAsync(seed.Organizer.Id, payload);
 
         using var mutated = await PublishAsync(seed.Organizer.Id, "mutated-key", ticket, payload with { City = "Lyon" });
@@ -161,6 +174,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         await using var database = CreateContext();
         var stored = await database.Events.SingleAsync(item => item.Id == tournamentId);
         Assert.Equal(payload.Region, stored.Region);
+        Assert.Equal(payload.BodyMarkdown, stored.BodyMarkdown);
         Assert.Equal(CalendarEventType.Weekly, stored.EventType);
         Assert.Equal(1, await database.Events.CountAsync(item => item.Id == tournamentId));
         Assert.Equal(1, await database.AuditRecords.CountAsync(item => item.Action == "tournament.published" && item.EntityId == tournamentId.ToString("D")));
@@ -291,7 +305,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             ["organizationId"] = payload.OrganizationId,
             ["title"] = payload.Title,
             ["summary"] = payload.Summary,
-            ["bodyHtml"] = payload.BodyHtml,
+            ["bodyMarkdown"] = payload.BodyMarkdown,
             ["streetAddress"] = payload.StreetAddress,
             ["postalCode"] = payload.PostalCode,
             ["city"] = payload.City,
@@ -349,14 +363,18 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     [InlineData("<svg/onload=alert(1)>")]
     [InlineData("<p style=\"background:url(javascript:alert(1))\">styled</p>")]
     [InlineData("<a href=\"http://evil.test\" onmouseover=\"alert(1)\">link</a>")]
-    public async Task Body_html_xss_payloads_are_rejected_before_storage(string payloadHtml)
+    public async Task Body_markdown_xss_payloads_render_inert_without_mutating_source(string payloadMarkdown)
     {
-        using var preview = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { BodyHtml = payloadHtml });
+        using var preview = await PreviewAsync(seed.Organizer.Id, Payload(seed.Alpha.Id) with { BodyMarkdown = payloadMarkdown });
 
-        Assert.Equal(HttpStatusCode.BadRequest, preview.StatusCode);
-        Assert.Equal("validation_failed", await ProblemCode(preview));
-        var problem = await preview.Content.ReadAsStringAsync();
-        Assert.DoesNotContain("alert(1)", problem, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+        var body = await preview.Content.ReadFromJsonAsync<JsonElement>();
+        var rendered = body.GetProperty("render").GetProperty("bodyHtml").GetString() ?? string.Empty;
+        Assert.DoesNotContain("<script", rendered, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<img", rendered, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<iframe", rendered, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<svg", rendered, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("href=\"javascript:", rendered, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -366,7 +384,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         {
             Title = "Cup <script>alert(1)</script>",
             Summary = "Summary \"><img src=x onerror=alert(1)>",
-            BodyHtml = "<p>Safe <a href=\"https://example.test/rules\">rules</a></p>"
+            BodyMarkdown = "Safe [rules](https://example.test/rules)"
         };
         var ticket = await GetTicketAsync(seed.Organizer.Id, payload);
         using var published = await PublishAsync(seed.Organizer.Id, "xss-text", ticket, payload);
@@ -584,7 +602,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         organizationId,
         "Summer Cup",
         "Featured",
-        "<p>Welcome</p>",
+        "Welcome",
         "12 Rue de la Paix",
         "75001",
         "Paris",
@@ -623,7 +641,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Guid OrganizationId,
         string Title,
         string? Summary,
-        string? BodyHtml,
+        string? BodyMarkdown,
         string StreetAddress,
         string? PostalCode,
         string City,

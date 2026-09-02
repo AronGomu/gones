@@ -95,6 +95,17 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Migration_replaces_body_html_with_nullable_body_markdown()
+    {
+        await using var db = CreateContext();
+        await db.Database.MigrateAsync();
+        var columns = await db.Database.SqlQueryRaw<string>("SELECT column_name FROM information_schema.columns WHERE table_name = 'events' ORDER BY column_name").ToListAsync();
+
+        Assert.Contains("body_markdown", columns);
+        Assert.DoesNotContain("body_html", columns);
+    }
+
+    [Fact]
     public async Task Migration_adds_calendar_indexes_for_bounded_public_queries()
     {
         await using var db = CreateContext();
@@ -119,11 +130,11 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         var end = endsBeforeStart ? Instant.FromUtc(2026, 8, 2, 7, 0) : Instant.FromUtc(2026, 8, 2, 16, 0);
         await db.Database.ExecuteSqlRawAsync("""
             INSERT INTO events
-                (id, organization_id, title, slug, summary, body_html, street_address, postal_code, city, country, region, event_type, time_zone_id,
+                (id, organization_id, title, slug, summary, body_markdown, street_address, postal_code, city, country, region, event_type, time_zone_id,
                  venue_start_date, venue_start_time, venue_end_date, venue_end_time, starts_at_utc, ends_at_utc, capacity, status,
                  created_by_user_id, created_at, updated_at, normalized_search_text, version)
             VALUES
-                ({0}, {1}, 'Raw Cup', {2}, 'Raw', '<p>Raw</p>', '12 Rue de la Paix', '69001', 'Lyon', 'France', 'Auvergne-Rhône-Alpes', {9}, 'Europe/Paris',
+                ({0}, {1}, 'Raw Cup', {2}, 'Raw', 'Raw', '12 Rue de la Paix', '69001', 'Lyon', 'France', 'Auvergne-Rhône-Alpes', {9}, 'Europe/Paris',
                  DATE '2026-08-02', TIME '10:00:00', DATE '2026-08-02', TIME '18:00:00', {3}, {4}, {5}, {6},
                  {7}, {8}, {8}, 'RAW CUP RAW LYON FRANCE', 1)
             """,
@@ -175,7 +186,7 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         Title: "Legacy Cup",
         Slug: "legacy-cup",
         Summary: "Prizes",
-        BodyHtml: "<p>Welcome</p>",
+        BodyMarkdown: "Welcome",
         StreetAddress: "12 Rue de la Paix",
         PostalCode: "69001",
         City: "Lyon",

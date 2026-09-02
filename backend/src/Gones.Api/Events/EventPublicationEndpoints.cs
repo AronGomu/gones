@@ -126,7 +126,8 @@ internal sealed class EventPublicationService(
     GonesDbContext database,
     OrganizationAccessService access,
     EventPreviewTicketService tickets,
-    IClock clock)
+    IClock clock,
+    IEventMarkdownRenderer markdown)
 {
     private const int MaximumPublishAttempts = 3;
     private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
@@ -368,7 +369,7 @@ internal sealed class EventPublicationService(
                 EventDisplayTitle.From(tournament.Title, formats.Single().Name),
                 tournament.Slug,
                 tournament.Summary,
-                tournament.BodyHtml,
+                tournament.BodyMarkdown is null ? null : markdown.RenderAndSanitize(tournament.BodyMarkdown),
                 tournament.LiveTournamentUrl,
                 tournament.ArchiveTournamentUrl,
                 new PublicEventVenueResponse(tournament.StreetAddress, tournament.PostalCode, tournament.City, tournament.Country, tournament.Region),
@@ -383,13 +384,14 @@ internal sealed class EventPublicationService(
                 tournament.Status.ToString(),
                 EventTypeWire(tournament.EventType),
                 new PublicEventOrganizationResponse(organization.Id, organization.Name, organization.Description, organization.Website, organization.ContactEmail, []),
-                formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray());
+                formats.Select(format => new PublicTournamentFormatResponse(format.Id, format.Name, format.Slug, format.SortOrder)).ToArray(),
+                []);
             var canonical = new CanonicalEventPayload(
                 request.OrganizationId,
                 tournament.Title,
                 tournament.Slug,
                 tournament.Summary,
-                tournament.BodyHtml,
+                tournament.BodyMarkdown,
                 tournament.LiveTournamentUrl,
                 tournament.ArchiveTournamentUrl,
                 tournament.StreetAddress,
@@ -420,7 +422,7 @@ internal sealed class EventPublicationService(
         request.Title,
         slug,
         request.Summary,
-        request.BodyHtml,
+        request.BodyMarkdown,
         request.StreetAddress,
         request.PostalCode,
         request.City,
@@ -521,7 +523,7 @@ internal sealed class EventPublicationService(
         string Title,
         string Slug,
         string? Summary,
-        string? BodyHtml,
+        string? BodyMarkdown,
         string? LiveTournamentUrl,
         string? ArchiveTournamentUrl,
         string StreetAddress,
@@ -582,7 +584,7 @@ internal sealed record EventPayloadRequest(
     Guid OrganizationId,
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
-    [property: MaxLength(Event.MaximumBodyHtmlLength)] string? BodyHtml,
+    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown,
     [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
     [property: MaxLength(Event.MaximumPostalCodeLength)] string? PostalCode,
     [property: Required, MaxLength(Event.MaximumCityLength)] string City,
@@ -626,7 +628,8 @@ internal sealed record EventPreviewRenderResponse(
     string Status,
     PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
-    IReadOnlyList<PublicTournamentFormatResponse> Formats);
+    IReadOnlyList<PublicTournamentFormatResponse> Formats,
+    IReadOnlyList<EventImageResponse> Images);
 
 internal sealed record EventPublishResponse(Guid Id, string Slug, string Status);
 internal sealed record EventPublishOutcome(EventPublishResponse Response, string Location, string ETag);

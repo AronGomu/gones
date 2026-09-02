@@ -4,7 +4,7 @@ export interface EventDraftValue {
   organizationId: string;
   title: string;
   summary: string;
-  bodyHtml: string;
+  bodyMarkdown: string;
   streetAddress: string;
   postalCode: string;
   city: string;
@@ -28,7 +28,7 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     organizationId: value.organizationId,
     title: value.title.trim(),
     summary: optional(value.summary),
-    bodyHtml: optional(value.bodyHtml),
+    bodyMarkdown: optionalMarkdown(value.bodyMarkdown),
     streetAddress: value.streetAddress.trim(),
     postalCode: optional(value.postalCode),
     city: value.city.trim(),
@@ -68,6 +68,10 @@ export class PreviewPublicationState {
     this.publishKey ??= create();
     return this.publishKey;
   }
+}
+
+export function optionalMarkdown(value: string): string | undefined {
+  return value.trim() ? value : undefined;
 }
 
 function optional(value: string): string | undefined {

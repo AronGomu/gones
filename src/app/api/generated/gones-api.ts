@@ -11224,6 +11224,14 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
+export interface EventImageResponse {
+    id: string;
+    altText: string | undefined;
+    variants: EventImageVariantResponse[];
+
+    [key: string]: any;
+}
+
 export interface EventImageUploadForm {
     file: Blob;
 
@@ -11280,7 +11288,7 @@ export interface EventManagementResponse {
     displayTitle: string;
     slug: string;
     summary: string | undefined;
-    bodyHtml: string | undefined;
+    bodyMarkdown: string | undefined;
     liveTournamentUrl: string | undefined;
     archiveTournamentUrl: string | undefined;
     streetAddress: string;
@@ -11321,7 +11329,7 @@ export interface EventPayloadRequest {
     organizationId: string;
     title: string;
     summary: string | undefined;
-    bodyHtml: string | undefined;
+    bodyMarkdown: string | undefined;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;
@@ -11360,6 +11368,7 @@ export interface EventPreviewRenderResponse {
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
+    images: EventImageResponse[];
 
     [key: string]: any;
 }
@@ -11405,6 +11414,7 @@ export interface EventProposalResponse {
 export interface EventProposalReviewResponse {
     id: string;
     event: EventPayloadRequest;
+    bodyHtml: string | undefined;
     status: string;
     submittedByUsername: string;
     approverUsername: string;
@@ -11981,6 +11991,7 @@ export interface PublicEventDetailResponse {
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
+    images: EventImageResponse[];
 
     [key: string]: any;
 }
@@ -12332,7 +12343,7 @@ export interface UpdateArchivePlayerArchetypeRequest {
 export interface UpdateEventDetailsRequest {
     title: string;
     summary: string | undefined;
-    bodyHtml: string | undefined;
+    bodyMarkdown: string | undefined;
     streetAddress: string;
     postalCode: string | undefined;
     city: string;

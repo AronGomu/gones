@@ -4,7 +4,8 @@ import {
   EventPreviewRenderResponse,
   UpdateEventDetailsRequest
 } from '../../api/generated/gones-api';
-import { EventDraftValue, eventTypeValue } from './organizer-event-create';
+import { EventDraftValue, eventTypeValue, optionalMarkdown } from './organizer-event-create';
+import { renderEventMarkdown } from './event-markdown';
 
 export type MajorEventField = 'start' | 'end' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
 export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'status';
@@ -28,7 +29,7 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     organizationId: event.organizationId,
     title: event.title,
     summary: event.summary ?? '',
-    bodyHtml: event.bodyHtml ?? '',
+    bodyMarkdown: event.bodyMarkdown ?? '',
     streetAddress: event.streetAddress,
     postalCode: event.postalCode ?? '',
     city: event.city,
@@ -52,7 +53,7 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
   return {
     title: value.title.trim(),
     summary: optional(value.summary),
-    bodyHtml: optional(value.bodyHtml),
+    bodyMarkdown: optionalMarkdown(value.bodyMarkdown),
     streetAddress: value.streetAddress.trim(),
     postalCode: optional(value.postalCode),
     city: value.city.trim(),
@@ -88,7 +89,7 @@ export function changedEventFields(
   label: (field: ChangedEventField) => string = field => field
 ): string[] {
   const fields: Array<[ChangedEventField, keyof EventManagementResponse]> = [
-    ['title', 'title'], ['summary', 'summary'], ['description', 'bodyHtml'], ['liveTournamentUrl', 'liveTournamentUrl'],
+    ['title', 'title'], ['summary', 'summary'], ['description', 'bodyMarkdown'], ['liveTournamentUrl', 'liveTournamentUrl'],
     ['archiveTournamentUrl', 'archiveTournamentUrl'], ['streetAddress', 'streetAddress'],
     ['postalCode', 'postalCode'], ['city', 'city'], ['country', 'country'], ['region', 'region'], ['eventType', 'eventType'], ['timeZone', 'timeZoneId'],
     ['start', 'startsAtUtc'], ['end', 'endsAtUtc'], ['capacity', 'capacity'], ['formats', 'formatIds'], ['status', 'status']
@@ -114,7 +115,7 @@ export function managementToDetail(
     displayTitle: event.displayTitle,
     slug: event.slug,
     summary: event.summary,
-    bodyHtml: event.bodyHtml,
+    bodyHtml: renderEventMarkdown(event.bodyMarkdown ?? ''),
     liveTournamentUrl: event.liveTournamentUrl,
     archiveTournamentUrl: event.archiveTournamentUrl,
     venue: {
@@ -135,7 +136,8 @@ export function managementToDetail(
     status: event.status,
     eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
-    formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 })
+    formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 }),
+    images: []
   };
 }
 

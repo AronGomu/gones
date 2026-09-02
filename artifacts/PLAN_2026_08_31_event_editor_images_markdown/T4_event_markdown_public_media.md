@@ -108,22 +108,22 @@ Allowed href: ^https?:// or ^/
 
 ## Impl steps
 
-- [ ] 1. Add failing cross-stack Markdown golden fixtures/tests.
-- [ ] 2. Add failing reset migration/domain/public API tests.
-- [ ] 3. Add failing Event detail media/lightbox DOM+a11y tests.
-- [ ] 4. Implement Markdown storage/render/sanitize + transition every current create/edit/proposal writer.
-- [ ] 5. Implement hero/gallery/lightbox + draft placeholder input.
-- [ ] 6. Update fixtures/OpenAPI/client/styles/i18n now; prove current preview-ticket flow remains green.
-- [ ] 7. Run gates.
+- [x] 1. Add failing cross-stack Markdown golden fixtures/tests. Verify: targeted backend/frontend Markdown tests fail before production implementation.
+- [x] 2. Add failing reset migration/domain/public API tests. Verify: targeted schema/domain/public API tests fail before production implementation.
+- [x] 3. Add failing Event detail media/lightbox DOM+a11y tests. Verify: `npm run test -- --run src/app/features/events/event-detail-view.component.test.ts` fails before component implementation.
+- [x] 4. Implement Markdown storage/render/sanitize + transition every current create/edit/proposal writer. Verify: targeted backend Markdown/publication/lifecycle/proposal tests pass and `rg 'BodyHtml|bodyHtml'` finds authoring use only in derived response/render sites.
+- [x] 5. Implement hero/gallery/lightbox + draft placeholder input. Verify: `npm run test -- --run src/app/features/events/event-detail-view.component.test.ts` passes hero/gallery/alt/keyboard/focus/draft assertions.
+- [x] 6. Update fixtures/OpenAPI/client/styles/i18n now; prove current preview-ticket flow remains green. Verify: `npm run api:generate && npm run api:check` plus targeted frontend create/edit/proposal tests pass.
+- [x] 7. Run gates. Verify: every command and observable check under Validation passes.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventMarkdown|FullyQualifiedName~PublicEvent|FullyQualifiedName~EventPublication|FullyQualifiedName~EventLifecycle|FullyQualifiedName~EventProposal"`
-- [ ] `npm run test -- --run src/app/features/events/server-sanitized-html.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-management.test.ts src/app/features/events/event-proposal-submit.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: hero contain behavior, 3→1 column breakpoint, complete keyboard lightbox path
-- [ ] no silent-failure swallow on added path — `none`
-- [ ] app functional — public detail renders safe Markdown/imgs; Event catalog payload remains image-free
-- [ ] commit msg draft: `feat(events): make Markdown and ordered media canonical on Event detail`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventMarkdown|FullyQualifiedName~PublicEvent|FullyQualifiedName~EventPublication|FullyQualifiedName~EventLifecycle|FullyQualifiedName~EventProposal"`
+- [x] `npm run test -- --run src/app/features/events/server-sanitized-html.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-management.test.ts src/app/features/events/event-proposal-submit.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [x] manual check: hero contain behavior, 3→1 column breakpoint, complete keyboard lightbox path
+- [x] no silent-failure swallow on added path — `none`
+- [x] app functional — public detail renders safe Markdown/imgs; Event catalog payload remains image-free
+- [x] commit msg draft: `feat(events): make Markdown and ordered media canonical on Event detail`

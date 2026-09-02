@@ -75,6 +75,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         var expected = Payload();
         Assert.Equal(expected.Title, tournament.GetProperty("title").GetString());
         Assert.Equal(expected.Summary, tournament.GetProperty("summary").GetString());
+        Assert.Equal(expected.BodyMarkdown, tournament.GetProperty("bodyMarkdown").GetString());
+        Assert.False(tournament.TryGetProperty("bodyHtml", out _));
+        Assert.Equal("<p>Welcome</p>", body.GetProperty("bodyHtml").GetString());
         Assert.Equal(expected.StreetAddress, tournament.GetProperty("streetAddress").GetString());
         Assert.Equal(expected.PostalCode, tournament.GetProperty("postalCode").GetString());
         Assert.Equal(expected.City, tournament.GetProperty("city").GetString());
@@ -708,7 +711,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         seed.Alpha.Id,
         "Summer Cup",
         "Featured",
-        "<p>Welcome</p>",
+        "Welcome",
         "12 Rue de la Paix",
         "75001",
         "Paris",
@@ -746,7 +749,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Guid OrganizationId,
         string Title,
         string? Summary,
-        string? BodyHtml,
+        string? BodyMarkdown,
         string StreetAddress,
         string? PostalCode,
         string City,

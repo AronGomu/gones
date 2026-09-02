@@ -32,7 +32,7 @@ interface DevEnvironmentTournament {
   organizerEmail: string;
   title: string;
   summary: string;
-  bodyHtml: string;
+  bodyMarkdown: string;
   streetAddress: string;
   postalCode: string;
   city: string;
@@ -318,7 +318,7 @@ describe('shipped development environments', () => {
       expect(children.map((event) => metadata(event!))).toEqual(children.map(() => metadata(children[0]!)));
 
       for (const child of children) {
-        const text = `${child!.summary} ${child!.bodyHtml}`.toLowerCase();
+        const text = `${child!.summary} ${child!.bodyMarkdown}`.toLowerCase();
         const ownFormat = formatsByKey.get(child!.formatKeys[0])!.name.toLowerCase();
         expect(text, child!.key).toContain(ownFormat);
         for (const siblingKey of formatKeys.filter((key) => key !== child!.formatKeys[0])) {

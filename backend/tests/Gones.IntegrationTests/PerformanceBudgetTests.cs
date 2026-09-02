@@ -182,7 +182,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
                     Title: $"Budget Cup {index:000}",
                     Slug: $"budget-cup-{index:000}",
                     Summary: "Perf seed",
-                    BodyHtml: "<p>Body</p>",
+                    BodyMarkdown: "Body",
                     StreetAddress: "12 Rue de la Paix",
                     PostalCode: "75001",
                     City: "Lyon",

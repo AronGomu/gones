@@ -256,19 +256,45 @@ internal static partial class PublicEventEndpoints
         HttpRequest request,
         HttpResponse response,
         GonesDbContext database,
+        IEventMarkdownRenderer markdown,
         CancellationToken cancellationToken)
     {
         var row = await LoadDetailAsync(database, slug, cancellationToken);
         var formatsByEvent = await LoadFormatsAsync(database, [row.Id], cancellationToken);
-        var organizers = await database.OrganizationMembers.AsNoTracking()
+        var detailRows = await database.OrganizationMembers.AsNoTracking()
             .Where(member => member.OrganizationId == row.OrganizationId)
-            .Join(database.UserProfiles.AsNoTracking(), member => member.UserId, user => user.UserId, (member, user) => user.Username)
+            .Join(database.UserProfiles.AsNoTracking(), member => member.UserId, user => user.UserId, (member, user) => new
+            {
+                Username = (string?)user.Username,
+                ImageId = (Guid?)null,
+                SortOrder = (int?)null,
+                AltText = (string?)null,
+                Width = (int?)null,
+                Height = (int?)null
+            })
+            .Concat(database.EventImages.AsNoTracking()
+                .Where(image => image.EventId == row.Id && image.State == EventImageState.EventOwned)
+                .Select(image => new
+                {
+                    Username = (string?)null,
+                    ImageId = (Guid?)image.Id,
+                    image.SortOrder,
+                    image.AltText,
+                    Width = (int?)image.Width,
+                    Height = (int?)image.Height
+                }))
             .ToListAsync(cancellationToken);
-        organizers.Sort(StringComparer.OrdinalIgnoreCase);
-        var etag = HashETag($"{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}");
+        var organizers = detailRows.Where(item => item.Username is not null).Select(item => item.Username!).Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        var imageRows = detailRows.Where(item => item.ImageId is not null)
+            .Select(item => new EventImageRow(item.ImageId!.Value, item.SortOrder!.Value, item.AltText, item.Width!.Value, item.Height!.Value))
+            .OrderBy(image => image.SortOrder)
+            .ToArray();
+        var images = imageRows.Select(ToImageResponse).ToArray();
+        var imageVersion = string.Join('|', imageRows.Select(image => $"{image.Id:N}:{image.SortOrder}:{Convert.ToBase64String(Encoding.UTF8.GetBytes(image.AltText ?? string.Empty))}:{image.Width}:{image.Height}"));
+        var etag = HashETag($"{row.Id:N}:{row.Version}:{row.UpdatedAt.ToUnixTimeTicks()}:{imageVersion}");
         SetPublicCache(response, etag);
         if (IsNotModified(request, etag)) return Results.StatusCode(StatusCodes.Status304NotModified);
-        return Results.Ok(ToDetail(row, formatsByEvent, organizers));
+        return Results.Ok(ToDetail(row, formatsByEvent, organizers, images, markdown));
     }
 
     private static async Task<IResult> ListParticipantsAsync(
@@ -392,7 +418,7 @@ internal static partial class PublicEventEndpoints
                 organization.Description,
                 organization.Website,
                 organization.ContactEmail,
-                tournament.BodyHtml,
+                tournament.BodyMarkdown,
                 tournament.LiveTournamentUrl,
                 tournament.ArchiveTournamentUrl))
             .SingleOrDefaultAsync(cancellationToken)
@@ -443,7 +469,12 @@ internal static partial class PublicEventEndpoints
         formats);
     }
 
-    private static PublicEventDetailResponse ToDetail(EventRow row, IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent, IReadOnlyList<string> organizers)
+    private static PublicEventDetailResponse ToDetail(
+        EventRow row,
+        IReadOnlyDictionary<Guid, IReadOnlyList<PublicTournamentFormatResponse>> formatsByEvent,
+        IReadOnlyList<string> organizers,
+        IReadOnlyList<EventImageResponse> images,
+        IEventMarkdownRenderer markdown)
     {
         var summary = ToSummary(row, formatsByEvent);
         var organization = summary.Organization with { Organizers = organizers };
@@ -453,7 +484,7 @@ internal static partial class PublicEventEndpoints
             summary.DisplayTitle,
             summary.Slug,
             summary.Summary,
-            row.BodyHtml,
+            row.BodyMarkdown is null ? null : markdown.RenderAndSanitize(row.BodyMarkdown),
             row.LiveTournamentUrl,
             row.ArchiveTournamentUrl,
             summary.Venue,
@@ -468,8 +499,19 @@ internal static partial class PublicEventEndpoints
             summary.Status,
             summary.EventType,
             organization,
-            summary.Formats);
+            summary.Formats,
+            images);
     }
+
+    private static EventImageResponse ToImageResponse(EventImageRow image) => new(
+        image.Id,
+        image.AltText,
+        EventImage.VariantWidthsFor(image.Width)
+            .Select(width => new EventImageVariantResponse(
+                width,
+                Math.Max(1, (int)Math.Round(image.Height * (double)width / image.Width, MidpointRounding.AwayFromZero)),
+                $"/api/event-images/{image.Id:D}/variants/{width}"))
+            .ToArray());
 
     private static string BuildIcs(EventRow row)
     {
@@ -589,11 +631,12 @@ internal static partial class PublicEventEndpoints
         string? OrganizationDescription,
         string? OrganizationWebsite,
         string? OrganizationContactEmail,
-        string? BodyHtml = null,
+        string? BodyMarkdown = null,
         string? LiveTournamentUrl = null,
         string? ArchiveTournamentUrl = null);
 
     private sealed record EventParticipantScope(Guid Id, long Version);
+    private sealed record EventImageRow(Guid Id, int SortOrder, string? AltText, int Width, int Height);
 
     private sealed class EventQueryItem
     {
@@ -655,7 +698,13 @@ internal sealed record PublicEventDetailResponse(
     string Status,
     PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
-    IReadOnlyList<PublicTournamentFormatResponse> Formats);
+    IReadOnlyList<PublicTournamentFormatResponse> Formats,
+    IReadOnlyList<EventImageResponse> Images);
+
+internal sealed record EventImageResponse(
+    Guid Id,
+    string? AltText,
+    IReadOnlyList<EventImageVariantResponse> Variants);
 
 internal sealed record PublicEventVenueResponse(
     string StreetAddress,

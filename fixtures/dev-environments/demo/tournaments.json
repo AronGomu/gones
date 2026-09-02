@@ -5,7 +5,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones League 7 - Day 1",
     "summary": "Opening day of the seventh Gones League.",
-    "bodyHtml": "<p>The opening day of Gones League 7. Five rounds of Swiss, no cut.</p><ul><li>Doors at 09:30</li><li>Decklists required</li></ul>",
     "streetAddress": "12 rue de la Republique",
     "postalCode": "69002",
     "city": "Lyon",
@@ -20,7 +19,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "monthly"
+    "eventType": "monthly",
+    "bodyMarkdown": "The opening day of Gones League 7. Five rounds of Swiss, no cut.\n\n- Doors at 09:30\n- Decklists required"
   },
   {
     "key": "gones-league-7-day-2",
@@ -28,7 +28,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones League 7 - Day 2",
     "summary": "Second day of the seventh Gones League.",
-    "bodyHtml": "<p>Second day of Gones League 7. Standings carry over from Day 1.</p>",
     "streetAddress": "45 cours Emile Zola",
     "postalCode": "69100",
     "city": "Villeurbanne",
@@ -43,7 +42,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "monthly"
+    "eventType": "monthly",
+    "bodyMarkdown": "Second day of Gones League 7. Standings carry over from Day 1."
   },
   {
     "key": "aura-winter-open-legacy",
@@ -51,7 +51,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Winter Open",
     "summary": "Regional winter Legacy open.",
-    "bodyHtml": "<p>Legacy competition at the regional winter open.</p>",
     "streetAddress": "3 place Victor Hugo",
     "postalCode": "38000",
     "city": "Grenoble",
@@ -66,7 +65,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Legacy competition at the regional winter open."
   },
   {
     "key": "aura-winter-open-modern",
@@ -74,7 +74,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Winter Open",
     "summary": "Regional winter Modern open.",
-    "bodyHtml": "<p>Modern competition at the regional winter open.</p>",
     "streetAddress": "3 place Victor Hugo",
     "postalCode": "38000",
     "city": "Grenoble",
@@ -89,7 +88,8 @@
       "modern"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Modern competition at the regional winter open."
   },
   {
     "key": "pauper-night-legacy",
@@ -97,7 +97,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Pauper Night",
     "summary": "Weeknight Legacy event, four rounds.",
-    "bodyHtml": "<p>Relaxed Legacy competition with four rounds and prizes down to 8th.</p>",
     "streetAddress": "7 rue Sainte-Catherine",
     "postalCode": "69001",
     "city": "Lyon",
@@ -112,7 +111,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "weekly"
+    "eventType": "weekly",
+    "bodyMarkdown": "Relaxed Legacy competition with four rounds and prizes down to 8th."
   },
   {
     "key": "pauper-night-pauper",
@@ -120,7 +120,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Pauper Night",
     "summary": "Weeknight Pauper event, four rounds.",
-    "bodyHtml": "<p>Relaxed Pauper competition with four rounds and prizes down to 8th.</p>",
     "streetAddress": "7 rue Sainte-Catherine",
     "postalCode": "69001",
     "city": "Lyon",
@@ -135,7 +134,8 @@
       "pauper"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "weekly"
+    "eventType": "weekly",
+    "bodyMarkdown": "Relaxed Pauper competition with four rounds and prizes down to 8th."
   },
   {
     "key": "gones-league-8-day-1",
@@ -143,7 +143,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones League 8 - Day 1",
     "summary": "Opening day of the eighth Gones League.",
-    "bodyHtml": "<p>Running today. Five rounds of Swiss, decklists required.</p>",
     "streetAddress": "12 rue de la Republique",
     "postalCode": "69002",
     "city": "Lyon",
@@ -158,7 +157,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "monthly"
+    "eventType": "monthly",
+    "bodyMarkdown": "Running today. Five rounds of Swiss, decklists required."
   },
   {
     "key": "aura-spring-classic-legacy",
@@ -166,7 +166,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Spring Classic",
     "summary": "Regional spring Legacy classic with a top 8 cut.",
-    "bodyHtml": "<p>Legacy spring classic with seven Swiss rounds and a top 8 cut.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -181,7 +180,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Legacy spring classic with seven Swiss rounds and a top 8 cut."
   },
   {
     "key": "aura-spring-classic-modern",
@@ -189,7 +189,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Spring Classic",
     "summary": "Regional spring Modern classic with a top 8 cut.",
-    "bodyHtml": "<p>Modern spring classic with seven Swiss rounds and a top 8 cut.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -204,7 +203,8 @@
       "modern"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Modern spring classic with seven Swiss rounds and a top 8 cut."
   },
   {
     "key": "commander-social-legacy",
@@ -212,7 +212,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Commander Social",
     "summary": "Casual Legacy evening with no cap.",
-    "bodyHtml": "<p>Casual Legacy games all evening. Bring a deck and a friend.</p>",
     "streetAddress": "45 cours Emile Zola",
     "postalCode": "69100",
     "city": "Villeurbanne",
@@ -227,7 +226,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "weekly"
+    "eventType": "weekly",
+    "bodyMarkdown": "Casual Legacy games all evening. Bring a deck and a friend."
   },
   {
     "key": "commander-social-commander",
@@ -235,7 +235,6 @@
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Commander Social",
     "summary": "Casual Commander evening with no cap.",
-    "bodyHtml": "<p>Casual Commander pods all evening. Bring a deck and a friend.</p>",
     "streetAddress": "45 cours Emile Zola",
     "postalCode": "69100",
     "city": "Villeurbanne",
@@ -250,7 +249,8 @@
       "commander"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "weekly"
+    "eventType": "weekly",
+    "bodyMarkdown": "Casual Commander pods all evening. Bring a deck and a friend."
   },
   {
     "key": "aura-league-9-day-1",
@@ -258,7 +258,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "Ligue AURA 9 - Day 1",
     "summary": "Opening day of the ninth AURA league.",
-    "bodyHtml": "<p>Opening day of the ninth regional league. Small venue, sixteen seats.</p>",
     "streetAddress": "3 place Victor Hugo",
     "postalCode": "38000",
     "city": "Grenoble",
@@ -273,7 +272,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "monthly"
+    "eventType": "monthly",
+    "bodyMarkdown": "Opening day of the ninth regional league. Small venue, sixteen seats."
   },
   {
     "key": "aura-summer-open-legacy",
@@ -281,7 +281,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Summer Open",
     "summary": "Two-day summer Legacy open.",
-    "bodyHtml": "<p>Legacy competition closes the regional summer season.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -296,7 +295,8 @@
       "legacy"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Legacy competition closes the regional summer season."
   },
   {
     "key": "aura-summer-open-modern",
@@ -304,7 +304,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Summer Open",
     "summary": "Two-day summer Modern open.",
-    "bodyHtml": "<p>Modern competition closes the regional summer season.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -319,7 +318,8 @@
       "modern"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Modern competition closes the regional summer season."
   },
   {
     "key": "aura-summer-open-pauper",
@@ -327,7 +327,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Summer Open",
     "summary": "Two-day summer Pauper open.",
-    "bodyHtml": "<p>Pauper competition closes the regional summer season.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -342,7 +341,8 @@
       "pauper"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Pauper competition closes the regional summer season."
   },
   {
     "key": "aura-summer-open-commander",
@@ -350,7 +350,6 @@
     "organizerEmail": "organizer-aura-live-standings@gones.test",
     "title": "AURA Summer Open",
     "summary": "Two-day summer Commander open.",
-    "bodyHtml": "<p>Commander competition closes the regional summer season.</p>",
     "streetAddress": "21 rue Gambetta",
     "postalCode": "42000",
     "city": "Saint-Etienne",
@@ -365,6 +364,7 @@
       "commander"
     ],
     "region": "Auvergne-Rhône-Alpes",
-    "eventType": "major"
+    "eventType": "major",
+    "bodyMarkdown": "Commander competition closes the regional summer season."
   }
 ]

@@ -63,6 +63,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         Assert.Equal(seed.Alpha.Id, item.GetProperty("organization").GetProperty("id").GetGuid());
         Assert.Contains(item.GetProperty("formats").EnumerateArray(), format => format.GetProperty("slug").GetString() == "pioneer");
         Assert.False(item.TryGetProperty("bodyHtml", out _));
+        Assert.False(item.TryGetProperty("images", out _));
         Assert.False(item.TryGetProperty("createdByUserId", out _));
         Assert.False(item.TryGetProperty("normalizedSearchText", out _));
 
@@ -103,6 +104,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
     [Fact]
     public async Task Detail_participants_and_ics_are_anonymous_cacheable_and_safe()
     {
+        var expectedImageIds = await SeedDetailImagesAsync();
         using var detail = await Client.GetAsync("/api/events/search-cup");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.NotNull(detail.Headers.ETag);
@@ -110,6 +112,13 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var detailBody = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("<p>Public <strong>body</strong></p>", detailBody.GetProperty("bodyHtml").GetString());
         Assert.Equal("Pioneer — Search Cup", detailBody.GetProperty("displayTitle").GetString());
+        var images = detailBody.GetProperty("images").EnumerateArray().ToArray();
+        Assert.Equal(expectedImageIds, images.Select(image => image.GetProperty("id").GetGuid()));
+        Assert.Null(images[0].GetProperty("altText").GetString());
+        Assert.Equal("Detail second", images[1].GetProperty("altText").GetString());
+        Assert.Equal(new[] { 320, 960 }, images[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
+        Assert.Equal(new[] { 180, 540 }, images[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("height").GetInt32()));
+        Assert.Equal($"/api/event-images/{expectedImageIds[0]:D}/variants/960", images[0].GetProperty("variants")[1].GetProperty("url").GetString());
         Assert.Equal("/live/search-cup", detailBody.GetProperty("liveTournamentUrl").GetString());
         Assert.Equal("https://example.test/archive/search-cup", detailBody.GetProperty("archiveTournamentUrl").GetString());
         Assert.False(detailBody.TryGetProperty("createdByUserId", out _));
@@ -119,6 +128,11 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         notModifiedRequest.Headers.TryAddWithoutValidation("If-None-Match", etag);
         using var notModified = await Client.SendAsync(notModifiedRequest);
         Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
+
+        using var unicodeDetail = await Client.GetAsync("/api/events/cancelled-cup");
+        Assert.Equal(HttpStatusCode.OK, unicodeDetail.StatusCode);
+        var unicodeDetailBody = await unicodeDetail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("<p>Before😀After</p>", unicodeDetailBody.GetProperty("bodyHtml").GetString());
 
         using var participants = await Client.GetAsync("/api/events/search-cup/participants");
         Assert.Equal(HttpStatusCode.OK, participants.StatusCode);
@@ -231,7 +245,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         database.Events.Add(Event.Create(
             alpha.Id,
             user.Id,
-            Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "<p>Public <strong>body</strong></p>") with
+            Draft("Search Cup", "search-cup", new LocalDateTime(2035, 3, 4, 10, 0), "Paris", "Search", "Public **body**") with
             {
                 LiveTournamentUrl = "/live/search-cup",
                 ArchiveTournamentUrl = "https://example.test/archive/search-cup",
@@ -242,7 +256,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var cancelled = Event.Create(
             alpha.Id,
             user.Id,
-            Draft("Cancelled Cup", "cancelled-cup", new LocalDateTime(2035, 3, 5, 10, 0), "Paris", "Cancelled", "<p>Cancelled body</p>"),
+            Draft("Cancelled Cup", "cancelled-cup", new LocalDateTime(2035, 3, 5, 10, 0), "Paris", "Cancelled", "Before\u0001\uFFFE\uFFFF😀After"),
             [legacy],
             Now);
         cancelled.Cancel(Now.Plus(Duration.FromMinutes(1)));
@@ -266,6 +280,26 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         database.Events.Add(deleted);
         await database.SaveChangesAsync();
         return new SeedRows(alpha, beta);
+    }
+
+    private async Task<Guid[]> SeedDetailImagesAsync()
+    {
+        await using var database = CreateContext();
+        var owner = await database.Events.AsNoTracking()
+            .Where(item => item.Slug == "search-cup")
+            .Select(item => new { item.Id, item.CreatedByUserId })
+            .SingleAsync();
+        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
+        for (var index = 0; index < ids.Length; index++)
+        {
+            var altText = index == 1 ? "Detail second" : null;
+            await database.Database.ExecuteSqlInterpolatedAsync($$"""
+                INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
+                VALUES ({{ids[index]}}, {{owner.CreatedByUserId}}, 'EventOwned', {{owner.Id}}, NULL, {{index}}, {{altText}}, 960, 540, {{Now}}, NULL)
+                """);
+        }
+
+        return ids;
     }
 
     private GonesDbContext CreateContext()
@@ -321,11 +355,11 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         Assert.Equal(0, organizers.GetArrayLength());
     }
 
-    private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyHtml) => new(
+    private static ScheduledTournamentDraft Draft(string title, string slug, LocalDateTime startsAt, string city, string summary, string? bodyMarkdown) => new(
         Title: title,
         Slug: slug,
         Summary: summary,
-        BodyHtml: bodyHtml,
+        BodyMarkdown: bodyMarkdown,
         StreetAddress: "12 Rue de la Paix",
         PostalCode: "75001",
         City: city,

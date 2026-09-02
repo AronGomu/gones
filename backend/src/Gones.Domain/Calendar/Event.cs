@@ -1,8 +1,5 @@
 using System.Globalization;
-using System.Security;
 using System.Text;
-using System.Xml;
-using System.Xml.Linq;
 using Gones.Domain.Catalog;
 using Gones.Domain.Persistence;
 using NodaTime;
@@ -89,7 +86,7 @@ public sealed record ScheduledTournamentDraft(
     string Title,
     string Slug,
     string? Summary,
-    string? BodyHtml,
+    string? BodyMarkdown,
     string StreetAddress,
     string? PostalCode,
     string City,
@@ -108,7 +105,7 @@ public sealed class Event : VersionedEntity
     public const int MaximumTitleLength = 160;
     public const int MaximumSlugLength = 120;
     public const int MaximumSummaryLength = 50;
-    public const int MaximumBodyHtmlLength = 10000;
+    public const int MaximumBodyMarkdownLength = 20000;
     public const int MaximumAddressLength = 240;
     public const int MaximumPostalCodeLength = 32;
     public const int MaximumCityLength = 120;
@@ -125,7 +122,7 @@ public sealed class Event : VersionedEntity
     public string Title { get; private set; } = string.Empty;
     public string Slug { get; private set; } = string.Empty;
     public string? Summary { get; private set; }
-    public string? BodyHtml { get; private set; }
+    public string? BodyMarkdown { get; private set; }
     public string? LiveTournamentUrl { get; private set; }
     public string? ArchiveTournamentUrl { get; private set; }
     public string StreetAddress { get; private set; } = string.Empty;
@@ -194,7 +191,7 @@ public sealed class Event : VersionedEntity
         var minor = Title != normalized.Title
             || Slug != normalized.Slug
             || Summary != normalized.Summary
-            || BodyHtml != normalized.BodyHtml
+            || BodyMarkdown != normalized.BodyMarkdown
             || LiveTournamentUrl != normalized.LiveTournamentUrl
             || ArchiveTournamentUrl != normalized.ArchiveTournamentUrl;
         return minor ? TournamentChangeSeverity.Minor : TournamentChangeSeverity.None;
@@ -261,7 +258,7 @@ public sealed class Event : VersionedEntity
         Title = normalized.Title;
         Slug = normalized.Slug;
         Summary = normalized.Summary;
-        BodyHtml = normalized.BodyHtml;
+        BodyMarkdown = normalized.BodyMarkdown;
         LiveTournamentUrl = normalized.LiveTournamentUrl;
         ArchiveTournamentUrl = normalized.ArchiveTournamentUrl;
         StreetAddress = normalized.StreetAddress;
@@ -303,7 +300,7 @@ public sealed class Event : VersionedEntity
         var title = ValidateRequired(draft.Title, nameof(draft.Title), MaximumTitleLength);
         var slug = TournamentSlug.Normalize(draft.Slug);
         var summary = ValidateOptional(draft.Summary, nameof(draft.Summary), MaximumSummaryLength);
-        var bodyHtml = TournamentContentSanitizer.Sanitize(draft.BodyHtml);
+        var bodyMarkdown = ValidateMarkdown(draft.BodyMarkdown, nameof(draft.BodyMarkdown));
         var liveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.LiveTournamentUrl);
         var archiveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.ArchiveTournamentUrl);
         var streetAddress = ValidateRequired(draft.StreetAddress, nameof(draft.StreetAddress), MaximumAddressLength);
@@ -318,7 +315,7 @@ public sealed class Event : VersionedEntity
         var endsAtUtc = ResolveEnd(zone, endLocal);
         if (endsAtUtc < startsAtUtc) throw new ArgumentException("Tournament end cannot be before start.", nameof(draft));
         if (draft.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(draft), "Capacity must be positive when present.");
-        return new NormalizedDraft(title, slug, summary, bodyHtml, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
+        return new NormalizedDraft(title, slug, summary, bodyMarkdown, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, draft.Capacity);
     }
 
     private static Instant ResolveRequiredStart(DateTimeZone zone, LocalDateTime local)
@@ -355,6 +352,13 @@ public sealed class Event : VersionedEntity
         return trimmed;
     }
 
+    private static string? ValidateMarkdown(string? value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (value.Length > MaximumBodyMarkdownLength) throw new ArgumentException($"Value cannot exceed {MaximumBodyMarkdownLength} characters.", parameterName);
+        return value;
+    }
+
     private static string BuildSearchText(params string?[] values)
     {
         var text = string.Join(' ', values.Where(value => !string.IsNullOrWhiteSpace(value)).Select(value => value!.Trim()))
@@ -367,7 +371,7 @@ public sealed class Event : VersionedEntity
         string Title,
         string Slug,
         string? Summary,
-        string? BodyHtml,
+        string? BodyMarkdown,
         string? LiveTournamentUrl,
         string? ArchiveTournamentUrl,
         string StreetAddress,
@@ -459,76 +463,4 @@ public static class EventTournamentUrl
 public static class EventDisplayTitle
 {
     public static string From(string title, string formatName) => $"{formatName} — {title}";
-}
-
-public static class TournamentContentSanitizer
-{
-    private static readonly HashSet<string> AllowedElements = new(StringComparer.Ordinal)
-    {
-        "p", "br", "strong", "em", "ul", "ol", "li", "h2", "h3", "a"
-    };
-
-    public static string? Sanitize(string? html)
-    {
-        if (string.IsNullOrWhiteSpace(html)) return null;
-        if (html.Length > Event.MaximumBodyHtmlLength) throw new ArgumentException($"Body HTML cannot exceed {Event.MaximumBodyHtmlLength} characters.", nameof(html));
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Prohibit,
-            XmlResolver = null
-        };
-
-        try
-        {
-            using var reader = XmlReader.Create(new StringReader($"<root>{html}</root>"), settings);
-            var document = XDocument.Load(reader, LoadOptions.None);
-            return string.Concat(document.Root!.Nodes().Select(RenderNode));
-        }
-        catch (XmlException exception)
-        {
-            throw new ArgumentException("Body HTML must be well-formed allowed markup.", nameof(html), exception);
-        }
-    }
-
-    private static string RenderNode(XNode node) => node switch
-    {
-        XText text => SecurityElement.Escape(text.Value) ?? string.Empty,
-        XElement element => RenderElement(element),
-        _ => throw new ArgumentException("Body HTML contains unsupported markup.", nameof(node))
-    };
-
-    private static string RenderElement(XElement element)
-    {
-        var name = element.Name.LocalName.ToLowerInvariant();
-        if (!string.IsNullOrEmpty(element.Name.NamespaceName) || !AllowedElements.Contains(name))
-        {
-            throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-        }
-
-        if (name == "br")
-        {
-            if (element.HasAttributes || element.Nodes().Any()) throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-            return "<br>";
-        }
-
-        var attributes = string.Empty;
-        if (name == "a")
-        {
-            var href = element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == "href" && string.IsNullOrEmpty(attribute.Name.NamespaceName));
-            if (href is null || element.Attributes().Count() != 1) throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-            if (!Uri.TryCreate(href.Value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || string.IsNullOrWhiteSpace(uri.Host))
-            {
-                throw new ArgumentException("Body HTML links must use absolute HTTPS URLs.", nameof(element));
-            }
-
-            attributes = $" href=\"{SecurityElement.Escape(uri.AbsoluteUri)}\"";
-        }
-        else if (element.HasAttributes)
-        {
-            throw new ArgumentException("Body HTML contains unsupported markup.", nameof(element));
-        }
-
-        var content = string.Concat(element.Nodes().Select(RenderNode));
-        return string.Create(CultureInfo.InvariantCulture, $"<{name}{attributes}>{content}</{name}>");
-    }
 }

@@ -7,12 +7,13 @@ import { EventProposalReviewResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventProposalService } from './event-proposal.service';
+import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
 type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused' | 'expired' | 'handled' | 'error';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, FormsModule, MatButtonModule, BackButtonComponent],
+  imports: [RouterLink, FormsModule, MatButtonModule, BackButtonComponent, ServerSanitizedHtmlComponent],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-request-back-top" />
     <section class="info-page" data-cy="event-request-page" aria-labelledby="event-request-title">
@@ -60,7 +61,7 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dt data-cy="event-request-fact-summary-label">{{ i18n.t('eventCreate.summary') }}</dt>
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
-            <pre class="tournament-request-body" data-cy="event-request-body">{{ review.event.bodyHtml || '' }}</pre>
+            <gones-server-sanitized-html class="tournament-request-body" data-cy="event-request-body" [html]="review.bodyHtml || ''" />
             <div class="info-actions" data-cy="event-request-actions">
               <button mat-flat-button class="home-primary-action" type="button" data-cy="event-request-validate" [disabled]="pending()" (click)="approve()">{{ i18n.t('proposal.validate') }}</button>
               <button mat-stroked-button class="danger-ghost-action" type="button" data-cy="event-request-refuse" [disabled]="pending()" (click)="state.set('reason')">{{ i18n.t('proposal.refuse') }}</button>

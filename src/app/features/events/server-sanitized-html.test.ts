@@ -24,6 +24,12 @@ describe('server sanitized event body', () => {
     expect(html).toContain('<li>One</li>');
   });
 
+  it('keeps only the complete Markdown renderer allowlist and canonical checkbox attrs', () => {
+    const html = withSafeExternalLinks('<blockquote><p>Quote<br></p></blockquote><ol><li>One</li></ol><h3>Three</h3><h4>Four</h4><pre><code>x</code></pre><hr><table><thead><tr><th>H</th></tr></thead><tbody><tr><td><del>D</del><input class="bad" checked disabled type="checkbox"></td></tr></tbody></table><input type="text" disabled>');
+
+    expect(html).toBe('<blockquote><p>Quote<br></p></blockquote><ol><li>One</li></ol><h3>Three</h3><h4>Four</h4><pre><code>x</code></pre><hr><table><thead><tr><th>H</th></tr></thead><tbody><tr><td><del>D</del><input type="checkbox" disabled="" checked=""></td></tr></tbody></table>');
+  });
+
   it.each([
     ['<script>window.__pwned = true;</script>', 'script element'],
     ['<img src=x onerror="window.__pwned = true">', 'image with error handler'],
