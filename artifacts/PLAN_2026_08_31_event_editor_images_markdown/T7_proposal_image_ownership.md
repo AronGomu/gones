@@ -109,23 +109,23 @@ Reject/expire: decision/expiry commits -> row/object deletion job; retry until c
 
 ## Impl steps
 
-- [ ] 1. Add failing backend state/race/token-route/cleanup tests.
-- [ ] 2. Add failing proposal editor/review DOM tests.
-- [ ] 3. Implement submit/approve transitions under existing tx/locks.
-- [ ] 4. Implement token-scoped variant read + post-commit reject/expiry cleanup.
-- [ ] 5. Enable uploader in proposal UI + review gallery.
-- [ ] 6. Regenerate API/client + update proposal Cypress/fixtures.
-- [ ] 7. Run gates.
+- [x] 1. Add failing backend state/race/token-route/cleanup tests. Validate: targeted `EventProposal` backend tests fail for missing T7 behavior before production edits.
+- [x] 2. Add failing proposal editor/review DOM tests. Validate: targeted Vitest files fail for missing uploader/review-gallery behavior before production edits.
+- [x] 3. Implement submit/approve transitions under existing tx/locks. Validate: targeted backend submit/approval ownership tests pass.
+- [x] 4. Implement token-scoped variant read + post-commit reject/expiry cleanup. Validate: targeted backend token-route/reject/expiry/race/storage-failure tests pass.
+- [x] 5. Enable uploader in proposal UI + review gallery. Validate: targeted proposal editor/review DOM tests pass.
+- [x] 6. Regenerate API/client + update proposal Cypress/fixtures. Validate: `npm run api:generate && npm run api:check` passes and proposal Cypress spec passes.
+- [x] 7. Run gates. Validate: every command and observable check under `Validation` has evidence or remains unchecked with blocker recorded.
 
 ## Validation
 
-- [ ] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal"`
-- [ ] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-request.component.test.ts`
-- [ ] `npm run api:generate && npm run api:check`
-- [ ] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
-- [ ] `npm run typecheck`
-- [ ] `npm run lint`
-- [ ] manual check: submit imgs as plain User; token review; approve; public gallery
-- [ ] no silent-failure swallow on added path — list retry-safe reject/expiry object cleanup sites + logs
-- [ ] app functional — proposal img private until approval; reject/expiry leaves no durable media
-- [ ] commit msg draft: `feat(events): carry private media through proposal consent`
+- [x] `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventProposal"`
+- [x] `npm run test -- --run src/app/features/events/event-proposal-submit.test.ts src/app/features/events/event-request.component.test.ts`
+- [x] `npm run api:generate && npm run api:check`
+- [x] `npm run cy:run -- --spec cypress/e2e/event-proposal.cy.js`
+- [x] `npm run typecheck`
+- [x] `npm run lint`
+- [ ] manual check: submit imgs as plain User; token review; approve; public gallery. Blocker: no interactive browser check; segmented backend, component, and Cypress evidence substituted.
+- [x] no silent-failure swallow on added path — list retry-safe reject/expiry object cleanup sites + logs
+- [x] app functional — proposal img private until approval; reject/expiry leaves no durable media
+- [x] commit msg draft: `feat(events): carry private media through proposal consent`

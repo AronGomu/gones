@@ -129,7 +129,8 @@ internal sealed class EventPublicationService(
         string idempotencyKey,
         ValidatedEventLocation? proposalLocation,
         CancellationToken cancellationToken,
-        bool requireMembership = true)
+        bool requireMembership = true,
+        Guid? proposalId = null)
     {
         ValidatePayloadShape(request);
         var payloadHash = PayloadHash(request);
@@ -189,7 +190,7 @@ internal sealed class EventPublicationService(
                     [lockedFormat],
                     now);
                 database.Events.Add(tournament);
-                await AttachImagesAsync(tournament.Id, actingUserId, request.Images, now, cancellationToken);
+                await AttachImagesAsync(tournament.Id, proposalId, actingUserId, request.Images, now, cancellationToken);
 
                 var response = new EventPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
                 database.AuditRecords.Add(new AuditRecord
@@ -234,19 +235,42 @@ internal sealed class EventPublicationService(
     public async Task<ValidatedEventLocation> ValidateProposalPayloadAsync(
         Guid submitterUserId,
         EventPayloadRequest request,
-        CancellationToken cancellationToken)
-    {
-        if (request.Images.Count != 0)
-        {
-            throw Validation("event.images", "Proposal images are unavailable until image proposal ownership is supported.");
-        }
-        return (await NormalizeAsync(
+        CancellationToken cancellationToken) =>
+        (await NormalizeAsync(
             submitterUserId,
             isAdmin: false,
             request,
             proposalLocation: null,
             cancellationToken,
             requireMembership: false)).Location;
+
+    public async Task AttachImagesToProposalAsync(
+        Guid proposalId,
+        Guid userId,
+        IReadOnlyList<EventImageInput> inputs,
+        Instant proposalExpiresAt,
+        Instant now,
+        CancellationToken cancellationToken)
+    {
+        ValidateImageInputs(inputs);
+        var images = await LockImagesAsync(inputs, cancellationToken);
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            try
+            {
+                images[inputs[index].ImageId].AttachToProposal(
+                    proposalId,
+                    userId,
+                    index,
+                    inputs[index].AltText,
+                    proposalExpiresAt,
+                    now);
+            }
+            catch (InvalidOperationException)
+            {
+                throw new ResourceConflictException("image_state_conflict");
+            }
+        }
     }
 
     private async Task<NormalizedEventPayload> NormalizeAsync(
@@ -351,10 +375,52 @@ internal sealed class EventPublicationService(
 
     private async Task AttachImagesAsync(
         Guid eventId,
+        Guid? proposalId,
         Guid userId,
         IReadOnlyList<EventImageInput> inputs,
         Instant now,
         CancellationToken cancellationToken)
+    {
+        ValidateImageInputs(inputs);
+        var images = await LockImagesAsync(inputs, cancellationToken);
+        for (var index = 0; index < inputs.Count; index++)
+        {
+            var input = inputs[index];
+            var image = images[input.ImageId];
+            try
+            {
+                if (proposalId is { } ownerProposalId)
+                {
+                    image.PromoteProposalToEvent(eventId, ownerProposalId, userId, index, input.AltText, now);
+                }
+                else
+                {
+                    image.AttachToEvent(eventId, userId, index, input.AltText, now);
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                throw new ResourceConflictException("image_state_conflict");
+            }
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, EventImage>> LockImagesAsync(
+        IReadOnlyList<EventImageInput> inputs,
+        CancellationToken cancellationToken)
+    {
+        var images = new Dictionary<Guid, EventImage>();
+        foreach (var imageId in inputs.Select(input => input.ImageId).Order())
+        {
+            images[imageId] = await database.EventImages
+                .FromSqlInterpolated($"SELECT * FROM event_images WHERE id = {imageId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new ResourceNotFoundException();
+        }
+        return images;
+    }
+
+    private static void ValidateImageInputs(IReadOnlyList<EventImageInput> inputs)
     {
         if (inputs.Count > 5) throw Validation("images", "At most five images are allowed.");
         if (inputs.Select(input => input.ImageId).Distinct().Count() != inputs.Count)
@@ -368,18 +434,6 @@ internal sealed class EventPublicationService(
             if (input.AltText?.Length > EventImage.MaximumAltTextLength)
             {
                 throw Validation($"images[{index}].altText", $"Alt text cannot exceed {EventImage.MaximumAltTextLength} characters.");
-            }
-            var image = await database.EventImages
-                .FromSqlInterpolated($"SELECT * FROM event_images WHERE id = {input.ImageId} FOR UPDATE")
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new ResourceNotFoundException();
-            try
-            {
-                image.AttachToEvent(eventId, userId, index, input.AltText, now);
-            }
-            catch (InvalidOperationException)
-            {
-                throw new ResourceConflictException("image_state_conflict");
             }
         }
     }

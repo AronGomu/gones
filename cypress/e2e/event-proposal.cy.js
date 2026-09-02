@@ -27,7 +27,20 @@ const review = {
   approverUsername: 'bob',
   expiresAt: '2035-08-08T00:00:00Z',
   organizationName: 'Gones',
-  formatNames: ['Legacy']
+  formatNames: ['Legacy'],
+  images: [
+    {
+      id: '11111111-1111-1111-1111-111111111111',
+      altText: 'Modern Cup poster',
+      variants: [
+        {
+          width: 320,
+          height: 180,
+          url: '/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320'
+        }
+      ]
+    }
+  ]
 };
 
 const SEED_MARKER = 'gones.e2e.storage-seeded';
@@ -63,8 +76,13 @@ function visitAnonymous(path) {
 describe('event request review page (signed out, intercept-based)', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
-  it('renders the proposal, then validates it and shows the published link', () => {
+  it('renders the proposal with private images, then validates it and shows the published link', () => {
     cy.intercept('GET', '**/api/event-proposals/by-token/*', review).as('byToken');
+    cy.intercept('GET', '/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320', {
+      statusCode: 200,
+      headers: { 'content-type': 'image/webp', 'cache-control': 'no-store' },
+      fixture: 'event-proposal-private.webp,null'
+    }).as('proposalImage');
     cy.intercept('POST', '**/api/event-proposals/by-token/*/approve', { proposalId: 'proposal-1', status: 'Approved', slug: 'x' }).as('approve');
 
     visitAnonymous('/event-requests/faketoken');
@@ -73,6 +91,19 @@ describe('event request review page (signed out, intercept-based)', () => {
     cy.get('[data-cy="event-request-title"]').should('contain.text', 'Modern Cup');
     cy.get('[data-cy="event-request-fact-organization"]').should('contain.text', 'Gones');
     cy.get('[data-cy="event-request-fact-formats"]').should('contain.text', 'Legacy');
+    cy.wait('@proposalImage').then(({ request, response }) => {
+      expect(new URL(request.url).pathname).to.eq('/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320');
+      expect(response.statusCode).to.eq(200);
+      expect(response.headers['cache-control']).to.eq('no-store');
+    });
+    cy.get('[data-cy="event-request-image-11111111-1111-1111-1111-111111111111"]')
+      .should($image => {
+        expect($image).to.be.visible;
+        expect($image).to.have.attr('loading', 'eager');
+        expect($image).to.have.attr('src').and.include('/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320');
+        expect($image[0].complete).to.eq(true);
+        expect($image[0].naturalWidth).to.eq(320);
+      });
 
     cy.get('[data-cy="event-request-validate"]').click();
     cy.wait('@approve');

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -11,6 +12,7 @@ using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
 using Gones.Domain.Identity;
 using Gones.Domain.Organizations;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
@@ -34,6 +36,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
 {
     private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Now);
+    private readonly RecordingObjectStore objects = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
     private SeedRows seed = null!;
@@ -93,6 +96,56 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(
             new[] { seed.Legacy.Id },
             tournament.GetProperty("formatIds").EnumerateArray().Select(item => item.GetGuid()).ToArray());
+    }
+
+    [Fact]
+    public async Task Get_by_token_returns_ordered_images_and_token_scoped_variants()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images:
+        [
+            new EventImageInput(second, " Second "),
+            new EventImageInput(first, null)
+        ]);
+        objects.Seed(EventImageObjectKeys.Variant(first, 320), [1, 2]);
+        objects.Seed(EventImageObjectKeys.Variant(second, 320), [3, 4]);
+
+        using var review = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+
+        Assert.Equal(HttpStatusCode.OK, review.StatusCode);
+        var body = await review.Content.ReadFromJsonAsync<JsonElement>();
+        var images = body.GetProperty("images").EnumerateArray().ToArray();
+        Assert.Equal(new[] { second, first }, images.Select(image => image.GetProperty("id").GetGuid()).ToArray());
+        Assert.Equal("Second", images[0].GetProperty("altText").GetString());
+        Assert.Equal(JsonValueKind.Null, images[1].GetProperty("altText").ValueKind);
+        var variantUrl = images[0].GetProperty("variants")[0].GetProperty("url").GetString();
+        Assert.Equal($"/api/event-requests/{proposal.OrganizerToken}/images/{second:D}/variants/320", variantUrl);
+
+        using var correct = await Client.GetAsync(variantUrl);
+        Assert.Equal(HttpStatusCode.OK, correct.StatusCode);
+        Assert.Equal("no-store", correct.Headers.CacheControl?.ToString());
+        Assert.Equal("image/webp", correct.Content.Headers.ContentType?.MediaType);
+
+        var otherImage = Guid.NewGuid();
+        var other = await SeedProposalAsync(images: [new EventImageInput(otherImage, null)]);
+        objects.Seed(EventImageObjectKeys.Variant(otherImage, 320), [5, 6]);
+        using var crossProposal = await Client.GetAsync(
+            $"/api/event-requests/{proposal.OrganizerToken}/images/{otherImage:D}/variants/320");
+        using var unknownImage = await Client.GetAsync(
+            $"/api/event-requests/{proposal.OrganizerToken}/images/{Guid.NewGuid():D}/variants/320");
+        using var wrongToken = await Client.GetAsync(
+            $"/api/event-requests/{NewToken()}/images/{second:D}/variants/320");
+        using var publicBase = await Client.GetAsync($"/api/event-images/{second:D}/variants/320");
+        Assert.All(
+            new[] { crossProposal, unknownImage, wrongToken, publicBase },
+            response => Assert.Equal(HttpStatusCode.NotFound, response.StatusCode));
+
+        objects.FailReads = true;
+        using var outage = await Client.GetAsync(variantUrl);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, outage.StatusCode);
+        Assert.Equal("image_storage_unavailable", await ProblemCode(outage));
+        _ = other;
     }
 
     [Fact]
@@ -304,6 +357,35 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     }
 
     [Fact]
+    public async Task Approve_atomically_promotes_proposal_images_to_the_published_event()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images:
+        [
+            new EventImageInput(second, " Second "),
+            new EventImageInput(first, null)
+        ]);
+
+        using var response = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var database = CreateContext();
+        var published = await database.Events.AsNoTracking().SingleAsync();
+        var storedProposal = await database.EventProposals.AsNoTracking().SingleAsync();
+        var images = await database.EventImages.AsNoTracking()
+            .Where(image => image.EventId == published.Id)
+            .OrderBy(image => image.SortOrder)
+            .ToListAsync();
+        Assert.Equal(TournamentProposalStatus.Approved, storedProposal.Status);
+        Assert.Equal(new[] { second, first }, images.Select(image => image.Id).ToArray());
+        Assert.All(images, image => Assert.Equal(EventImageState.EventOwned, image.State));
+        Assert.All(images, image => Assert.Null(image.ProposalId));
+        Assert.All(images, image => Assert.Null(image.ExpiresAt));
+        Assert.Equal(new[] { "Second", null }, images.Select(image => image.AltText).ToArray());
+    }
+
+    [Fact]
     public async Task Approve_uses_submission_validated_location_after_client_token_expires()
     {
         var proposal = await SeedProposalAsync();
@@ -480,7 +562,10 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     [Fact]
     public async Task Approve_racing_reject_publishes_nothing()
     {
-        var proposal = await SeedProposalAsync();
+        var imageId = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images: [new EventImageInput(imageId, null)]);
+        var key = EventImageObjectKeys.Variant(imageId, 320);
+        objects.Seed(key, [1, 2]);
 
         await using var blocker = CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
@@ -493,6 +578,11 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         held.Reject(seed.Admin.Id, Reason, clock.GetCurrentInstant());
         await blocker.SaveChangesAsync();
         await transaction.CommitAsync();
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EventImageCleanupService>()
+                .SweepExpiredAsync(CancellationToken.None));
+        }
 
         using var response = await approving;
 
@@ -503,6 +593,8 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(TournamentProposalStatus.Rejected, decided.Status);
         Assert.Equal(seed.Admin.Id, decided.DecidedByUserId);
         Assert.Equal(0, await stored.Events.CountAsync());
+        Assert.False(await stored.EventImages.AnyAsync(image => image.Id == imageId));
+        Assert.DoesNotContain(key, objects.Keys);
         using var all = await Client.GetAsync("/api/events/all");
         Assert.Equal(0, (await all.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("items").GetArrayLength());
     }
@@ -561,6 +653,70 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(seed.Organizer.Id, audit.ActorId);
         // The reason is user-supplied content: it belongs in the mail, never in audit storage.
         Assert.DoesNotContain(Reason, audit.RedactedDiff, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Reject_commits_then_cleans_proposal_images_with_retryable_object_failure()
+    {
+        var imageId = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images: [new EventImageInput(imageId, "Poster")]);
+        var key = EventImageObjectKeys.Variant(imageId, 320);
+        objects.Seed(key, [1, 2]);
+        objects.FailDeletes = true;
+
+        using var response = await RejectAsync(proposal.OrganizerToken, Reason);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await using (var database = CreateContext())
+        {
+            Assert.Equal(TournamentProposalStatus.Rejected, (await database.EventProposals.AsNoTracking().SingleAsync()).Status);
+            Assert.False(await database.EventImages.AnyAsync(image => image.Id == imageId));
+            var retries = await database.EventImageObjectDeletions
+                .Where(deletion => deletion.ImageId == imageId)
+                .ToListAsync();
+            Assert.Equal(2, retries.Count);
+            Assert.All(retries, retry =>
+            {
+                Assert.Equal(1, retry.Attempts);
+                Assert.Equal(nameof(EventImageStorageUnavailableException), retry.LastError);
+                Assert.True(retry.NextAttemptAt > Now);
+            });
+        }
+        Assert.Contains(key, objects.Keys);
+
+        objects.FailDeletes = false;
+        clock.Advance(Duration.FromMinutes(15));
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<EventImageCleanupService>()
+                .ProcessDueObjectDeletionsAsync(CancellationToken.None));
+        }
+        await using var verify = CreateContext();
+        Assert.Empty(await verify.EventImageObjectDeletions.ToListAsync());
+        Assert.DoesNotContain(key, objects.Keys);
+    }
+
+    [Fact]
+    public async Task Expiry_sweep_deletes_only_proposal_owned_media_and_prevents_approval()
+    {
+        var imageId = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images: [new EventImageInput(imageId, null)]);
+        var key = EventImageObjectKeys.Variant(imageId, 320);
+        objects.Seed(key, [1, 2]);
+        clock.Advance(EventProposal.Lifetime);
+
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EventImageCleanupService>()
+                .SweepExpiredAsync(CancellationToken.None));
+        }
+
+        using var approval = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+        Assert.Equal(HttpStatusCode.NotFound, approval.StatusCode);
+        await using var database = CreateContext();
+        Assert.False(await database.EventImages.AnyAsync(image => image.Id == imageId));
+        Assert.False(await database.Events.AnyAsync());
+        Assert.DoesNotContain(key, objects.Keys);
     }
 
     [Fact]
@@ -690,11 +846,14 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     /// hand. Going through <c>POST /api/event-proposals</c> would burn the shared IP rate-limit
     /// budget these tests need for the decision calls, and would never hand back a sibling token.
     /// </summary>
-    private async Task<SeededProposal> SeedProposalAsync(TournamentFormat? extraFormat = null, bool legacyPayload = false)
+    private async Task<SeededProposal> SeedProposalAsync(
+        TournamentFormat? extraFormat = null,
+        bool legacyPayload = false,
+        IReadOnlyList<EventImageInput>? images = null)
     {
         var organizerToken = NewToken();
         var adminToken = NewToken();
-        var payload = Payload(extraFormat);
+        var payload = Payload(extraFormat, images);
         var proposalJson = legacyPayload
             ? JsonSerializer.Serialize(new { payload.OrganizationId, payload.Title }, PayloadJsonOptions)
             : JsonSerializer.Serialize(EventProposalEnvelope.Create(payload, ValidatedLocation(payload.Location)), PayloadJsonOptions);
@@ -708,6 +867,25 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         await using var database = CreateContext();
         database.EventProposals.Add(proposal);
         await database.SaveChangesAsync();
+        for (var index = 0; index < payload.Images.Count; index++)
+        {
+            var input = payload.Images[index];
+            database.EventImages.Add(EventImage.CreateTemporary(input.ImageId, seed.Submitter.Id, 960, 540, clock.GetCurrentInstant()));
+        }
+        if (payload.Images.Count > 0)
+        {
+            await database.SaveChangesAsync();
+            for (var index = 0; index < payload.Images.Count; index++)
+            {
+                var input = payload.Images[index];
+                var altText = string.IsNullOrWhiteSpace(input.AltText) ? null : input.AltText.Trim();
+                await database.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE event_images
+                    SET state = 'ProposalOwned', proposal_id = {{proposal.Id}}, sort_order = {{index}}, alt_text = {{altText}}, expires_at = {{proposal.ExpiresAt}}
+                    WHERE id = {{input.ImageId}}
+                    """);
+            }
+        }
         return new SeededProposal(proposal.Id, organizerToken, adminToken);
     }
 
@@ -727,7 +905,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IClock>();
+                services.RemoveAll<IEventImageObjectStore>();
                 services.AddSingleton<IClock>(clock);
+                services.AddSingleton<IEventImageObjectStore>(objects);
             });
         });
 
@@ -779,7 +959,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         return user;
     }
 
-    private EventPayloadRequest Payload(TournamentFormat? extraFormat = null) => new(
+    private EventPayloadRequest Payload(
+        TournamentFormat? extraFormat = null,
+        IReadOnlyList<EventImageInput>? images = null) => new(
         seed.Alpha.Id,
         "Summer Cup",
         new EventLocationInput(
@@ -793,7 +975,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         "2035-03-04T10:00",
         64,
         [extraFormat?.Id ?? seed.Legacy.Id],
-        [],
+        images ?? [],
         "Featured",
         "Welcome");
 
@@ -832,9 +1014,39 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         ApplicationUser Admin,
         TournamentFormat Legacy);
 
+    private static async Task<string?> ProblemCode(HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString();
+
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
+    }
+
+    private sealed class RecordingObjectStore : IEventImageObjectStore
+    {
+        private readonly ConcurrentDictionary<string, byte[]> objects = new(StringComparer.Ordinal);
+        public bool FailDeletes { get; set; }
+        public bool FailReads { get; set; }
+        public IReadOnlyCollection<string> Keys => objects.Keys.ToArray();
+
+        public Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken) =>
+            FailReads
+                ? Task.FromException<Stream>(new EventImageStorageUnavailableException())
+                : objects.TryGetValue(key, out var value)
+                    ? Task.FromResult<Stream>(new MemoryStream(value, writable: false))
+                    : Task.FromException<Stream>(new KeyNotFoundException());
+
+        public Task DeleteAsync(string key, CancellationToken cancellationToken)
+        {
+            if (FailDeletes) throw new EventImageStorageUnavailableException();
+            objects.TryRemove(key, out _);
+            return Task.CompletedTask;
+        }
+
+        public void Seed(string key, byte[] value) => objects[key] = value;
     }
 }

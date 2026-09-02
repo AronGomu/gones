@@ -184,7 +184,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                 </div>
 
-                @if (!editMode && canPublishDirectly()) {
+                @if (!editMode) {
                   <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
                 }
 
@@ -215,7 +215,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                 }
               } @else {
                 <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('eventCreate.approvalNotice') }}</p>
-                <button mat-flat-button class="home-primary-action" type="button" data-cy="event-submit-for-approval" [disabled]="proposalPending() || loadingReferences() || !organizationSelected()" (click)="submitForApproval()">{{ i18n.t('eventCreate.submitForApproval') }}</button>
+                <button mat-flat-button class="home-primary-action" type="button" data-cy="event-submit-for-approval" [disabled]="proposalPending() || loadingReferences() || !organizationSelected() || imagePublishBlocked()" (click)="submitForApproval()">{{ i18n.t('eventCreate.submitForApproval') }}</button>
                 @if (proposalError()) { <p class="error" role="alert" data-cy="event-proposal-error">{{ proposalError() }}</p> }
               }
             </div>
@@ -613,7 +613,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   async submitForApproval(): Promise<void> {
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
-    if (this.form.invalid || this.proposalPending()) return;
+    if (this.form.invalid || this.proposalPending() || this.imagePublishBlocked()) return;
     const organizationId = this.form.getRawValue().organizationId;
     let approvers;
     try {
@@ -634,7 +634,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.proposalError.set('');
     try {
       const draft = this.form.getRawValue();
-      const response = await this.proposals.submit(eventPayload({ ...draft, images: [] }), recipientUserIds);
+      const response = await this.proposals.submit(eventPayload(draft), recipientUserIds);
       this.proposalSentCount.set(response.recipientCount);
     } catch (error) {
       this.applyFieldErrors(error);

@@ -1349,6 +1349,85 @@
         }
       }
     },
+    "/api/event-requests/{token}/images/{imageId}/variants/{width}": {
+      "get": {
+        "tags": [
+          "EventProposalEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "imageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "width",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/organizations": {
       "get": {
         "tags": [
@@ -10564,7 +10643,7 @@
             }
           },
           "images": {
-            "maxItems": 0,
+            "maxItems": 5,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/EventImageInput"
@@ -10661,7 +10740,8 @@
           "approverUsername",
           "expiresAt",
           "organizationName",
-          "formatNames"
+          "formatNames",
+          "images"
         ],
         "type": "object",
         "properties": {
@@ -10703,6 +10783,12 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageResponse"
             }
           }
         }
@@ -14472,6 +14558,9 @@
       "name": "EventPublicationEndpoints"
     },
     {
+      "name": "EventProposalEndpoints"
+    },
+    {
       "name": "OrganizationEndpoints"
     },
     {
@@ -14494,9 +14583,6 @@
     },
     {
       "name": "EventImageEndpoints"
-    },
-    {
-      "name": "EventProposalEndpoints"
     },
     {
       "name": "EventLifecycleEndpoints"

@@ -265,6 +265,73 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     }
 
     [Fact]
+    public async Task Submit_promotes_ordered_images_to_proposal_ownership_and_blocks_reuse()
+    {
+        var first = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 960, 540, Now);
+        var second = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 320, 180, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.AddRange(first, second);
+            await database.SaveChangesAsync();
+        }
+        var payload = Payload() with
+        {
+            Images = [new(second.Id, " Second "), new(first.Id, null)]
+        };
+
+        using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Organizer.Id]);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using (var database = CreateContext())
+        {
+            var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
+            var images = await database.EventImages.AsNoTracking()
+                .Where(image => image.ProposalId == proposal.Id)
+                .OrderBy(image => image.SortOrder)
+                .ToListAsync();
+            Assert.Equal(new[] { second.Id, first.Id }, images.Select(image => image.Id).ToArray());
+            Assert.All(images, image => Assert.Equal(EventImageState.ProposalOwned, image.State));
+            Assert.All(images, image => Assert.Equal(proposal.ExpiresAt, image.ExpiresAt));
+            Assert.Equal(new[] { "Second", null }, images.Select(image => image.AltText).ToArray());
+        }
+
+        using var delete = await SendAsync(
+            HttpMethod.Delete,
+            $"/api/event-images/{first.Id:D}",
+            seed.Submitter.Id,
+            GlobalRoles.User);
+        Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
+        Assert.Equal("image_state_conflict", await ProblemCode(delete));
+
+        using var reuse = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload with { Title = "Reused Image Cup" }, [seed.Organizer.Id]);
+        Assert.Equal(HttpStatusCode.Conflict, reuse.StatusCode);
+        Assert.Equal("image_state_conflict", await ProblemCode(reuse));
+        await using var verify = CreateContext();
+        Assert.Equal(1, await verify.EventProposals.CountAsync());
+    }
+
+    [Fact]
+    public async Task Invalid_approver_rolls_back_submission_and_keeps_images_temporary()
+    {
+        var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 960, 540, Now);
+        await using (var database = CreateContext())
+        {
+            database.EventImages.Add(image);
+            await database.SaveChangesAsync();
+        }
+        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+
+        using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Bystander.Id]);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await using var verify = CreateContext();
+        Assert.Equal(0, await verify.EventProposals.CountAsync());
+        var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
+        Assert.Equal(EventImageState.Temporary, stored.State);
+        Assert.Null(stored.ProposalId);
+    }
+
+    [Fact]
     public async Task Submit_stores_the_proposal()
     {
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, Payload(), [seed.Organizer.Id, seed.Admin.Id]);
@@ -477,6 +544,9 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     private static string AccountLifecycleHash(string plaintext) =>
         Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(plaintext)));
 
+    private static async Task<string?> ProblemCode(HttpResponseMessage response) =>
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString();
+
     private WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -607,7 +677,9 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
-        IReadOnlyList<object> Images);
+        IReadOnlyList<TournamentImagePayload> Images);
+
+    private sealed record TournamentImagePayload(Guid ImageId, string? AltText);
 
     private sealed record TournamentLocationPayload(
         string StreetAddress,

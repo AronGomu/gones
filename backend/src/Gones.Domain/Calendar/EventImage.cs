@@ -56,17 +56,74 @@ public sealed class EventImage
         {
             throw new InvalidOperationException("Event image is not attachable.");
         }
-        var normalizedAlt = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
-        if (normalizedAlt?.Length > MaximumAltTextLength)
-        {
-            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
-        }
         State = EventImageState.EventOwned;
         EventId = eventId;
         ProposalId = null;
         SortOrder = sortOrder;
-        AltText = normalizedAlt;
+        AltText = NormalizeAltText(altText);
         ExpiresAt = null;
+    }
+
+    public void AttachToProposal(
+        Guid proposalId,
+        Guid userId,
+        int sortOrder,
+        string? altText,
+        Instant proposalExpiresAt,
+        Instant now)
+    {
+        if (proposalId == Guid.Empty) throw new ArgumentException("Proposal ID cannot be empty.", nameof(proposalId));
+        if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
+        if (proposalExpiresAt <= now) throw new ArgumentOutOfRangeException(nameof(proposalExpiresAt));
+        if (State != EventImageState.Temporary || UploadedByUserId != userId || ExpiresAt <= now)
+        {
+            throw new InvalidOperationException("Event image is not attachable.");
+        }
+        State = EventImageState.ProposalOwned;
+        EventId = null;
+        ProposalId = proposalId;
+        SortOrder = sortOrder;
+        AltText = NormalizeAltText(altText);
+        ExpiresAt = proposalExpiresAt;
+    }
+
+    public void PromoteProposalToEvent(
+        Guid eventId,
+        Guid proposalId,
+        Guid userId,
+        int sortOrder,
+        string? altText,
+        Instant now)
+    {
+        if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
+        if (proposalId == Guid.Empty) throw new ArgumentException("Proposal ID cannot be empty.", nameof(proposalId));
+        if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
+        var normalizedAlt = NormalizeAltText(altText);
+        if (State != EventImageState.ProposalOwned
+            || ProposalId != proposalId
+            || UploadedByUserId != userId
+            || SortOrder != sortOrder
+            || !string.Equals(AltText, normalizedAlt, StringComparison.Ordinal)
+            || ExpiresAt <= now)
+        {
+            throw new InvalidOperationException("Proposal image is not publishable.");
+        }
+        State = EventImageState.EventOwned;
+        EventId = eventId;
+        ProposalId = null;
+        ExpiresAt = null;
+    }
+
+    private static string? NormalizeAltText(string? altText)
+    {
+        var normalized = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
+        if (normalized?.Length > MaximumAltTextLength)
+        {
+            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
+        }
+        return normalized;
     }
 
     public static IReadOnlyList<int> VariantWidthsFor(int sourceWidth)

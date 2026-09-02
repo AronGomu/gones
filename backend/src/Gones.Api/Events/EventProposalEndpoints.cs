@@ -13,6 +13,7 @@ using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
@@ -74,6 +75,14 @@ internal static class EventProposalEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status429TooManyRequests);
+
+        app.MapGet("/api/event-requests/{token}/images/{imageId:guid}/variants/{width:int}", ReadProposalImageVariantAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting(AuthRateLimiting.IpPolicy)
+            .Produces(StatusCodes.Status200OK, contentType: "image/webp")
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
     }
 
     /// <summary>
@@ -173,7 +182,62 @@ internal static class EventProposalEndpoints
             await UsernameAsync(database, recipient.UserId, cancellationToken),
             proposal.ExpiresAt,
             organizationName,
-            formatNames));
+            formatNames,
+            await ProposalImagesAsync(database, proposal.Id, token, cancellationToken)));
+    }
+
+    private static async Task<IResult> ReadProposalImageVariantAsync(
+        string token,
+        Guid imageId,
+        int width,
+        HttpResponse response,
+        GonesDbContext database,
+        IEventImageObjectStore objects,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var (proposal, _) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        if (!proposal.IsPending) throw new ResourceNotFoundException();
+        var image = await database.EventImages.AsNoTracking()
+            .SingleOrDefaultAsync(item =>
+                item.Id == imageId
+                && item.ProposalId == proposal.Id
+                && item.State == EventImageState.ProposalOwned,
+                cancellationToken)
+            ?? throw new ResourceNotFoundException();
+        if (!EventImage.VariantWidthsFor(image.Width).Contains(width)) throw new ResourceNotFoundException();
+        response.Headers.CacheControl = "no-store";
+        try
+        {
+            var content = await objects.OpenReadAsync(EventImageObjectKeys.Variant(image.Id, width), cancellationToken);
+            return Results.Stream(content, "image/webp");
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new ResourceNotFoundException();
+        }
+    }
+
+    private static async Task<IReadOnlyList<EventImageResponse>> ProposalImagesAsync(
+        GonesDbContext database,
+        Guid proposalId,
+        string token,
+        CancellationToken cancellationToken)
+    {
+        var images = await database.EventImages.AsNoTracking()
+            .Where(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned)
+            .OrderBy(image => image.SortOrder)
+            .ToListAsync(cancellationToken);
+        var escapedToken = Uri.EscapeDataString(token);
+        return images.Select(image => new EventImageResponse(
+            image.Id,
+            image.AltText,
+            EventImage.VariantWidthsFor(image.Width).Select(width => new EventImageVariantResponse(
+                width,
+                Math.Max(1, (int)Math.Round(image.Height * (double)width / image.Width, MidpointRounding.AwayFromZero)),
+                $"/api/event-requests/{escapedToken}/images/{image.Id:D}/variants/{width}"))
+                .ToArray()))
+            .ToArray();
     }
 
     /// <summary>
@@ -232,7 +296,8 @@ internal static class EventProposalEndpoints
             // the token above resolves only for someone who represents this organization, so the
             // consent this publish acts on is the organization's. Only this path relaxes the check;
             // PublishAsync keeps the default. ADR 0024 records the split.
-            requireMembership: false);
+            requireMembership: false,
+            proposalId: proposalId);
 
         // Publishing may have cleared the change tracker on a slug retry, so the proposal is read
         // again rather than carried across that boundary. The row lock this transaction already
@@ -262,6 +327,8 @@ internal static class EventProposalEndpoints
         string token,
         EventProposalRejectRequest request,
         GonesDbContext database,
+        EventImageCleanupService imageCleanup,
+        ILogger<EventImageCleanupService> cleanupLogger,
         INotificationOutbox outbox,
         IConfiguration configuration,
         IClock clock,
@@ -322,6 +389,21 @@ internal static class EventProposalEndpoints
             submitterUserId));
         await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await imageCleanup.CleanupProposalImagesAsync(proposalId, cleanupTimeout.Token);
+        }
+        catch (Exception exception)
+        {
+            cleanupLogger.LogWarning(
+                EventImageCleanupLogEvents.ProposalPostCommitCleanupFailed,
+                "Proposal image post-commit cleanup deferred; Event={Event}; ProposalId={ProposalId}; ExceptionType={ExceptionType}",
+                "event_image.proposal_cleanup.post_commit_deferred",
+                proposalId,
+                exception.GetType().Name);
+        }
         return Results.NoContent();
     }
 
@@ -417,7 +499,6 @@ internal static class EventProposalEndpoints
             || envelope.Event is null
             || envelope.Event.Location is null
             || envelope.Event.Images is null
-            || envelope.Event.Images.Count != 0
             || envelope.Location is null
             || string.IsNullOrWhiteSpace(envelope.PayloadHash)
             || string.IsNullOrWhiteSpace(envelope.EnvelopeHash))
@@ -544,6 +625,13 @@ internal sealed class EventProposalService(
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         database.EventProposals.Add(proposal);
+        await publication.AttachImagesToProposalAsync(
+            proposal.Id,
+            submitterUserId,
+            payload.Images,
+            proposal.ExpiresAt,
+            now,
+            cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
 
         // Enqueued only once the proposal is durable: no mail may point at a review link that
@@ -705,7 +793,7 @@ internal sealed record EventProposalPayloadRequest(
     [property: Required] string StartsAtLocal,
     [property: Range(1, int.MaxValue)] int Capacity,
     [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
-    [property: Required, MaxLength(0)] IReadOnlyList<EventImageInput> Images,
+    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary = null,
     [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown = null)
 {
@@ -740,7 +828,8 @@ internal sealed record EventProposalReviewResponse(
     string ApproverUsername,
     Instant ExpiresAt,
     string OrganizationName,
-    IReadOnlyList<string> FormatNames);
+    IReadOnlyList<string> FormatNames,
+    IReadOnlyList<EventImageResponse> Images);
 
 internal sealed record EventProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 

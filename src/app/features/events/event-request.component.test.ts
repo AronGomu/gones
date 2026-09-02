@@ -53,7 +53,17 @@ const baseReview: EventProposalReviewResponse = {
   expiresAt: '2027-08-08T00:00:00Z',
   organizationName: 'Gones',
   formatNames: ['Legacy', 'Modern'],
-  bodyHtml: '<p>Safe <strong>body</strong></p>'
+  bodyHtml: '<p>Safe <strong>body</strong></p>',
+  images: [
+    {
+      id: 'img-2',
+      altText: 'Poster',
+      variants: [
+        { width: 320, height: 180, url: '/api/event-requests/tok123/images/img-2/variants/320' },
+        { width: 960, height: 540, url: '/api/event-requests/tok123/images/img-2/variants/960' }
+      ]
+    }
+  ]
 } as unknown as EventProposalReviewResponse;
 
 function setup(reviewResult: unknown = baseReview) {
@@ -101,6 +111,17 @@ describe('EventRequestComponent', () => {
     expect(source).toContain('<gones-server-sanitized-html');
     expect(source).toContain('[html]="review.bodyHtml || \'\'"');
     expect(source).not.toContain('{{ review.event.bodyMarkdown');
+  });
+
+  it('renders the ordered private image gallery from token-scoped URLs', async () => {
+    const { component } = setup();
+    await flush();
+    expect(component.proposal()?.images.map(image => image.id)).toEqual(['img-2']);
+    expect(source).toContain('@for (image of review.images; track image.id)');
+    expect(source).toContain('[src]="reviewImageUrl(image)"');
+    expect(source).toContain('[attr.srcset]="reviewImageSrcset(image)"');
+    expect(source).toContain('[alt]="image.altText || \'\'"');
+    expect(source).toContain('loading="eager"');
   });
 
   it('renders a dash for a deleted organization', async () => {

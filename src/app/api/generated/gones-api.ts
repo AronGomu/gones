@@ -161,6 +161,10 @@ export interface IClient {
      */
     eventsGET3(slug: string): Observable<void>;
     /**
+     * @return OK
+     */
+    variants(token: string, imageId: string, width: number): Observable<FileResponse>;
+    /**
      * @param search (optional)
      * @param page (optional)
      * @param pageSize (optional)
@@ -469,7 +473,7 @@ export interface IClient {
     /**
      * @return OK
      */
-    variants(imageId: string, width: number): Observable<FileResponse>;
+    variants2(imageId: string, width: number): Observable<FileResponse>;
     /**
      * @return OK
      */
@@ -2546,6 +2550,88 @@ export class Client implements IClient {
             let result404: any = null;
             result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
             return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status !== 200 && status !== 204) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            }));
+        }
+        return _observableOf(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    variants(token: string, imageId: string, width: number): Observable<FileResponse> {
+        let url_ = this.baseUrl + "/api/event-requests/{token}/images/{imageId}/variants/{width}";
+        if (token === undefined || token === null)
+            throw new globalThis.Error("The parameter 'token' must be defined.");
+        url_ = url_.replace("{token}", encodeURIComponent("" + token));
+        if (imageId === undefined || imageId === null)
+            throw new globalThis.Error("The parameter 'imageId' must be defined.");
+        url_ = url_.replace("{imageId}", encodeURIComponent("" + imageId));
+        if (width === undefined || width === null)
+            throw new globalThis.Error("The parameter 'width' must be defined.");
+        url_ = url_.replace("{width}", encodeURIComponent("" + width));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_ : any = {
+            observe: "response",
+            responseType: "blob",
+            headers: new HttpHeaders({
+                "Accept": "image/webp"
+            })
+        };
+
+        return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
+            return this.processVariants(response_);
+        })).pipe(_observableCatch((response_: any) => {
+            if (response_ instanceof HttpResponseBase) {
+                try {
+                    return this.processVariants(response_ as any);
+                } catch (e) {
+                    return _observableThrow(e) as any as Observable<FileResponse>;
+                }
+            } else
+                return _observableThrow(response_) as any as Observable<FileResponse>;
+        }));
+    }
+
+    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
+        const status = response.status;
+        const responseBlob =
+            response instanceof HttpResponse ? response.body :
+            (response as any).error instanceof Blob ? (response as any).error : undefined;
+
+        let _headers: any = {}; if (response.headers) { for (let key of response.headers.keys()) { _headers[key] = response.headers.get(key); }}
+        if (status === 200 || status === 206) {
+            const contentDisposition = response.headers ? response.headers.get("content-disposition") : undefined;
+            let fileNameMatch = contentDisposition ? /filename\*=(?:(\\?['"])(.*?)\1|(?:[^\s]+'.*?')?([^;\n]*))/g.exec(contentDisposition) : undefined;
+            let fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[3] || fileNameMatch[2] : undefined;
+            if (fileName) {
+                fileName = decodeURIComponent(fileName);
+            } else {
+                fileNameMatch = contentDisposition ? /filename="?([^"]*?)"?(;|$)/g.exec(contentDisposition) : undefined;
+                fileName = fileNameMatch && fileNameMatch.length > 1 ? fileNameMatch[1] : undefined;
+            }
+            return _observableOf({ fileName: fileName, data: responseBlob as any, status: status, headers: _headers });
+        } else if (status === 404) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result404: any = null;
+            result404 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Not Found", status, _responseText, _headers, result404);
+            }));
+        } else if (status === 429) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result429: any = null;
+            result429 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Too Many Requests", status, _responseText, _headers, result429);
+            }));
+        } else if (status === 503) {
+            return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
+            let result503: any = null;
+            result503 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProblemDetails;
+            return throwException("Service Unavailable", status, _responseText, _headers, result503);
             }));
         } else if (status !== 200 && status !== 204) {
             return blobToText(responseBlob).pipe(_observableMergeMap((_responseText: string) => {
@@ -6647,7 +6733,7 @@ export class Client implements IClient {
     /**
      * @return OK
      */
-    variants(imageId: string, width: number): Observable<FileResponse> {
+    variants2(imageId: string, width: number): Observable<FileResponse> {
         let url_ = this.baseUrl + "/api/event-images/{imageId}/variants/{width}";
         if (imageId === undefined || imageId === null)
             throw new globalThis.Error("The parameter 'imageId' must be defined.");
@@ -6666,11 +6752,11 @@ export class Client implements IClient {
         };
 
         return this.http.request("get", url_, options_).pipe(_observableMergeMap((response_ : any) => {
-            return this.processVariants(response_);
+            return this.processVariants2(response_);
         })).pipe(_observableCatch((response_: any) => {
             if (response_ instanceof HttpResponseBase) {
                 try {
-                    return this.processVariants(response_ as any);
+                    return this.processVariants2(response_ as any);
                 } catch (e) {
                     return _observableThrow(e) as any as Observable<FileResponse>;
                 }
@@ -6679,7 +6765,7 @@ export class Client implements IClient {
         }));
     }
 
-    protected processVariants(response: HttpResponseBase): Observable<FileResponse> {
+    protected processVariants2(response: HttpResponseBase): Observable<FileResponse> {
         const status = response.status;
         const responseBlob =
             response instanceof HttpResponse ? response.body :
@@ -11339,6 +11425,7 @@ export interface EventProposalReviewResponse {
     expiresAt: Instant;
     organizationName: string;
     formatNames: string[];
+    images: EventImageResponse[];
 
     [key: string]: any;
 }
