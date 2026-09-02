@@ -1,12 +1,6 @@
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  statSync,
-  writeFileSync
-} from 'node:fs';
+import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,9 +8,9 @@ export const RELEASE_TEST_PROJECT = 'gones-release-test';
 export const RELEASE_TEST_PORT = 8443;
 export const RELEASE_REHEARSAL_LOCK_PATH = join(tmpdir(), `${RELEASE_TEST_PROJECT}.rehearsal.lock`);
 
-const OWNER_FILE = 'owner.json';
 const REQUIRED_STATE_VOLUMES = ['postgres-data', 'event-image-data'];
-const INCOMPLETE_LOCK_GRACE_MS = 30_000;
+const LOCK_ACQUIRED_MESSAGE = 'release-rehearsal-lock-acquired';
+const LOCK_HOLDER_SOURCE = `process.stdout.write('${LOCK_ACQUIRED_MESSAGE}\\n'); process.stdin.resume();`;
 
 const errorMessage = (error) => error instanceof Error ? error.message : String(error);
 
@@ -76,13 +70,9 @@ export function assertFreshStateVolumes(volumes) {
     volumes.find((volume) => volume.logicalName === logicalName).name);
 }
 
-function ownerPath(lockPath) {
-  return join(lockPath, OWNER_FILE);
-}
-
 function readOwner(lockPath) {
   try {
-    const owner = JSON.parse(readFileSync(ownerPath(lockPath), 'utf8'));
+    const owner = JSON.parse(readFileSync(lockPath, 'utf8'));
     if (!Number.isInteger(owner.pid) || owner.pid <= 0 || typeof owner.token !== 'string' || owner.token.length === 0) return null;
     return owner;
   } catch {
@@ -90,107 +80,137 @@ function readOwner(lockPath) {
   }
 }
 
-function processIsAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error?.code === 'EPERM') return true;
-    if (error?.code === 'ESRCH') return false;
-    throw error;
+function linuxProcessStartIdentity(pid) {
+  const processStat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+  const commandEnd = processStat.lastIndexOf(')');
+  const fieldsAfterCommand = processStat.slice(commandEnd + 2).trim().split(/\s+/);
+  const startTime = fieldsAfterCommand[19];
+  const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim();
+  if (commandEnd < 0 || !/^\d+$/.test(startTime) || bootId.length === 0) {
+    throw new Error(`Could not read Linux process start identity for pid ${pid}.`);
   }
+  return `linux:${bootId}:${startTime}`;
+}
+
+function writeOwner(lockPath, owner) {
+  writeFileSync(lockPath, `${JSON.stringify(owner)}\n`, { mode: 0o600 });
+  chmodSync(lockPath, 0o600);
+}
+
+function startKernelLockHolder(lockPath) {
+  const holder = spawn('flock', [
+    '--exclusive',
+    '--nonblock',
+    '--conflict-exit-code', '75',
+    lockPath,
+    process.execPath,
+    '-e', LOCK_HOLDER_SOURCE
+  ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+  return new Promise((resolve, reject) => {
+    let stderr = '';
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      holder.kill('SIGKILL');
+      reject(new Error(`Timed out acquiring release rehearsal kernel lock ${lockPath}.`));
+    }, 5_000);
+
+    const finish = (callback) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+
+    holder.stderr.setEncoding('utf8');
+    holder.stderr.on('data', (chunk) => { stderr += chunk; });
+    holder.stdout.setEncoding('utf8');
+    holder.stdout.on('data', (chunk) => {
+      if (chunk.includes(LOCK_ACQUIRED_MESSAGE)) finish(() => resolve(holder));
+    });
+    holder.once('error', (error) => finish(() => reject(
+      new Error(`Could not start flock for release rehearsal lock ${lockPath}: ${errorMessage(error)}`)
+    )));
+    holder.once('exit', (code, signal) => finish(() => {
+      if (code === 75) {
+        const existingOwner = readOwner(lockPath);
+        const ownerDescription = existingOwner
+          ? `pid ${existingOwner.pid} since ${existingOwner.startedAt ?? 'unknown time'}`
+          : 'an owner with unavailable metadata';
+        reject(new Error(
+          `Release rehearsal already running: ${ownerDescription} owns fixed project ${RELEASE_TEST_PROJECT} and port ${RELEASE_TEST_PORT} (lock ${lockPath})`
+        ));
+        return;
+      }
+      reject(new Error(
+        `Release rehearsal kernel lock holder exited before acquisition: code ${code ?? 'null'}, signal ${signal ?? 'none'}${stderr.trim() ? ` (${stderr.trim()})` : ''}`
+      ));
+    }));
+  });
+}
+
+async function stopKernelLockHolder(holder) {
+  if (holder.exitCode !== null || holder.signalCode !== null) return;
+
+  await new Promise((resolve) => {
+    const forceStop = setTimeout(() => holder.kill('SIGKILL'), 2_000);
+    holder.once('exit', () => {
+      clearTimeout(forceStop);
+      resolve();
+    });
+    holder.stdin.end();
+  });
 }
 
 /**
- * Atomically claims one host-wide lock for the fixed Compose project and published port.
- * A dead owner is renamed away before deletion so two stale-lock recoverers cannot delete the
- * winner's new lock.
+ * Claims one host-wide advisory lock for the fixed Compose project and published port.
+ * `flock` arbitrates ownership in the kernel; metadata never decides ownership and may remain stale.
  */
-export function acquireReleaseRehearsalLock({
+export async function acquireReleaseRehearsalLock({
   lockPath = RELEASE_REHEARSAL_LOCK_PATH,
   pid = process.pid,
-  isProcessAlive = processIsAlive,
-  report = (message) => console.error(message)
+  writeOwnerMetadata = writeOwner
 } = {}) {
   const token = randomUUID();
-  const owner = { pid, token, startedAt: new Date().toISOString() };
+  const holder = await startKernelLockHolder(lockPath);
+  const owner = {
+    pid,
+    token,
+    processStartIdentity: linuxProcessStartIdentity(pid),
+    startedAt: new Date().toISOString()
+  };
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      mkdirSync(lockPath, { mode: 0o700 });
-      try {
-        writeFileSync(ownerPath(lockPath), `${JSON.stringify(owner)}\n`, { mode: 0o600 });
-      } catch (error) {
-        rmSync(lockPath, { recursive: true, force: true });
-        throw error;
-      }
-      return { lockPath, token };
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error;
-    }
-
-    const existingOwner = readOwner(lockPath);
-    if (existingOwner && isProcessAlive(existingOwner.pid)) {
-      throw new Error(
-        `Release rehearsal already running: pid ${existingOwner.pid} since ${existingOwner.startedAt ?? 'unknown time'} owns fixed project ${RELEASE_TEST_PROJECT} and port ${RELEASE_TEST_PORT} (lock ${lockPath})`
-      );
-    }
-
-    if (!existingOwner) {
-      let ageMilliseconds = 0;
-      try {
-        ageMilliseconds = Date.now() - statSync(lockPath).mtimeMs;
-      } catch (error) {
-        if (error?.code === 'ENOENT') continue;
-        throw error;
-      }
-      if (ageMilliseconds < INCOMPLETE_LOCK_GRACE_MS) {
-        throw new Error(
-          `Release rehearsal lock ${lockPath} has no readable owner metadata; another process may still be acquiring it. Retry after 30 seconds, then remove it only after confirming no rehearsal is running.`
-        );
-      }
-    }
-
-    const stalePath = `${lockPath}.stale-${pid}-${token}`;
-    try {
-      renameSync(lockPath, stalePath);
-    } catch (error) {
-      if (error?.code === 'ENOENT') continue;
-      throw error;
-    }
-    rmSync(stalePath, { recursive: true, force: true });
-    report(`Recovered stale release rehearsal lock from pid ${existingOwner?.pid ?? 'unknown'} at ${lockPath}.`);
+  try {
+    writeOwnerMetadata(lockPath, owner);
+  } catch (error) {
+    await stopKernelLockHolder(holder);
+    throw error;
   }
 
-  throw new Error(`Could not acquire release rehearsal lock ${lockPath} after concurrent stale-lock recovery.`);
+  return { lockPath, token, holder, released: false };
 }
 
-/** Removes only lock carrying caller's ownership token. */
-export function releaseReleaseRehearsalLock(lock) {
+/** Releases caller's kernel lock; persistent metadata file is harmless without that lock. */
+export async function releaseReleaseRehearsalLock(lock) {
+  if (lock.released) return false;
+
   const owner = readOwner(lock.lockPath);
+  lock.released = true;
+  await stopKernelLockHolder(lock.holder);
+
   if (!owner) {
-    if (!statExists(lock.lockPath)) return false;
-    throw new Error(`Refusing to remove release rehearsal lock ${lock.lockPath}: owner metadata is unreadable.`);
+    throw new Error(`Release rehearsal lock ${lock.lockPath} owner metadata is unreadable.`);
   }
   if (owner.token !== lock.token) {
-    throw new Error(`Refusing to remove release rehearsal lock ${lock.lockPath}: ownership changed.`);
+    throw new Error(`Release rehearsal lock ${lock.lockPath} metadata ownership changed.`);
   }
-  rmSync(lock.lockPath, { recursive: true, force: true });
   return true;
 }
 
-function statExists(path) {
-  try {
-    statSync(path);
-    return true;
-  } catch (error) {
-    if (error?.code === 'ENOENT') return false;
-    throw error;
-  }
-}
-
 /** Best-effort stack cleanup never prevents owned lock release. */
-export function cleanupReleaseRehearsal({
+export async function cleanupReleaseRehearsal({
   compose,
   exportDirectory,
   lock,
@@ -213,7 +233,7 @@ export function cleanupReleaseRehearsal({
   }
 
   try {
-    releaseReleaseRehearsalLock(lock);
+    await releaseReleaseRehearsalLock(lock);
   } catch (error) {
     errors.push(`Release rehearsal lock cleanup failed: ${errorMessage(error)}`);
   }
@@ -230,15 +250,17 @@ export function installSignalCleanup(cleanup, processTarget = process, report = 
     ['SIGTERM', 143]
   ]);
   const handlers = new Map();
+  let cleanupStarted = false;
 
   for (const [signal, exitCode] of signals) {
     const handler = () => {
+      if (cleanupStarted) return;
+      cleanupStarted = true;
       report(`Release rehearsal received ${signal}; cleaning up before exit.`);
-      try {
-        cleanup();
-      } finally {
-        processTarget.exit(exitCode);
-      }
+      Promise.resolve()
+        .then(cleanup)
+        .catch((error) => report(`Release rehearsal signal cleanup failed: ${errorMessage(error)}`))
+        .finally(() => processTarget.exit(exitCode));
     };
     handlers.set(signal, handler);
     processTarget.once(signal, handler);

@@ -133,13 +133,14 @@ const secureFetch = (path) => new Promise((resolve, reject) => {
   call.end();
 });
 
-const rehearsalLock = acquireReleaseRehearsalLock();
-let cleanupStarted = false;
+const rehearsalLock = await acquireReleaseRehearsalLock();
+let cleanupPromise;
 const cleanup = () => {
-  if (cleanupStarted) return;
-  cleanupStarted = true;
+  if (cleanupPromise) return cleanupPromise;
   console.log('\n=== tearing the release-test stack down ===');
-  failures.push(...cleanupReleaseRehearsal({ compose, exportDirectory, lock: rehearsalLock }));
+  cleanupPromise = cleanupReleaseRehearsal({ compose, exportDirectory, lock: rehearsalLock })
+    .then((cleanupFailures) => { failures.push(...cleanupFailures); });
+  return cleanupPromise;
 };
 const uninstallSignalCleanup = installSignalCleanup(cleanup);
 
@@ -394,7 +395,7 @@ try {
   const workerStatus = containerState('worker', '{{.State.Status}}');
   check(workerStatus === 'running', `the singleton Worker stayed up across the API restart (${workerStatus})`);
 } finally {
-  cleanup();
+  await cleanup();
   uninstallSignalCleanup();
 }
 

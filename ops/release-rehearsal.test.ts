@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -58,45 +58,67 @@ describe('release rehearsal process guard', () => {
     ]);
   });
 
-  it('rejects a concurrent rehearsal with a live-owner diagnostic', () => {
+  it('rejects a concurrent rehearsal with a live-owner diagnostic', async () => {
     const lockPath = join(scratchDirectory(), 'rehearsal.lock');
-    const first = acquireReleaseRehearsalLock({ lockPath });
+    const first = await acquireReleaseRehearsalLock({ lockPath });
 
-    expect(() => acquireReleaseRehearsalLock({ lockPath })).toThrow(
+    await expect(acquireReleaseRehearsalLock({ lockPath })).rejects.toThrow(
       new RegExp(`Release rehearsal already running: pid ${process.pid} .*fixed project gones-release-test and port 8443`)
     );
 
-    expect(releaseReleaseRehearsalLock(first)).toBe(true);
-    expect(existsSync(lockPath)).toBe(false);
+    await expect(releaseReleaseRehearsalLock(first)).resolves.toBe(true);
+    expect(existsSync(lockPath)).toBe(true);
   });
 
-  it('recovers a stale dead-owner lock and reports it', () => {
+  it('allows exactly one owner when two processes concurrently encounter stale metadata', async () => {
     const lockPath = join(scratchDirectory(), 'rehearsal.lock');
-    mkdirSync(lockPath);
-    writeFileSync(join(lockPath, 'owner.json'), JSON.stringify({
+    writeFileSync(lockPath, JSON.stringify({
       pid: 999_999_999,
       token: 'stale-token',
+      processStartIdentity: 'linux:stale-boot:1',
       startedAt: '2026-08-31T00:00:00.000Z'
     }));
-    const report = vi.fn();
 
-    const acquired = acquireReleaseRehearsalLock({
-      lockPath,
-      isProcessAlive: () => false,
-      report
-    });
+    const attempts = await Promise.allSettled([
+      acquireReleaseRehearsalLock({ lockPath }),
+      acquireReleaseRehearsalLock({ lockPath })
+    ]);
+    const acquired = attempts.filter((attempt): attempt is PromiseFulfilledResult<Awaited<ReturnType<typeof acquireReleaseRehearsalLock>>> =>
+      attempt.status === 'fulfilled');
+    const rejected = attempts.filter((attempt) => attempt.status === 'rejected');
 
-    expect(report).toHaveBeenCalledWith(expect.stringContaining('Recovered stale release rehearsal lock from pid 999999999'));
-    expect(JSON.parse(readFileSync(join(lockPath, 'owner.json'), 'utf8')).token).toBe(acquired.token);
-    expect(releaseReleaseRehearsalLock(acquired)).toBe(true);
+    expect(acquired).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(String(rejected[0].reason)).toContain('Release rehearsal already running:');
+    expect(JSON.parse(readFileSync(lockPath, 'utf8')).token).toBe(acquired[0].value.token);
+    await expect(releaseReleaseRehearsalLock(acquired[0].value)).resolves.toBe(true);
   });
 
-  it('releases the owned lock even when stack and export cleanup fail', () => {
+  it('does not treat a reused PID with a different process start identity as the owner', async () => {
     const lockPath = join(scratchDirectory(), 'rehearsal.lock');
-    const lock = acquireReleaseRehearsalLock({ lockPath });
+    writeFileSync(lockPath, JSON.stringify({
+      pid: process.pid,
+      token: 'previous-process-token',
+      processStartIdentity: 'linux:previous-boot:1',
+      startedAt: '2026-08-31T00:00:00.000Z'
+    }));
+
+    const acquired = await acquireReleaseRehearsalLock({ lockPath });
+    const owner = JSON.parse(readFileSync(lockPath, 'utf8'));
+
+    expect(owner.pid).toBe(process.pid);
+    expect(owner.processStartIdentity).toMatch(/^linux:[^:]+:\d+$/);
+    expect(owner.processStartIdentity).not.toBe('linux:previous-boot:1');
+    expect(owner.token).toBe(acquired.token);
+    await expect(releaseReleaseRehearsalLock(acquired)).resolves.toBe(true);
+  });
+
+  it('releases the owned lock even when stack and export cleanup fail', async () => {
+    const lockPath = join(scratchDirectory(), 'rehearsal.lock');
+    const lock = await acquireReleaseRehearsalLock({ lockPath });
     const report = vi.fn();
 
-    const errors = cleanupReleaseRehearsal({
+    const errors = await cleanupReleaseRehearsal({
       compose: () => { throw new Error('teardown exploded'); },
       exportDirectory: join(scratchDirectory(), 'export'),
       lock,
@@ -109,20 +131,33 @@ describe('release rehearsal process guard', () => {
       'Release-test export cleanup failed: export cleanup exploded'
     ]);
     expect(report).toHaveBeenCalledTimes(2);
-    expect(existsSync(lockPath)).toBe(false);
+    const next = await acquireReleaseRehearsalLock({ lockPath });
+    await expect(releaseReleaseRehearsalLock(next)).resolves.toBe(true);
   });
 
-  it('runs cleanup before exiting on a termination signal', () => {
+  it('releases the kernel lock when writing owner metadata fails', async () => {
+    const lockPath = join(scratchDirectory(), 'rehearsal.lock');
+
+    await expect(acquireReleaseRehearsalLock({
+      lockPath,
+      writeOwnerMetadata: () => { throw new Error('metadata write exploded'); }
+    })).rejects.toThrow('metadata write exploded');
+
+    const acquired = await acquireReleaseRehearsalLock({ lockPath });
+    await expect(releaseReleaseRehearsalLock(acquired)).resolves.toBe(true);
+  });
+
+  it('runs cleanup before exiting on a termination signal', async () => {
     const processTarget = Object.assign(new EventEmitter(), { exit: vi.fn() });
-    const cleanup = vi.fn();
+    const cleanup = vi.fn(async () => undefined);
     const report = vi.fn();
     const uninstall = installSignalCleanup(cleanup, processTarget, report);
 
     processTarget.emit('SIGTERM');
+    await vi.waitFor(() => expect(processTarget.exit).toHaveBeenCalledWith(143));
 
     expect(report).toHaveBeenCalledWith('Release rehearsal received SIGTERM; cleaning up before exit.');
     expect(cleanup).toHaveBeenCalledOnce();
-    expect(processTarget.exit).toHaveBeenCalledWith(143);
     uninstall();
   });
 
@@ -138,6 +173,6 @@ describe('release rehearsal process guard', () => {
     expect(freshVolumes).toBeGreaterThan(reset);
     expect(firstJourney).toBeGreaterThan(freshVolumes);
     expect(source).toContain('installSignalCleanup(cleanup)');
-    expect(source).toMatch(/finally \{\s*cleanup\(\);/);
+    expect(source).toMatch(/finally \{\s*await cleanup\(\);/);
   });
 });
