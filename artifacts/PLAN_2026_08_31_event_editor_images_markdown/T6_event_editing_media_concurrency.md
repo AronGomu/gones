@@ -149,4 +149,4 @@ interface EventManagementResponse {
 - [x] 15. Add generator semantic regression test. Verify: focused generator test passes and fails for object-shaped or semantically invalid `Instant` refs.
 - [x] 16. Clear obsolete image field error after successful `reloadLatest`. Verify: focused Angular test proves stale image error disappears after canonical reload.
 - [x] 17. Regenerate API/client and run final gates. Verify: focused tests, `npm run api:check`, `npm run typecheck`, `npm run lint`, and generated-diff check pass.
-- [ ] 18. Commit exact final-repair paths without push/merge. Verify: new commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged or unstaged files.
+- [x] 18. Commit exact final-repair paths without push/merge. Verify: new commit exists on `ticket/event-editor-T6`; `git status --short` shows no staged or unstaged files.
