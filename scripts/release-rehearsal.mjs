@@ -228,6 +228,7 @@ try {
 
   console.log('\n=== V1 role journeys: Organizer, Admin and the fake-OAuth User ===');
   journey('roles', 'the Organizer/Admin/fake-OAuth journeys all pass without a live provider');
+  journey('event-lifecycle', 'the clean-volume Event lifecycle traverses real API, Postgres and MinIO');
   journey('delete-restore', 'soft delete hides the tournament and the Admin restores it');
   const tournamentId = journeyState.tournamentId;
   check(typeof tournamentId === 'string', `the role journey published a tournament (${tournamentId ?? 'none'})`);

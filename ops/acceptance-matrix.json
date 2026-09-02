@@ -86,6 +86,7 @@
             "doc": "00-vision-projets.md",
             "capability": "V1 events: an Organizer publishes, edits, cancels and deletes a dated event.",
             "status": "proved",
+            "exactTestAssertions": true,
             "acceptance": [
                 "product-organizer-lifecycle"
             ],
@@ -93,42 +94,49 @@
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
+                    "assertion": "Direct_publish_attaches_ordered_temporary_images_and_replays_idempotently",
                     "detail": "direct publication composes resolved location, Markdown, ordered images and public detail"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
+                    "assertion": "Fresh_media_edit_reorders_promotes_and_removes_atomically_then_deletes_objects_post_commit",
                     "detail": "fresh and stale media edits preserve hidden URLs and delete objects only after commit"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventProposalTests.cs",
+                    "assertion": "Submit_promotes_ordered_images_to_proposal_ownership_and_blocks_reuse",
                     "detail": "verified User submission promotes ordered temporary images into proposal ownership"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs",
+                    "assertion": "Approve_atomically_promotes_proposal_images_to_the_published_event",
                     "detail": "token review, approval, rejection and expiry preserve media ownership boundaries"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/organizer-event-create.cy.js",
+                    "assertion": "publishes 5 ordered images with alt text and renders faithful public Markdown detail",
                     "detail": "browser create and proposal submission flow with media and resolved location"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/organizer-event-management.cy.js",
+                    "assertion": "resolves a changed location and commits Markdown plus remove/add/reorder media in one fresh PATCH",
                     "detail": "browser edit flow with Markdown, resolved location, media ordering and stale recovery"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/event-proposal.cy.js",
+                    "assertion": "renders the proposal with private images, then validates it and shows the published link",
                     "detail": "private proposal review images become a public Event after approval"
                 },
                 {
                     "gate": "rehearsal",
                     "target": "deploy/release-test/journeys.mjs",
-                    "detail": "the Organizer directly publishes the Event with Location and ETag"
+                    "detail": "the clean-volume Event lifecycle traverses real API, Postgres and MinIO"
                 }
             ]
         },

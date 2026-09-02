@@ -36,6 +36,9 @@ export const TOOL_IMAGES = {
 /** Registry-neutral local tag. No registry host is ever baked in; publishing is a future decision. */
 export const tagFor = (name, reference = 'local') => `gones-${name}:${reference}`;
 
+export const imageRevisionMatchesHead = (labels, headRevision) =>
+  labels?.['org.opencontainers.image.revision'] === headRevision;
+
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options });
   if (result.error) throw result.error;

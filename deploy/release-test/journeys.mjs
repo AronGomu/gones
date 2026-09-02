@@ -12,9 +12,12 @@
 // Stages are independent: each one re-authenticates from the deterministic fixture accounts and
 // receives any identifiers it needs through GONES_JOURNEY_STATE, so the host can assert database
 // state in between without holding a session open.
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const edge = process.env.GONES_EDGE ?? 'https://tls-proxy:8443';
+const publicEdgeOrigin = process.env.GONES_PUBLIC_EDGE_ORIGIN ?? 'https://localhost:8443';
+const eventImageFixture = readFileSync(new URL('./event-proposal-private.webp', import.meta.url));
 const sink = process.env.GONES_SINK ?? 'https://fake-brevo:8443';
 const bootstrapEmail = process.env.GONES_BOOTSTRAP_ADMIN_EMAIL ?? 'bootstrap-admin@release-test.invalid';
 const password = 'Release-test-pass-123!';
@@ -56,6 +59,89 @@ async function call(path, { method = 'GET', body, token, headers = {}, cookie, b
   return { status: response.status, headers: response.headers, text, json };
 }
 
+async function callBytes(path, { token } = {}) {
+  const response = await fetch(`${edge}${path}`, {
+    redirect: 'manual',
+    headers: token ? { authorization: `Bearer ${token}` } : {}
+  });
+  return {
+    status: response.status,
+    headers: response.headers,
+    bytes: Buffer.from(await response.arrayBuffer())
+  };
+}
+
+async function uploadEventImage(token, fileName) {
+  const form = new FormData();
+  form.append('file', new Blob([eventImageFixture], { type: 'image/webp' }), fileName);
+  const response = await fetch(`${edge}/api/event-images`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { authorization: `Bearer ${token}` },
+    body: form
+  });
+  const text = await response.text();
+  let json;
+  try { json = text ? JSON.parse(text) : undefined; } catch { json = undefined; }
+  return { status: response.status, headers: response.headers, text, json };
+}
+
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+async function uploadFixtureAndReadPrivateVariants(token, fileName) {
+  const upload = await uploadEventImage(token, fileName);
+  check(upload.status === 201
+      && upload.json?.state === 'Temporary'
+      && Array.isArray(upload.json?.variants)
+      && upload.json.variants.length > 0,
+    `a real WebP fixture uploads through the API into private image storage (${upload.status} ${upload.text.slice(0, 120)})`);
+  if (upload.status !== 201 || !upload.json?.id || !upload.json?.variants?.length) {
+    throw new Error(`event image upload failed: ${upload.status} ${upload.text.slice(0, 200)}`);
+  }
+
+  const variantHashes = new Map();
+  for (const variant of upload.json.variants) {
+    const privateRead = await callBytes(variant.url, { token });
+    check(privateRead.status === 200
+        && privateRead.headers.get('content-type')?.startsWith('image/webp')
+        && privateRead.headers.get('cache-control') === 'no-store'
+        && privateRead.bytes.length > 0,
+      `the uploader reads its private ${variant.width}px variant bytes with no-store (${privateRead.status}, ${privateRead.bytes.length} bytes)`);
+    variantHashes.set(variant.width, sha256(privateRead.bytes));
+  }
+  return { ...upload.json, variantHashes };
+}
+
+async function verifyPublicGallery(images, expected) {
+  check(images.map((image) => image.id).join('|') === expected.map((item) => item.upload.id).join('|'),
+    'the public gallery preserves exact image order');
+  check(images.map((image) => image.altText).join('|') === expected.map((item) => item.altText).join('|'),
+    'the public gallery preserves exact alt text');
+
+  for (let index = 0; index < expected.length; index++) {
+    const image = images[index];
+    const item = expected[index];
+    if (!image || image.id !== item.upload.id) continue;
+    for (const variant of image.variants) {
+      const first = await callBytes(variant.url);
+      const repeated = await callBytes(variant.url);
+      const etag = first.headers.get('etag') ?? '';
+      check(first.status === 200
+          && first.headers.get('content-type')?.startsWith('image/webp')
+          && first.headers.get('cache-control') === 'public, max-age=31536000, immutable'
+          && /^"[^"]+"$/.test(etag)
+          && first.bytes.length > 0,
+        `the public ${variant.width}px Event image serves immutable WebP bytes with ETag (${first.status}, ${first.bytes.length} bytes, ${etag || 'missing'})`);
+      check(repeated.status === 200
+          && repeated.headers.get('etag') === etag
+          && sha256(repeated.bytes) === sha256(first.bytes),
+        `the public ${variant.width}px Event image ETag and bytes are deterministic`);
+      check(sha256(first.bytes) === item.upload.variantHashes.get(variant.width),
+        `the public ${variant.width}px bytes equal the uploaded private variant`);
+    }
+  }
+}
+
 const idempotent = () => ({ 'Idempotency-Key': randomUUID() });
 
 /** Reads the local email sink the way an operator would read the inbox it stands in for. */
@@ -71,6 +157,20 @@ async function waitForActionToken(email, pathFragment, attempts = 60) {
       .filter((message) => message.to === email)
       .reverse()
       .map((message) => new RegExp(`https://[^"'<>\\s]*${pathFragment}\\?token=([A-Za-z0-9_\\-%]+)`).exec(message.htmlContent ?? ''))
+      .find(Boolean);
+    if (match) return decodeURIComponent(match[1]);
+    await sleep(1000);
+  }
+  return null;
+}
+
+async function waitForReviewToken(email, attempts = 60) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const messages = await sinkMessages();
+    const match = messages
+      .filter((message) => message.to === email)
+      .reverse()
+      .map((message) => /https:\/\/[^"'<>\s]*\/event-requests\/([A-Za-z0-9_%-]+)/.exec(message.htmlContent ?? ''))
       .find(Boolean);
     if (match) return decodeURIComponent(match[1]);
     await sleep(1000);
@@ -108,18 +208,25 @@ async function login(email) {
   return { token: response.json.accessToken, profile: me.json };
 }
 
-async function eventPayload(token, organizationId, formatIds, startsAtLocal, title) {
+async function eventPayload(
+  token,
+  organizationId,
+  formatIds,
+  startsAtLocal,
+  title,
+  placeId = 'fixture|1%20Rue%20de%20la%20Republique|69002|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes'
+) {
   const resolved = await call('/api/event-locations/resolve', {
     method: 'POST',
     token,
     body: {
-      placeId: 'fixture|1%20Rue%20de%20la%20Republique|69002|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes',
+      placeId,
       sessionToken: randomUUID(),
       language: 'en'
     }
   });
   check(resolved.status === 200 && typeof resolved.json?.locationToken === 'string',
-    `the Organizer resolves the Event location (${resolved.status} ${resolved.text.slice(0, 120)})`);
+    `the client resolves the Event location through the deterministic provider (${resolved.status} ${resolved.text.slice(0, 120)})`);
   if (resolved.status !== 200 || !resolved.json?.locationToken) {
     throw new Error(`Event location resolution failed: ${resolved.status} ${resolved.text.slice(0, 200)}`);
   }
@@ -241,13 +348,15 @@ async function rolesStage() {
     body: payload
   });
   const publishedLocation = published.headers.get('location') ?? '';
-  const publishedLocationPath = publishedLocation ? new URL(publishedLocation, edge).pathname : '';
+  let publishedLocationUrl;
+  try { publishedLocationUrl = new URL(publishedLocation, publicEdgeOrigin); } catch { publishedLocationUrl = null; }
   const publishedETag = published.headers.get('etag') ?? '';
   check(published.status === 201
       && published.json.status === 'Published'
-      && publishedLocationPath === `/api/events/${published.json.slug}`
+      && publishedLocationUrl?.origin === publicEdgeOrigin
+      && publishedLocationUrl.pathname === `/api/events/${published.json.slug}`
       && /^"[^"]+"$/.test(publishedETag),
-    `the Organizer directly publishes the Event with Location and ETag (${published.status} location=${publishedLocation || 'missing'} etag=${publishedETag || 'missing'} ${published.text.slice(0, 120)})`);
+    `the Organizer directly publishes the Event with Location and ETag; expected edge origin and path verified (${published.status} location=${publishedLocation || 'missing'} etag=${publishedETag || 'missing'} ${published.text.slice(0, 120)})`);
   const tournamentId = published.json.id;
   const slug = published.json.slug;
 
@@ -334,7 +443,166 @@ async function rolesStage() {
   const oauthAdmin = await call('/api/admin/users', { token: oauthSession.accessToken });
   check(oauthAdmin.status === 403, `the fake-OAuth User is not an Admin (${oauthAdmin.status})`);
 
-  emit({ organizationId, tournamentId, slug, organizerId, participantId, standInId });
+  emit({ organizationId, tournamentId, slug, organizerId, participantId, standInId, formatIds });
+}
+
+async function eventLifecycleStage() {
+  const organizer = await login(organizerEmail);
+  const plainUser = await login(participantEmail);
+  check(plainUser.profile.globalRole === 'User', 'the proposal submitter is a plain verified User');
+  const formatIds = state.formatIds;
+  if (!state.organizationId || !state.organizerId || !Array.isArray(formatIds) || formatIds.length !== 1) {
+    throw new Error('event lifecycle state is missing organization, Organizer, or format identifiers');
+  }
+
+  const first = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-first.webp');
+  const second = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-second.webp');
+  const startsAtLocal = futureLocal(80);
+  const directPayload = await eventPayload(
+    organizer.token,
+    state.organizationId,
+    formatIds,
+    startsAtLocal,
+    `Integrated Event ${randomUUID().slice(0, 8)}`);
+  directPayload.summary = 'Integrated real-storage journey';
+  directPayload.bodyMarkdown = 'Created with **Markdown** and real image bytes.';
+  directPayload.images = [
+    { imageId: second.id, altText: 'Second upload leads' },
+    { imageId: first.id, altText: 'First upload follows' }
+  ];
+
+  const published = await call('/api/events', {
+    method: 'POST',
+    token: organizer.token,
+    headers: idempotent(),
+    body: directPayload
+  });
+  const location = published.headers.get('location') ?? '';
+  let locationUrl;
+  try { locationUrl = new URL(location, publicEdgeOrigin); } catch { locationUrl = null; }
+  check(published.status === 201
+      && locationUrl?.origin === publicEdgeOrigin
+      && locationUrl.pathname === `/api/events/${published.json?.slug}`,
+    `direct Event publication returns expected edge Location origin and path (${published.status} ${location || 'missing'})`);
+  if (published.status !== 201 || !published.json?.id || !published.json?.slug) {
+    throw new Error(`direct Event publication failed: ${published.status} ${published.text.slice(0, 200)}`);
+  }
+
+  const createdDetail = await call(`/api/events/${published.json.slug}`);
+  check(createdDetail.status === 200
+      && createdDetail.json?.bodyHtml === '<p>Created with <strong>Markdown</strong> and real image bytes.</p>'
+      && createdDetail.json?.venue?.streetAddress === directPayload.location.streetAddress,
+    'direct Event public detail preserves Markdown and resolved location');
+  await verifyPublicGallery(createdDetail.json.images, [
+    { upload: second, altText: 'Second upload leads' },
+    { upload: first, altText: 'First upload follows' }
+  ]);
+
+  const added = await uploadFixtureAndReadPrivateVariants(organizer.token, 'edit-added.webp');
+  const management = await call('/api/organizer/events?pageSize=100', { token: organizer.token });
+  const managed = management.json?.items?.find((item) => item.id === published.json.id);
+  check(management.status === 200 && typeof managed?.eTag === 'string',
+    'the real Organizer management read supplies If-Match state for the created Event');
+  if (!managed?.eTag) throw new Error(`created Event missing from management response: ${management.status}`);
+
+  const changedLocationPayload = await eventPayload(
+    organizer.token,
+    state.organizationId,
+    formatIds,
+    startsAtLocal,
+    directPayload.title,
+    'fixture|9%20Rue%20Victor%20Hugo|69003|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes');
+  const edited = await call(`/api/organizer/events/${published.json.id}/details`, {
+    method: 'PATCH',
+    token: organizer.token,
+    headers: { 'if-match': managed.eTag },
+    body: {
+      title: `${directPayload.title} Edited`,
+      summary: 'Edited integrated journey',
+      bodyMarkdown: 'Edited with **Markdown**, reordered and replaced media.',
+      location: changedLocationPayload.location,
+      eventType: directPayload.eventType,
+      startsAtLocal: directPayload.startsAtLocal,
+      capacity: directPayload.capacity,
+      formatIds,
+      images: [
+        { imageId: first.id, altText: 'Retained image reordered first' },
+        { imageId: added.id, altText: 'New image added second' }
+      ]
+    }
+  });
+  check(edited.status === 200
+      && /^"[^"]+"$/.test(edited.headers.get('etag') ?? '')
+      && edited.json?.location?.streetAddress === changedLocationPayload.location.streetAddress,
+    `If-Match edit commits resolved location, Markdown, media add/remove/reorder (${edited.status})`);
+
+  const editedDetail = await call(`/api/events/${published.json.slug}`);
+  check(editedDetail.status === 200
+      && editedDetail.json?.bodyHtml === '<p>Edited with <strong>Markdown</strong>, reordered and replaced media.</p>'
+      && editedDetail.json?.venue?.streetAddress === changedLocationPayload.location.streetAddress,
+    'edited public detail preserves new Markdown and resolved location');
+  await verifyPublicGallery(editedDetail.json.images, [
+    { upload: first, altText: 'Retained image reordered first' },
+    { upload: added, altText: 'New image added second' }
+  ]);
+  const removed = await callBytes(`/api/event-images/${second.id}/variants/${second.variants[0].width}`);
+  check(removed.status === 404, `removed Event image stops resolving after committed edit (${removed.status})`);
+
+  const proposalUpload = await uploadFixtureAndReadPrivateVariants(plainUser.token, 'proposal.webp');
+  const proposalPayload = await eventPayload(
+    plainUser.token,
+    state.organizationId,
+    formatIds,
+    futureLocal(90),
+    `Integrated Proposal ${randomUUID().slice(0, 8)}`);
+  proposalPayload.summary = 'Plain User proposal';
+  proposalPayload.bodyMarkdown = 'Proposal with **private** media.';
+  proposalPayload.images = [{ imageId: proposalUpload.id, altText: 'Proposal gallery image' }];
+  const approvers = await call(`/api/event-proposals/approvers?organizationId=${state.organizationId}`, { token: plainUser.token });
+  check(approvers.status === 200 && approvers.json?.some((item) => item.id === state.organizerId),
+    'the plain User can select the organization Organizer as proposal reviewer');
+
+  const proposal = await call('/api/event-proposals', {
+    method: 'POST',
+    token: plainUser.token,
+    body: { event: proposalPayload, recipientUserIds: [state.organizerId] }
+  });
+  check(proposal.status === 201 && proposal.json?.status === 'Pending',
+    `the plain User submits proposal with uploaded media (${proposal.status})`);
+  if (proposal.status !== 201) throw new Error(`proposal submission failed: ${proposal.status} ${proposal.text.slice(0, 200)}`);
+
+  const reviewToken = await waitForReviewToken(organizerEmail);
+  check(typeof reviewToken === 'string' && reviewToken.length > 20,
+    'the proposal review token reaches the local mail sink');
+  if (!reviewToken) throw new Error('proposal review token did not reach local mail sink');
+  const review = await call(`/api/event-proposals/by-token/${encodeURIComponent(reviewToken)}`);
+  check(review.status === 200
+      && review.json?.images?.length === 1
+      && review.json.images[0].id === proposalUpload.id
+      && review.json.images[0].altText === 'Proposal gallery image',
+    'token review preserves private proposal image order and alt text');
+  const reviewVariant = review.json?.images?.[0]?.variants?.[0];
+  if (!reviewVariant) throw new Error(`proposal review image missing: ${review.status} ${review.text.slice(0, 200)}`);
+  const privateReview = await callBytes(reviewVariant.url);
+  check(privateReview.status === 200
+      && privateReview.headers.get('cache-control') === 'no-store'
+      && sha256(privateReview.bytes) === proposalUpload.variantHashes.get(reviewVariant.width),
+    'token-scoped proposal review serves original private bytes with no-store');
+
+  const approval = await call(`/api/event-proposals/by-token/${encodeURIComponent(reviewToken)}/approve`, { method: 'POST' });
+  check(approval.status === 200 && approval.json?.status === 'Approved' && typeof approval.json?.slug === 'string',
+    `token review approves the proposal into a public Event (${approval.status})`);
+  if (!approval.json?.slug) throw new Error(`proposal approval failed: ${approval.status} ${approval.text.slice(0, 200)}`);
+  const proposalDetail = await call(`/api/events/${approval.json.slug}`);
+  check(proposalDetail.status === 200
+      && proposalDetail.json?.bodyHtml === '<p>Proposal with <strong>private</strong> media.</p>',
+    'approved proposal Markdown becomes public detail');
+  await verifyPublicGallery(proposalDetail.json.images, [
+    { upload: proposalUpload, altText: 'Proposal gallery image' }
+  ]);
+
+  check(failures.length === 0, 'the clean-volume Event lifecycle traverses real API, Postgres and MinIO');
+  emit({ integratedEventId: published.json.id, proposalEventSlug: approval.json.slug });
 }
 
 async function deleteRestoreStage() {
@@ -496,6 +764,7 @@ const stages = {
   visitor: visitorStage,
   bootstrap: bootstrapStage,
   roles: rolesStage,
+  'event-lifecycle': eventLifecycleStage,
   'delete-restore': deleteRestoreStage,
   'spare-register': spareRegisterStage,
   'date-change': dateChangeStage,

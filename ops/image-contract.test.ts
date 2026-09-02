@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+// @ts-expect-error - release image helpers are plain ESM shared with Node CLI scripts.
+import { imageRevisionMatchesHead } from '../scripts/release-images.mjs';
 
 /**
  * C41 image contract.
@@ -118,6 +120,15 @@ describe.each(runtimeImages)('$name image', (image) => {
     }
     expect(dockerfile).toContain('HEALTHCHECK');
     expect(dockerfile).toContain(image.healthPath);
+  });
+});
+
+describe('runtime image attestation', () => {
+  it('rejects a stale image revision instead of accepting any populated label', () => {
+    const head = 'a'.repeat(40);
+    expect(imageRevisionMatchesHead({ 'org.opencontainers.image.revision': head }, head)).toBe(true);
+    expect(imageRevisionMatchesHead({ 'org.opencontainers.image.revision': 'b'.repeat(40) }, head)).toBe(false);
+    expect(imageRevisionMatchesHead({}, head)).toBe(false);
   });
 });
 

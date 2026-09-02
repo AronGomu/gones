@@ -169,6 +169,10 @@ public sealed class EventImageApiTests : IAsyncLifetime
         using var publicRead = await Client.GetAsync($"/api/event-images/{eventOwnedId:D}/variants/320");
         Assert.Equal(HttpStatusCode.OK, publicRead.StatusCode);
         Assert.Equal("public, max-age=31536000, immutable", publicRead.Headers.CacheControl?.ToString());
+        Assert.Equal(Gones.Api.Events.EventImageEndpoints.EventOwnedVariantETag(eventOwnedId, 320), publicRead.Headers.ETag?.Tag);
+        using var repeatedPublicRead = await Client.GetAsync($"/api/event-images/{eventOwnedId:D}/variants/320");
+        Assert.Equal(publicRead.Headers.ETag?.Tag, repeatedPublicRead.Headers.ETag?.Tag);
+        Assert.Equal(await publicRead.Content.ReadAsByteArrayAsync(), await repeatedPublicRead.Content.ReadAsByteArrayAsync());
 
         var proposalOwnedId = Guid.NewGuid();
         await InsertOwnedStateAsync(proposalOwnedId, EventImageState.ProposalOwned, proposalId: Guid.NewGuid());
