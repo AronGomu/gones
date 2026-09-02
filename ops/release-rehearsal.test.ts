@@ -4,14 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error - the release rehearsal guard is a plain ESM module shared with the CLI.
-import {
-  acquireReleaseRehearsalLock,
-  assertFreshStateVolumes,
-  cleanupReleaseRehearsal,
-  installSignalCleanup,
-  releaseReleaseRehearsalLock,
-  resetReleaseTestStack
-} from '../scripts/release-rehearsal-guard.mjs';
+import { acquireReleaseRehearsalLock, assertFreshStateVolumes, cleanupReleaseRehearsal, installSignalCleanup, releaseReleaseRehearsalLock, resetReleaseTestStack } from '../scripts/release-rehearsal-guard.mjs';
 
 const scratchDirectories: string[] = [];
 
