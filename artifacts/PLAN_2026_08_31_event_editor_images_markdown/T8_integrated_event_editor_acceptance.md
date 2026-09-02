@@ -128,3 +128,18 @@ required targets:
 - [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed at same HEAD `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`; script hashes unchanged (`6f1fba68…`, `413c6b19…`); final lock/project volumes absent.
 - [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; no `.orig`/`.rej`/backup residue; added-line high-confidence secret scan clean.
 - [x] commit msg draft: `test(release): isolate clean-volume rehearsal`
+
+## LOCK CORRECTNESS REPAIR
+
+- [x] 15. Replace stale-owner deletion with process-lifetime kernel exclusion. — evidence: `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` passed 2 files/19 tests; kernel `flock` contention, metadata-write failure cleanup, teardown-failure cleanup, and SIGTERM cleanup passed.
+- [x] 16. Add deterministic concurrent stale-metadata acquisition and PID reuse/start-identity coverage. — evidence: same focused run passed exact-one-owner concurrent stale-metadata test and reused-PID/different-Linux-start-identity test.
+- [x] 17. Re-run release evidence and commit exact repair paths without push/merge. — evidence: focused ops tests, acceptance matrix, two sequential release rehearsals, diff/residue/secret scans passed; repair commit `c93176b` exists on `ticket/event-editor-T8`; no push/merge.
+
+## LOCK CORRECTNESS REPAIR validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 19 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal run 1 — `npm run release:rehearsal` — passed from clean reset through final teardown; fresh PostgreSQL/MinIO volumes and full Event lifecycle proved.
+- [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed sequentially with persistent stale metadata file present; clean reset, full Event lifecycle, and final teardown passed again.
+- [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; residue count 0; added-line high-confidence secret scan clean; release volumes/containers 0; kernel lock free.
+- [x] commit msg draft: `fix(release): enforce exclusive rehearsal ownership`
