@@ -180,10 +180,21 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     }
 
     [Fact]
-    public async Task Get_by_token_rejects_an_expired_token()
+    public async Task Get_by_token_accepts_one_millisecond_before_expiry()
     {
         var proposal = await SeedProposalAsync();
-        clock.Advance(EventProposal.Lifetime + Duration.FromMinutes(1));
+        clock.Advance(EventProposal.Lifetime - Duration.FromMilliseconds(1));
+
+        using var response = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Get_by_token_rejects_at_exact_expiry()
+    {
+        var proposal = await SeedProposalAsync();
+        clock.Advance(EventProposal.Lifetime);
 
         using var expired = await Client.GetAsync(ReviewUrl(proposal.OrganizerToken));
         using var unknown = await Client.GetAsync(ReviewUrl(NewToken()));
@@ -213,6 +224,51 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(HttpStatusCode.Conflict, approve.StatusCode);
         await using var database = CreateContext();
         Assert.Equal(0, await database.Events.CountAsync());
+    }
+
+    [Fact]
+    public async Task Envelope_hash_binds_every_location_claim_version_and_payload_identity_and_approval_rejects_tampering()
+    {
+        var proposal = await SeedProposalAsync();
+        EventProposalEnvelope baseline;
+        await using (var database = CreateContext())
+        {
+            var stored = await database.EventProposals.AsNoTracking().SingleAsync(item => item.Id == proposal.Id);
+            baseline = JsonSerializer.Deserialize<EventProposalEnvelope>(stored.PayloadJson, PayloadJsonOptions)!;
+        }
+
+        var location = baseline.Location;
+        var mutations = new Dictionary<string, EventProposalEnvelope>
+        {
+            ["version"] = baseline with { Version = baseline.Version + 1 },
+            ["payloadHash"] = baseline with { PayloadHash = new string('0', baseline.PayloadHash.Length) },
+            ["payload"] = baseline with { Event = baseline.Event with { Title = "Mutated Cup" } },
+            ["placeId"] = baseline with { Location = location with { PlaceId = "mutated-place" } },
+            ["streetAddress"] = baseline with { Location = location with { StreetAddress = "99 Mutated Street" } },
+            ["postalCode"] = baseline with { Location = location with { PostalCode = "99999" } },
+            ["city"] = baseline with { Location = location with { City = "Mutated City" } },
+            ["country"] = baseline with { Location = location with { Country = "Mutated Country" } },
+            ["region"] = baseline with { Location = location with { Region = "Mutated Region" } },
+            ["latitude"] = baseline with { Location = location with { Latitude = location.Latitude + 1m } },
+            ["longitude"] = baseline with { Location = location with { Longitude = location.Longitude + 1m } },
+            ["timeZoneId"] = baseline with { Location = location with { TimeZoneId = "UTC" } },
+            ["expiresAt"] = baseline with { Location = location with { ExpiresAt = location.ExpiresAt + Duration.FromMinutes(1) } }
+        };
+        Assert.All(mutations, mutation => Assert.False(mutation.Value.HasValidIntegrity(), mutation.Key));
+
+        await using (var database = CreateContext())
+        {
+            var tamperedJson = JsonSerializer.Serialize(mutations["timeZoneId"], PayloadJsonOptions);
+            await database.EventProposals
+                .Where(item => item.Id == proposal.Id)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.PayloadJson, tamperedJson));
+        }
+
+        using var response = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await using var verify = CreateContext();
+        Assert.Equal(0, await verify.Events.CountAsync());
     }
 
     [Fact]
@@ -726,8 +782,6 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     private EventPayloadRequest Payload(TournamentFormat? extraFormat = null) => new(
         seed.Alpha.Id,
         "Summer Cup",
-        "Featured",
-        "Welcome",
         new EventLocationInput(
             "12 Rue de la Paix",
             "75001",
@@ -739,7 +793,9 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         "2035-03-04T10:00",
         64,
         [extraFormat?.Id ?? seed.Legacy.Id],
-        []);
+        [],
+        "Featured",
+        "Welcome");
 
     private static ValidatedEventLocation ValidatedLocation(EventLocationInput input) => new(
         "google-place-id",
@@ -763,8 +819,8 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     private static readonly Instant Now = Instant.FromUtc(2030, 1, 1, 12, 0);
     private const string Reason = "Venue is already booked that weekend.";
 
-    /// <summary>Matches the options T16 stores the payload with, so the round trip is symmetric.</summary>
-    private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
+    /// <summary>Uses the exact persisted-envelope options, including lossless NodaTime claims.</summary>
+    private static readonly JsonSerializerOptions PayloadJsonOptions = EventProposalEndpoints.PayloadJsonOptions;
 
     private sealed record SeededProposal(Guid Id, string OrganizerToken, string AdminToken);
 

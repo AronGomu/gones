@@ -30,22 +30,34 @@ const review = {
   formatNames: ['Legacy']
 };
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
+function seedLanguage(win) {
+  win.localStorage.setItem('gones.settings.language', 'en');
+  win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
+  win.localStorage.setItem(SEED_MARKER, 'true');
+}
+
 /**
  * `AuthService.bootstrap()` always attempts one `POST /api/auth/refresh` on app start when the
  * build has `authV1` on (the default), regardless of route. This ticket's page is signed-out and
  * anonymous — it never calls `/api/auth/*` itself — but that startup refresh still fires. Stubbing
  * it here keeps every run of this spec off the real, IP-rate-limited auth endpoint (5 permits per
  * 15 minutes, shared with every other ticket on this host) while asserting the review page itself
- * makes none of its own auth calls.
+ * makes none of its own auth calls. `ngsw-worker.js` can skip `onBeforeLoad` in release profile, so
+ * loaded-page reseeding announces language through same storage event app uses across tabs.
  */
 function visitAnonymous(path) {
   cy.intercept('POST', '**/api/auth/refresh', { statusCode: 401, body: { title: 'Unauthorized' } }).as('authRefresh');
-  cy.visit(path, {
-    onBeforeLoad(win) {
-      win.localStorage.setItem('gones.settings.language', 'en');
-      win.localStorage.setItem('gones.settings', JSON.stringify({ language: 'en', deckArchetypes: [] }));
-    }
+  cy.visit(path, { onBeforeLoad: seedLanguage });
+  cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
+  cy.window().then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true'
+      && win.localStorage.getItem('gones.settings.language') === 'en') return;
+    seedLanguage(win);
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: 'en' }));
   });
+  cy.document().its('documentElement.lang').should('eq', 'en');
 }
 
 describe('event request review page (signed out, intercept-based)', () => {

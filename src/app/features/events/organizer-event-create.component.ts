@@ -84,7 +84,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                   <div class="tournament-create-field event-field--title" data-cy="event-field-title">
                     <label for="event-title-input" data-cy="event-label-title">{{ i18n.t('eventCreate.name') }}</label>
-                    <input #titleInput id="event-title-input" data-cy="event-title" formControlName="title" autocomplete="off" [attr.aria-invalid]="fieldError('title') ? 'true' : null" [attr.aria-describedby]="fieldError('title') ? 'event-title-error' : null" />
+                    <input #titleInput id="event-title-input" data-cy="event-title" formControlName="title" autocomplete="off" maxlength="160" [attr.aria-invalid]="fieldError('title') ? 'true' : null" [attr.aria-describedby]="fieldError('title') ? 'event-title-error' : null" />
                     @if (fieldError('title'); as message) { <p id="event-title-error" class="field-error" data-cy="event-title-error">{{ message }}</p> }
                   </div>
                 </div>
@@ -202,6 +202,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
               <div class="warning stack" role="alert" data-cy="event-stale"><strong data-cy="event-stale-title">{{ i18n.t('eventManage.staleTitle') }}</strong><p data-cy="event-stale-body">{{ i18n.t('eventManage.staleBody', { title: latest.title }) }}</p>@if (staleChanges().length) { <ul data-cy="event-stale-changes">@for (change of staleChanges(); track change) { <li [attr.data-cy]="'event-stale-change-' + $index">{{ change }}</li> }</ul> }<p data-cy="event-stale-preserved">{{ i18n.t('eventManage.draftPreserved') }}</p><button mat-stroked-button type="button" data-cy="event-reload-latest" (click)="reloadLatest()">{{ i18n.t('eventManage.reloadLatest') }}</button></div>
             }
             @if (success()) { <p role="status" class="success" data-cy="event-edit-success">{{ success() }}</p> }
+            @if (fieldErrors()['general']; as message) { <p class="field-error" role="alert" data-cy="event-general-error">{{ message }}</p> }
             @if (submitError(); as error) {
               <div class="error tournament-create-recovery" role="alert" data-cy="event-submit-error"><span data-cy="event-submit-error-message">{{ error.message }}</span>@if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }@if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-submit-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }@if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/events" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }@if (error.action === 'retry') { <button mat-stroked-button type="submit" data-cy="event-submit-error-retry">{{ i18n.t('common.retry') }}</button> }</div>
             }
@@ -220,8 +221,8 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             </div>
           </form>
 
-          @if (!editMode && !previewCollapsed()) {
-            <aside id="event-live-preview" class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview"><h2 id="event-live-preview-title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></aside>
+          @if (!editMode) {
+            <aside id="event-live-preview" class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview" [hidden]="previewCollapsed()"><h2 id="event-live-preview-title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></aside>
           }
         </div>
 
@@ -297,7 +298,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    title: new FormControl('', { nonNullable: true, validators: Validators.required }),
+    title: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.pattern(/\S/), Validators.maxLength(160)]
+    }),
     summary: new FormControl('', { nonNullable: true, validators: Validators.maxLength(50) }),
     bodyMarkdown: new FormControl('', { nonNullable: true, validators: Validators.maxLength(20000) }),
     streetAddress: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -726,10 +730,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     if (serverError) return serverError;
     const control = this.form.controls[name];
     if (!control.touched || !control.errors) return '';
-    if (control.errors['required']) {
+    if (control.errors['required'] || (name === 'title' && control.errors['pattern'])) {
       return this.i18n.t(name === 'locationToken' ? 'eventCreate.locationRequired' : 'eventCreate.required');
     }
     if (control.errors['maxlength']) {
+      if (name === 'title') return this.i18n.t('eventCreate.titleTooLong');
       if (name === 'summary') return this.i18n.t('eventCreate.summaryTooLong');
       if (name === 'bodyMarkdown') return this.i18n.t('eventCreate.bodyTooLong');
       return this.i18n.t('eventCreate.tournamentUrlTooLong');
@@ -781,15 +786,20 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodymarkdown: 'bodyMarkdown',
       locationstreetaddress: 'streetAddress', locationpostalcode: 'postalCode', locationcity: 'city', locationcountry: 'country',
       locationregion: 'region', locationlocationtoken: 'locationToken', eventtype: 'eventType', startsatlocal: 'startDate',
-      capacity: 'capacity', formatids: 'formatId', images: 'images', payload: 'title'
+      capacity: 'capacity', formatids: 'formatId', images: 'images'
     };
     for (const [field, messages] of Object.entries(error.problem.errors)) {
       const normalized = field.replace(/[^a-z]/gi, '').toLowerCase();
       const message = messages[0];
       if (!message) continue;
-      if (normalized === 'startsatlocal') {
+      if (normalized === 'startsatlocal'
+        || (normalized === 'payload' && /daylight-saving|start time/i.test(message))) {
         mapped['startDate'] = message;
         mapped['startTime'] = message;
+        continue;
+      }
+      if (normalized === 'payload') {
+        mapped['general'] = message;
         continue;
       }
       const name = normalized.startsWith('images') ? 'images' : names[normalized];

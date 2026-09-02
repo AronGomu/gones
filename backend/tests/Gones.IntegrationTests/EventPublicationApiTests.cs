@@ -223,6 +223,34 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Null_image_item_returns_nested_validation_error()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
+        json["images"] = JsonNode.Parse("[null]");
+
+        using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "null-image");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
+        Assert.True(errors.TryGetProperty("images[0]", out _), errors.ToString());
+        await using var verify = CreateContext();
+        Assert.Equal(0, await verify.Events.CountAsync());
+    }
+
+    [Fact]
+    public async Task Daylight_saving_gap_maps_to_startsAtLocal()
+    {
+        var payload = Payload(seed.Alpha.Id) with { StartsAtLocal = "2035-03-25T02:30" };
+
+        using var response = await PublishAsync(seed.Organizer.Id, "dst-gap", payload);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
+        Assert.True(errors.TryGetProperty("startsAtLocal", out _), errors.ToString());
+        Assert.False(errors.TryGetProperty("payload", out _), errors.ToString());
+    }
+
+    [Fact]
     public async Task Reused_idempotency_key_with_different_payload_conflicts()
     {
         using var first = await PublishAsync(seed.Organizer.Id, "same-key", Payload(seed.Alpha.Id));

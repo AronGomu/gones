@@ -112,6 +112,8 @@ services:
       # The rehearsal replays whole role journeys from one address; the per-account auth limiter is
       # a C40 concern with its own tests (RateLimitPolicyTests) and would only add noise here.
       GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: "1000"
+      # Event location resolution stays inside isolated network through deterministic provider fixture.
+      GONES_EVENT_LOCATION_USE_FAKE: "true"
       # Self-hosted fake identity provider: no live Google/Facebook credential exists in this stack.
       GONES_AUTH_PROVIDER: External
       GONES_OAUTH_CALLBACK_ORIGIN: https://localhost:8443

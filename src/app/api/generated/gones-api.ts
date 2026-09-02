@@ -11270,14 +11270,14 @@ export interface EventMutationResponse {
 export interface EventPayloadRequest {
     organizationId: string;
     title: string;
-    summary: string | undefined;
-    bodyMarkdown: string | undefined;
     location: EventLocationInput;
     eventType: EventPayloadRequestEventType;
     startsAtLocal: string;
     capacity: number;
     formatIds: string[];
     images: EventImageInput[];
+    summary?: string | undefined;
+    bodyMarkdown?: string | undefined;
 
     [key: string]: any;
 }
@@ -11290,6 +11290,21 @@ export interface EventProposalDecisionResponse {
     [key: string]: any;
 }
 
+export interface EventProposalPayloadRequest {
+    organizationId: string;
+    title: string;
+    location: EventLocationInput;
+    eventType: PublicCalendarEventType | undefined;
+    startsAtLocal: string;
+    capacity: number;
+    formatIds: string[];
+    images: EventImageInput[];
+    summary?: string | undefined;
+    bodyMarkdown?: string | undefined;
+
+    [key: string]: any;
+}
+
 export interface EventProposalRejectRequest {
     reason: string;
 
@@ -11297,7 +11312,7 @@ export interface EventProposalRejectRequest {
 }
 
 export interface EventProposalRequest {
-    event: EventPayloadRequest;
+    event: EventProposalPayloadRequest;
     recipientUserIds: string[];
 
     [key: string]: any;

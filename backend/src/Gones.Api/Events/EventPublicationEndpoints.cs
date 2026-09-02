@@ -291,6 +291,11 @@ internal sealed class EventPublicationService(
         {
             throw;
         }
+        catch (ArgumentException exception) when (
+            exception.Message.Contains("start time", StringComparison.OrdinalIgnoreCase))
+        {
+            throw Validation("startsAtLocal", exception.Message);
+        }
         catch (ArgumentException exception)
         {
             throw Validation("payload", exception.Message);
@@ -460,8 +465,14 @@ internal sealed class EventPublicationService(
         {
             for (var index = 0; index < payload.Images.Count; index++)
             {
-                ValidateObject(payload.Images[index], $"{prefix}images[{index}].", failures);
-                if (payload.Images[index].ImageId == Guid.Empty)
+                var image = payload.Images[index];
+                if (image is null)
+                {
+                    AddFailure(failures, $"{prefix}images[{index}]", "Image is required.");
+                    continue;
+                }
+                ValidateObject(image, $"{prefix}images[{index}].", failures);
+                if (image.ImageId == Guid.Empty)
                 {
                     AddFailure(failures, $"{prefix}images[{index}].imageId", "Image ID is required.");
                 }
@@ -561,14 +572,14 @@ internal static class EventSlugGenerator
 internal sealed record EventPayloadRequest(
     Guid OrganizationId,
     [property: Required, MaxLength(Event.MaximumTitleLength)] string Title,
-    [property: MaxLength(Event.MaximumSummaryLength)] string? Summary,
-    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown,
     [property: Required] EventLocationInput Location,
     [property: Required] PublicCalendarEventType? EventType,
     [property: Required] string StartsAtLocal,
     [property: Range(1, int.MaxValue)] int Capacity,
     [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
-    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images);
+    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images,
+    [property: MaxLength(Event.MaximumSummaryLength)] string? Summary = null,
+    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown = null);
 
 internal sealed record EventImageInput(
     Guid ImageId,

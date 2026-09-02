@@ -26,6 +26,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Net.Http.Headers;
+using Microsoft.OpenApi;
 using NodaTime;
 using NodaTime.Serialization.SystemTextJson;
 using OpenTelemetry.Metrics;
@@ -36,7 +37,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
 var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(
     builder.Configuration,
-    useFakeLocationProvider: builder.Environment.IsDevelopment());
+    useFakeLocationProvider: builder.Environment.IsDevelopment()
+        || builder.Configuration.GetValue<bool>("GONES_EVENT_LOCATION_USE_FAKE"));
 builder.Services.AddSingleton<IEventLocationTokenService, EventLocationTokenService>();
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
@@ -59,7 +61,26 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new UtcDateTimeOffsetJsonConverter());
     options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 });
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddOperationTransformer((operation, context, _) =>
+{
+    if (context.Description.HttpMethod == HttpMethods.Post
+        && context.Description.RelativePath?.TrimEnd('/') == "api/events"
+        && operation.Responses?[StatusCodes.Status201Created.ToString()] is OpenApiResponse created)
+    {
+        created.Headers ??= new Dictionary<string, IOpenApiHeader>();
+        created.Headers["Location"] = new OpenApiHeader
+        {
+            Description = "Relative URL of the published Event.",
+            Required = true
+        };
+        created.Headers["ETag"] = new OpenApiHeader
+        {
+            Description = "Strong entity tag for the published Event.",
+            Required = true
+        };
+    }
+    return Task.CompletedTask;
+}));
 builder.Services.AddProblemDetails();
 // The public catalogs are the payloads that need this (ADR 0042), but compression is cheap for every
 // anonymous read, so it is registered app-wide and narrowed at the middleware below.

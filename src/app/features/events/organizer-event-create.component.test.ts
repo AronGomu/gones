@@ -337,6 +337,43 @@ describe('OrganizerEventCreateComponent resolved location', () => {
 });
 
 describe('OrganizerEventCreateComponent live direct editor', () => {
+  it('requires a trimmed title and enforces the 160-character client limit', () => {
+    const component = setup('Organizer');
+    component.form.controls.title.setValue('   ');
+    component.form.controls.title.markAsTouched();
+    expect(component.form.controls.title.invalid).toBe(true);
+    expect(component.fieldError('title')).toBe(component.i18n.t('eventCreate.required'));
+
+    component.form.controls.title.setValue('x'.repeat(161));
+    expect(component.form.controls.title.invalid).toBe(true);
+    expect(component.fieldError('title')).toBe(component.i18n.t('eventCreate.titleTooLong'));
+
+    component.form.controls.title.setValue(' Valid title ');
+    expect(component.form.controls.title.valid).toBe(true);
+  });
+
+  it('maps DST payload errors to start controls and other payload errors to the general region', () => {
+    const component = setup('Organizer');
+    const editor = component as unknown as {
+      applyFieldErrors(error: unknown): void;
+      fieldErrors(): Record<string, string>;
+    };
+
+    editor.applyFieldErrors(new ApiProblemError(400, {
+      errors: { payload: ['Tournament start time falls in a daylight-saving gap.'] }
+    }));
+    expect(editor.fieldErrors()).toMatchObject({
+      startDate: 'Tournament start time falls in a daylight-saving gap.',
+      startTime: 'Tournament start time falls in a daylight-saving gap.'
+    });
+    expect(editor.fieldErrors()['title']).toBeUndefined();
+
+    editor.applyFieldErrors(new ApiProblemError(400, {
+      errors: { payload: ['Payload is inconsistent.'] }
+    }));
+    expect(editor.fieldErrors()).toEqual({ general: 'Payload is inconsistent.' });
+  });
+
   it('updates actual detail preview locally without Event preview HTTP', () => {
     const preview = vi.fn();
     const component = setup('Organizer', locationClient({ preview }));

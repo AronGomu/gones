@@ -98,14 +98,27 @@ function mockLocation() {
   }).as('locationResolve');
 }
 
+const SEED_MARKER = 'gones.e2e.storage-seeded';
+
 function seedLanguage(win, language) {
   win.localStorage.setItem('gones.settings.language', language);
   win.localStorage.setItem('gones.settings', JSON.stringify({ language, deckArchetypes: [] }));
   win.localStorage.setItem('gones.settings.power-user', 'true');
+  win.localStorage.setItem(SEED_MARKER, 'true');
 }
 
+// `onBeforeLoad` can be skipped after `ngsw-worker.js` controls release-profile navigation. Re-seed
+// from loaded page, then announce both settings so same-window services observe deterministic state.
 function visit(path = '/events/new', language = 'en') {
   cy.visit(path, { onBeforeLoad: win => seedLanguage(win, language) });
+  cy.window().its('localStorage').invoke('getItem', 'gones.settings').should('be.a', 'string');
+  cy.window().then(win => {
+    if (win.localStorage.getItem(SEED_MARKER) === 'true'
+      && win.localStorage.getItem('gones.settings.language') === language) return;
+    seedLanguage(win, language);
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.language', newValue: language }));
+    win.dispatchEvent(new win.StorageEvent('storage', { key: 'gones.settings.power-user', newValue: 'true' }));
+  });
   cy.document().its('documentElement.lang').should('eq', language);
 }
 
@@ -213,11 +226,11 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-editor-shell"]').should('have.css', 'grid-template-columns').and('match', /px .*px/);
     cy.get('[data-cy="event-live-preview"]').should('have.css', 'position', 'sticky');
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-expanded', 'true').and('contain.text', 'Hide preview').click();
-    cy.get('[data-cy="event-live-preview"]').should('not.exist');
+    cy.get('[data-cy="event-live-preview"]').should('exist').and('not.be.visible').and('have.attr', 'hidden');
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-expanded', 'false').and('contain.text', 'Show preview');
     cy.reload();
     cy.wait(['@myOrganizations', '@formats']);
-    cy.get('[data-cy="event-live-preview"]').should('not.exist');
+    cy.get('[data-cy="event-live-preview"]').should('exist').and('not.be.visible').and('have.attr', 'hidden');
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-controls', 'event-live-preview').and('have.attr', 'aria-expanded', 'false');
   });
 

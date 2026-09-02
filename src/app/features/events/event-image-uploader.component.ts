@@ -31,6 +31,7 @@ export interface EventImageUploadCard {
   readonly retryDelete: boolean;
   readonly retryPreview: boolean;
   readonly removePending: boolean;
+  readonly expired: boolean;
   readonly objectUrls: readonly string[];
 }
 
@@ -70,7 +71,7 @@ export interface EventImageUploadCard {
             @if (card.status === 'error') {
               <p class="error" role="alert" [attr.data-cy]="'event-image-error-' + card.localId">{{ card.error }}</p>
               @if (card.retryUpload || card.retryDelete || card.retryPreview) {
-                <button mat-stroked-button type="button" [attr.data-cy]="'event-image-retry-' + card.localId" (click)="retry(card.localId)">{{ i18n.t('common.retry') }}</button>
+                <button mat-stroked-button type="button" [attr.data-cy]="'event-image-retry-' + card.localId" (click)="retry(card.localId)">{{ card.expired ? i18n.t('eventImages.reupload') : i18n.t('common.retry') }}</button>
               }
             }
             <div class="actions" [attr.data-cy]="'event-image-actions-' + card.localId">
@@ -93,13 +94,14 @@ export class EventImageUploaderComponent implements OnDestroy {
   private readonly baseUrl = inject(API_BASE_URL);
   readonly i18n = inject(I18nService);
   private readonly requests = new Map<string, Subscription>();
+  private expiryTimer?: ReturnType<typeof setTimeout>;
   private nextId = 0;
 
   readonly cards = signal<EventImageUploadCard[]>([]);
   readonly limitError = signal('');
   readonly hasPending = computed(() => this.cards().some(card => card.status === 'pending'));
-  readonly publishBlocked = computed(() => this.cards().some(card => card.status !== 'uploaded'));
-  readonly uploadedImages = computed(() => this.cards().flatMap(card => card.response ? [card.response] : []));
+  readonly publishBlocked = computed(() => this.cards().some(card => card.status !== 'uploaded' || card.expired));
+  readonly uploadedImages = computed(() => this.cards().flatMap(card => card.response && !card.expired ? [card.response] : []));
   readonly selectedImages = computed<EventImageSelection[]>(() => this.cards().flatMap(card =>
     card.response && card.status === 'uploaded'
       ? [{
@@ -134,6 +136,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         retryDelete: false,
         retryPreview: false,
         removePending: false,
+        expired: false,
         objectUrls: [previewUrl]
       };
       this.cards.update(cards => [...cards, card]);
@@ -181,7 +184,7 @@ export class EventImageUploaderComponent implements OnDestroy {
     if (!card || card.removePending) return;
     this.requests.get(localId)?.unsubscribe();
     this.requests.delete(localId);
-    if (card.response)
+    if (card.response && !card.expired && !this.responseExpired(card.response))
     {
       this.patch(localId, { status: 'pending', progress: 0, error: '', retryUpload: false, retryDelete: false, retryPreview: false, removePending: true });
       try
@@ -226,6 +229,7 @@ export class EventImageUploaderComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.expiryTimer) clearTimeout(this.expiryTimer);
     for (const request of this.requests.values()) request.unsubscribe();
     for (const card of this.cards()) this.revoke(card.objectUrls);
   }
@@ -234,7 +238,16 @@ export class EventImageUploaderComponent implements OnDestroy {
     const card = this.find(localId);
     if (!card) return;
     this.requests.get(localId)?.unsubscribe();
-    this.patch(localId, { status: 'pending', progress: 0, error: '', retryUpload: false, retryDelete: false, retryPreview: false });
+    this.patch(localId, {
+      status: 'pending',
+      progress: 0,
+      response: undefined,
+      error: '',
+      retryUpload: false,
+      retryDelete: false,
+      retryPreview: false,
+      expired: false
+    });
     const form = new FormData();
     form.append('file', card.file, card.file.name);
     const request = this.http.request<EventImageUploadResponse>('POST', joinApiUrl(this.baseUrl, '/api/event-images'), {
@@ -257,10 +270,12 @@ export class EventImageUploaderComponent implements OnDestroy {
             error: '',
             retryUpload: false,
             retryDelete: false,
-            retryPreview: false
+            retryPreview: false,
+            expired: false
           });
           this.requests.delete(localId);
-          this.loadPreviews(localId, event.body);
+          if (this.responseExpired(event.body)) this.markExpired(localId);
+          else this.loadPreviews(localId, event.body);
         }
       },
       error: () => {
@@ -281,6 +296,10 @@ export class EventImageUploaderComponent implements OnDestroy {
       next: blobs => {
         const card = this.find(localId);
         if (!card) return;
+        if (this.responseExpired(response)) {
+          this.markExpired(localId);
+          return;
+        }
         this.revoke(card.objectUrls);
         const objectUrls = blobs.map(blob => URL.createObjectURL(blob));
         this.patch(localId, {
@@ -291,6 +310,7 @@ export class EventImageUploaderComponent implements OnDestroy {
           retryUpload: false,
           retryDelete: false,
           retryPreview: false,
+          expired: false,
           objectUrls
         });
         this.requests.delete(localId);
@@ -310,7 +330,65 @@ export class EventImageUploaderComponent implements OnDestroy {
   }
 
   private fail(localId: string, error: string, retryUpload = false): void {
-    this.patch(localId, { status: 'error', error, retryUpload, retryDelete: false, retryPreview: false });
+    this.patch(localId, { status: 'error', error, retryUpload, retryDelete: false, retryPreview: false, expired: false });
+  }
+
+  private markExpired(localId: string): void {
+    this.requests.get(localId)?.unsubscribe();
+    this.requests.delete(localId);
+    this.patch(localId, {
+      status: 'error',
+      error: this.i18n.t('eventImages.expired'),
+      retryUpload: true,
+      retryDelete: false,
+      retryPreview: false,
+      removePending: false,
+      expired: true
+    });
+  }
+
+  private expireReadyCards(): void {
+    const expiredIds = this.cards()
+      .filter(card => card.response && !card.expired && this.responseExpired(card.response))
+      .map(card => card.localId);
+    for (const localId of expiredIds) {
+      this.requests.get(localId)?.unsubscribe();
+      this.requests.delete(localId);
+    }
+    if (expiredIds.length) {
+      const expired = new Set(expiredIds);
+      this.cards.update(cards => cards.map(card => expired.has(card.localId) ? {
+        ...card,
+        status: 'error',
+        error: this.i18n.t('eventImages.expired'),
+        retryUpload: true,
+        retryDelete: false,
+        retryPreview: false,
+        removePending: false,
+        expired: true
+      } : card));
+    }
+    this.emitState();
+  }
+
+  private responseExpired(response: EventImageUploadResponse): boolean {
+    const expiresAt = Date.parse(response.expiresAt);
+    return !Number.isFinite(expiresAt) || Date.now() >= expiresAt;
+  }
+
+  private scheduleExpiry(): void {
+    if (this.expiryTimer) clearTimeout(this.expiryTimer);
+    this.expiryTimer = undefined;
+    const expiries = this.cards()
+      .filter(card => card.response && !card.expired)
+      .map(card => Date.parse(card.response!.expiresAt))
+      .filter(Number.isFinite);
+    if (!expiries.length) return;
+    const delay = Math.min(2_147_483_647, Math.max(0, Math.min(...expiries) - Date.now()));
+    this.expiryTimer = setTimeout(() => {
+      this.expiryTimer = undefined;
+      this.expireReadyCards();
+    }, delay);
   }
 
   private move(localId: string, offset: number): void {
@@ -337,6 +415,7 @@ export class EventImageUploaderComponent implements OnDestroy {
   }
 
   private emitState(): void {
+    this.scheduleExpiry();
     this.imagesChange.emit(this.selectedImages());
     this.publishBlockedChange.emit(this.publishBlocked());
   }

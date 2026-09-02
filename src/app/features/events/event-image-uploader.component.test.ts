@@ -24,6 +24,8 @@ const copy: Record<string, string> = {
   'eventImages.uploadFailed': 'Image upload failed.',
   'eventImages.previewFailed': 'Processed image previews could not load.',
   'eventImages.removeFailed': 'Image removal failed.',
+  'eventImages.expired': 'Image upload expired. Re-upload or remove it.',
+  'eventImages.reupload': 'Re-upload',
   'eventImages.moveLeft': 'Move left',
   'eventImages.moveRight': 'Move right',
   'eventImages.moveLeftNamed': 'Move {name} left',
@@ -39,12 +41,12 @@ const i18n = {
     .reduce((value, [name, replacement]) => value.replace(`{${name}}`, String(replacement)), copy[key] ?? key)
 };
 
-const uploaded = (id: string): EventImageUploadResponse => ({
+const uploaded = (id: string, expiresAt = '2030-01-02T12:00:00Z'): EventImageUploadResponse => ({
   id,
   state: 'Temporary',
   width: 960,
   height: 540,
-  expiresAt: '2030-01-02T12:00:00Z',
+  expiresAt,
   variants: [
     { width: 320, height: 180, url: `/api/event-images/${id}/variants/320` },
     { width: 960, height: 540, url: `/api/event-images/${id}/variants/960` }
@@ -95,9 +97,9 @@ function setupDom() {
   return { fixture, component: fixture.componentInstance, http, requests };
 }
 
-function finish(subject: Subject<HttpEvent<EventImageUploadResponse>>, id: string): void {
+function finish(subject: Subject<HttpEvent<EventImageUploadResponse>>, id: string, expiresAt?: string): void {
   subject.next({ type: HttpEventType.UploadProgress, loaded: 2, total: 3 });
-  subject.next(new HttpResponse({ status: 201, body: uploaded(id) }));
+  subject.next(new HttpResponse({ status: 201, body: uploaded(id, expiresAt) }));
   subject.complete();
 }
 
@@ -163,6 +165,47 @@ describe('EventImageUploaderComponent', () => {
       altText: 'Main hall',
       previewUrl: expect.stringContaining('blob:')
     })]);
+  });
+
+  it('blocks at response expiry and supports re-upload or local removal without losing card draft state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T12:00:00Z'));
+    try {
+      const { component, http, requests } = setup();
+      const blockedStates: boolean[] = [];
+      component.publishBlockedChange.subscribe(value => blockedStates.push(value));
+      component.addFiles([file('one.png'), file('two.png')]);
+      finish(requests[0], 'one', '2030-01-01T12:00:01Z');
+      finish(requests[1], 'two', '2030-01-01T12:00:01Z');
+      const [one, two] = component.cards().map(card => card.localId);
+      component.setAltText(one, { target: { value: '  Main hall  ' } } as unknown as Event);
+
+      await vi.advanceTimersByTimeAsync(999);
+      expect(component.publishBlocked()).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(component.cards().map(card => card.expired)).toEqual([true, true]);
+      expect(component.cards().map(card => card.status)).toEqual(['error', 'error']);
+      expect(component.selectedImages()).toEqual([]);
+      expect(component.publishBlocked()).toBe(true);
+      expect(blockedStates.at(-1)).toBe(true);
+
+      component.retry(one);
+      expect(component.cards()[0].altText).toBe('  Main hall  ');
+      expect(component.cards()[1].localId).toBe(two);
+      finish(requests[2], 'one-reuploaded', '2030-01-02T12:00:00Z');
+      expect(component.selectedImages()).toEqual([expect.objectContaining({
+        imageId: 'one-reuploaded',
+        altText: 'Main hall'
+      })]);
+
+      await component.remove(two);
+      expect(http.delete).not.toHaveBeenCalled();
+      expect(component.cards()).toHaveLength(1);
+      expect(component.publishBlocked()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('caps cards at five and reports excess files without replacing peers', () => {

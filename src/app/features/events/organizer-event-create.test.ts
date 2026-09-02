@@ -89,9 +89,15 @@ describe('Organizer Event create state', () => {
     expect(component).toContain("gones.event-editor.preview-collapsed");
     expect(component).toContain('aria-controls="event-live-preview"');
     expect(component).toContain('[attr.aria-expanded]="!previewCollapsed()"');
+    expect(component).toContain('[hidden]="previewCollapsed()"');
     expect(styles).toContain('@media (min-width: 1024px)');
     expect(styles).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)');
     expect(styles).toContain('position: sticky');
+  });
+
+  it('enforces title maxlength in browser markup', () => {
+    const component = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
+    expect(component).toContain('data-cy="event-title" formControlName="title" autocomplete="off" maxlength="160"');
   });
 
   it('keeps direct idempotency key stable through retry and resets after edit', () => {

@@ -1084,6 +1084,16 @@
         "responses": {
           "201": {
             "description": "Created",
+            "headers": {
+              "Location": {
+                "description": "Relative URL of the published Event.",
+                "required": true
+              },
+              "ETag": {
+                "description": "Strong entity tag for the published Event.",
+                "required": true
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -10401,8 +10411,6 @@
         "required": [
           "organizationId",
           "title",
-          "summary",
-          "bodyMarkdown",
           "location",
           "eventType",
           "startsAtLocal",
@@ -10419,20 +10427,6 @@
           "title": {
             "maxLength": 160,
             "type": "string"
-          },
-          "summary": {
-            "maxLength": 50,
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "bodyMarkdown": {
-            "maxLength": 20000,
-            "type": [
-              "null",
-              "string"
-            ]
           },
           "location": {
             "$ref": "#/components/schemas/EventLocationInput"
@@ -10473,6 +10467,20 @@
             "items": {
               "$ref": "#/components/schemas/EventImageInput"
             }
+          },
+          "summary": {
+            "maxLength": 50,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyMarkdown": {
+            "maxLength": 20000,
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -10492,6 +10500,85 @@
             "type": "string"
           },
           "slug": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "EventProposalPayloadRequest": {
+        "required": [
+          "organizationId",
+          "title",
+          "location",
+          "eventType",
+          "startsAtLocal",
+          "capacity",
+          "formatIds",
+          "images"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "maxLength": 160,
+            "type": "string"
+          },
+          "location": {
+            "$ref": "#/components/schemas/EventLocationInput"
+          },
+          "eventType": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PublicCalendarEventType"
+              }
+            ]
+          },
+          "startsAtLocal": {
+            "type": "string"
+          },
+          "capacity": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "formatIds": {
+            "maxItems": 1,
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "images": {
+            "maxItems": 0,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventImageInput"
+            }
+          },
+          "summary": {
+            "maxLength": 50,
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bodyMarkdown": {
+            "maxLength": 20000,
             "type": [
               "null",
               "string"
@@ -10520,7 +10607,7 @@
         "type": "object",
         "properties": {
           "event": {
-            "$ref": "#/components/schemas/EventPayloadRequest"
+            "$ref": "#/components/schemas/EventProposalPayloadRequest"
           },
           "recipientUserIds": {
             "maxItems": 10,

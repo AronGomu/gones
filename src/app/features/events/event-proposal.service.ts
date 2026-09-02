@@ -6,7 +6,8 @@ import {
   EventPayloadRequest,
   EventProposalDecisionResponse,
   EventProposalResponse,
-  EventProposalReviewResponse
+  EventProposalReviewResponse,
+  PublicCalendarEventType
 } from '../../api/generated/gones-api';
 
 export function sortApprovers(approvers: ProposalApproverResponse[]): ProposalApproverResponse[] {
@@ -30,7 +31,10 @@ export class EventProposalService {
   }
 
   submit(event: EventPayloadRequest, recipientUserIds: string[]): Promise<EventProposalResponse> {
-    return firstValueFrom(this.client.eventProposals({ event, recipientUserIds }));
+    return firstValueFrom(this.client.eventProposals({
+      event: { ...event, eventType: event.eventType as PublicCalendarEventType },
+      recipientUserIds
+    }));
   }
 
   reviewByToken(token: string): Promise<EventProposalReviewResponse> {
