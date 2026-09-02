@@ -88,9 +88,9 @@ required targets:
 - [x] 6. Run clean-volume real Event media lifecycle through API, PostgreSQL, and MinIO. — verify: `npm run release:rehearsal` uploads fixture bytes, directly creates then edits an Event, submits then token-approves a User proposal, and reads public variants with exact cache/ETag/order/alt assertions.
 - [x] 7. Cover editor and gallery browser acceptance gaps. — verify: scoped Cypress proves axe on editor/uploader/reorder controls and open lightbox, 375px axe/overflow, one failed image does not break remaining gallery, and no-summary/no-body/no-image publication succeeds.
 - [x] 8. Emit deterministic Event-owned variant ETags. — verify: `EventImageApiTests.Temporary_variant_is_owner_only_no_store_while_EventOwned_is_anonymous_immutable` proves stable ETag on repeated public reads.
-- [ ] 9. Harden release evidence. — verify: release journey checks publication `Location` origin plus path; `npm run images:build && npm run images:verify` proves every image revision label equals current `HEAD`; stale-revision unit test passes.
+- [x] 9. Harden release evidence. — verify: release journey checks publication `Location` origin plus path; `npm run images:build && npm run images:verify` proves every image revision label equals current `HEAD`; stale-revision unit test passes.
 - [x] 10. Bind T8 matrix evidence to exact executable assertions. — verify: `npm run acceptance:matrix` plus `ops/acceptance-matrix.test.ts` prove each integrated Event target names an assertion present in target source.
-- [ ] 11. Run final gates and commit exact paths without push/merge. — verify: every command under Validation passes on final source; `git diff --check` passes; commit exists on `ticket/event-editor-T8`.
+- [x] 11. Run final gates and commit exact paths without push/merge. — verify: every command under Validation passes on final source; `git diff --check` passes; commit exists on `ticket/event-editor-T8`.
 
 ## Validation
 
@@ -103,8 +103,8 @@ required targets:
 - [x] `npm run cy:run`
 - [x] `npm run acceptance:matrix`
 - [x] `npm run e2e:ci`
-- [ ] `npm run images:build`
-- [ ] `npm run images:verify`
+- [x] `npm run images:build`
+- [x] `npm run images:verify`
 - [x] `npm run build`
 - [x] `npm run api:generate` leaves generated API paths unchanged
 - [x] `npm run release:rehearsal`
@@ -112,4 +112,4 @@ required targets:
 - [x] manual check: desktop split/retract + mobile preview ordering + keyboard lightbox/reorder
 - [x] no silent-failure swallow on added path — `none`
 - [x] app functional — clean reset supports create/edit/proposal/public detail with fake providers
-- [ ] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
+- [x] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
