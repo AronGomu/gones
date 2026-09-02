@@ -118,7 +118,7 @@ required targets:
 
 - [x] 12. Make initial release-test teardown and clean-volume checks hard prerequisites. — evidence: `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` passed (2 files, 17 tests), including failed teardown, leftover volume, and required fresh-volume assertions.
 - [x] 13. Serialize release rehearsals and recover stale locks. — evidence: same focused run passed live-owner contention, dead-owner recovery, failure cleanup, and SIGTERM cleanup tests.
-- [ ] 14. Re-run unchanged-HEAD release evidence and commit exact repair paths. — verify: focused ops tests, `npm run acceptance:matrix`, two sequential `npm run release:rehearsal` runs at one unchanged `HEAD`, and `git diff --check` all pass; repair commit exists without push/merge.
+- [x] 14. Re-run unchanged-HEAD release evidence and commit exact repair paths. — evidence: focused ops tests, matrix, two sequential rehearsals at `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`, and diff/residue scans passed; repair commit `1e86e38` exists without push/merge.
 
 ## OPS final repair validation
 
