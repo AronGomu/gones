@@ -211,7 +211,7 @@
     "organizationKey": "gones-lyon",
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Commander Social",
-    "summary": "Casual Legacy evening with no cap.",
+    "summary": "Casual Legacy evening with 64 seats.",
     "streetAddress": "45 cours Emile Zola",
     "postalCode": "69100",
     "city": "Villeurbanne",
@@ -221,7 +221,7 @@
     "startsAtLocalTime": "18:30",
     "endsAtLocalOffsetDays": 10,
     "endsAtLocalTime": "23:00",
-    "capacity": null,
+    "capacity": 64,
     "formatKeys": [
       "legacy"
     ],
@@ -234,7 +234,7 @@
     "organizationKey": "gones-lyon",
     "organizerEmail": "organizer-gones-one-registration@gones.test",
     "title": "Gones Commander Social",
-    "summary": "Casual Commander evening with no cap.",
+    "summary": "Casual Commander evening with 64 seats.",
     "streetAddress": "45 cours Emile Zola",
     "postalCode": "69100",
     "city": "Villeurbanne",
@@ -244,7 +244,7 @@
     "startsAtLocalTime": "18:30",
     "endsAtLocalOffsetDays": 10,
     "endsAtLocalTime": "23:00",
-    "capacity": null,
+    "capacity": 64,
     "formatKeys": [
       "commander"
     ],

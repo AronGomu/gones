@@ -150,6 +150,21 @@ describe('EventImageUploaderComponent', () => {
     expect(component.publishBlocked()).toBe(false);
   });
 
+  it('emits ordered image IDs with optional trimmed alt text and preview metadata', () => {
+    const { component, requests } = setup();
+    component.addFiles([file('hero.png')]);
+    finish(requests[0], 'hero');
+    const localId = component.cards()[0].localId;
+
+    component.setAltText(localId, { target: { value: '  Main hall  ' } } as unknown as Event);
+
+    expect(component.selectedImages()).toEqual([expect.objectContaining({
+      imageId: 'hero',
+      altText: 'Main hall',
+      previewUrl: expect.stringContaining('blob:')
+    })]);
+  });
+
   it('caps cards at five and reports excess files without replacing peers', () => {
     const { component, requests } = setup();
     component.addFiles(Array.from({ length: 6 }, (_, index) => file(`${index}.png`)));

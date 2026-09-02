@@ -19,7 +19,7 @@ const eventId = (params: Record<string, unknown>) => encodeURIComponent(String(p
 
 const registrationAndOrganizerRoutes: Routes = [
   { path: 'registrations', canActivate: [userGuard], loadComponent: () => import('./features/events/my-registrations.component').then((m) => m.MyRegistrationsComponent) },
-  { path: 'events/new', canActivate: [organizerGuard, verifiedEmailGuard, powerUserGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
+  { path: 'events/new', canActivate: [userGuard, verifiedEmailGuard, powerUserGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/events', canActivate: [organizerGuard], loadComponent: () => import('./features/events/organizer-event-list.component').then((m) => m.OrganizerEventListComponent) },
   { path: 'organizer/events/:id/edit', canActivate: [organizerGuard, verifiedEmailGuard, powerUserGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/events/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/events/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) },

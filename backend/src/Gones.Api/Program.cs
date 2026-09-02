@@ -34,7 +34,9 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
-var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(builder.Configuration);
+var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(
+    builder.Configuration,
+    useFakeLocationProvider: builder.Environment.IsDevelopment());
 builder.Services.AddSingleton<IEventLocationTokenService, EventLocationTokenService>();
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
@@ -141,7 +143,6 @@ else
     builder.Services.AddSingleton(EventRegistrationOptions.Load(builder.Configuration));
     builder.Services.AddScoped<IOrganizationDeleteDependency, EventOrganizationDeleteDependency>();
     builder.Services.AddScoped<IOrganizationDeleteDependency, RegistrationOrganizationDeleteDependency>();
-    builder.Services.AddSingleton<EventPreviewTicketService>();
     if (runtimeConfiguration.Features.AuthV1)
     {
         builder.Services.AddGonesLocalIdentity();
@@ -221,6 +222,19 @@ app.UseStatusCodePages(async statusContext =>
     problem.Extensions["message"] = problem.Detail;
     problem.Extensions["traceId"] = statusContext.HttpContext.TraceIdentifier;
     await response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json");
+});
+// A deleted literal endpoint overlaps the public `{slug}` GET template. Endpoint routing would
+// otherwise answer POST with 405 even though no POST endpoint exists; deleted APIs must be 404.
+app.Use(async (context, next) =>
+{
+    await next();
+    if (!context.Response.HasStarted
+        && context.Response.StatusCode == StatusCodes.Status405MethodNotAllowed
+        && HttpMethods.IsPost(context.Request.Method)
+        && context.Request.Path.Equals("/api/events/preview", StringComparison.Ordinal))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+    }
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
 app.UseAuthentication();

@@ -130,11 +130,11 @@ public sealed class ScheduledTournamentPersistenceTests : IAsyncLifetime
         var end = endsBeforeStart ? Instant.FromUtc(2026, 8, 2, 7, 0) : Instant.FromUtc(2026, 8, 2, 16, 0);
         await db.Database.ExecuteSqlRawAsync("""
             INSERT INTO events
-                (id, organization_id, title, slug, summary, body_markdown, street_address, postal_code, city, country, region, event_type, time_zone_id,
+                (id, organization_id, title, slug, summary, body_markdown, street_address, postal_code, city, country, region, provider_place_id, latitude, longitude, event_type, time_zone_id,
                  venue_start_date, venue_start_time, venue_end_date, venue_end_time, starts_at_utc, ends_at_utc, capacity, status,
                  created_by_user_id, created_at, updated_at, normalized_search_text, version)
             VALUES
-                ({0}, {1}, 'Raw Cup', {2}, 'Raw', 'Raw', '12 Rue de la Paix', '69001', 'Lyon', 'France', 'Auvergne-Rhône-Alpes', {9}, 'Europe/Paris',
+                ({0}, {1}, 'Raw Cup', {2}, 'Raw', 'Raw', '12 Rue de la Paix', '69001', 'Lyon', 'France', 'Auvergne-Rhône-Alpes', 'raw-place', 45.764, 4.8357, {9}, 'Europe/Paris',
                  DATE '2026-08-02', TIME '10:00:00', DATE '2026-08-02', TIME '18:00:00', {3}, {4}, {5}, {6},
                  {7}, {8}, {8}, 'RAW CUP RAW LYON FRANCE', 1)
             """,

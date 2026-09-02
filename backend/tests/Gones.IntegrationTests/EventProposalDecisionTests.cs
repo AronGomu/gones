@@ -4,6 +4,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Gones.Api.Events;
+using Gones.Application.Events;
 using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Catalog;
@@ -78,13 +80,15 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(expected.BodyMarkdown, tournament.GetProperty("bodyMarkdown").GetString());
         Assert.False(tournament.TryGetProperty("bodyHtml", out _));
         Assert.Equal("<p>Welcome</p>", body.GetProperty("bodyHtml").GetString());
-        Assert.Equal(expected.StreetAddress, tournament.GetProperty("streetAddress").GetString());
-        Assert.Equal(expected.PostalCode, tournament.GetProperty("postalCode").GetString());
-        Assert.Equal(expected.City, tournament.GetProperty("city").GetString());
-        Assert.Equal(expected.Country, tournament.GetProperty("country").GetString());
-        Assert.Equal(expected.TimeZoneId, tournament.GetProperty("timeZoneId").GetString());
+        var location = tournament.GetProperty("location");
+        Assert.Equal(expected.Location.StreetAddress, location.GetProperty("streetAddress").GetString());
+        Assert.Equal(expected.Location.PostalCode, location.GetProperty("postalCode").GetString());
+        Assert.Equal(expected.Location.City, location.GetProperty("city").GetString());
+        Assert.Equal(expected.Location.Country, location.GetProperty("country").GetString());
+        Assert.Equal(expected.Location.Region, location.GetProperty("region").GetString());
+        Assert.False(tournament.TryGetProperty("timeZoneId", out _));
         Assert.Equal(expected.StartsAtLocal, tournament.GetProperty("startsAtLocal").GetString());
-        Assert.Equal(expected.EndsAtLocal, tournament.GetProperty("endsAtLocal").GetString());
+        Assert.False(tournament.TryGetProperty("endsAtLocal", out _));
         Assert.Equal(expected.Capacity, tournament.GetProperty("capacity").GetInt32());
         Assert.Equal(
             new[] { seed.Legacy.Id },
@@ -108,9 +112,8 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         output.WriteLine($"GET by-token (display names) -> {body}");
         Assert.Equal(seed.Alpha.Name, body.GetProperty("organizationName").GetString());
-        // "doubles" sorts before "legacy": the response must follow the same slug order publishing uses.
         Assert.Equal(
-            new[] { extra.Name, seed.Legacy.Name },
+            new[] { extra.Name },
             body.GetProperty("formatNames").EnumerateArray().Select(item => item.GetString()).ToArray());
     }
 
@@ -242,6 +245,21 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         Assert.Equal(seed.Alpha.Id, tournament.OrganizationId);
         Assert.Equal("Auvergne-Rhône-Alpes", tournament.Region);
         Assert.Equal(CalendarEventType.Weekly, tournament.EventType);
+    }
+
+    [Fact]
+    public async Task Approve_uses_submission_validated_location_after_client_token_expires()
+    {
+        var proposal = await SeedProposalAsync();
+        clock.Advance(EventLocationTokenService.Lifetime + Duration.FromMinutes(1));
+
+        using var response = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var database = CreateContext();
+        var published = await database.Events.AsNoTracking().SingleAsync();
+        Assert.Equal("google-place-id", published.ProviderPlaceId);
+        Assert.Equal("Europe/Paris", published.TimeZoneId);
     }
 
     [Fact]
@@ -620,15 +638,13 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     {
         var organizerToken = NewToken();
         var adminToken = NewToken();
-        var payload = JsonNode.Parse(JsonSerializer.Serialize(Payload(extraFormat), PayloadJsonOptions))!.AsObject();
-        if (legacyPayload)
-        {
-            payload.Remove("region");
-            payload.Remove("eventType");
-        }
+        var payload = Payload(extraFormat);
+        var proposalJson = legacyPayload
+            ? JsonSerializer.Serialize(new { payload.OrganizationId, payload.Title }, PayloadJsonOptions)
+            : JsonSerializer.Serialize(EventProposalEnvelope.Create(payload, ValidatedLocation(payload.Location)), PayloadJsonOptions);
         var proposal = EventProposal.Create(
             seed.Submitter.Id,
-            payload.ToJsonString(PayloadJsonOptions),
+            proposalJson,
             clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Organizer.Id, Sha256Hex(organizerToken), clock.GetCurrentInstant());
         proposal.AddRecipient(seed.Admin.Id, Sha256Hex(adminToken), clock.GetCurrentInstant());
@@ -707,20 +723,35 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         return user;
     }
 
-    private TournamentPayload Payload(TournamentFormat? extraFormat = null) => new(
+    private EventPayloadRequest Payload(TournamentFormat? extraFormat = null) => new(
         seed.Alpha.Id,
         "Summer Cup",
         "Featured",
         "Welcome",
-        "12 Rue de la Paix",
-        "75001",
-        "Paris",
-        "France",
-        "Europe/Paris",
-        "2035-03-04T10:00:00",
-        "2035-03-04T18:00:00",
+        new EventLocationInput(
+            "12 Rue de la Paix",
+            "75001",
+            "Paris",
+            "France",
+            "Auvergne-Rhône-Alpes",
+            "valid-location-token"),
+        PublicCalendarEventType.Weekly,
+        "2035-03-04T10:00",
         64,
-        extraFormat is null ? [seed.Legacy.Id] : [seed.Legacy.Id, extraFormat.Id]);
+        [extraFormat?.Id ?? seed.Legacy.Id],
+        []);
+
+    private static ValidatedEventLocation ValidatedLocation(EventLocationInput input) => new(
+        "google-place-id",
+        input.StreetAddress,
+        input.PostalCode,
+        input.City,
+        input.Country,
+        input.Region,
+        45.764m,
+        4.8357m,
+        "Europe/Paris",
+        Now + EventLocationTokenService.Lifetime);
 
     private GonesDbContext CreateContext()
     {
@@ -744,23 +775,6 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         ApplicationUser Organizer,
         ApplicationUser Admin,
         TournamentFormat Legacy);
-
-    private sealed record TournamentPayload(
-        Guid OrganizationId,
-        string Title,
-        string? Summary,
-        string? BodyMarkdown,
-        string StreetAddress,
-        string? PostalCode,
-        string City,
-        string Country,
-        string TimeZoneId,
-        string StartsAtLocal,
-        string? EndsAtLocal,
-        int? Capacity,
-        IReadOnlyList<Guid> FormatIds,
-        string Region = "Auvergne-Rhône-Alpes",
-        string EventType = "weekly");
 
     private sealed class MutableClock(Instant current) : IClock
     {

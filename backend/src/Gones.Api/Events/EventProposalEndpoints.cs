@@ -8,6 +8,7 @@ using Gones.Api.Identity;
 using Gones.Api.Organizations;
 using Gones.Api.Security;
 using Gones.Api.Validation;
+using Gones.Application.Events;
 using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Identity;
@@ -149,7 +150,8 @@ internal static class EventProposalEndpoints
     {
         var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
-        var payload = Payload(proposal);
+        var envelope = Envelope(proposal);
+        var payload = envelope.Event;
         var organizationName = await database.Organizations.AsNoTracking()
             .Where(organization => organization.Id == payload.OrganizationId && organization.DeletedAt == null)
             .Select(organization => organization.Name)
@@ -163,6 +165,8 @@ internal static class EventProposalEndpoints
             proposal.Id,
             payload,
             payload.BodyMarkdown is null ? null : markdown.RenderAndSanitize(payload.BodyMarkdown),
+            envelope.Location.TimeZoneId,
+            DerivedEnd(payload.StartsAtLocal),
             proposal.Status.ToString(),
             await UsernameAsync(database, proposal.SubmittedByUserId, cancellationToken),
             await UsernameAsync(database, recipient.UserId, cancellationToken),
@@ -198,7 +202,8 @@ internal static class EventProposalEndpoints
         var proposalId = proposal.Id;
         var approverUserId = recipient.UserId;
         var submitterUserId = proposal.SubmittedByUserId;
-        var payload = Payload(proposal);
+        var envelope = Envelope(proposal);
+        var payload = envelope.Event;
 
         database.ChangeTracker.Clear();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
@@ -214,7 +219,7 @@ internal static class EventProposalEndpoints
             submitterUserId,
             isAdmin: false,
             $"tournament-proposal:{proposalId:D}",
-            previewTicket: null,
+            envelope.Location,
             cancellationToken,
             // The *submitter* is not a member of the target organization — that is the whole reason
             // the proposal exists, and T26 kept it that way. What T26 narrowed is the other side:
@@ -393,12 +398,39 @@ internal static class EventProposalEndpoints
             Convert.FromHexString(storedHash),
             Convert.FromHexString(computedHash));
 
-    private static EventPayloadRequest Payload(EventProposal proposal)
+    private static string DerivedEnd(string startsAtLocal) =>
+        startsAtLocal.Length >= 10 ? $"{startsAtLocal[..10]}T23:59:59" : string.Empty;
+
+    private static EventPayloadRequest Payload(EventProposal proposal) => Envelope(proposal).Event;
+
+    private static EventProposalEnvelope Envelope(EventProposal proposal)
     {
-        var payload = JsonSerializer.Deserialize<EventPayloadRequest>(proposal.PayloadJson, PayloadJsonOptions)
+        var envelope = JsonSerializer.Deserialize<EventProposalEnvelope>(proposal.PayloadJson, PayloadJsonOptions)
             ?? throw new ResourceConflictException();
-        if (string.IsNullOrWhiteSpace(payload.Region) || payload.EventType is null) throw new ResourceConflictException();
-        return payload;
+        if (envelope.Version != EventProposalEnvelope.CurrentVersion
+            || envelope.Event is null
+            || envelope.Event.Location is null
+            || envelope.Event.Images is null
+            || envelope.Event.Images.Count != 0
+            || envelope.Location is null
+            || string.IsNullOrWhiteSpace(envelope.PayloadHash))
+        {
+            throw new ResourceConflictException();
+        }
+        try
+        {
+            EventPublicationService.ValidatePayloadShape(envelope.Event);
+        }
+        catch (ApiValidationException)
+        {
+            throw new ResourceConflictException();
+        }
+        if (!EventPublicationService.FixedTimePayloadHash(envelope.PayloadHash, EventPublicationService.PayloadHash(envelope.Event))
+            || !EventPublicationService.LocationMatches(envelope.Event.Location, envelope.Location))
+        {
+            throw new ResourceConflictException();
+        }
+        return envelope;
     }
 
     private static async Task<string> UsernameAsync(GonesDbContext database, Guid userId, CancellationToken cancellationToken) =>
@@ -470,7 +502,7 @@ internal sealed class EventProposalService(
         // has to be a well-formed one before it can say which organization that is.
         ValidatePayloadShape(request.Event);
         var recipients = await LoadRecipientsAsync(request.Event.OrganizationId, request.RecipientUserIds, cancellationToken);
-        await publication.ValidateProposalPayloadAsync(submitterUserId, request.Event, cancellationToken);
+        var location = await publication.ValidateProposalPayloadAsync(submitterUserId, request.Event, cancellationToken);
 
         var formatNames = await database.TournamentFormats.AsNoTracking()
             .Where(format => request.Event.FormatIds.Contains(format.Id))
@@ -480,9 +512,10 @@ internal sealed class EventProposalService(
 
         var reviewOrigin = AccountLifecycleOptions.Load(configuration).PublicOrigin;
         var now = clock.GetCurrentInstant();
+        var envelope = EventProposalEnvelope.Create(request.Event, location);
         var proposal = EventProposal.Create(
             submitterUserId,
-            JsonSerializer.Serialize(request.Event, StoredJsonOptions),
+            JsonSerializer.Serialize(envelope, StoredJsonOptions),
             now);
         // Distinct token per recipient: the approver behind a review link has to be provable from
         // the token alone, so two recipients must never share one.
@@ -513,10 +546,10 @@ internal sealed class EventProposalService(
                     Present(request.Event.Summary),
                     VenueAddress(request.Event),
                     Present(request.Event.StartsAtLocal),
-                    Present(request.Event.EndsAtLocal),
-                    request.Event.TimeZoneId,
+                    Present(ProposalEnd(request.Event.StartsAtLocal)),
+                    location.TimeZoneId,
                     formatNames.Count > 0 ? string.Join(", ", formatNames) : AbsentValue,
-                    request.Event.Capacity?.ToString(CultureInfo.InvariantCulture) ?? AbsentValue,
+                    request.Event.Capacity.ToString(CultureInfo.InvariantCulture),
                     reviewUrl),
                 recipient.UserId));
         }
@@ -572,36 +605,21 @@ internal sealed class EventProposalService(
     /// The endpoint filter only validates the top-level request, so the nested payload's own
     /// annotations are applied here — the proposal must satisfy the same contract as a direct publish.
     /// </summary>
-    private static void ValidatePayloadShape(EventPayloadRequest payload)
-    {
-        var results = new List<ValidationResult>();
-        if (Validator.TryValidateObject(payload, new ValidationContext(payload), results, validateAllProperties: true)) return;
-        var failures = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        foreach (var result in results)
-        {
-            foreach (var member in result.MemberNames.DefaultIfEmpty("event"))
-            {
-                var key = $"event.{JsonNamingPolicy.CamelCase.ConvertName(member)}";
-                if (!failures.TryGetValue(key, out var messages)) failures[key] = messages = [];
-                messages.Add(result.ErrorMessage ?? "Invalid value.");
-            }
-        }
-
-        throw new ApiValidationException(failures.ToDictionary(
-            pair => pair.Key,
-            pair => pair.Value.Distinct(StringComparer.Ordinal).ToArray(),
-            StringComparer.Ordinal));
-    }
+    private static void ValidatePayloadShape(EventPayloadRequest payload) =>
+        EventPublicationService.ValidatePayloadShape(payload, "event.");
 
     private static string VenueAddress(EventPayloadRequest payload) => string.Join(
         ", ",
         new[]
         {
-            payload.StreetAddress,
-            string.IsNullOrWhiteSpace(payload.PostalCode) ? payload.City : $"{payload.PostalCode} {payload.City}",
-            payload.Region,
-            payload.Country
+            payload.Location.StreetAddress,
+            $"{payload.Location.PostalCode} {payload.Location.City}",
+            payload.Location.Region,
+            payload.Location.Country
         }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    private static string ProposalEnd(string startsAtLocal) =>
+        startsAtLocal.Length >= 10 ? $"{startsAtLocal[..10]}T23:59:59" : AbsentValue;
 
     private static string Present(string? value) => string.IsNullOrWhiteSpace(value) ? AbsentValue : value.Trim();
 
@@ -612,6 +630,18 @@ internal sealed class EventProposalService(
 }
 
 internal sealed record ProposalApproverResponse(Guid Id, string Username, string GlobalRole);
+
+internal sealed record EventProposalEnvelope(
+    int Version,
+    string PayloadHash,
+    EventPayloadRequest Event,
+    ValidatedEventLocation Location)
+{
+    public const int CurrentVersion = 1;
+
+    public static EventProposalEnvelope Create(EventPayloadRequest payload, ValidatedEventLocation location) =>
+        new(CurrentVersion, EventPublicationService.PayloadHash(payload), payload, location);
+}
 
 internal sealed record EventProposalRequest(
     [property: Required] EventPayloadRequest Event,
@@ -624,6 +654,8 @@ internal sealed record EventProposalReviewResponse(
     Guid Id,
     EventPayloadRequest Event,
     string? BodyHtml,
+    string TimeZoneId,
+    string EndsAtLocal,
     string Status,
     string SubmittedByUsername,
     string ApproverUsername,

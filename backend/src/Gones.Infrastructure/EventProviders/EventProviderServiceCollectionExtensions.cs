@@ -11,7 +11,10 @@ public static class EventProviderServiceCollectionExtensions
 {
     private static readonly TimeSpan GoogleRequestTimeout = TimeSpan.FromSeconds(10);
 
-    public static EventProviderRegistrations AddEventProviderFoundations(this IServiceCollection services, IConfiguration configuration)
+    public static EventProviderRegistrations AddEventProviderFoundations(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        bool useFakeLocationProvider = false)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
@@ -23,6 +26,10 @@ public static class EventProviderServiceCollectionExtensions
             services.AddTransient<GoogleTimeZoneApiKeyHandler>();
             services.AddHttpClient<IEventLocationProvider, GoogleEventLocationProvider>(client => client.Timeout = GoogleRequestTimeout)
                 .AddHttpMessageHandler<GoogleTimeZoneApiKeyHandler>();
+        }
+        else if (useFakeLocationProvider)
+        {
+            services.AddSingleton<IEventLocationProvider, FakeEventLocationProvider>();
         }
         else
         {

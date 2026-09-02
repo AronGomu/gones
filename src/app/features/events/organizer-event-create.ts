@@ -1,4 +1,4 @@
-import type { EventPayloadRequest, EventPreviewResponse } from '../../api/generated/gones-api';
+import type { EventImageInput, EventPayloadRequest } from '../../api/generated/gones-api';
 
 export interface EventDraftValue {
   organizationId: string;
@@ -15,12 +15,14 @@ export interface EventDraftValue {
   longitude: number | null;
   eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
-  startsAtLocal: string;
+  startDate: string;
+  startTime: string;
   endsAtLocal: string;
   capacity: number | null;
   formatId: string;
   liveTournamentUrl: string;
   archiveTournamentUrl: string;
+  images: EventImageInput[];
 }
 
 export function eventPayload(value: EventDraftValue): EventPayloadRequest {
@@ -29,19 +31,22 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
     title: value.title.trim(),
     summary: optional(value.summary),
     bodyMarkdown: optionalMarkdown(value.bodyMarkdown),
-    streetAddress: value.streetAddress.trim(),
-    postalCode: optional(value.postalCode),
-    city: value.city.trim(),
-    country: value.country.trim(),
-    region: value.region.trim(),
+    location: {
+      streetAddress: value.streetAddress.trim(),
+      postalCode: value.postalCode.trim(),
+      city: value.city.trim(),
+      country: value.country.trim(),
+      region: value.region.trim(),
+      locationToken: value.locationToken
+    },
     eventType: eventTypeValue(value.eventType),
-    timeZoneId: value.timeZoneId.trim(),
-    startsAtLocal: value.startsAtLocal,
-    endsAtLocal: value.endsAtLocal || undefined,
-    capacity: value.capacity ?? undefined,
+    startsAtLocal: `${value.startDate}T${value.startTime}`,
+    capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    liveTournamentUrl: optional(value.liveTournamentUrl),
-    archiveTournamentUrl: optional(value.archiveTournamentUrl)
+    images: value.images.map(image => ({
+      imageId: image.imageId,
+      altText: optional(image.altText ?? '')
+    }))
   };
 }
 
@@ -50,17 +55,10 @@ export function eventTypeValue(value: EventDraftValue['eventType']): Exclude<Eve
   return value;
 }
 
-export class PreviewPublicationState {
-  preview?: EventPreviewResponse;
+export class DirectPublicationState {
   private publishKey?: string;
 
-  accept(preview: EventPreviewResponse): void {
-    this.preview = preview;
-    this.publishKey = undefined;
-  }
-
-  invalidate(): void {
-    this.preview = undefined;
+  reset(): void {
     this.publishKey = undefined;
   }
 

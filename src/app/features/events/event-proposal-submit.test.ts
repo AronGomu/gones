@@ -64,7 +64,7 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     summary: '',
     bodyMarkdown: '',
     streetAddress: '1 rue Test',
-    postalCode: '',
+    postalCode: '69001',
     city: 'Lyon',
     country: 'France',
     region: 'Auvergne-Rhône-Alpes',
@@ -73,12 +73,14 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     longitude: 4.8357,
     eventType: 'weekly',
     timeZoneId: 'Europe/Paris',
-    startsAtLocal: '2027-08-01T10:00',
+    startDate: '2027-08-01',
+    startTime: '10:00',
     endsAtLocal: '',
-    capacity: null,
+    capacity: 32,
     formatId: 'fmt1',
     liveTournamentUrl: '',
-    archiveTournamentUrl: ''
+    archiveTournamentUrl: '',
+    images: []
   });
 }
 
@@ -122,7 +124,10 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
     await component.submitForApproval();
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
     expect(proposalsStub.submit).toHaveBeenCalledWith(expect.objectContaining({
-      region: 'Auvergne-Rhône-Alpes', eventType: 'weekly', country: 'France', city: 'Lyon', formatIds: ['fmt1']
+      eventType: 'weekly',
+      formatIds: ['fmt1'],
+      images: [],
+      location: expect.objectContaining({ region: 'Auvergne-Rhône-Alpes', country: 'France', city: 'Lyon' })
     }), ['id1']);
   });
 

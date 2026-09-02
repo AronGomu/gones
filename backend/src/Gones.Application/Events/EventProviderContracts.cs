@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+using Gones.Domain.Calendar;
 using NodaTime;
 
 namespace Gones.Application.Events;
@@ -22,12 +24,12 @@ public sealed record ResolvedEventLocation(
     string TimeZoneId);
 
 public sealed record EventLocationInput(
-    string StreetAddress,
-    string PostalCode,
-    string City,
-    string Country,
-    string Region,
-    string LocationToken);
+    [property: Required, MaxLength(Event.MaximumAddressLength)] string StreetAddress,
+    [property: Required, MaxLength(Event.MaximumPostalCodeLength)] string PostalCode,
+    [property: Required, MaxLength(Event.MaximumCityLength)] string City,
+    [property: Required, MaxLength(Event.MaximumCountryLength)] string Country,
+    [property: Required, MaxLength(Event.MaximumRegionLength)] string Region,
+    [property: Required, MaxLength(2048)] string LocationToken);
 
 public sealed record ValidatedEventLocation(
     string PlaceId,

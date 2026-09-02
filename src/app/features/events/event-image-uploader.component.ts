@@ -9,6 +9,14 @@ import { I18nService } from '../../i18n/i18n.service';
 
 export type EventImageUploadStatus = 'pending' | 'uploaded' | 'error';
 
+export interface EventImageSelection {
+  readonly imageId: string;
+  readonly altText: string | null;
+  readonly response: EventImageUploadResponse;
+  readonly previewUrl: string;
+  readonly srcset: string;
+}
+
 export interface EventImageUploadCard {
   readonly localId: string;
   readonly file: File;
@@ -17,6 +25,7 @@ export interface EventImageUploadCard {
   readonly previewUrl: string;
   readonly srcset: string;
   readonly response?: EventImageUploadResponse;
+  readonly altText: string;
   readonly error: string;
   readonly retryUpload: boolean;
   readonly retryDelete: boolean;
@@ -52,6 +61,8 @@ export interface EventImageUploadCard {
           <li cdkDrag [attr.data-cy]="'event-image-card-' + card.localId">
             <img [src]="card.previewUrl" [attr.srcset]="card.srcset" sizes="(max-width: 480px) 100vw, 320px" alt="" [attr.data-cy]="'event-image-preview-' + card.localId" />
             <p [attr.data-cy]="'event-image-name-' + card.localId">{{ card.file.name }}</p>
+            <label [for]="'event-image-alt-' + card.localId" [attr.data-cy]="'event-image-alt-label-' + card.localId">{{ i18n.t('eventImages.altText') }}</label>
+            <input [id]="'event-image-alt-' + card.localId" [attr.data-cy]="'event-image-alt-' + card.localId" type="text" maxlength="300" [value]="card.altText" [attr.aria-label]="i18n.t('eventImages.altTextNamed', { name: card.file.name })" (input)="setAltText(card.localId, $event)" />
             @if (card.status === 'pending' && !card.removePending) {
               <progress max="100" [value]="card.progress" [attr.data-cy]="'event-image-progress-' + card.localId"></progress>
               <p role="status" [attr.data-cy]="'event-image-pending-' + card.localId">{{ i18n.t('eventImages.uploading', { progress: card.progress }) }}</p>
@@ -89,8 +100,18 @@ export class EventImageUploaderComponent implements OnDestroy {
   readonly hasPending = computed(() => this.cards().some(card => card.status === 'pending'));
   readonly publishBlocked = computed(() => this.cards().some(card => card.status !== 'uploaded'));
   readonly uploadedImages = computed(() => this.cards().flatMap(card => card.response ? [card.response] : []));
+  readonly selectedImages = computed<EventImageSelection[]>(() => this.cards().flatMap(card =>
+    card.response && card.status === 'uploaded'
+      ? [{
+          imageId: card.response.id,
+          altText: card.altText.trim() || null,
+          response: card.response,
+          previewUrl: card.previewUrl,
+          srcset: card.srcset
+        }]
+      : []));
 
-  @Output() readonly imagesChange = new EventEmitter<readonly EventImageUploadResponse[]>();
+  @Output() readonly imagesChange = new EventEmitter<readonly EventImageSelection[]>();
   @Output() readonly publishBlockedChange = new EventEmitter<boolean>();
 
   addFiles(files: readonly File[]): void {
@@ -107,6 +128,7 @@ export class EventImageUploaderComponent implements OnDestroy {
         progress: 0,
         previewUrl,
         srcset: '',
+        altText: '',
         error: '',
         retryUpload: false,
         retryDelete: false,
@@ -182,6 +204,10 @@ export class EventImageUploaderComponent implements OnDestroy {
     this.revoke(card.objectUrls);
     this.cards.update(cards => cards.filter(item => item.localId !== localId));
     this.emitState();
+  }
+
+  setAltText(localId: string, event: Event): void {
+    this.patch(localId, { altText: (event.target as HTMLInputElement).value.slice(0, 300) });
   }
 
   moveLeft(localId: string): void {
@@ -311,7 +337,7 @@ export class EventImageUploaderComponent implements OnDestroy {
   }
 
   private emitState(): void {
-    this.imagesChange.emit(this.uploadedImages());
+    this.imagesChange.emit(this.selectedImages());
     this.publishBlockedChange.emit(this.publishBlocked());
   }
 }

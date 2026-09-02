@@ -34,12 +34,6 @@ public sealed class AuditRecord : VersionedEntity
     public required Instant OccurredAt { get; init; }
 }
 
-public sealed class ConsumedEventPreviewTicket
-{
-    public required string TicketHash { get; init; }
-    public required Instant ExpiresAt { get; init; }
-}
-
 public sealed class OutboxRecord : VersionedEntity
 {
     public required string MessageType { get; init; }

@@ -145,10 +145,10 @@ describe('route exposure per capability flag', () => {
     expect(paths(allCapabilities)).toContain('events/new');
   });
 
-  it('guards events/new with organizer, verified-email and Power User gates in order', () => {
+  it('guards events/new with user, verified-email and Power User gates in order', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'events/new');
     expect(route).toBeDefined();
-    expect(route!.canActivate).toEqual([organizerGuard, verifiedEmailGuard, powerUserGuard]);
+    expect(route!.canActivate).toEqual([userGuard, verifiedEmailGuard, powerUserGuard]);
   });
 
   it('matches events/new before the events/:slug detail route', () => {

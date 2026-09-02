@@ -27,16 +27,28 @@ public sealed class FakeEventLocationProvider : IEventLocationProvider
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new ResolvedEventLocation(
-            placeId,
-            "10 Rue de la République",
-            "69001",
-            "Lyon",
-            "France",
-            "Auvergne-Rhône-Alpes",
-            45.7640m,
-            4.8357m,
-            "Europe/Paris"));
+        var fixture = placeId.Split('|').Select(Uri.UnescapeDataString).ToArray();
+        return fixture is ["fixture", var streetAddress, var postalCode, var city, var country, var region]
+            ? Task.FromResult(new ResolvedEventLocation(
+                placeId,
+                streetAddress,
+                postalCode,
+                city,
+                country,
+                region,
+                45.7640m,
+                4.8357m,
+                "Europe/Paris"))
+            : Task.FromResult(new ResolvedEventLocation(
+                placeId,
+                "10 Rue de la République",
+                "69001",
+                "Lyon",
+                "France",
+                "Auvergne-Rhône-Alpes",
+                45.7640m,
+                4.8357m,
+                "Europe/Paris"));
     }
 }
 

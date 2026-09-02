@@ -21,10 +21,13 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.LiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.ArchiveTournamentUrl).HasMaxLength(Event.MaximumTournamentUrlLength);
         builder.Property(tournament => tournament.StreetAddress).HasMaxLength(Event.MaximumAddressLength);
-        builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength);
+        builder.Property(tournament => tournament.PostalCode).HasMaxLength(Event.MaximumPostalCodeLength).IsRequired();
         builder.Property(tournament => tournament.City).HasMaxLength(Event.MaximumCityLength);
         builder.Property(tournament => tournament.Country).HasMaxLength(Event.MaximumCountryLength);
-        builder.Property(tournament => tournament.Region).HasMaxLength(Event.MaximumRegionLength);
+        builder.Property(tournament => tournament.Region).HasMaxLength(Event.MaximumRegionLength).IsRequired();
+        builder.Property(tournament => tournament.ProviderPlaceId).HasMaxLength(Event.MaximumProviderPlaceIdLength).IsRequired();
+        builder.Property(tournament => tournament.Latitude).HasPrecision(9, 6);
+        builder.Property(tournament => tournament.Longitude).HasPrecision(9, 6);
         builder.Property(tournament => tournament.EventType).HasConversion<string>().HasMaxLength(20).HasColumnName("event_type");
         builder.Property(tournament => tournament.TimeZoneId).HasMaxLength(Event.MaximumTimeZoneLength);
         builder.Property(tournament => tournament.Status).HasConversion<string>().HasMaxLength(20);
@@ -50,7 +53,7 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Navigation(tournament => tournament.Formats).AutoInclude(false);
         builder.ToTable(table =>
         {
-            table.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity IS NULL OR capacity > 0");
+            table.HasCheckConstraint("ck_scheduled_tournament_capacity", "capacity > 0");
             table.HasCheckConstraint("ck_scheduled_tournament_time_order", "ends_at_utc >= starts_at_utc");
             table.HasCheckConstraint("ck_scheduled_tournament_status", "status IN ('Published', 'InProgress', 'Completed', 'Cancelled')");
             table.HasCheckConstraint("ck_event_type", "event_type IS NULL OR event_type IN ('Weekly', 'Monthly', 'Major')");

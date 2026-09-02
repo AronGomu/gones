@@ -610,10 +610,10 @@ internal static partial class PublicEventEndpoints
         string Slug,
         string? Summary,
         string StreetAddress,
-        string? PostalCode,
+        string PostalCode,
         string City,
         string Country,
-        string? Region,
+        string Region,
         CalendarEventType? EventType,
         string TimeZoneId,
         LocalDate VenueStartDate,
@@ -622,7 +622,7 @@ internal static partial class PublicEventEndpoints
         LocalTime VenueEndTime,
         Instant StartsAtUtc,
         Instant EndsAtUtc,
-        int? Capacity,
+        int Capacity,
         ScheduledTournamentStatus Status,
         Instant UpdatedAt,
         long Version,
@@ -671,7 +671,7 @@ internal sealed record PublicEventSummaryResponse(
     string VenueEndTime,
     Instant StartsAtUtc,
     Instant EndsAtUtc,
-    int? Capacity,
+    int Capacity,
     string Status,
     PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
@@ -694,7 +694,7 @@ internal sealed record PublicEventDetailResponse(
     string VenueEndTime,
     Instant StartsAtUtc,
     Instant EndsAtUtc,
-    int? Capacity,
+    int Capacity,
     string Status,
     PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
@@ -708,10 +708,10 @@ internal sealed record EventImageResponse(
 
 internal sealed record PublicEventVenueResponse(
     string StreetAddress,
-    string? PostalCode,
+    string PostalCode,
     string City,
     string Country,
-    string? Region = null);
+    string Region);
 
 internal sealed record PublicEventOrganizationResponse(
     Guid Id,

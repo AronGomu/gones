@@ -206,7 +206,7 @@ export function groupEventsByVenueDate(items: PublicEventView[]): VenueDateGroup
 }
 
 export function eventDatePresentation(
-  event: Omit<PublicEventView, 'id'>,
+  event: { startsAtUtc: unknown; venueStartDate: string; venueStartTime: string; timeZoneId: string },
   locale: string,
   viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 ): EventDatePresentation {

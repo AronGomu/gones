@@ -38,7 +38,7 @@ const rhoneModern = makeItem({
   id: 'rhone-modern',
   title: 'Rhône Modern Classic',
   slug: 'rhone-modern-classic',
-  venue: { streetAddress: '2 Quai du Rhône', postalCode: '69002', city: 'Rhône-Ville', country: 'France' },
+  venue: { streetAddress: '2 Quai du Rhône', postalCode: '69002', city: 'Rhône-Ville', country: 'France', region: 'Auvergne-Rhône-Alpes' },
   formats: formats('Modern'),
   organization: org('Gones Events')
 });
@@ -47,7 +47,7 @@ const cancelledLegacy = makeItem({
   title: 'Cancelled Legacy Cup',
   slug: 'cancelled-legacy-cup',
   status: 'cancelled',
-  venue: { streetAddress: '3 Rue Victor Hugo', postalCode: '75001', city: 'Paris', country: 'France' },
+  venue: { streetAddress: '3 Rue Victor Hugo', postalCode: '75001', city: 'Paris', country: 'France', region: 'Île-de-France' },
   organization: org('Other Org'),
   formats: formats('Legacy')
 });
@@ -55,7 +55,7 @@ const otherOrgModern = makeItem({
   id: 'other-org-modern',
   title: 'Other Org Modern',
   slug: 'other-org-modern',
-  venue: { streetAddress: '4 Boulevard Voltaire', postalCode: '13001', city: 'Marseille', country: 'France' },
+  venue: { streetAddress: '4 Boulevard Voltaire', postalCode: '13001', city: 'Marseille', country: 'France', region: 'Provence-Alpes-Côte d’Azur' },
   organization: org('Other Org'),
   formats: formats('Modern')
 });

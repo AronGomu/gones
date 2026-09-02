@@ -19,15 +19,15 @@ public sealed class EventImage
 
     public Guid Id { get; private init; }
     public Guid UploadedByUserId { get; private init; }
-    public EventImageState State { get; private init; }
-    public Guid? EventId { get; private init; }
-    public Guid? ProposalId { get; private init; }
-    public int? SortOrder { get; private init; }
-    public string? AltText { get; private init; }
+    public EventImageState State { get; private set; }
+    public Guid? EventId { get; private set; }
+    public Guid? ProposalId { get; private set; }
+    public int? SortOrder { get; private set; }
+    public string? AltText { get; private set; }
     public int Width { get; private init; }
     public int Height { get; private init; }
     public Instant CreatedAt { get; private init; }
-    public Instant? ExpiresAt { get; private init; }
+    public Instant? ExpiresAt { get; private set; }
 
     public static EventImage CreateTemporary(Guid id, Guid uploadedByUserId, int width, int height, Instant now)
     {
@@ -45,6 +45,28 @@ public sealed class EventImage
             CreatedAt = now,
             ExpiresAt = now + TemporaryLifetime
         };
+    }
+
+    public void AttachToEvent(Guid eventId, Guid userId, int sortOrder, string? altText, Instant now)
+    {
+        if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
+        if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
+        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
+        if (State != EventImageState.Temporary || UploadedByUserId != userId || ExpiresAt <= now)
+        {
+            throw new InvalidOperationException("Event image is not attachable.");
+        }
+        var normalizedAlt = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
+        if (normalizedAlt?.Length > MaximumAltTextLength)
+        {
+            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
+        }
+        State = EventImageState.EventOwned;
+        EventId = eventId;
+        ProposalId = null;
+        SortOrder = sortOrder;
+        AltText = normalizedAlt;
+        ExpiresAt = null;
     }
 
     public static IReadOnlyList<int> VariantWidthsFor(int sourceWidth)

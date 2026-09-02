@@ -18,14 +18,7 @@ public sealed class IdempotencyRecordSweeper(GonesDbContext database, IClock clo
             .ToListAsync(cancellationToken);
         if (records.Count > 0) database.IdempotencyRecords.RemoveRange(records);
 
-        var tickets = await database.ConsumedEventPreviewTickets
-            .Where(item => item.ExpiresAt <= now)
-            .OrderBy(item => item.ExpiresAt)
-            .Take(BatchSize)
-            .ToListAsync(cancellationToken);
-        if (tickets.Count > 0) database.ConsumedEventPreviewTickets.RemoveRange(tickets);
-
-        if (records.Count > 0 || tickets.Count > 0) await database.SaveChangesAsync(cancellationToken);
-        return records.Count + tickets.Count;
+        if (records.Count > 0) await database.SaveChangesAsync(cancellationToken);
+        return records.Count;
     }
 }

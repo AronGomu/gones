@@ -5,22 +5,29 @@ const review = {
     title: 'Modern Cup',
     summary: 'A fun cup',
     bodyMarkdown: 'Plain description body',
-    streetAddress: '1 Rue Test',
-    postalCode: '69001',
-    city: 'Lyon',
-    country: 'France',
-    timeZoneId: 'Europe/Paris',
+    location: {
+      streetAddress: '1 Rue Test',
+      postalCode: '69001',
+      city: 'Lyon',
+      country: 'France',
+      region: 'Auvergne-Rhône-Alpes',
+      locationToken: 'proposal-location-token'
+    },
+    eventType: 'weekly',
     startsAtLocal: '2035-08-01T10:00',
-    endsAtLocal: '2035-08-01T18:00',
     capacity: 32,
-    formatIds: ['fmt-1', 'fmt-2']
+    formatIds: ['fmt-1'],
+    images: []
   },
+  bodyHtml: '<p>Plain description body</p>',
+  timeZoneId: 'Europe/Paris',
+  endsAtLocal: '2035-08-01T23:59:59',
   status: 'Pending',
   submittedByUsername: 'alice',
   approverUsername: 'bob',
   expiresAt: '2035-08-08T00:00:00Z',
   organizationName: 'Gones',
-  formatNames: ['Legacy', 'Modern']
+  formatNames: ['Legacy']
 };
 
 /**
@@ -53,7 +60,7 @@ describe('event request review page (signed out, intercept-based)', () => {
 
     cy.get('[data-cy="event-request-title"]').should('contain.text', 'Modern Cup');
     cy.get('[data-cy="event-request-fact-organization"]').should('contain.text', 'Gones');
-    cy.get('[data-cy="event-request-fact-formats"]').should('contain.text', 'Legacy, Modern');
+    cy.get('[data-cy="event-request-fact-formats"]').should('contain.text', 'Legacy');
 
     cy.get('[data-cy="event-request-validate"]').click();
     cy.wait('@approve');

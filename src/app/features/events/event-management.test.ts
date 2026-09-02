@@ -17,9 +17,9 @@ describe('Event management state', () => {
     expect(managementToDraft(event)).toEqual({
       organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '**Body**', streetAddress: '1 Old Street',
       postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: '', latitude: null, longitude: null,
-      eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
+      eventType: 'weekly', timeZoneId: 'Europe/Paris', startDate: '2027-08-01', startTime: '10:00',
       endsAtLocal: '2027-08-01T18:00', capacity: 32, formatId: 'legacy', liveTournamentUrl: '/live/123',
-      archiveTournamentUrl: 'https://example.test/archive/123'
+      archiveTournamentUrl: 'https://example.test/archive/123', images: []
     });
   });
 
@@ -31,7 +31,7 @@ describe('Event management state', () => {
   });
 
   it('classifies date and address edits as explicit major changes', () => {
-    const draft = { ...managementToDraft(event), streetAddress: '2 New Street', startsAtLocal: '2027-08-02T11:00' };
+    const draft = { ...managementToDraft(event), streetAddress: '2 New Street', startDate: '2027-08-02', startTime: '11:00' };
     expect(majorEventChanges(event, draft)).toEqual(['start date/time', 'street address']);
     expect(majorEventChanges(event, { ...managementToDraft(event), capacity: 64, formatId: 'modern' })).toEqual(['capacity', 'formats']);
     expect(majorEventChanges(event, { ...managementToDraft(event), title: 'Renamed' })).toEqual([]);
