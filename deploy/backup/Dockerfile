@@ -21,7 +21,7 @@ LABEL org.opencontainers.image.title="gones-backup" \
       org.opencontainers.image.vendor="Gones Calendar" \
       org.opencontainers.image.revision="${GONES_IMAGE_REVISION}" \
       org.opencontainers.image.created="${GONES_IMAGE_CREATED}"
-RUN apk add --no-cache postgresql17-client=17.10-r0 openssl=3.5.7-r0 \
+RUN apk add --no-cache postgresql17-client=17.11-r0 openssl=3.5.8-r0 \
     && addgroup -g 65532 -S gones \
     && adduser -u 65532 -S -G gones gones
 COPY deploy/backup/gones-backup.sh deploy/backup/gones-restore.sh /usr/local/bin/
