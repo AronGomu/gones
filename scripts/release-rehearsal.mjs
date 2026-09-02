@@ -23,6 +23,14 @@
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
 import { join } from 'node:path';
+import {
+  acquireReleaseRehearsalLock,
+  assertFreshStateVolumes,
+  cleanupReleaseRehearsal,
+  installSignalCleanup,
+  listReleaseProjectVolumes,
+  resetReleaseTestStack
+} from './release-rehearsal-guard.mjs';
 import { run } from './release-images.mjs';
 
 const root = process.cwd();
@@ -125,9 +133,20 @@ const secureFetch = (path) => new Promise((resolve, reject) => {
   call.end();
 });
 
+const rehearsalLock = acquireReleaseRehearsalLock();
+let cleanupStarted = false;
+const cleanup = () => {
+  if (cleanupStarted) return;
+  cleanupStarted = true;
+  console.log('\n=== tearing the release-test stack down ===');
+  failures.push(...cleanupReleaseRehearsal({ compose, exportDirectory, lock: rehearsalLock }));
+};
+const uninstallSignalCleanup = installSignalCleanup(cleanup);
+
 try {
   console.log('=== resetting the release-test stack ===');
-  compose(['down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
+  resetReleaseTestStack(compose, () => listReleaseProjectVolumes(run));
+  console.log('  ok   initial teardown completed and old release-test project volumes are absent');
   rmSync(exportDirectory, { recursive: true, force: true });
   mkdirSync(exportDirectory, { recursive: true });
 
@@ -136,6 +155,8 @@ try {
   // which would silently rehearse yesterday's journey runner. Build everything up front instead.
   if (compose(['--profile', 'tools', 'build']).status !== 0) throw new Error('release-test images failed to build');
   if (compose(['up', '--build', '--detach']).status !== 0) throw new Error('release-test stack failed to start');
+  const freshStateVolumes = assertFreshStateVolumes(listReleaseProjectVolumes(run));
+  console.log(`  ok   fresh PostgreSQL and MinIO volumes created (${freshStateVolumes.join(', ')})`);
 
   // Startup ordering: the schema job must complete before the API is allowed to serve.
   const migratorExit = await waitFor(async () => containerState('migrator', '{{.State.Status}}') === 'exited');
@@ -373,9 +394,8 @@ try {
   const workerStatus = containerState('worker', '{{.State.Status}}');
   check(workerStatus === 'running', `the singleton Worker stayed up across the API restart (${workerStatus})`);
 } finally {
-  console.log('\n=== tearing the release-test stack down ===');
-  compose(['--profile', 'tools', 'down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
-  rmSync(exportDirectory, { recursive: true, force: true });
+  cleanup();
+  uninstallSignalCleanup();
 }
 
 if (failures.length > 0) {

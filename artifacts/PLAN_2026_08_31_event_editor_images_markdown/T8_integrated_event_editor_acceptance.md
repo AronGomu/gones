@@ -113,3 +113,18 @@ required targets:
 - [x] no silent-failure swallow on added path — `none`
 - [x] app functional — clean reset supports create/edit/proposal/public detail with fake providers
 - [x] commit msg draft: `test(events): prove editor media and location contracts compose end to end`
+
+## OPS final repair
+
+- [x] 12. Make initial release-test teardown and clean-volume checks hard prerequisites. — evidence: `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` passed (2 files, 17 tests), including failed teardown, leftover volume, and required fresh-volume assertions.
+- [x] 13. Serialize release rehearsals and recover stale locks. — evidence: same focused run passed live-owner contention, dead-owner recovery, failure cleanup, and SIGTERM cleanup tests.
+- [ ] 14. Re-run unchanged-HEAD release evidence and commit exact repair paths. — verify: focused ops tests, `npm run acceptance:matrix`, two sequential `npm run release:rehearsal` runs at one unchanged `HEAD`, and `git diff --check` all pass; repair commit exists without push/merge.
+
+## OPS final repair validation
+
+- [x] focused ops tests — `npx vitest run ops/release-rehearsal.test.ts ops/acceptance-matrix.test.ts` — 2 files passed; 17 tests passed.
+- [x] acceptance matrix — `npm run acceptance:matrix` — 111/111 non-deferred rows and 25/25 final checklist rows proved (3 deferred).
+- [x] release rehearsal run 1 — `npm run release:rehearsal` — passed at HEAD `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`; old volumes absent; fresh `postgres-data`/`event-image-data` created; final lock/project volumes absent.
+- [x] release rehearsal run 2 at unchanged HEAD — `npm run release:rehearsal` — passed at same HEAD `1fafa2eb7d331b32f76d992ab72779a41ca2df0e`; script hashes unchanged (`6f1fba68…`, `413c6b19…`); final lock/project volumes absent.
+- [x] diff/residue — `git diff --check` and `git diff --cached --check` passed; no `.orig`/`.rej`/backup residue; added-line high-confidence secret scan clean.
+- [x] commit msg draft: `test(release): isolate clean-volume rehearsal`
