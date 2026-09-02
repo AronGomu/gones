@@ -137,7 +137,7 @@ Reject/expire: decision/expiry commits -> row/object deletion job; retry until c
 - [x] 10. Prove real transaction rollback after attachment failure. Validate: injected failure leaves proposal/outbox absent and images Temporary.
 - [x] 11. Restore exact `EventPayloadRequest` proposal contract, generated client method names, image response `Cache-Control`, and proposal wording. Validate: API generation check, typecheck, lint, and translation assertions pass.
 - [x] 12. Add actual proposal editor DOM coverage for plain User uploader and pending/failed upload submit blocking; preserve unrelated EventOwned images. Validate: targeted DOM/backend tests and proposal Cypress pass.
-- [ ] 13. Commit only intentional repair paths without push or merge. Validate: commit exists on `ticket/event-editor-T7`; `git status --short` empty; no staged files.
+- [x] 13. Commit only intentional repair paths without push or merge. Validate: commit exists on `ticket/event-editor-T7`; `git status --short` empty; no staged files.
 
 ## Review repair validation
 
