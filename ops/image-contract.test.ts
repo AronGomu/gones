@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error - release image helpers are plain ESM shared with Node CLI scripts.
-import { imageRevisionMatchesHead } from '../scripts/release-images.mjs';
+import { imageRevisionMatchesHead, unsupportedCloudSdkPayload } from '../scripts/release-images.mjs';
 
 /**
  * C41 image contract.
@@ -129,6 +129,12 @@ describe('runtime image attestation', () => {
     expect(imageRevisionMatchesHead({ 'org.opencontainers.image.revision': head }, head)).toBe(true);
     expect(imageRevisionMatchesHead({ 'org.opencontainers.image.revision': 'b'.repeat(40) }, head)).toBe(false);
     expect(imageRevisionMatchesHead({}, head)).toBe(false);
+  });
+
+  it('allows only the exact S3-compatible client assemblies from cloud SDK payload scans', () => {
+    expect(unsupportedCloudSdkPayload(['AWSSDK.Core.dll', 'AWSSDK.S3.dll'])).toEqual([]);
+    expect(unsupportedCloudSdkPayload(['AWSSDK.DynamoDBv2.dll', 'Azure.Storage.Blobs.dll']))
+      .toEqual(['AWSSDK.DynamoDBv2.dll', 'Azure.Storage.Blobs.dll']);
   });
 });
 

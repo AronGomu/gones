@@ -39,6 +39,10 @@ export const tagFor = (name, reference = 'local') => `gones-${name}:${reference}
 export const imageRevisionMatchesHead = (labels, headRevision) =>
   labels?.['org.opencontainers.image.revision'] === headRevision;
 
+const S3_COMPATIBLE_CLIENT_ASSEMBLIES = new Set(['AWSSDK.Core.dll', 'AWSSDK.S3.dll']);
+export const unsupportedCloudSdkPayload = (entries) =>
+  entries.map((entry) => entry.trim()).filter((entry) => entry && !S3_COMPATIBLE_CLIENT_ASSEMBLIES.has(entry));
+
 export function run(command, args, options = {}) {
   const result = spawnSync(command, args, { encoding: 'utf8', ...options });
   if (result.error) throw result.error;
