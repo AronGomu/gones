@@ -28,7 +28,7 @@ export interface EventDetailView {
   eventType: PublicEventDetailResponse['eventType'];
   organization: PublicEventDetailResponse['organization'];
   formats: PublicEventDetailResponse['formats'];
-  image: PublicEventDetailResponse['image'];
+  image?: PublicEventDetailResponse['image'];
 }
 export type EventDetailImage = NonNullable<EventDetailView['image']>;
 

@@ -322,18 +322,23 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       ['startDate', this.i18n.t('eventCreate.startDate')],
       ['startTime', this.i18n.t('eventCreate.startTime')]
     ];
-    const errors = fields.flatMap(([name, label]) => {
-      const message = this.controlError(name, false);
-      return message ? [`${label}: ${message}`] : [];
-    });
-    const locationResolution = this.fieldErrors()['locationResolution'] || this.controlError('timeZoneId', false);
-    if (locationResolution) errors.push(`${this.i18n.t('eventCreate.publishErrorLocationResolution')}: ${locationResolution}`);
-    const image = this.controlError('imageId', false)
-      || (this.imagePublishBlocked() ? this.i18n.t('eventImages.publishBlocked') : '');
-    if (image) errors.push(`${this.i18n.t('eventCreate.publishErrorImage')}: ${image}`);
-    const general = this.fieldErrors()['general'];
-    if (general) errors.push(`${this.i18n.t('eventCreate.publishErrorGeneral')}: ${general}`);
-    return [...new Set(errors)];
+    const errors: string[] = [];
+    const seenMessages = new Set<string>();
+    const addError = (label: string, message: string) => {
+      if (!message || seenMessages.has(message)) return;
+      seenMessages.add(message);
+      errors.push(`${label}: ${message}`);
+    };
+    for (const [name, label] of fields) addError(label, this.controlError(name, false));
+    addError(
+      this.i18n.t('eventCreate.publishErrorLocationResolution'),
+      this.fieldErrors()['locationResolution'] || this.controlError('timeZoneId', false));
+    addError(
+      this.i18n.t('eventCreate.publishErrorImage'),
+      this.controlError('imageId', false)
+        || (this.imagePublishBlocked() ? this.i18n.t('eventImages.publishBlocked') : ''));
+    addError(this.i18n.t('eventCreate.publishErrorGeneral'), this.fieldErrors()['general'] || '');
+    return errors;
   });
   readonly publishTooltip = computed(() => this.publishErrors().join('\n'));
 

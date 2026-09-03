@@ -11211,9 +11211,9 @@ export interface EventManagementResponse {
     deletedAt: string | undefined;
     deletedReason: string | undefined;
     formatIds: string[];
-    image: EventImageResponse | undefined;
     version: number;
     eTag: string;
+    image?: EventImageResponse | undefined;
 
     [key: string]: any;
 }
@@ -11285,7 +11285,7 @@ export interface EventProposalReviewResponse {
     expiresAt: string;
     organizationName: string;
     formatNames: string[];
-    image: EventImageResponse | undefined;
+    image?: EventImageResponse | undefined;
 
     [key: string]: any;
 }
@@ -11857,7 +11857,7 @@ export interface PublicEventDetailResponse {
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
-    image: EventImageResponse | undefined;
+    image?: EventImageResponse | undefined;
 
     [key: string]: any;
 }

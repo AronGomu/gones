@@ -150,7 +150,7 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     expect(preview).not.toHaveBeenCalled();
   });
 
-  it('derives every disabled Publish error in stable field order without touching controls', () => {
+  it('derives disabled Publish errors in stable field order and collapses duplicate messages by first occurrence without touching controls', () => {
     const component = setup('Organizer');
     component.form.patchValue({
       summary: 'x'.repeat(51),
@@ -172,18 +172,8 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     expect(errors).toEqual([
       'Organisation: Ce champ est obligatoire.',
       'Nom de l’événement: Duplicate error.',
-      'Résumé: Duplicate error.',
       'Description: La description ne peut pas dépasser 20 000 caractères.',
-      'Format: Ce champ est obligatoire.',
-      'Type d’événement: Ce champ est obligatoire.',
       'Capacité: Saisissez une valeur valide.',
-      'Pays: Ce champ est obligatoire.',
-      'Région: Ce champ est obligatoire.',
-      'Adresse: Ce champ est obligatoire.',
-      'Code postal: Ce champ est obligatoire.',
-      'Ville: Ce champ est obligatoire.',
-      'Date de début: Ce champ est obligatoire.',
-      'Heure de début: Ce champ est obligatoire.',
       'Résolution du lieu: Location resolution failed.',
       'Image de l’événement: Image failed.',
       'Général: General failure.'

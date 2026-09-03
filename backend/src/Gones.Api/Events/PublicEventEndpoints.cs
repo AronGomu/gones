@@ -696,7 +696,7 @@ internal sealed record PublicEventDetailResponse(
     PublicCalendarEventType? EventType,
     PublicEventOrganizationResponse Organization,
     IReadOnlyList<PublicTournamentFormatResponse> Formats,
-    EventImageResponse? Image);
+    EventImageResponse? Image = null);
 
 internal sealed record EventImageResponse(
     Guid Id,

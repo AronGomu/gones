@@ -865,7 +865,7 @@ internal sealed record EventProposalReviewResponse(
     Instant ExpiresAt,
     string OrganizationName,
     IReadOnlyList<string> FormatNames,
-    EventImageResponse? Image);
+    EventImageResponse? Image = null);
 
 internal sealed record EventProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 

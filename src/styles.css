@@ -1319,8 +1319,8 @@ a.public-month-event:hover, a.public-month-event:focus-visible { background: col
 @media (min-width: 1024px) {
   .event-editor-shell:not(.event-editor-shell--collapsed) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .event-editor-shell--collapsed { grid-template-columns: minmax(0, 1fr) auto; }
-  .event-live-preview { position: sticky; top: calc(var(--app-toolbar-height) + 3.75rem); }
-  .event-live-preview__scroll { max-height: calc(100dvh - var(--event-preview-sticky-offset)); overflow: auto; }
+  .event-live-preview { position: sticky; top: var(--event-preview-sticky-offset); max-height: calc(100dvh - var(--event-preview-sticky-offset)); grid-template-rows: auto minmax(0, 1fr); }
+  .event-live-preview__scroll { min-height: 0; overflow: auto; }
 }
 @media (max-width: 700px) {
   .tournament-create-grid { grid-template-columns: 1fr; }

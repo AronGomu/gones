@@ -707,9 +707,9 @@ internal sealed class EventLifecycleService(
             item.DeletedAt,
             item.DeletedReason,
             item.Formats.Select(format => format.TournamentFormatId).Order().ToArray(),
-            image is null ? null : ToImageResponse(image),
             item.Version,
-            StrongETag.Encode(item.Version));
+            StrongETag.Encode(item.Version),
+            image is null ? null : ToImageResponse(image));
 
     private static EventImageResponse ToImageResponse(EventImage image) => new(
         image.Id,
@@ -838,9 +838,9 @@ internal sealed record EventManagementResponse(
     Instant? DeletedAt,
     string? DeletedReason,
     IReadOnlyList<Guid> FormatIds,
-    EventImageResponse? Image,
     long Version,
-    string ETag);
+    string ETag,
+    EventImageResponse? Image = null);
 
 internal sealed record EventMutationResponse(
     Guid Id,

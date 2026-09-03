@@ -175,21 +175,61 @@ function selectImages(count) {
   cy.get('[data-cy="event-image-publish-blocked"]').should('not.exist');
 }
 
-function fillValidForm(referenceAlias = '@myOrganizations') {
+function fillValidForm(referenceAlias = '@myOrganizations', omittedSelector = '') {
   cy.wait([referenceAlias, '@formats', '@timeZones']);
   cy.get('[data-cy="event-title"]').type('Lyon Legacy Open');
   cy.get('[data-cy="event-summary"]').type('Raw summary');
   cy.get('[data-cy="event-body"]').type('**Live** body.');
-  cy.get('[data-cy="event-format"]').select('Legacy');
+  if (omittedSelector !== '[data-cy="event-format"]') cy.get('[data-cy="event-format"]').select('Legacy');
   cy.get('[data-cy="event-capacity"]').type('32');
   cy.get('[data-cy="event-start-date"]').type('2027-08-01');
   cy.get('[data-cy="event-start-time"]').type('10:00');
   cy.get('[data-cy="event-street"]').type(manualLocation.streetAddress);
   cy.get('[data-cy="event-postal-code"]').type(manualLocation.postalCode);
   cy.get('[data-cy="event-city"]').type(manualLocation.city);
-  cy.get('[data-cy="event-country"]').select(manualLocation.country);
+  if (omittedSelector !== '[data-cy="event-country"]') cy.get('[data-cy="event-country"]').select(manualLocation.country);
   cy.get('[data-cy="event-region"]').type(manualLocation.region);
-  cy.get('[data-cy="event-time-zone"]').select(manualLocation.timeZoneId);
+  if (omittedSelector !== '[data-cy="event-time-zone"]') cy.get('[data-cy="event-time-zone"]').select(manualLocation.timeZoneId);
+}
+
+function setEditorValue(selector, value) {
+  cy.get(selector).then($control => {
+    const control = $control[0];
+    control.value = value;
+    control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+  });
+}
+
+function assertSummaryOrder(summary, labels) {
+  const indices = labels.map(label => summary.indexOf(`${label}:`));
+  indices.forEach((index, position) => expect(index, labels[position]).to.be.greaterThan(-1));
+  for (let index = 1; index < indices.length; index++) expect(indices[index]).to.be.greaterThan(indices[index - 1]);
+}
+
+function assertRenderedPublishTooltip(labels) {
+  cy.get('[data-cy="event-publish-errors"]').invoke('text').then(summary => {
+    assertSummaryOrder(summary, labels);
+    cy.get('[data-cy="event-publish-tooltip"]').scrollIntoView().trigger('mouseenter');
+    cy.get('.mat-mdc-tooltip')
+      .should('have.class', 'mat-mdc-tooltip-show')
+      .and($tooltip => expect($tooltip.text()).to.eq(summary));
+  });
+  cy.get('[data-cy="event-publish-tooltip"]').trigger('mouseleave');
+  cy.get('.mat-mdc-tooltip').should('not.have.class', 'mat-mdc-tooltip-show');
+}
+
+function assertKeyboardPublishTooltip() {
+  cy.get('[data-cy="event-publish-tooltip"]').scrollIntoView().then($tooltip => {
+    $tooltip[0].ownerDocument.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    $tooltip[0].focus();
+  });
+  cy.get('[data-cy="event-publish-errors"]').invoke('text').then(summary => {
+    cy.get('.mat-mdc-tooltip')
+      .should('have.class', 'mat-mdc-tooltip-show')
+      .and($tooltip => expect($tooltip.text()).to.eq(summary));
+  });
+  cy.get('[data-cy="event-publish-tooltip"]').blur();
+  cy.get('.mat-mdc-tooltip').should('not.have.class', 'mat-mdc-tooltip-show');
 }
 
 describe('Organizer Event direct create editor', () => {
@@ -231,27 +271,109 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-publish-errors"]').should('not.exist');
   });
 
-  it('exposes every ordered invalid Publish reason on keyboard focus without submitting', () => {
+  it('renders the full ordered invalid Publish summary on hover without submitting', () => {
     mockSession();
     mockReferences();
     visit();
     cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-organization"]').should('have.value', ownOrgId);
+
+    setEditorValue('[data-cy="event-title"]', 'x'.repeat(161));
+    setEditorValue('[data-cy="event-summary"]', 'x'.repeat(51));
+    setEditorValue('[data-cy="event-body"]', 'x'.repeat(20_001));
+    setEditorValue('[data-cy="event-capacity"]', '0');
+    cy.get('[data-cy="event-image-editor"] input[type=file]').selectFile({
+      contents: Cypress.Buffer.from('not-an-image'),
+      fileName: 'bad.gif',
+      mimeType: 'image/gif'
+    });
 
     cy.get('[data-cy="event-publish"]').should('be.disabled');
     cy.get('[data-cy="event-publish-tooltip"]')
       .should('have.attr', 'tabindex', '0')
       .and('have.attr', 'aria-describedby')
       .and('include', 'event-publish-errors');
-    cy.get('body').trigger('keydown', { key: 'Tab', force: true });
-    cy.get('[data-cy="event-publish-tooltip"]').focus();
-    cy.get('[data-cy="event-publish-errors"]').invoke('text').then(text => {
-      const order = ['Event name', 'Format', 'Capacity', 'Country', 'Region', 'Street address', 'Postal code', 'City', 'Start date', 'Start time', 'Location resolution'];
-      const indices = order.map(label => text.indexOf(label));
-      indices.forEach((index, position) => expect(index, order[position]).to.be.greaterThan(-1));
-      for (let index = 1; index < indices.length; index++) expect(indices[index]).to.be.greaterThan(indices[index - 1]);
+    cy.get('[data-cy="event-image-publish-blocked"]').should('be.visible');
+    assertRenderedPublishTooltip(['Event name', 'Summary', 'Description', 'Capacity', 'Event image']);
+  });
+
+  it('exposes every inducible Publish reason through its hidden ARIA summary', () => {
+    mockSession();
+    mockReferences();
+    visit();
+    fillValidForm();
+
+    const states = [
+      ['[data-cy="event-title"]', '', 'Lyon Legacy Open', 'Event name'],
+      ['[data-cy="event-summary"]', 'x'.repeat(51), 'Raw summary', 'Summary'],
+      ['[data-cy="event-body"]', 'x'.repeat(20_001), '**Live** body.', 'Description'],
+      ['[data-cy="event-capacity"]', '0', '32', 'Capacity'],
+      ['[data-cy="event-region"]', '', manualLocation.region, 'Region'],
+      ['[data-cy="event-street"]', '', manualLocation.streetAddress, 'Street address'],
+      ['[data-cy="event-postal-code"]', '', manualLocation.postalCode, 'Postal code'],
+      ['[data-cy="event-city"]', '', manualLocation.city, 'City'],
+      ['[data-cy="event-start-date"]', '', '2027-08-01', 'Start date'],
+      ['[data-cy="event-start-time"]', '', '10:00', 'Start time']
+    ];
+    for (const [selector, invalidValue, validValue, label] of states) {
+      setEditorValue(selector, invalidValue);
+      cy.get('[data-cy="event-publish"]').should($publish => {
+        expect($publish.prop('disabled'), label).to.eq(true);
+      });
+      cy.get('[data-cy="event-publish-tooltip"]')
+        .should('have.attr', 'tabindex', '0')
+        .and('have.attr', 'aria-describedby')
+        .and('include', 'event-publish-errors');
+      cy.get('[data-cy="event-publish-errors"]').should('contain.text', `${label}:`);
+      setEditorValue(selector, validValue);
+      cy.get('[data-cy="event-publish"]').should('be.enabled');
+    }
+
+    cy.get('[data-cy="event-image-editor"] input[type=file]').selectFile({
+      contents: Cypress.Buffer.from('not-an-image'),
+      fileName: 'bad.gif',
+      mimeType: 'image/gif'
     });
-    cy.get('.mat-mdc-tooltip').should('have.class', 'mat-mdc-tooltip-show').and('contain.text', 'Event name').and('contain.text', 'Start time');
-    cy.get('@myOrganizations.all').should('have.length', 1);
+    cy.get('[data-cy="event-image-publish-blocked"]').should('be.visible');
+    cy.get('[data-cy="event-publish-errors"]').should('contain.text', 'Event image:');
+
+    const freshStates = [
+      ['[data-cy="event-format"]', 'Legacy', 'Format'],
+      ['[data-cy="event-country"]', manualLocation.country, 'Country'],
+      ['[data-cy="event-time-zone"]', manualLocation.timeZoneId, 'Location resolution']
+    ];
+    for (const [selector, validValue, label] of freshStates) {
+      cy.reload();
+      fillValidForm('@myOrganizations', selector);
+      cy.get('[data-cy="event-publish"]').should('be.disabled');
+      cy.get('[data-cy="event-publish-errors"]').should('contain.text', `${label}:`);
+      cy.get(selector).select(validValue);
+      cy.get('[data-cy="event-publish"]').should('be.enabled');
+    }
+
+    cy.intercept('POST', '**/api/events', {
+      statusCode: 400,
+      headers: { 'content-type': 'application/problem+json' },
+      body: { code: 'validation_failed', title: 'Validation failed.', errors: { payload: ['Payload is inconsistent.'] } }
+    }).as('generalFailure');
+    cy.get('[data-cy="event-publish"]').should('be.enabled').click();
+    cy.wait('@generalFailure');
+    cy.get('[data-cy="event-publish-errors"]').should('contain.text', 'General:');
+    cy.get('@myOrganizations.all').should('have.length', 4);
+  });
+
+  it('renders the invalid Publish summary on keyboard focus without submitting', () => {
+    mockSession();
+    mockReferences();
+    visit();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-organization"]').should('have.value', ownOrgId);
+
+    cy.get('[data-cy="event-publish-tooltip"]')
+      .should('have.attr', 'tabindex', '0')
+      .and('have.attr', 'aria-describedby')
+      .and('include', 'event-publish-errors');
+    assertKeyboardPublishTooltip();
   });
 
   it('publishes one image, rejects a second, and renders public lightbox', () => {
@@ -370,13 +492,27 @@ describe('Organizer Event direct create editor', () => {
 
     cy.viewport(1024, 500);
     cy.get('[data-cy="event-editor-shell"]').should('have.css', 'grid-template-columns').and('match', /px .*px/);
-    cy.get('[data-cy="event-live-preview"]').should('have.css', 'position', 'sticky');
+    cy.scrollTo(0, 600);
+    cy.get('[data-cy="event-live-preview"]').should('have.css', 'position', 'sticky').then($preview => {
+      const preview = $preview[0].getBoundingClientRect();
+      const stickyOffset = Number.parseFloat(getComputedStyle($preview[0]).top);
+      expect(preview.top, 'preview reached sticky offset').to.be.closeTo(stickyOffset, 1);
+      expect(preview.bottom, 'sticky preview viewport fit').to.be.at.most($preview[0].ownerDocument.defaultView.innerHeight + 1);
+    });
     cy.get('[data-cy="event-live-preview-scroll"]').should('have.css', 'overflow-y', 'auto');
     cy.get('[data-cy="event-live-preview-header"]').then($header => {
       const before = $header[0].getBoundingClientRect().top;
       cy.get('[data-cy="event-live-preview-scroll"]').scrollTo('bottom');
       cy.get('[data-cy="event-live-preview-header"]').then($after => {
         expect($after[0].getBoundingClientRect().top, 'preview header after inner scroll').to.be.closeTo(before, 1);
+      });
+      cy.get('[data-cy="event-live-preview-scroll"]').then($scroll => {
+        cy.get('[data-cy="event-detail-description"]').then($detail => {
+          const scroll = $scroll[0].getBoundingClientRect();
+          const detail = $detail[0].getBoundingClientRect();
+          expect(detail.bottom, 'final preview detail reachable').to.be.at.most(scroll.bottom + 1);
+          expect(detail.bottom, 'final preview detail visible').to.be.greaterThan(scroll.top);
+        });
       });
     });
     cy.get('[data-cy="event-preview-collapse"]').should('be.visible').and('have.attr', 'aria-expanded', 'true').and('contain.text', 'Hide preview').click();

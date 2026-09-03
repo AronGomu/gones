@@ -10143,7 +10143,6 @@
           "deletedAt",
           "deletedReason",
           "formatIds",
-          "image",
           "version",
           "eTag"
         ],
@@ -10286,16 +10285,6 @@
               "format": "uuid"
             }
           },
-          "image": {
-            "oneOf": [
-              {
-                "type": "null"
-              },
-              {
-                "$ref": "#/components/schemas/EventImageResponse"
-              }
-            ]
-          },
           "version": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
@@ -10306,6 +10295,16 @@
           },
           "eTag": {
             "type": "string"
+          },
+          "image": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventImageResponse"
+              }
+            ]
           }
         }
       },
@@ -10516,8 +10515,7 @@
           "approverUsername",
           "expiresAt",
           "organizationName",
-          "formatNames",
-          "image"
+          "formatNames"
         ],
         "type": "object",
         "properties": {
@@ -12554,8 +12552,7 @@
           "status",
           "eventType",
           "organization",
-          "formats",
-          "image"
+          "formats"
         ],
         "type": "object",
         "properties": {

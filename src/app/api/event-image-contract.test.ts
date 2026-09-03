@@ -23,6 +23,8 @@ describe('singular Event image OpenAPI contract', () => {
     for (const name of ['PublicEventDetailResponse', 'EventManagementResponse', 'EventProposalReviewResponse']) {
       expect(openapi.components.schemas[name].properties).toHaveProperty('image');
       expect(openapi.components.schemas[name].properties).not.toHaveProperty('images');
+      expect(openapi.components.schemas[name].required ?? []).not.toContain('image');
+      expect(generated).toMatch(new RegExp(`export interface ${name}[^}]*image\\?: EventImageResponse \\| undefined;`, 's'));
     }
   });
 });

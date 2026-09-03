@@ -61,7 +61,25 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     FOR proposal_row IN
                         SELECT id, payload_json::jsonb AS envelope
                         FROM event_proposals
-                        WHERE status = 'Pending' AND (payload_json::jsonb ->> 'version')::int = 2
+                        WHERE status = 'Pending'
+                          AND (payload_json::jsonb ->> 'version')::int = 2
+                          AND jsonb_typeof(payload_json::jsonb -> 'event' -> 'images') = 'array'
+                          AND jsonb_array_length(CASE
+                              WHEN jsonb_typeof(payload_json::jsonb -> 'event' -> 'images') = 'array'
+                              THEN payload_json::jsonb -> 'event' -> 'images'
+                              ELSE '[]'::jsonb END) <= 5
+                          AND NOT EXISTS (
+                              SELECT 1
+                              FROM jsonb_array_elements(CASE
+                                  WHEN jsonb_typeof(payload_json::jsonb -> 'event' -> 'images') = 'array'
+                                  THEN payload_json::jsonb -> 'event' -> 'images'
+                                  ELSE '[]'::jsonb END) AS image
+                              WHERE jsonb_typeof(image) IS DISTINCT FROM 'object'
+                                 OR jsonb_typeof(image -> 'imageId') IS DISTINCT FROM 'string'
+                                 OR (image ->> 'imageId') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                                 OR (image ->> 'imageId') = '00000000-0000-0000-0000-000000000000'
+                                 OR (image ? 'altText' AND jsonb_typeof(image -> 'altText') NOT IN ('null', 'string'))
+                                 OR length(COALESCE(image ->> 'altText', '')) > 300)
                         FOR UPDATE
                     LOOP
                         event_v3 := jsonb_set(

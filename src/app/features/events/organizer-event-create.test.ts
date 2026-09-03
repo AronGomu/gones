@@ -104,8 +104,9 @@ describe('Organizer Event create state', () => {
     expect(aside).toContain('data-cy="event-live-preview-scroll" [hidden]="previewCollapsed()"');
     expect(styles).toContain('@media (min-width: 1024px)');
     expect(styles).toContain('grid-template-columns: minmax(0, 1fr) minmax(0, 1fr)');
-    expect(styles).toContain('top: calc(var(--app-toolbar-height) + 3.75rem)');
-    expect(styles).toMatch(/\.event-live-preview__scroll \{[^}]*max-height: calc\(100dvh - var\(--event-preview-sticky-offset\)\)[^}]*overflow: auto/);
+    expect(styles).toContain('top: var(--event-preview-sticky-offset)');
+    expect(styles).toMatch(/\.event-live-preview \{[^}]*max-height: calc\(100dvh - var\(--event-preview-sticky-offset\)\)[^}]*grid-template-rows: auto minmax\(0, 1fr\)/);
+    expect(styles).toMatch(/\.event-live-preview__scroll \{[^}]*min-height: 0[^}]*overflow: auto/);
     expect(styles).toMatch(/\.event-live-preview__title \{[^}]*font-size: clamp\(1\.5rem, 2vw, 2rem\)[^}]*text-align: left/);
   });
 
