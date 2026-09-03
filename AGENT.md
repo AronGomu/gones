@@ -20,7 +20,8 @@ The calendar record is an **Event**, never a "scheduled tournament" — that ter
 
 There is exactly one data authority and every build declares it (ADR 0020): `dataMode: server`.
 The API database owns everything — Calendar V1, auth, organizer, admin, League. The browser
-keeps only language, view preference, filters and the anonymous public read cache. The retired
+keeps only language, view preference, filters, the anonymous public read cache and one account-scoped
+unsent Event-create recovery draft (ADR 0055; never canonical Event authority). The retired
 `legacy-browser` authority is refused with `dataModeUnknown` at build time, container start and in
 the browser.
 
@@ -58,9 +59,10 @@ violation — read `docs/adr/0021-role-scoped-browser-live-store.md` and
 
 ADRs live in `docs/adr/` (lowercase — tests and cross-references point there). The four newest
 (`ops/agent-rules.test.ts` derives this list from `docs/adr/` and fails when it goes stale) bind the
-next shape of the app: **0051** Google-resolved Event locations use signed server tokens; **0052**
-Event imgs use private S3 objects with DB ownership states; **0053** Markdown is Event-description
-source; **0054** Event publication is direct with live local preview. Still binding for today's code:
+next shape of the app: **0054** Event publication is direct with live local preview; **0055** one
+account-scoped unsent Event-create draft may persist in `localStorage`; **0056** Event media is one
+nullable owned image without author alt/order metadata; **0057** manual worldwide Event locations use
+required address text plus backend-validated IANA timezone, without geocoding/provider APIs. Still binding for today's code:
 **0047** the Archive rebuild has no migration path; **0048** archive catalogs use IndexedDB year
 partitions; **0049** ratings are per-scope Glicko-2; **0050** legacy Archive surface retires without
 aliases; **0038** `/calendar` routes
