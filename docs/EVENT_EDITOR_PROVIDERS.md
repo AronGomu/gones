@@ -1,19 +1,10 @@
 # Event editor provider setup
 
-Complete provider-owned setup before enabling Event location or img flows. Never place key values in Git, Compose YAML, docs, logs, or support output.
+Event locations use manual worldwide address fields plus backend-validated IANA timezones. They need no external provider, billing account, API key, geocoding service, or operator setup.
 
-## Google setup
+Never place storage credential values in Git, Compose YAML, docs, logs, or support output.
 
-1. Use billing-enabled Google Cloud project.
-2. Enable Places API, Place Details API, and Time Zone API.
-3. Create server key, not browser key.
-4. Restrict key to those three APIs. Restrict requests to deployment egress IPs where provider supports it.
-5. Inject key through `GONES_GOOGLE_MAPS_API_KEY_FILE` where host can mount secret file. `GONES_GOOGLE_MAPS_API_KEY` remains supported for hosts limited to env injection. File wins when both are present.
-6. Restart API + Worker, then inspect readiness/log output. Output identifies provider state without printing key.
-
-Missing Google config is allowed: API still starts, existing Event browsing stays available, location operations return RFC 7807 `503` with `location_provider_unavailable`.
-
-## Private S3-compatible storage setup
+## Private S3-compatible image storage setup
 
 For every non-local env:
 
@@ -28,8 +19,6 @@ For every non-local env:
 Required runtime keys:
 
 ```text
-GONES_GOOGLE_MAPS_API_KEY=
-GONES_GOOGLE_MAPS_API_KEY_FILE=
 GONES_EVENT_IMAGES_S3_ENDPOINT=
 GONES_EVENT_IMAGES_S3_BUCKET=
 GONES_EVENT_IMAGES_S3_REGION=
@@ -41,7 +30,7 @@ GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE=
 
 `docker compose up` starts private MinIO without publishing object port to host. `event-image-secret-init` generates credentials into private `event-image-secrets` volume. `event-image-bucket-bootstrap` creates `gones-event-images` idempotently, removes anonymous access, then permits API + Worker startup. Object bytes persist in `event-image-data`.
 
-Check local contract without contacting Google or external S3:
+Check local contract without contacting external services:
 
 ```bash
 docker compose config --quiet

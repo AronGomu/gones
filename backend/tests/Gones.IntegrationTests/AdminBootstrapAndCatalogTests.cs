@@ -213,8 +213,8 @@ public sealed class AdminBootstrapAndCatalogTests : IAsyncLifetime
                 organization.Id,
                 admin.Id,
                 new ScheduledTournamentDraft(
-                    "Modern Cup", "modern-cup", null, null, "12 Street", null, "Paris", "France", "Europe/Paris",
-                    new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), 32),
+                    "Modern Cup", "modern-cup", null, null, "12 Street", "75001", "Paris", "France", "Europe/Paris",
+                    new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), 32, Region: "Île-de-France"),
                 [format],
                 SystemClock.Instance.GetCurrentInstant()));
             await eventDatabase.SaveChangesAsync();

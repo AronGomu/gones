@@ -3,55 +3,6 @@ using Gones.Application.Events;
 
 namespace Gones.Infrastructure.EventProviders;
 
-public sealed class FakeEventLocationProvider : IEventLocationProvider
-{
-    public Task<IReadOnlyList<EventLocationSuggestion>> AutocompleteAsync(
-        string input,
-        string sessionToken,
-        string language,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var normalized = string.Concat(input.Trim().ToLowerInvariant().Select(character => char.IsLetterOrDigit(character) ? character : '-'));
-        IReadOnlyList<EventLocationSuggestion> result =
-        [
-            new EventLocationSuggestion($"fake-place-{normalized}", input.Trim(), "Deterministic test location")
-        ];
-        return Task.FromResult(result);
-    }
-
-    public Task<ResolvedEventLocation> ResolveAsync(
-        string placeId,
-        string sessionToken,
-        string language,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var fixture = placeId.Split('|').Select(Uri.UnescapeDataString).ToArray();
-        return fixture is ["fixture", var streetAddress, var postalCode, var city, var country, var region]
-            ? Task.FromResult(new ResolvedEventLocation(
-                placeId,
-                streetAddress,
-                postalCode,
-                city,
-                country,
-                region,
-                45.7640m,
-                4.8357m,
-                "Europe/Paris"))
-            : Task.FromResult(new ResolvedEventLocation(
-                placeId,
-                "10 Rue de la République",
-                "69001",
-                "Lyon",
-                "France",
-                "Auvergne-Rhône-Alpes",
-                45.7640m,
-                4.8357m,
-                "Europe/Paris"));
-    }
-}
-
 public sealed class InMemoryEventImageObjectStore : IEventImageObjectStore
 {
     private readonly ConcurrentDictionary<string, byte[]> objects = new(StringComparer.Ordinal);

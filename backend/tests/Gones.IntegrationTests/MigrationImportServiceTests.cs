@@ -97,7 +97,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
         var outcome = await new MigrationImportService(importContext, new FixedClock(Now))
             .RunAsync(Options(inputs, dryRun: false, acceptReportHash: dryRun.Report!.ReportHash));
 
-        Assert.Equal(0, outcome.ExitCode);
+        Assert.True(outcome.ExitCode == 0, outcome.FailureMessage);
         Assert.False(outcome.AlreadyImported);
         Assert.NotNull(outcome.Verification);
         Assert.True(outcome.Verification!.Passed, string.Join("; ", outcome.Verification.Failures));
@@ -409,6 +409,7 @@ public sealed class MigrationImportServiceTests : IAsyncLifetime
                 ["city"] = "Lyon",
                 ["country"] = "France",
                 ["postalCode"] = "69002",
+                ["region"] = "Auvergne-Rhône-Alpes",
                 ["formatSlugs"] = new JsonArray(TournamentFormat.LegacySlug),
                 ["status"] = "published",
                 ["capacity"] = 32

@@ -88,9 +88,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
 
         await using var verify = CreateContext();
         var storedEvent = await verify.Events.AsNoTracking().SingleAsync(item => item.Id == eventId);
-        Assert.Equal("google-place-id", storedEvent.ProviderPlaceId);
-        Assert.Equal(45.764m, storedEvent.Latitude);
-        Assert.Equal(4.8357m, storedEvent.Longitude);
+        Assert.Equal("12 Rue de la Paix", storedEvent.StreetAddress);
         Assert.Equal("Europe/Paris", storedEvent.TimeZoneId);
         Assert.Equal(new LocalTime(23, 59, 59), storedEvent.VenueEndTime);
         var images = await verify.EventImages.AsNoTracking()
@@ -179,6 +177,67 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Manual_location_values_are_trimmed_and_valid_IANA_timezone_is_persisted()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
+        var location = json["location"]!.AsObject();
+        location["streetAddress"] = "  12 Rue de la Paix  ";
+        location["postalCode"] = "  75001  ";
+        location["city"] = "  Paris  ";
+        location["country"] = "  France  ";
+        location["region"] = "  Île-de-France  ";
+        location["timeZoneId"] = "  Europe/Paris  ";
+
+        using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "manual-location");
+        var raw = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.StatusCode == HttpStatusCode.Created, raw);
+        var eventId = JsonDocument.Parse(raw).RootElement.GetProperty("id").GetGuid();
+        await using var database = CreateContext();
+        var stored = await database.Events.AsNoTracking().SingleAsync(item => item.Id == eventId);
+        Assert.Equal("12 Rue de la Paix", stored.StreetAddress);
+        Assert.Equal("75001", stored.PostalCode);
+        Assert.Equal("Paris", stored.City);
+        Assert.Equal("France", stored.Country);
+        Assert.Equal("Île-de-France", stored.Region);
+        Assert.Equal("Europe/Paris", stored.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task Unknown_IANA_timezone_returns_field_validation_and_rolls_back_Event()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
+        var location = json["location"]!.AsObject();
+        location["timeZoneId"] = "Europe/Nope";
+
+        using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "invalid-timezone");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty("location.timeZoneId", out _), body.ToString());
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.Events.CountAsync(item => item.Title == "Summer Cup"));
+        Assert.Equal(0, await database.IdempotencyRecords.CountAsync(item => item.Key == "invalid-timezone"));
+    }
+
+    [Fact]
+    public async Task Latest_migration_removes_provider_geodata_columns()
+    {
+        await using var database = CreateContext();
+        var columns = await database.Database.SqlQueryRaw<string>("""
+            SELECT column_name AS "Value"
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'events'
+            """).ToListAsync();
+
+        Assert.DoesNotContain("provider_place_id", columns);
+        Assert.DoesNotContain("latitude", columns);
+        Assert.DoesNotContain("longitude", columns);
+        Assert.Contains("time_zone_id", columns);
+    }
+
+    [Fact]
     public async Task Invalid_location_rolls_back_Event_and_image_promotion()
     {
         var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 960, 540, Now);
@@ -190,13 +249,13 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var payload = Payload(seed.Alpha.Id) with
         {
             Title = "Invalid Location Cup",
-            Location = Location() with { LocationToken = "expired-location-token" },
+            Location = Location() with { TimeZoneId = "Europe/Nope" },
             Images = [new(image.Id, null)]
         };
 
         using var response = await PublishAsync(seed.Organizer.Id, "invalid-location", payload);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("location_token_expired", await ProblemCode(response));
+        Assert.Equal("validation_failed", await ProblemCode(response));
 
         await using var verify = CreateContext();
         Assert.Equal(0, await verify.Events.CountAsync(item => item.Title == payload.Title));
@@ -335,8 +394,6 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(clock);
-                services.RemoveAll<IEventLocationTokenService>();
-                services.AddSingleton<IEventLocationTokenService, TestLocationTokenService>();
             });
         });
 
@@ -397,7 +454,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         "Paris",
         "France",
         "Auvergne-Rhône-Alpes",
-        "valid-location-token");
+        "Europe/Paris");
 
     private GonesDbContext CreateContext()
     {
@@ -439,7 +496,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string City,
         string Country,
         string Region,
-        string LocationToken);
+        string TimeZoneId);
 
     private sealed record ImagePayload(Guid ImageId, string? AltText);
 
@@ -447,27 +504,5 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
-    }
-
-    private sealed class TestLocationTokenService : IEventLocationTokenService
-    {
-        public string Issue(Guid userId, ResolvedEventLocation location, Instant now) => "valid-location-token";
-
-        public ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now)
-        {
-            if (input.LocationToken == "expired-location-token") throw new LocationTokenExpiredException();
-            if (input.LocationToken != "valid-location-token") throw new LocationTokenInvalidException();
-            return new ValidatedEventLocation(
-                "google-place-id",
-                input.StreetAddress,
-                input.PostalCode,
-                input.City,
-                input.Country,
-                input.Region,
-                45.764m,
-                4.8357m,
-                "Europe/Paris",
-                now + Duration.FromMinutes(30));
-        }
     }
 }

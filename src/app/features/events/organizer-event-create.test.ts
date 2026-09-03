@@ -13,15 +13,15 @@ describe('Organizer Event create state', () => {
     expect(field).toContain('id="event-type-error"');
   });
 
-  it('keeps resolved timezone and coordinates hidden from manual editing', () => {
+  it('keeps timezone state hidden pending manual timezone UX without provider geodata', () => {
     const source = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
     expect(source).not.toContain('id="event-zone"');
     expect(source).toContain('type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId"');
-    expect(source).toContain('type="hidden" data-cy="event-location-latitude" formControlName="latitude"');
-    expect(source).toContain('type="hidden" data-cy="event-location-longitude" formControlName="longitude"');
+    expect(source).not.toContain('formControlName="latitude"');
+    expect(source).not.toContain('formControlName="longitude"');
   });
 
-  it('exposes stable hooks for every location autocomplete and error state', () => {
+  it('removes location provider autocomplete and token states', () => {
     const source = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
     for (const hook of [
       'event-location-loading',
@@ -34,17 +34,17 @@ describe('Organizer Event create state', () => {
       'event-location-retry',
       'event-location-token-error'
     ]) {
-      expect(source).toContain(hook);
+      expect(source).not.toContain(hook);
     }
   });
 
-  it('builds exact nested create payload from separate date/time controls without trusting client coordinates or timezone', () => {
+  it('builds exact nested create payload from separate date/time controls with manual timezone', () => {
     expect(eventPayload({
       organizationId: 'org', title: ' Cup ', summary: ' ', bodyMarkdown: ' **Body** ', streetAddress: ' 1 Street ',
-      postalCode: ' 69001 ', city: ' Lyon ', country: ' France ', region: ' Rhône ', locationToken: 'token', latitude: 45.764, longitude: 4.8357,
-      eventType: 'weekly', timeZoneId: 'Europe/Paris', startDate: '2027-08-01', startTime: '10:00',
+      postalCode: ' 69001 ', city: ' Lyon ', country: ' France ', region: ' Rhône ',
+      eventType: 'weekly', timeZoneId: ' Europe/Paris ', startDate: '2027-08-01', startTime: '10:00',
       capacity: 32, formatId: 'legacy', images: [{ imageId: 'image-1', altText: ' Hero ' }]
-    } as never)).toEqual({
+    })).toEqual({
       organizationId: 'org',
       title: 'Cup',
       summary: undefined,
@@ -55,7 +55,7 @@ describe('Organizer Event create state', () => {
         city: 'Lyon',
         country: 'France',
         region: 'Rhône',
-        locationToken: 'token'
+        timeZoneId: 'Europe/Paris'
       },
       eventType: 'weekly',
       startsAtLocal: '2027-08-01T10:00',

@@ -56,9 +56,9 @@ _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 An image attached to one Event in a deliberate order with optional alt text. Its object stays private in S3-compatible storage; DB ownership state controls Temporary, Proposal-owned, and Event-owned access and cleanup (ADR 0052).
 _Avoid_: public bucket image, URL-only image
 
-**Resolved Event Location**:
-A venue selected from Google-backed suggestions and carried to Event publication or edit by a short-lived signed server token. Clients do not submit trusted coordinates directly (ADR 0051).
-_Avoid_: free-text location, client-trusted latitude/longitude
+**Manual Event Location**:
+Required worldwide street address, postal code, city, region, country, and user-selected IANA timezone. Backend validates timezone identity through NodaTime TZDB; no provider identity or coordinates are stored (ADR 0057).
+_Avoid_: Resolved Event Location, provider-backed location, coordinates
 
 **Markdown Description**:
 The optional Markdown source stored on an Event. Public Event detail exposes server-rendered sanitized HTML; Markdown remains the editable source (ADR 0053).

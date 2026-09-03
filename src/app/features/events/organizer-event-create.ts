@@ -10,9 +10,6 @@ export interface EventDraftValue {
   city: string;
   country: string;
   region: string;
-  locationToken: string;
-  latitude: number | null;
-  longitude: number | null;
   eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
   startDate: string;
@@ -34,7 +31,7 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
       city: value.city.trim(),
       country: value.country.trim(),
       region: value.region.trim(),
-      locationToken: value.locationToken
+      timeZoneId: value.timeZoneId.trim()
     },
     eventType: eventTypeValue(value.eventType),
     startsAtLocal: `${value.startDate}T${value.startTime}`,

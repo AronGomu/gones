@@ -289,13 +289,14 @@ public sealed class TournamentSchedulerTests : IAsyncLifetime
                 null,
                 null,
                 "1 Main Street",
-                null,
+                "75001",
                 "Paris",
                 "France",
-                "Europe/Paris",
+                "UTC",
                 date.At(start ?? new LocalTime(12, 0)),
                 end is null ? null : date.At(end.Value),
-                64),
+                64,
+                Region: "Île-de-France"),
             [legacy],
             clock.GetCurrentInstant());
         database.Events.Add(tournament);

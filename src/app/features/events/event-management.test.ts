@@ -36,7 +36,7 @@ describe('Event management state', () => {
   it('hydrates canonical nested location, Markdown, and ordered images into edit draft', () => {
     expect(managementToDraft(event)).toEqual({
       organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '**Body**', streetAddress: '1 Old Street',
-      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token', latitude: null, longitude: null,
+      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
       eventType: 'weekly', timeZoneId: 'Europe/Paris', startDate: '2027-08-01', startTime: '10:00',
       capacity: 32, formatId: 'legacy', images: [{ imageId: 'image-1', altText: 'Poster' }]
     });
@@ -66,7 +66,7 @@ describe('Event management state', () => {
       title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '  line  \nnext  ',
       location: {
         streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France',
-        region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token'
+        region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
       },
       eventType: 'weekly', startsAtLocal: '2027-08-01T10:00', capacity: 32, formatIds: ['legacy'],
       images: [{ imageId: 'image-1', altText: 'Poster alt' }]

@@ -187,6 +187,7 @@ public sealed class PerformanceBudgetTests : IAsyncLifetime
                     PostalCode: "75001",
                     City: "Lyon",
                     Country: "France",
+                    Region: "Auvergne-Rhône-Alpes",
                     TimeZoneId: "Europe/Paris",
                     StartsAtLocal: startsAt,
                     EndsAtLocal: startsAt.Date.At(new LocalTime(18, 0)),

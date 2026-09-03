@@ -11,7 +11,7 @@ describe('release Event publication journey', () => {
     expect(journey).toContain("const idempotent = () => ({ 'Idempotency-Key': randomUUID() })");
     expect(journey).toContain('body: payload');
     expect(journey).toContain('location: {');
-    expect(journey).toContain('locationToken: resolved.json.locationToken');
+    expect(journey).toContain("timeZoneId: 'Europe/Paris'");
     expect(journey).toContain("eventType: 'major'");
     expect(journey).toContain('images: []');
   });
@@ -21,9 +21,9 @@ describe('release Event publication journey', () => {
     expect(journey).not.toContain('/preview');
   });
 
-  it('keeps location resolution inside deterministic release-test provider', () => {
-    expect(releaseCompose).toContain('GONES_EVENT_LOCATION_USE_FAKE: "true"');
-    expect(apiProgram).toContain('builder.Configuration.GetValue<bool>("GONES_EVENT_LOCATION_USE_FAKE")');
-    expect(journey).toContain("await call('/api/event-locations/resolve'");
+  it('uses manual Event locations without provider runtime configuration', () => {
+    expect(releaseCompose).not.toContain('GONES_EVENT_LOCATION_USE_FAKE');
+    expect(apiProgram).not.toContain('GONES_EVENT_LOCATION_USE_FAKE');
+    expect(journey).not.toContain('/api/event-locations/resolve');
   });
 });

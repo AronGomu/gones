@@ -726,13 +726,14 @@ public sealed class OrganizationApiTests : IAsyncLifetime
                 null,
                 null,
                 "1 Main Street",
-                null,
+                "69001",
                 "Lyon",
                 "France",
                 "Europe/Paris",
                 new NodaTime.LocalDateTime(2035, 1, 1, 10, 0),
                 new NodaTime.LocalDateTime(2035, 1, 1, 18, 0),
-                32),
+                32,
+                Region: "Auvergne-Rhône-Alpes"),
             [legacy],
             now);
         database.Events.Add(tournament);

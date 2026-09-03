@@ -808,11 +808,11 @@ internal sealed record EventProposalEnvelope(
     string PayloadHash,
     string EnvelopeHash,
     EventPayloadRequest Event,
-    ValidatedEventLocation Location)
+    EventLocationInput Location)
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
-    public static EventProposalEnvelope Create(EventPayloadRequest payload, ValidatedEventLocation location)
+    public static EventProposalEnvelope Create(EventPayloadRequest payload, EventLocationInput location)
     {
         var payloadHash = EventPublicationService.PayloadHash(payload);
         return new(CurrentVersion, payloadHash, Hash(CurrentVersion, payloadHash, location), payload, location);
@@ -822,36 +822,28 @@ internal sealed record EventProposalEnvelope(
         EventPublicationService.FixedTimePayloadHash(PayloadHash, EventPublicationService.PayloadHash(Event))
         && EventPublicationService.FixedTimePayloadHash(EnvelopeHash, Hash(Version, PayloadHash, Location));
 
-    private static string Hash(int version, string payloadHash, ValidatedEventLocation location) =>
+    private static string Hash(int version, string payloadHash, EventLocationInput location) =>
         Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
             new EventProposalEnvelopeClaims(
                 version,
                 payloadHash,
-                location.PlaceId,
                 location.StreetAddress,
                 location.PostalCode,
                 location.City,
                 location.Country,
                 location.Region,
-                location.Latitude,
-                location.Longitude,
-                location.TimeZoneId,
-                location.ExpiresAt.ToUnixTimeTicks()),
+                location.TimeZoneId),
             EventProposalEndpoints.PayloadJsonOptions))).ToLowerInvariant();
 
     private sealed record EventProposalEnvelopeClaims(
         int Version,
         string PayloadHash,
-        string PlaceId,
         string StreetAddress,
         string PostalCode,
         string City,
         string Country,
         string Region,
-        decimal Latitude,
-        decimal Longitude,
-        string TimeZoneId,
-        long ExpiresAtUnixTicks);
+        string TimeZoneId);
 }
 
 internal sealed record EventProposalRequest(

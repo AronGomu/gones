@@ -81,13 +81,11 @@ internal static class EventLifecycleEndpoints
             cancellationToken));
 
     private static async Task<IResult> ListDeletedEventsAsync(
-        ClaimsPrincipal principal,
         int? page,
         int? pageSize,
         EventLifecycleService lifecycle,
         CancellationToken cancellationToken) =>
         Results.Ok(await lifecycle.ListDeletedAsync(
-            OrganizationPrincipal.UserId(principal),
             Page(page),
             PageSize(pageSize),
             cancellationToken));
@@ -209,7 +207,6 @@ internal sealed class EventLifecycleService(
     GonesDbContext database,
     OrganizationAccessService access,
     EventRegistrationNotificationService registrationNotifications,
-    IEventLocationTokenService locationTokens,
     EventImageCleanupService imageCleanup,
     ILogger<EventLifecycleService> logger,
     IClock clock)
@@ -230,15 +227,14 @@ internal sealed class EventLifecycleService(
             query = query.Where(item => database.OrganizationMembers.Any(member =>
                 member.OrganizationId == item.OrganizationId && member.UserId == userId));
         }
-        return await ListAsync(query, userId, page, pageSize, cancellationToken);
+        return await ListAsync(query, page, pageSize, cancellationToken);
     }
 
     public Task<EventManagementListResponse> ListDeletedAsync(
-        Guid userId,
         int page,
         int pageSize,
         CancellationToken cancellationToken) =>
-        ListAsync(database.Events.AsNoTracking().Where(item => item.DeletedAt != null), userId, page, pageSize, cancellationToken);
+        ListAsync(database.Events.AsNoTracking().Where(item => item.DeletedAt != null), page, pageSize, cancellationToken);
 
     public async Task<EventManagementResponse> UpdateDetailsAsync(
         Guid eventId,
@@ -254,8 +250,7 @@ internal sealed class EventLifecycleService(
         RequireVersion(tournament, expectedVersion);
         var formats = await RequireFormatsAsync(request.FormatIds, cancellationToken);
         var now = clock.GetCurrentInstant();
-        var location = locationTokens.Validate(actorUserId, request.Location, now);
-        if (!EventPublicationService.LocationMatches(request.Location, location)) throw new LocationTokenInvalidException();
+        var location = EventPublicationService.NormalizeLocation(request.Location);
         var media = await UpdateImagesAsync(tournament.Id, actorUserId, request.Images, now, cancellationToken);
         var before = EventAuditSnapshot.From(tournament);
         var draft = ToDraft(request, tournament, location);
@@ -294,7 +289,7 @@ internal sealed class EventLifecycleService(
         }
         ForceVersionMutation(tournament);
         await SaveChangesAsync(transaction, cancellationToken);
-        var response = await ResponseAsync(tournament, actorUserId, cancellationToken);
+        var response = await ResponseAsync(tournament, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await ProcessRemovedImagesAsync(media.RemovedImageIds);
         return response;
@@ -614,7 +609,6 @@ internal sealed class EventLifecycleService(
 
     private async Task<EventManagementListResponse> ListAsync(
         IQueryable<Event> query,
-        Guid actorUserId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -646,15 +640,13 @@ internal sealed class EventLifecycleService(
             item,
             organizationNames[item.OrganizationId],
             formatNames[item.Formats.Single().TournamentFormatId],
-            images[item.Id],
-            actorUserId)).ToArray();
+            images[item.Id])).ToArray();
         await transaction.CommitAsync(cancellationToken);
         return new EventManagementListResponse(items, page, pageSize, total);
     }
 
     private async Task<EventManagementResponse> ResponseAsync(
         Event tournament,
-        Guid actorUserId,
         CancellationToken cancellationToken)
     {
         var organizationName = await database.Organizations.AsNoTracking()
@@ -670,7 +662,7 @@ internal sealed class EventLifecycleService(
             .Where(item => item.EventId == tournament.Id && item.State == EventImageState.EventOwned)
             .OrderBy(item => item.SortOrder)
             .ToListAsync(cancellationToken);
-        return ToResponse(tournament, organizationName, formatName, images, actorUserId);
+        return ToResponse(tournament, organizationName, formatName, images);
     }
 
     private async Task SaveAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
@@ -715,21 +707,8 @@ internal sealed class EventLifecycleService(
         Event item,
         string organizationName,
         string formatName,
-        IEnumerable<EventImage> images,
-        Guid actorUserId)
-    {
-        var issuedAt = clock.GetCurrentInstant();
-        var token = locationTokens.Issue(actorUserId, new ResolvedEventLocation(
-            item.ProviderPlaceId,
-            item.StreetAddress,
-            item.PostalCode,
-            item.City,
-            item.Country,
-            item.Region,
-            item.Latitude,
-            item.Longitude,
-            item.TimeZoneId), issuedAt);
-        return new EventManagementResponse(
+        IEnumerable<EventImage> images) =>
+        new(
             item.Id,
             item.OrganizationId,
             organizationName,
@@ -740,8 +719,7 @@ internal sealed class EventLifecycleService(
             item.BodyMarkdown,
             item.LiveTournamentUrl,
             item.ArchiveTournamentUrl,
-            new EventLocationInput(item.StreetAddress, item.PostalCode, item.City, item.Country, item.Region, token),
-            InstantPattern.ExtendedIso.Format(issuedAt + EventLocationTokenService.Lifetime),
+            new EventLocationInput(item.StreetAddress, item.PostalCode, item.City, item.Country, item.Region, item.TimeZoneId),
             item.StreetAddress,
             item.PostalCode,
             item.City,
@@ -764,7 +742,6 @@ internal sealed class EventLifecycleService(
             images.OrderBy(image => image.SortOrder).Select(ToImageResponse).ToArray(),
             item.Version,
             StrongETag.Encode(item.Version));
-    }
 
     private static EventImageResponse ToImageResponse(EventImage image) => new(
         image.Id,
@@ -779,7 +756,7 @@ internal sealed class EventLifecycleService(
     private static ScheduledTournamentDraft ToDraft(
         UpdateEventDetailsRequest request,
         Event tournament,
-        ValidatedEventLocation location) => new(
+        EventLocationInput location) => new(
         request.Title,
         tournament.Slug,
         request.Summary,
@@ -795,10 +772,7 @@ internal sealed class EventLifecycleService(
         null,
         null,
         location.Region,
-        EventPublicationService.ToDomainEventType(request.EventType),
-        location.PlaceId,
-        location.Latitude,
-        location.Longitude);
+        EventPublicationService.ToDomainEventType(request.EventType));
 
     private static LocalDateTime ParseLocal(string value, string field)
     {
@@ -882,7 +856,6 @@ internal sealed record EventManagementResponse(
     string? LiveTournamentUrl,
     string? ArchiveTournamentUrl,
     EventLocationInput Location,
-    [property: DataType(DataType.DateTime)] string LocationTokenExpiresAt,
     string StreetAddress,
     string? PostalCode,
     string City,

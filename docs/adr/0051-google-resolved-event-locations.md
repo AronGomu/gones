@@ -8,7 +8,7 @@
 
 ## Status
 
-Superseded before implementation by [ADR-0057](0057-manual-worldwide-event-locations.md).
+Superseded by [ADR-0057](0057-manual-worldwide-event-locations.md). Provider-backed locations were implemented, then removed before release.
 
 ## Context
 

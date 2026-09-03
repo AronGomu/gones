@@ -1,6 +1,6 @@
 # ADR-0057: Manual worldwide Event locations
 
-> Status: accepted; planned
+> Status: accepted; implemented
 > Decided: 2026-09-03
 > Owners: Event location editor, API, persistence
 > Relates: ADR-0054 (direct publication and live preview)
@@ -8,7 +8,7 @@
 
 ## Status
 
-Accepted. Not yet implemented.
+Accepted. Implemented in the Event API, persistence, generated client, and runtime contract.
 
 ## Context
 

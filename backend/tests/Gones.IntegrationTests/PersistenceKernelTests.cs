@@ -16,7 +16,7 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task Migrations_apply_from_empty_and_round_trip_to_empty()
+    public async Task Migrations_apply_from_empty_and_provider_geodata_removal_is_irreversible()
     {
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
@@ -29,11 +29,8 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
         var constraintError = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlRawAsync("INSERT INTO schema_versions (id, version, name, applied_at) VALUES (gen_random_uuid(), -1, 'invalid', now())"));
         Assert.Equal(PostgresErrorCodes.CheckViolation, constraintError.SqlState);
 
-        await db.Database.MigrateAsync("0");
-        Assert.Empty(await db.Database.GetAppliedMigrationsAsync());
-
-        await db.Database.MigrateAsync();
-        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), migration => migration.EndsWith("_InitialCreate", StringComparison.Ordinal));
+        var downError = await Assert.ThrowsAsync<NotSupportedException>(() => db.Database.MigrateAsync("0"));
+        Assert.Equal("Dropped Event provider geodata cannot be reconstructed.", downError.Message);
     }
 
     [Fact]

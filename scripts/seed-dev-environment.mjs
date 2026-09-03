@@ -310,36 +310,25 @@ async function seedOrganizations(environment, tokens) {
   return ids;
 }
 
-/** Resolve each fixture venue, then publish directly through the same signed-location contract as the editor. */
+/** Publish each fixture Event with its manual location and IANA timezone. */
 async function seedEvents(environment, tokens, organizationIds, formatIds, formatSlugs) {
   const ids = new Map();
   if (!environment.tournaments.length) return ids;
 
   for (const entry of environment.tournaments) {
     const token = tokens.get(normalizeFixtureEmail(entry.organizerEmail));
-    const resolved = await requireResponse(await api('POST', '/api/event-locations/resolve', {
-      token,
-      body: {
-        placeId: ['fixture', entry.streetAddress, entry.postalCode, entry.city, entry.country, entry.region]
-          .map((part) => encodeURIComponent(part))
-          .join('|'),
-        sessionToken: crypto.randomUUID(),
-        language: 'en'
-      }
-    }), 'tournaments', `${entry.key} location`);
-    const location = await resolved.json();
     const payload = {
       organizationId: organizationIds.get(entry.organizationKey),
       title: entry.title,
       summary: entry.summary,
       bodyMarkdown: entry.bodyMarkdown,
       location: {
-        streetAddress: location.streetAddress,
-        postalCode: location.postalCode,
-        city: location.city,
-        country: location.country,
-        region: location.region,
-        locationToken: location.locationToken
+        streetAddress: entry.streetAddress,
+        postalCode: entry.postalCode,
+        city: entry.city,
+        country: entry.country,
+        region: entry.region,
+        timeZoneId: entry.timeZoneId
       },
       eventType: entry.eventType,
       startsAtLocal: localDateTime(entry.startsAtLocalOffsetDays, entry.startsAtLocalTime),

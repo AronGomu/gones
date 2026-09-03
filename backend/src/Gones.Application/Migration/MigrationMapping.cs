@@ -11,6 +11,7 @@ public sealed record CalendarEventMapping(
     string? City,
     string? Country,
     string? PostalCode,
+    string? Region,
     IReadOnlyList<string>? FormatSlugs,
     string? Status,
     int? Capacity);
@@ -120,6 +121,7 @@ public static class MigrationMappingReader
             OptionalString(element, "city"),
             OptionalString(element, "country"),
             OptionalString(element, "postalCode"),
+            OptionalString(element, "region"),
             formatSlugs,
             OptionalString(element, "status"),
             capacity);

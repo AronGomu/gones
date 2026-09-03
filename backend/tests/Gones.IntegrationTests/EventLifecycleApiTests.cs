@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Gones.Application.Concurrency;
 using Gones.Application.Events;
 using Gones.Domain.Calendar;
@@ -26,7 +27,6 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     private readonly PostgreSqlTestContainer postgres = new();
     private readonly MutableClock clock = new(Instant.FromUtc(2030, 1, 1, 12, 0));
     private readonly RecordingObjectStore objects = new();
-    private readonly RejectingLocationProvider locations = new();
     private WebApplicationFactory<Program>? factory;
     private HttpClient? client;
     private SeedRows seed = null!;
@@ -51,10 +51,8 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             {
                 services.RemoveAll<IClock>();
                 services.RemoveAll<IEventImageObjectStore>();
-                services.RemoveAll<IEventLocationProvider>();
                 services.AddSingleton<IClock>(clock);
                 services.AddSingleton<IEventImageObjectStore>(objects);
-                services.AddSingleton<IEventLocationProvider>(locations);
             });
         });
         client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
@@ -140,9 +138,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         Assert.Equal("Legacy — Renamed Cup", minorBody.GetProperty("displayTitle").GetString());
         Assert.Equal("Renamed Cup", minorBody.GetProperty("title").GetString());
         Assert.Equal("12 Rue de la Paix", minorBody.GetProperty("location").GetProperty("streetAddress").GetString());
-        Assert.Equal(
-            (clock.GetCurrentInstant() + Duration.FromMinutes(30)).ToDateTimeOffset(),
-            minorBody.GetProperty("locationTokenExpiresAt").GetDateTimeOffset());
+        Assert.Equal("Europe/Paris", minorBody.GetProperty("location").GetProperty("timeZoneId").GetString());
 
         var majorDetails = Details(
             tournament,
@@ -202,7 +198,33 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Management_load_issues_actor_bound_location_token_and_ordered_images_without_provider_call()
+    public async Task Manual_location_edit_trims_values_and_accepts_valid_IANA_timezone()
+    {
+        var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Manual Edit Cup");
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Details(tournament, "Manual Edit Cup")))!.AsObject();
+        var location = json["Location"]!.AsObject();
+        location["StreetAddress"] = "  99 Manual Street  ";
+        location["Region"] = "  Île-de-France  ";
+        location["TimeZoneId"] = "  Europe/Paris  ";
+
+        using var response = await SendRawJsonAsync(
+            HttpMethod.Patch,
+            $"/api/organizer/events/{tournament.Id:D}/details",
+            seed.Organizer.Id,
+            "Organizer",
+            json.ToJsonString(),
+            StrongETag.Encode(tournament.Version));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await using var database = CreateContext();
+        var stored = await database.Events.AsNoTracking().SingleAsync(item => item.Id == tournament.Id);
+        Assert.Equal("99 Manual Street", stored.StreetAddress);
+        Assert.Equal("Île-de-France", stored.Region);
+        Assert.Equal("Europe/Paris", stored.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task Management_load_returns_manual_location_and_ordered_images()
     {
         var tournament = await CreateTournamentAsync(seed.Alpha.Id, seed.Organizer.Id, "Load Cup");
         var image = await CreateOwnedImageAsync(tournament.Id, seed.Organizer.Id, 0, "Poster");
@@ -214,24 +236,19 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         var item = body.GetProperty("items").EnumerateArray().Single(value => value.GetProperty("id").GetGuid() == tournament.Id);
         var location = item.GetProperty("location");
         Assert.Equal("12 Rue de la Paix", location.GetProperty("streetAddress").GetString());
-        Assert.False(string.IsNullOrWhiteSpace(location.GetProperty("locationToken").GetString()));
-        Assert.Equal(
-            (clock.GetCurrentInstant() + Duration.FromMinutes(30)).ToDateTimeOffset(),
-            item.GetProperty("locationTokenExpiresAt").GetDateTimeOffset());
+        Assert.Equal("Europe/Paris", location.GetProperty("timeZoneId").GetString());
         Assert.Equal(image.Id, item.GetProperty("images")[0].GetProperty("id").GetGuid());
         Assert.Equal("Poster", item.GetProperty("images")[0].GetProperty("altText").GetString());
         Assert.Equal(new[] { 320 }, item.GetProperty("images")[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
-        Assert.Equal(0, locations.Calls);
 
         using var edit = await SendJsonAsync(
             HttpMethod.Patch,
             $"/api/organizer/events/{tournament.Id:D}/details",
             seed.Organizer.Id,
             "Organizer",
-            Details(tournament, "Loaded Edit", locationToken: location.GetProperty("locationToken").GetString(), images: [new(image.Id, "Poster")]),
+            Details(tournament, "Loaded Edit", images: [new(image.Id, "Poster")]),
             ifMatch: item.GetProperty("eTag").GetString());
         Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        Assert.Equal(0, locations.Calls);
     }
 
     [Fact]
@@ -725,26 +742,19 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         string? startsAtLocal = null,
         string eventType = "weekly",
         string? bodyMarkdown = "Body",
-        string? locationToken = null,
         IReadOnlyList<TournamentImage>? images = null)
     {
-        var location = new ResolvedEventLocation(
-            tournament.ProviderPlaceId,
-            streetAddress ?? tournament.StreetAddress,
-            tournament.PostalCode,
-            tournament.City,
-            tournament.Country,
-            region ?? tournament.Region,
-            tournament.Latitude,
-            tournament.Longitude,
-            tournament.TimeZoneId);
-        locationToken ??= factory!.Services.GetRequiredService<IEventLocationTokenService>()
-            .Issue(seed.Organizer.Id, location, clock.GetCurrentInstant());
         return new TournamentDetails(
             title,
             "Summary",
             bodyMarkdown,
-            new TournamentLocation(location.StreetAddress, location.PostalCode, location.City, location.Country, location.Region, locationToken),
+            new TournamentLocation(
+                streetAddress ?? tournament.StreetAddress,
+                tournament.PostalCode,
+                tournament.City,
+                tournament.Country,
+                region ?? tournament.Region,
+                tournament.TimeZoneId),
             eventType,
             startsAtLocal ?? $"{LocalDatePattern.Iso.Format(tournament.VenueStartDate)}T{LocalTimePattern.CreateWithInvariantCulture("HH:mm").Format(tournament.VenueStartTime)}",
             tournament.Capacity,
@@ -858,7 +868,7 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
         IReadOnlyList<TournamentImage> Images);
-    private sealed record TournamentLocation(string StreetAddress, string PostalCode, string City, string Country, string Region, string LocationToken);
+    private sealed record TournamentLocation(string StreetAddress, string PostalCode, string City, string Country, string Region, string TimeZoneId);
     private sealed record TournamentImage(Guid ImageId, string? AltText);
 
     private sealed class RecordingObjectStore : IEventImageObjectStore
@@ -906,23 +916,6 @@ public sealed class EventLifecycleApiTests : IAsyncLifetime
             releaseDeletes = null;
             DeleteKeys = [];
             FailDeletes = false;
-        }
-    }
-
-    private sealed class RejectingLocationProvider : IEventLocationProvider
-    {
-        public int Calls { get; private set; }
-
-        public Task<IReadOnlyList<EventLocationSuggestion>> AutocompleteAsync(string input, string sessionToken, string language, CancellationToken cancellationToken)
-        {
-            Calls++;
-            return Task.FromException<IReadOnlyList<EventLocationSuggestion>>(new InvalidOperationException("Location provider must not be called while loading an editor."));
-        }
-
-        public Task<ResolvedEventLocation> ResolveAsync(string placeId, string sessionToken, string language, CancellationToken cancellationToken)
-        {
-            Calls++;
-            return Task.FromException<ResolvedEventLocation>(new InvalidOperationException("Location provider must not be called while loading an editor."));
         }
     }
 

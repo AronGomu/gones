@@ -813,7 +813,7 @@ public sealed class EventRegistrationApiTests : IAsyncLifetime
         var tournament = Event.Create(
             organizationId,
             seed.Organizer.Id,
-            new ScheduledTournamentDraft(title, title.ToLowerInvariant().Replace(' ', '-'), "Summary", null, "12 Street", null, "Paris", "France", "Europe/Paris", new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), capacity),
+            new ScheduledTournamentDraft(title, title.ToLowerInvariant().Replace(' ', '-'), "Summary", null, "12 Street", "75001", "Paris", "France", "Europe/Paris", new LocalDateTime(2035, 3, 4, 10, 0), new LocalDateTime(2035, 3, 4, 18, 0), capacity, Region: "Île-de-France"),
             [legacy],
             clock.GetCurrentInstant());
         database.Events.Add(tournament);

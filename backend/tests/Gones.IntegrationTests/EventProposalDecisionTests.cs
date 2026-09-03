@@ -296,16 +296,12 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
             ["version"] = baseline with { Version = baseline.Version + 1 },
             ["payloadHash"] = baseline with { PayloadHash = new string('0', baseline.PayloadHash.Length) },
             ["payload"] = baseline with { Event = baseline.Event with { Title = "Mutated Cup" } },
-            ["placeId"] = baseline with { Location = location with { PlaceId = "mutated-place" } },
             ["streetAddress"] = baseline with { Location = location with { StreetAddress = "99 Mutated Street" } },
             ["postalCode"] = baseline with { Location = location with { PostalCode = "99999" } },
             ["city"] = baseline with { Location = location with { City = "Mutated City" } },
             ["country"] = baseline with { Location = location with { Country = "Mutated Country" } },
             ["region"] = baseline with { Location = location with { Region = "Mutated Region" } },
-            ["latitude"] = baseline with { Location = location with { Latitude = location.Latitude + 1m } },
-            ["longitude"] = baseline with { Location = location with { Longitude = location.Longitude + 1m } },
-            ["timeZoneId"] = baseline with { Location = location with { TimeZoneId = "UTC" } },
-            ["expiresAt"] = baseline with { Location = location with { ExpiresAt = location.ExpiresAt + Duration.FromMinutes(1) } }
+            ["timeZoneId"] = baseline with { Location = location with { TimeZoneId = "UTC" } }
         };
         Assert.All(mutations, mutation => Assert.False(mutation.Value.HasValidIntegrity(), mutation.Key));
 
@@ -386,17 +382,16 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     }
 
     [Fact]
-    public async Task Approve_uses_submission_validated_location_after_client_token_expires()
+    public async Task Approve_uses_submission_normalized_manual_location()
     {
         var proposal = await SeedProposalAsync();
-        clock.Advance(EventLocationTokenService.Lifetime + Duration.FromMinutes(1));
 
         using var response = await Client.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await using var database = CreateContext();
         var published = await database.Events.AsNoTracking().SingleAsync();
-        Assert.Equal("google-place-id", published.ProviderPlaceId);
+        Assert.Equal("12 Rue de la Paix", published.StreetAddress);
         Assert.Equal("Europe/Paris", published.TimeZoneId);
     }
 
@@ -982,7 +977,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         var payload = Payload(extraFormat, images);
         var proposalJson = legacyPayload
             ? JsonSerializer.Serialize(new { payload.OrganizationId, payload.Title }, PayloadJsonOptions)
-            : JsonSerializer.Serialize(EventProposalEnvelope.Create(payload, ValidatedLocation(payload.Location)), PayloadJsonOptions);
+            : JsonSerializer.Serialize(EventProposalEnvelope.Create(payload, NormalizedLocation(payload.Location)), PayloadJsonOptions);
         var proposal = EventProposal.Create(
             seed.Submitter.Id,
             proposalJson,
@@ -1096,7 +1091,7 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
             "Paris",
             "France",
             "Auvergne-Rhône-Alpes",
-            "valid-location-token"),
+            "Europe/Paris"),
         PublicCalendarEventType.Weekly,
         "2035-03-04T10:00",
         64,
@@ -1105,17 +1100,13 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         "Featured",
         "Welcome");
 
-    private static ValidatedEventLocation ValidatedLocation(EventLocationInput input) => new(
-        "google-place-id",
-        input.StreetAddress,
-        input.PostalCode,
-        input.City,
-        input.Country,
-        input.Region,
-        45.764m,
-        4.8357m,
-        "Europe/Paris",
-        Now + EventLocationTokenService.Lifetime);
+    private static EventLocationInput NormalizedLocation(EventLocationInput input) => new(
+        input.StreetAddress.Trim(),
+        input.PostalCode.Trim(),
+        input.City.Trim(),
+        input.Country.Trim(),
+        input.Region.Trim(),
+        input.TimeZoneId.Trim());
 
     private GonesDbContext CreateContext()
     {

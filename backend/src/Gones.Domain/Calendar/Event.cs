@@ -98,10 +98,7 @@ public sealed record ScheduledTournamentDraft(
     string? LiveTournamentUrl = null,
     string? ArchiveTournamentUrl = null,
     string? Region = null,
-    CalendarEventType? EventType = null,
-    string? ProviderPlaceId = null,
-    decimal? Latitude = null,
-    decimal? Longitude = null);
+    CalendarEventType? EventType = null);
 
 public sealed class Event : VersionedEntity
 {
@@ -115,7 +112,6 @@ public sealed class Event : VersionedEntity
     public const int MaximumCountryLength = 120;
     public const int MaximumRegionLength = 120;
     public const int MaximumTimeZoneLength = 100;
-    public const int MaximumProviderPlaceIdLength = 512;
     public const int MaximumDeletedReasonLength = 300;
     public const int MaximumSearchTextLength = 600;
     public const int MaximumTournamentUrlLength = 2048;
@@ -134,9 +130,6 @@ public sealed class Event : VersionedEntity
     public string City { get; private set; } = string.Empty;
     public string Country { get; private set; } = string.Empty;
     public string Region { get; private set; } = string.Empty;
-    public string ProviderPlaceId { get; private set; } = "legacy-unresolved";
-    public decimal Latitude { get; private set; }
-    public decimal Longitude { get; private set; }
     public CalendarEventType? EventType { get; private set; }
     public string TimeZoneId { get; private set; } = string.Empty;
     public LocalDate VenueStartDate { get; private set; }
@@ -187,10 +180,6 @@ public sealed class Event : VersionedEntity
         var normalized = NormalizeDraft(draft, selectedFormats);
         var major = StartsAtUtc != normalized.StartsAtUtc
             || TimeZoneId != normalized.TimeZone.Id
-            || (normalized.ProviderPlaceId is not null
-                && (ProviderPlaceId != normalized.ProviderPlaceId
-                    || Latitude != normalized.Latitude!.Value
-                    || Longitude != normalized.Longitude!.Value))
             || StreetAddress != normalized.StreetAddress
             || PostalCode != normalized.PostalCode
             || City != normalized.City
@@ -282,12 +271,6 @@ public sealed class Event : VersionedEntity
         City = normalized.City;
         Country = normalized.Country;
         Region = normalized.Region;
-        if (normalized.ProviderPlaceId is not null && normalized.Latitude is not null && normalized.Longitude is not null)
-        {
-            ProviderPlaceId = normalized.ProviderPlaceId;
-            Latitude = normalized.Latitude.Value;
-            Longitude = normalized.Longitude.Value;
-        }
         EventType = normalized.EventType;
         TimeZoneId = normalized.TimeZone.Id;
         VenueStartDate = normalized.StartsAtLocal.Date;
@@ -326,17 +309,10 @@ public sealed class Event : VersionedEntity
         var liveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.LiveTournamentUrl);
         var archiveTournamentUrl = EventTournamentUrl.NormalizeOptional(draft.ArchiveTournamentUrl);
         var streetAddress = ValidateRequired(draft.StreetAddress, nameof(draft.StreetAddress), MaximumAddressLength);
-        var postalCode = ValidateOptional(draft.PostalCode, nameof(draft.PostalCode), MaximumPostalCodeLength) ?? "Unknown";
+        var postalCode = ValidateRequired(draft.PostalCode!, nameof(draft.PostalCode), MaximumPostalCodeLength);
         var city = ValidateRequired(draft.City, nameof(draft.City), MaximumCityLength);
         var country = ValidateRequired(draft.Country, nameof(draft.Country), MaximumCountryLength);
-        var region = ValidateOptional(draft.Region, nameof(draft.Region), MaximumRegionLength) ?? "Unknown";
-        var providerPlaceId = draft.ProviderPlaceId is null
-            ? null
-            : ValidateRequired(draft.ProviderPlaceId, nameof(draft.ProviderPlaceId), MaximumProviderPlaceIdLength);
-        if ((providerPlaceId is null) != (draft.Latitude is null || draft.Longitude is null))
-        {
-            throw new ArgumentException("Provider place ID and coordinates must be supplied together.", nameof(draft));
-        }
+        var region = ValidateRequired(draft.Region!, nameof(draft.Region), MaximumRegionLength);
         var zone = DateTimeZoneProviders.Tzdb.GetZoneOrNull(ValidateRequired(draft.TimeZoneId, nameof(draft.TimeZoneId), MaximumTimeZoneLength))
             ?? throw new ArgumentException("Time zone must be a valid IANA zone.", nameof(draft));
         var endLocal = draft.EndsAtLocal ?? draft.StartsAtLocal.Date.At(new LocalTime(23, 59, 59));
@@ -345,7 +321,7 @@ public sealed class Event : VersionedEntity
         if (endsAtUtc < startsAtUtc) throw new ArgumentException("Tournament end cannot be before start.", nameof(draft));
         if (draft.Capacity is <= 0) throw new ArgumentOutOfRangeException(nameof(draft), "Capacity must be positive when present.");
         var capacity = draft.Capacity ?? int.MaxValue;
-        return new NormalizedDraft(title, slug, summary, bodyMarkdown, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, providerPlaceId, draft.Latitude, draft.Longitude, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, capacity);
+        return new NormalizedDraft(title, slug, summary, bodyMarkdown, liveTournamentUrl, archiveTournamentUrl, streetAddress, postalCode, city, country, region, draft.EventType, zone, draft.StartsAtLocal, endLocal, startsAtUtc, endsAtUtc, capacity);
     }
 
     private static Instant ResolveRequiredStart(DateTimeZone zone, LocalDateTime local)
@@ -409,9 +385,6 @@ public sealed class Event : VersionedEntity
         string City,
         string Country,
         string Region,
-        string? ProviderPlaceId,
-        decimal? Latitude,
-        decimal? Longitude,
         CalendarEventType? EventType,
         DateTimeZone TimeZone,
         LocalDateTime StartsAtLocal,

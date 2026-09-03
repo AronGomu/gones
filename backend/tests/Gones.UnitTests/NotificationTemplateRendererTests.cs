@@ -12,7 +12,7 @@ public sealed class NotificationTemplateRendererTests
         new UnregistrationTemplateModel("Alice", "Legacy Lyon", new Uri("https://app.example/tournaments/legacy-lyon")),
         new MajorUpdateTemplateModel("Alice", "Legacy Lyon", "Venue changed", new Uri("https://app.example/tournaments/legacy-lyon")),
         new CancellationTemplateModel("Alice", "Legacy Lyon", new Uri("https://app.example/tournaments/legacy-lyon")),
-        new ReminderTemplateModel("Alice", "Legacy Lyon", new DateTimeOffset(2026, 8, 15, 12, 0, 0, TimeSpan.Zero), "Europe/Paris", new Uri("https://app.example/tournaments/legacy-lyon")),
+        new ReminderTemplateModel("Alice", "Legacy Lyon", new DateTimeOffset(2026, 8, 15, 12, 0, 0, TimeSpan.Zero), "UTC", new Uri("https://app.example/tournaments/legacy-lyon")),
         new OrganizerNoticeTemplateModel("Morgan", "Alice", "Legacy Lyon", "Registration received", new Uri("https://app.example/tournaments/legacy-lyon")),
         new TournamentProposalTemplateModel(
             "Morgan",

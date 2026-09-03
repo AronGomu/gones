@@ -30,7 +30,7 @@ ADR-0020 removed browser-owned canonical data. Unsent create input is not canoni
 1. Browser restart restores unsent create work without adding server Draft Event state.
 2. Event text and venue remain on shared browser disk across logout. Account-key isolation prevents normal UI crossover but does not protect against same-origin script compromise or local browser-profile access.
 3. No age expiry means abandoned drafts remain until empty/published or browser storage clears. This is selected recovery behavior.
-4. Location and image expiry can produce partial restore; user may need to reselect address or image.
+4. Temporary image expiry can produce partial restore; manual address and timezone remain restorable scalar input.
 5. Storage quota/security failure cannot block editor or publication. Failure is logged; recovery persistence may be unavailable.
 6. Browser native leave-dialog wording cannot be localized by app.
 
@@ -40,4 +40,4 @@ ADR-0020 removed browser-owned canonical data. Unsent create input is not canoni
 2. `sessionStorage` lost because closing browser loses exact work recovery requested.
 3. One browser-wide key lost because shared browsers would expose one account's draft to another.
 4. Persisting edit drafts lost because edits must always reload current server Event and preserve optimistic-concurrency truth.
-5. Treating restored provider IDs as perpetually valid lost because signed location lasts 30 minutes and Temporary image lasts 24 hours.
+5. Persisting provider identity lost because manual address and timezone need no provider assertion; Temporary image still lasts 24 hours.

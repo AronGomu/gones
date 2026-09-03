@@ -25,9 +25,6 @@ internal sealed class EventConfiguration : VersionedEntityConfiguration<Event>
         builder.Property(tournament => tournament.City).HasMaxLength(Event.MaximumCityLength);
         builder.Property(tournament => tournament.Country).HasMaxLength(Event.MaximumCountryLength);
         builder.Property(tournament => tournament.Region).HasMaxLength(Event.MaximumRegionLength).IsRequired();
-        builder.Property(tournament => tournament.ProviderPlaceId).HasMaxLength(Event.MaximumProviderPlaceIdLength).IsRequired();
-        builder.Property(tournament => tournament.Latitude).HasPrecision(9, 6);
-        builder.Property(tournament => tournament.Longitude).HasPrecision(9, 6);
         builder.Property(tournament => tournament.EventType).HasConversion<string>().HasMaxLength(20).HasColumnName("event_type");
         builder.Property(tournament => tournament.TimeZoneId).HasMaxLength(Event.MaximumTimeZoneLength);
         builder.Property(tournament => tournament.Status).HasConversion<string>().HasMaxLength(20);

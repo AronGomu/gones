@@ -34,9 +34,6 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     city: event.location.city,
     country: event.location.country,
     region: event.location.region,
-    locationToken: event.location.locationToken,
-    latitude: null,
-    longitude: null,
     eventType: (event.eventType ?? '') as EventDraftValue['eventType'],
     timeZoneId: event.timeZoneId,
     startDate: event.startsAtLocal.slice(0, 10),
@@ -58,7 +55,7 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
       city: value.city.trim(),
       country: value.country.trim(),
       region: value.region.trim(),
-      locationToken: value.locationToken
+      timeZoneId: value.timeZoneId.trim()
     },
     eventType: eventTypeValue(value.eventType),
     startsAtLocal: `${value.startDate}T${value.startTime}`,

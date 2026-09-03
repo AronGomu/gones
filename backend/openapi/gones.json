@@ -29,6 +29,26 @@
         }
       }
     },
+    "/api/event-locations/time-zones": {
+      "get": {
+        "tags": [
+          "EventLocationEndpoints"
+        ],
+        "operationId": "ListEventTimeZones",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventTimeZoneCatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/formats": {
       "get": {
         "tags": [
@@ -1531,142 +1551,6 @@
           },
           "404": {
             "description": "Not Found",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/event-locations/autocomplete": {
-      "get": {
-        "tags": [
-          "EventLocationEndpoints"
-        ],
-        "operationId": "AutocompleteEventLocations",
-        "parameters": [
-          {
-            "name": "input",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sessionToken",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "language",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EventLocationAutocompleteResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/event-locations/resolve": {
-      "post": {
-        "tags": [
-          "EventLocationEndpoints"
-        ],
-        "operationId": "ResolveEventLocation",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResolveEventLocationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ResolvedEventLocationResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Service Unavailable",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10176,20 +10060,6 @@
           }
         }
       },
-      "EventLocationAutocompleteResponse": {
-        "required": [
-          "suggestions"
-        ],
-        "type": "object",
-        "properties": {
-          "suggestions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventLocationSuggestionResponse"
-            }
-          }
-        }
-      },
       "EventLocationInput": {
         "required": [
           "streetAddress",
@@ -10197,7 +10067,7 @@
           "city",
           "country",
           "region",
-          "locationToken"
+          "timeZoneId"
         ],
         "type": "object",
         "properties": {
@@ -10221,27 +10091,8 @@
             "maxLength": 120,
             "type": "string"
           },
-          "locationToken": {
-            "maxLength": 2048,
-            "type": "string"
-          }
-        }
-      },
-      "EventLocationSuggestionResponse": {
-        "required": [
-          "placeId",
-          "primaryText",
-          "secondaryText"
-        ],
-        "type": "object",
-        "properties": {
-          "placeId": {
-            "type": "string"
-          },
-          "primaryText": {
-            "type": "string"
-          },
-          "secondaryText": {
+          "timeZoneId": {
+            "maxLength": 100,
             "type": "string"
           }
         }
@@ -10300,7 +10151,6 @@
           "liveTournamentUrl",
           "archiveTournamentUrl",
           "location",
-          "locationTokenExpiresAt",
           "streetAddress",
           "postalCode",
           "city",
@@ -10372,10 +10222,6 @@
           },
           "location": {
             "$ref": "#/components/schemas/EventLocationInput"
-          },
-          "locationTokenExpiresAt": {
-            "type": "string",
-            "format": "date-time"
           },
           "streetAddress": {
             "type": "string"
@@ -10957,6 +10803,20 @@
                 "$ref": "#/components/schemas/Instant"
               }
             ]
+          }
+        }
+      },
+      "EventTimeZoneCatalogResponse": {
+        "required": [
+          "ids"
+        ],
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -13704,83 +13564,6 @@
           }
         }
       },
-      "ResolvedEventLocationResponse": {
-        "required": [
-          "streetAddress",
-          "postalCode",
-          "city",
-          "country",
-          "region",
-          "latitude",
-          "longitude",
-          "timeZoneId",
-          "locationToken",
-          "expiresAt"
-        ],
-        "type": "object",
-        "properties": {
-          "streetAddress": {
-            "type": "string"
-          },
-          "postalCode": {
-            "type": "string"
-          },
-          "city": {
-            "type": "string"
-          },
-          "country": {
-            "type": "string"
-          },
-          "region": {
-            "type": "string"
-          },
-          "latitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "longitude": {
-            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
-            "type": [
-              "number",
-              "string"
-            ],
-            "format": "double"
-          },
-          "timeZoneId": {
-            "type": "string"
-          },
-          "locationToken": {
-            "type": "string"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        }
-      },
-      "ResolveEventLocationRequest": {
-        "required": [
-          "placeId",
-          "sessionToken",
-          "language"
-        ],
-        "type": "object",
-        "properties": {
-          "placeId": {
-            "type": "string"
-          },
-          "sessionToken": {
-            "type": "string"
-          },
-          "language": {
-            "type": "string"
-          }
-        }
-      },
       "RoundDocument": {
         "required": [
           "id",
@@ -14449,6 +14232,9 @@
       "name": "Gones.Api"
     },
     {
+      "name": "EventLocationEndpoints"
+    },
+    {
       "name": "AdminEndpoints"
     },
     {
@@ -14480,9 +14266,6 @@
     },
     {
       "name": "OrganizationEndpoints"
-    },
-    {
-      "name": "EventLocationEndpoints"
     },
     {
       "name": "LocalIdentityEndpoints"

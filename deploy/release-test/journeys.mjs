@@ -208,41 +208,26 @@ async function login(email) {
   return { token: response.json.accessToken, profile: me.json };
 }
 
-async function eventPayload(
-  token,
+function eventPayload(
   organizationId,
   formatIds,
   startsAtLocal,
   title,
-  placeId = 'fixture|1%20Rue%20de%20la%20Republique|69002|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes'
-) {
-  const resolved = await call('/api/event-locations/resolve', {
-    method: 'POST',
-    token,
-    body: {
-      placeId,
-      sessionToken: randomUUID(),
-      language: 'en'
-    }
-  });
-  check(resolved.status === 200 && typeof resolved.json?.locationToken === 'string',
-    `the client resolves the Event location through the deterministic provider (${resolved.status} ${resolved.text.slice(0, 120)})`);
-  if (resolved.status !== 200 || !resolved.json?.locationToken) {
-    throw new Error(`Event location resolution failed: ${resolved.status} ${resolved.text.slice(0, 200)}`);
+  location = {
+    streetAddress: '1 Rue de la Republique',
+    postalCode: '69002',
+    city: 'Lyon',
+    country: 'France',
+    region: 'Auvergne-Rhône-Alpes',
+    timeZoneId: 'Europe/Paris'
   }
+) {
   return {
     organizationId,
     title,
     summary: 'Release rehearsal tournament',
     bodyMarkdown: 'Local rehearsal only.',
-    location: {
-      streetAddress: resolved.json.streetAddress,
-      postalCode: resolved.json.postalCode,
-      city: resolved.json.city,
-      country: resolved.json.country,
-      region: resolved.json.region,
-      locationToken: resolved.json.locationToken
-    },
+    location,
     eventType: 'major',
     startsAtLocal: startsAtLocal.slice(0, 16),
     capacity: 8,
@@ -340,7 +325,7 @@ async function rolesStage() {
   const formatIds = [formats.json[0].id];
 
   const startsAtLocal = futureLocal(70);
-  const payload = await eventPayload(organizer.token, organizationId, formatIds, startsAtLocal, 'Release Rehearsal Cup');
+  const payload = eventPayload(organizationId, formatIds, startsAtLocal, 'Release Rehearsal Cup');
   const published = await call('/api/events', {
     method: 'POST',
     token: organizer.token,
@@ -458,8 +443,7 @@ async function eventLifecycleStage() {
   const first = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-first.webp');
   const second = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-second.webp');
   const startsAtLocal = futureLocal(80);
-  const directPayload = await eventPayload(
-    organizer.token,
+  const directPayload = eventPayload(
     state.organizationId,
     formatIds,
     startsAtLocal,
@@ -492,7 +476,7 @@ async function eventLifecycleStage() {
   check(createdDetail.status === 200
       && createdDetail.json?.bodyHtml === '<p>Created with <strong>Markdown</strong> and real image bytes.</p>'
       && createdDetail.json?.venue?.streetAddress === directPayload.location.streetAddress,
-    'direct Event public detail preserves Markdown and resolved location');
+    'direct Event public detail preserves Markdown and manual location');
   await verifyPublicGallery(createdDetail.json.images, [
     { upload: second, altText: 'Second upload leads' },
     { upload: first, altText: 'First upload follows' }
@@ -505,13 +489,19 @@ async function eventLifecycleStage() {
     'the real Organizer management read supplies If-Match state for the created Event');
   if (!managed?.eTag) throw new Error(`created Event missing from management response: ${management.status}`);
 
-  const changedLocationPayload = await eventPayload(
-    organizer.token,
+  const changedLocationPayload = eventPayload(
     state.organizationId,
     formatIds,
     startsAtLocal,
     directPayload.title,
-    'fixture|9%20Rue%20Victor%20Hugo|69003|Lyon|France|Auvergne-Rh%C3%B4ne-Alpes');
+    {
+      streetAddress: '9 Rue Victor Hugo',
+      postalCode: '69003',
+      city: 'Lyon',
+      country: 'France',
+      region: 'Auvergne-Rhône-Alpes',
+      timeZoneId: 'Europe/Paris'
+    });
   const edited = await call(`/api/organizer/events/${published.json.id}/details`, {
     method: 'PATCH',
     token: organizer.token,
@@ -534,13 +524,13 @@ async function eventLifecycleStage() {
   check(edited.status === 200
       && /^"[^"]+"$/.test(edited.headers.get('etag') ?? '')
       && edited.json?.location?.streetAddress === changedLocationPayload.location.streetAddress,
-    `If-Match edit commits resolved location, Markdown, media add/remove/reorder (${edited.status})`);
+    `If-Match edit commits manual location, Markdown, media add/remove/reorder (${edited.status})`);
 
   const editedDetail = await call(`/api/events/${published.json.slug}`);
   check(editedDetail.status === 200
       && editedDetail.json?.bodyHtml === '<p>Edited with <strong>Markdown</strong>, reordered and replaced media.</p>'
       && editedDetail.json?.venue?.streetAddress === changedLocationPayload.location.streetAddress,
-    'edited public detail preserves new Markdown and resolved location');
+    'edited public detail preserves new Markdown and manual location');
   await verifyPublicGallery(editedDetail.json.images, [
     { upload: first, altText: 'Retained image reordered first' },
     { upload: added, altText: 'New image added second' }
@@ -549,8 +539,7 @@ async function eventLifecycleStage() {
   check(removed.status === 404, `removed Event image stops resolving after committed edit (${removed.status})`);
 
   const proposalUpload = await uploadFixtureAndReadPrivateVariants(plainUser.token, 'proposal.webp');
-  const proposalPayload = await eventPayload(
-    plainUser.token,
+  const proposalPayload = eventPayload(
     state.organizationId,
     formatIds,
     futureLocal(90),
@@ -608,8 +597,7 @@ async function eventLifecycleStage() {
 async function deleteRestoreStage() {
   const admin = await login(bootstrapEmail);
   const organizer = await login(organizerEmail);
-  const payload = await eventPayload(
-    organizer.token,
+  const payload = eventPayload(
     state.organizationId,
     state.formatIds ?? (await call('/api/formats')).json.map((format) => format.id).slice(0, 1),
     futureLocal(50),
@@ -677,7 +665,7 @@ async function dateChangeStage() {
         city: entry.location.city,
         country: entry.location.country,
         region: entry.location.region,
-        locationToken: entry.location.locationToken
+        timeZoneId: entry.location.timeZoneId
       },
       eventType: entry.eventType,
       startsAtLocal: startsAtLocal.slice(0, 16),

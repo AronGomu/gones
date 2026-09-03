@@ -83,7 +83,6 @@ public sealed class RuntimeContractTests
         [
             "GONES_DB_CONNECTION",
             "GONES_AUTH_SIGNING_KEY",
-            "GONES_GOOGLE_MAPS_API_KEY",
             "GONES_EVENT_IMAGES_S3_ACCESS_KEY",
             "GONES_EVENT_IMAGES_S3_SECRET_KEY"
         ],

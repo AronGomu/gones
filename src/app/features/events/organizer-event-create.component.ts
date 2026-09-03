@@ -4,9 +4,9 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { catchError, distinctUntilChanged, firstValueFrom, map, merge, of, Subject, switchMap, timer } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, EventImageInput, EventLocationSuggestionResponse, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
+import { Client, EventImageInput, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -28,9 +28,6 @@ export interface EventOrganizationOption { id: string; name: string; }
 
 const PublicOrganizationPageSize = 100;
 const MaximumPublicOrganizationPages = 20;
-const MinimumLocationSearchLength = 3;
-const LocationAutocompleteDelayMilliseconds = 300;
-const MaximumLocationSuggestions = 5;
 const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
 
 @Component({
@@ -131,24 +128,9 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-street">
                     <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
-                    <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="event-location-suggestions" [attr.aria-expanded]="locationSuggestions().length ? 'true' : 'false'" [attr.aria-invalid]="fieldError('streetAddress') || fieldError('locationToken') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : fieldError('locationToken') ? 'event-location-token-error' : null" />
-                    <input type="hidden" data-cy="event-location-token" formControlName="locationToken" />
+                    <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : null" />
                     <input type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId" />
-                    <input type="hidden" data-cy="event-location-latitude" formControlName="latitude" />
-                    <input type="hidden" data-cy="event-location-longitude" formControlName="longitude" />
-                    @if (locationLoading()) { <p role="status" data-cy="event-location-loading">{{ i18n.t('eventCreate.locationSearching') }}</p> }
-                    @if (locationSuggestions().length) {
-                      <ul id="event-location-suggestions" class="stack" role="listbox" data-cy="event-location-suggestions">
-                        @for (suggestion of locationSuggestions(); track suggestion.placeId) {
-                          <li role="none" [attr.data-cy]="'event-location-suggestion-item-' + $index"><button type="button" role="option" aria-selected="false" [attr.data-cy]="'event-location-suggestion-' + $index" [disabled]="locationResolving()" (click)="resolveLocation(suggestion)"><span [attr.data-cy]="'event-location-suggestion-primary-' + $index">{{ suggestion.primaryText }}</span><span [attr.data-cy]="'event-location-suggestion-secondary-' + $index">{{ suggestion.secondaryText }}</span></button></li>
-                        }
-                      </ul>
-                    }
-                    @if (locationSearchComplete() && !locationSuggestions().length) { <p role="status" data-cy="event-location-empty">{{ i18n.t('eventCreate.locationEmpty') }}</p> }
-                    @if (locationResolving()) { <p role="status" data-cy="event-location-resolving">{{ i18n.t('eventCreate.locationResolving') }}</p> }
-                    @if (locationError()) { <div class="error" role="alert" data-cy="event-location-error"><span data-cy="event-location-error-message">{{ locationError() }}</span>@if (canRetryLocation()) { <button mat-stroked-button type="button" data-cy="event-location-retry" (click)="retryLocationResolution()">{{ i18n.t('common.retry') }}</button> }</div> }
                     @if (fieldError('streetAddress'); as message) { <p id="event-street-error" class="field-error" data-cy="event-street-error">{{ message }}</p> }
-                    @if (fieldError('locationToken'); as message) { <p id="event-location-token-error" class="field-error" data-cy="event-location-token-error">{{ message }}</p> }
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-postal-code">
                     <label for="event-postal-code" data-cy="event-label-postal-code">{{ i18n.t('eventCreate.postalCode') }}</label>
@@ -199,7 +181,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             <div class="actions" data-cy="event-create-actions">
               @if (canPublishDirectly()) {
                 @if (editMode) {
-                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || locationExpired() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
+                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
                   <button mat-flat-button class="home-primary-action" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
                 }
@@ -267,19 +249,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
   readonly proposalError = signal('');
-  readonly locationSuggestions = signal<EventLocationSuggestionResponse[]>([]);
-  readonly locationLoading = signal(false);
-  readonly locationSearchComplete = signal(false);
-  readonly locationResolving = signal(false);
-  readonly locationError = signal('');
-  readonly locationExpired = signal(false);
-  private readonly locationExpiresAt = signal('');
-  private readonly retryLocation = signal<EventLocationSuggestionResponse | null>(null);
-  private readonly retryLocationSearch = signal<string | null>(null);
-  private readonly locationSearchRetries = new Subject<string>();
-  private locationRevision = 0;
-  readonly canRetryLocation = computed(() => Boolean(this.locationError() && (this.retryLocation() || this.retryLocationSearch())) && !this.locationResolving());
-  private readonly locationSessionToken = globalThis.crypto.randomUUID();
   readonly selectedOrganizationId = signal('');
   readonly imagePublishBlocked = signal(false);
   readonly selectedImages = signal<readonly EventImageSelection[]>([]);
@@ -302,9 +271,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     country: new FormControl('', { nonNullable: true, validators: Validators.required }),
     region: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    locationToken: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    latitude: new FormControl<number | null>(null),
-    longitude: new FormControl<number | null>(null),
     eventType: new FormControl<'' | 'weekly' | 'monthly' | 'major'>('weekly', { nonNullable: true, validators: Validators.required }),
     timeZoneId: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startDate: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -320,8 +286,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       || this.formPending()
       || this.loadingReferences()
       || !this.organizations().length
-      || this.locationResolving()
-      || this.locationExpired()
       || this.imagePublishBlocked();
   });
 
@@ -378,58 +342,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.state.reset();
       this.previewRevision.update(value => value + 1);
     });
-    merge(
-      this.form.controls.streetAddress.valueChanges,
-      this.form.controls.postalCode.valueChanges,
-      this.form.controls.city.valueChanges,
-      this.form.controls.country.valueChanges,
-      this.form.controls.region.valueChanges
-    ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.invalidateResolvedLocation());
-    merge(
-      this.form.controls.streetAddress.valueChanges.pipe(
-        map(value => {
-          this.locationSearchComplete.set(false);
-          return value.trim();
-        }),
-        distinctUntilChanged(),
-        switchMap(value => value.length < MinimumLocationSearchLength
-          ? of(value)
-          : timer(LocationAutocompleteDelayMilliseconds).pipe(map(() => value)))
-      ),
-      this.locationSearchRetries
-    ).pipe(
-      switchMap(value => {
-        if (value.length < MinimumLocationSearchLength) {
-          this.locationSuggestions.set([]);
-          this.locationLoading.set(false);
-          this.locationError.set('');
-          this.retryLocationSearch.set(null);
-          return of([] as EventLocationSuggestionResponse[]);
-        }
-        this.locationLoading.set(true);
-        this.locationSearchComplete.set(false);
-        this.locationError.set('');
-        this.retryLocationSearch.set(null);
-        return this.client.autocompleteEventLocations(value, this.locationSessionToken, this.i18n.language()).pipe(
-          map(response => {
-            this.locationSearchComplete.set(true);
-            return response.suggestions.slice(0, MaximumLocationSuggestions);
-          }),
-          catchError(error => {
-            this.locationLoading.set(false);
-            this.locationSearchComplete.set(false);
-            this.locationSuggestions.set([]);
-            this.locationError.set(this.locationErrorMessage(error));
-            this.retryLocationSearch.set(value);
-            return of([] as EventLocationSuggestionResponse[]);
-          })
-        );
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(suggestions => {
-      this.locationSuggestions.set(suggestions);
-      this.locationLoading.set(false);
-    });
     void this.loadReferences();
   }
 
@@ -483,80 +395,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   private syncSelectedOrganization(): void {
     this.selectedOrganizationId.set(this.form.getRawValue().organizationId);
-  }
-
-  async resolveLocation(suggestion: EventLocationSuggestionResponse): Promise<void> {
-    if (this.locationResolving()) return;
-    const revision = this.locationRevision;
-    this.retryLocation.set(suggestion);
-    this.locationSearchComplete.set(false);
-    this.locationResolving.set(true);
-    this.locationError.set('');
-    try {
-      const resolved = await firstValueFrom(this.client.resolveEventLocation({
-        placeId: suggestion.placeId,
-        sessionToken: this.locationSessionToken,
-        language: this.i18n.language()
-      }).pipe(takeUntilDestroyed(this.destroyRef)));
-      if (revision !== this.locationRevision) return;
-      this.form.patchValue({
-        streetAddress: resolved.streetAddress,
-        postalCode: resolved.postalCode,
-        city: resolved.city,
-        country: resolved.country,
-        region: resolved.region,
-        locationToken: resolved.locationToken,
-        latitude: resolved.latitude,
-        longitude: resolved.longitude,
-        timeZoneId: resolved.timeZoneId
-      }, { emitEvent: false });
-      this.trackLocationExpiry(resolved.expiresAt);
-      this.locationSuggestions.set([]);
-      this.locationError.set('');
-      this.retryLocation.set(null);
-      this.previewRevision.update(value => value + 1);
-    } catch (error) {
-      if (!this.destroyRef.destroyed && revision === this.locationRevision) this.locationError.set(this.locationErrorMessage(error));
-    } finally {
-      if (!this.destroyRef.destroyed) this.locationResolving.set(false);
-    }
-  }
-
-  async retryLocationResolution(): Promise<void> {
-    const suggestion = this.retryLocation();
-    if (suggestion) {
-      await this.resolveLocation(suggestion);
-      return;
-    }
-    const search = this.retryLocationSearch();
-    if (search) this.locationSearchRetries.next(search);
-  }
-
-  private invalidateResolvedLocation(): void {
-    this.locationRevision += 1;
-    this.retryLocation.set(null);
-    if (!this.form.controls.locationToken.value
-      && !this.form.controls.timeZoneId.value
-      && this.form.controls.latitude.value === null
-      && this.form.controls.longitude.value === null)
-    {
-      return;
-    }
-    this.form.patchValue({
-      locationToken: '',
-      timeZoneId: '',
-      latitude: null,
-      longitude: null
-    }, { emitEvent: false });
-    this.locationExpiresAt.set('');
-    this.locationExpired.set(false);
-  }
-
-  private locationErrorMessage(error: unknown): string {
-    if (error instanceof ApiProblemError && error.problem.code === 'location_provider_unavailable') {
-      return this.i18n.t('eventCreate.locationProviderUnavailable');
-    }
-    return this.i18n.t('eventCreate.locationResolveFailed');
   }
 
   private async loadOrganizationOptions(): Promise<EventOrganizationOption[]> {
@@ -645,12 +483,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       await this.router.navigate(['/events', response.slug]);
     } catch (error) {
       this.applyFieldErrors(error);
-      if (error instanceof ApiProblemError
-        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
-      {
-        this.locationExpired.set(true);
-        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventCreate.locationRequired') }));
-      }
       this.submitError.set(this.recovery(error));
     } finally {
       this.publishing.set(false);
@@ -665,10 +497,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.success.set('');
     const base = this.baseEvent();
     if (!this.eventId || !base || this.form.invalid || this.saving() || this.imagePublishBlocked()) return;
-    if (this.locationExpired()) {
-      this.fieldErrors.set({ locationToken: this.i18n.t('eventManage.locationExpired') });
-      return;
-    }
     const draft = this.form.getRawValue();
     const major = majorEventChanges(base, draft, field => this.i18n.t(`eventManage.major.${field}`));
     if (major.length) {
@@ -704,11 +532,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         await this.loadStaleEvent(base);
       } else if (error instanceof ApiProblemError && error.status === 412) {
         await this.loadStaleEvent(base);
-      } else if (error instanceof ApiProblemError
-        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
-      {
-        this.locationExpired.set(true);
-        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventManage.locationExpired') }));
       } else {
         this.submitError.set({ message: this.managementError(error), action: 'retry' });
       }
@@ -735,13 +558,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   fieldError(name: keyof typeof this.form.controls): string {
-    if (name === 'locationToken' && this.locationExpired()) return this.i18n.t('eventManage.locationExpired');
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
     const control = this.form.controls[name];
     if (!control.touched || !control.errors) return '';
     if (control.errors['required'] || (name === 'title' && control.errors['pattern'])) {
-      return this.i18n.t(name === 'locationToken' ? 'eventCreate.locationRequired' : 'eventCreate.required');
+      return this.i18n.t('eventCreate.required');
     }
     if (control.errors['maxlength']) {
       if (name === 'title') return this.i18n.t('eventCreate.titleTooLong');
@@ -766,19 +588,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private applyCanonical(event: EventManagementResponse): void {
     this.baseEvent.set(event);
     this.form.patchValue(managementToDraft(event), { emitEvent: false });
-    this.trackLocationExpiry(event.locationTokenExpiresAt);
     this.currentRender.set(managementToDetail(event, this.formats()));
-  }
-
-  private trackLocationExpiry(expiresAt: string): void {
-    this.locationExpiresAt.set(expiresAt);
-    const expiry = Date.parse(expiresAt);
-    this.locationExpired.set(!Number.isFinite(expiry) || Date.now() >= expiry);
-    if (!Number.isFinite(expiry) || Date.now() >= expiry) return;
-    const delay = Math.min(2_147_483_647, expiry - Date.now());
-    timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(Date.now() >= expiry);
-    });
   }
 
   private async loadStaleEvent(base: EventManagementResponse): Promise<void> {
@@ -807,7 +617,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const names: Record<string, keyof typeof this.form.controls> = {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodymarkdown: 'bodyMarkdown',
       locationstreetaddress: 'streetAddress', locationpostalcode: 'postalCode', locationcity: 'city', locationcountry: 'country',
-      locationregion: 'region', locationlocationtoken: 'locationToken', eventtype: 'eventType', startsatlocal: 'startDate',
+      locationregion: 'region', locationtimezoneid: 'timeZoneId', eventtype: 'eventType', startsatlocal: 'startDate',
       capacity: 'capacity', formatids: 'formatId', images: 'images'
     };
     for (const [field, messages] of Object.entries(error.problem.errors)) {
@@ -835,9 +645,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       if (error.status === 401) return { message: this.i18n.t('eventCreate.unauthorized'), action: 'login' };
       if (error.status === 403 || error.status === 404) return { message: this.i18n.t('eventCreate.forbidden'), action: 'reload' };
       if (error.status === 409) return { message: this.i18n.t('eventCreate.conflict'), action: 'review-calendar' };
-      if (error.problem.errors || error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired') {
-        return { message: this.i18n.t('eventCreate.validationFailed'), action: 'retry' };
-      }
+      if (error.problem.errors) return { message: this.i18n.t('eventCreate.validationFailed'), action: 'retry' };
     }
     return { message: this.i18n.t('eventCreate.publishNetwork'), action: 'retry' };
   }

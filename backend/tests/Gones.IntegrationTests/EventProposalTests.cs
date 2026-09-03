@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Gones.Api.Errors;
 using Gones.Application.Events;
@@ -243,6 +244,61 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     /// T26, the whole point of the flow: the submitter belongs to no organization whatsoever, and
     /// the organization they propose for is one the anonymous public list offers them.
     /// </summary>
+    [Fact]
+    public async Task Submit_stores_normalized_manual_location_and_timezone_in_envelope()
+    {
+        var eventJson = JsonNode.Parse(JsonSerializer.Serialize(Payload()))!.AsObject();
+        var location = eventJson["Location"]!.AsObject();
+        location["StreetAddress"] = "  12 Rue de la Paix  ";
+        location["PostalCode"] = "  75001  ";
+        location["City"] = "  Paris  ";
+        location["Country"] = "  France  ";
+        location["Region"] = "  Île-de-France  ";
+        location["TimeZoneId"] = "  Europe/Paris  ";
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/event-proposals",
+            seed.Submitter.Id,
+            GlobalRoles.User,
+            new { @event = eventJson, recipientUserIds = new[] { seed.Organizer.Id } });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using var database = CreateContext();
+        var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
+        using var document = JsonDocument.Parse(proposal.PayloadJson);
+        var stored = document.RootElement.GetProperty("location");
+        Assert.Equal("12 Rue de la Paix", stored.GetProperty("streetAddress").GetString());
+        Assert.Equal("75001", stored.GetProperty("postalCode").GetString());
+        Assert.Equal("Paris", stored.GetProperty("city").GetString());
+        Assert.Equal("France", stored.GetProperty("country").GetString());
+        Assert.Equal("Île-de-France", stored.GetProperty("region").GetString());
+        Assert.Equal("Europe/Paris", stored.GetProperty("timeZoneId").GetString());
+    }
+
+    [Fact]
+    public async Task Submit_rejects_unknown_IANA_timezone_with_nested_field_error()
+    {
+        var eventJson = JsonNode.Parse(JsonSerializer.Serialize(Payload()))!.AsObject();
+        var location = eventJson["Location"]!.AsObject();
+        location["TimeZoneId"] = "Europe/Nope";
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/event-proposals",
+            seed.Submitter.Id,
+            GlobalRoles.User,
+            new { @event = eventJson, recipientUserIds = new[] { seed.Organizer.Id } });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty("event.location.timeZoneId", out _), body.ToString());
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.EventProposals.CountAsync());
+        Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync());
+    }
+
     [Fact]
     public async Task Non_member_can_submit_for_a_public_organization()
     {
@@ -634,8 +690,6 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(clock);
-                services.RemoveAll<IEventLocationTokenService>();
-                services.AddSingleton<IEventLocationTokenService, TestLocationTokenService>();
             });
         });
 
@@ -710,7 +764,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             "Paris",
             "France",
             "Auvergne-Rhône-Alpes",
-            "valid-location-token"),
+            "Europe/Paris"),
         "weekly",
         "2035-03-04T10:00",
         64,
@@ -762,24 +816,11 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string City,
         string Country,
         string Region,
-        string LocationToken);
+        string TimeZoneId);
 
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
-    }
-
-    private sealed class TestLocationTokenService : IEventLocationTokenService
-    {
-        public string Issue(Guid userId, ResolvedEventLocation location, Instant now) => "valid-location-token";
-
-        public ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now)
-        {
-            if (input.LocationToken != "valid-location-token") throw new LocationTokenInvalidException();
-            return new ValidatedEventLocation(
-                "google-place-id", input.StreetAddress, input.PostalCode, input.City, input.Country, input.Region,
-                45.764m, 4.8357m, "Europe/Paris", now + Duration.FromMinutes(30));
-        }
     }
 }
