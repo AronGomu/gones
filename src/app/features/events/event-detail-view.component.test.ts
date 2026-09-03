@@ -12,7 +12,7 @@ import { Injector, createComponent, runInInjectionContext, signal } from '@angul
 import { createApplication } from '@angular/platform-browser';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PublicEventDetailResponse } from '../../api/generated/gones-api';
+import { PublicCalendarEventType, PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
@@ -38,6 +38,7 @@ const event = {
   endsAtUtc: '2026-08-01T16:00:00Z',
   capacity: 32,
   status: 'Published',
+  eventType: 'weekly',
   liveTournamentUrl: '/live-tournaments/gones-night',
   archiveTournamentUrl: 'https://archive.example.test/gones-night',
   organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: 'https://example.test', contactEmail: undefined, organizers: ['adam', 'zoe'] },
@@ -64,6 +65,22 @@ describe('EventDetailViewComponent hero', () => {
     expect(title).not.toContain('titleFormat');
     expect(title).not.toContain('event().capacity');
     expect(source).not.toContain('titleFormat = computed');
+  });
+
+  it('renders translated Event Type between organization and player count in shared topline', () => {
+    const topline = source.slice(source.indexOf('data-cy="event-detail-topline"'), source.indexOf('</div>', source.indexOf('data-cy="event-detail-topline"')));
+    const organizationIndex = Math.min(
+      ...['event-detail-kicker-link', 'event-detail-kicker'].map(hook => topline.indexOf(hook)).filter(index => index >= 0)
+    );
+    const typeIndex = topline.indexOf('event-detail-event-type');
+    const countIndex = topline.indexOf('event-detail-player-count');
+
+    expect(build({ eventType: PublicCalendarEventType.Weekly }).eventTypeLabel()).toBe(translate('fr', 'event.type.weekly'));
+    expect(build({ eventType: PublicCalendarEventType.Monthly }).eventTypeLabel()).toBe(translate('fr', 'event.type.monthly'));
+    expect(build({ eventType: PublicCalendarEventType.Major }).eventTypeLabel()).toBe(translate('fr', 'event.type.major'));
+    expect(organizationIndex).toBeGreaterThanOrEqual(0);
+    expect(typeIndex).toBeGreaterThan(organizationIndex);
+    expect(countIndex).toBeGreaterThan(typeIndex);
   });
 
   it('renders localized singular, plural and unlimited player counts beside the heading', () => {
@@ -218,13 +235,14 @@ describe('EventDetailViewComponent hero', () => {
     const hero = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>', source.indexOf('<section class="event-hero panel"')));
     const toplineEnd = hero.indexOf('</div>', hero.indexOf('data-cy="event-detail-topline"'));
     const toplineContent = hero.slice(0, toplineEnd);
+    expect(toplineContent).toContain('data-cy="event-detail-event-type"');
     expect(toplineContent).toContain('data-cy="event-detail-player-count"');
     const h1End = hero.indexOf('</h1>', hero.indexOf('<h1'));
     const h1Content = hero.slice(hero.indexOf('<h1'), h1End);
     expect(h1Content).not.toContain('data-cy="event-detail-player-count"');
     const toplineRule = stylesheet.match(/\.event-hero-topline \{[^}]*\}/)?.[0] ?? '';
     expect(toplineRule).toContain('justify-content: flex-start');
-    const countRule = stylesheet.match(/\.event-player-count \{[^}]*\}/)?.[0] ?? '';
+    const countRule = stylesheet.match(/\.event-type-label, \.event-player-count \{[^}]*\}/)?.[0] ?? '';
     expect(countRule).toContain('font-size: 1.1rem');
   });
 

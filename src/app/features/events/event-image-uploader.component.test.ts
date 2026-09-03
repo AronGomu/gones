@@ -91,6 +91,21 @@ describe('EventImageUploaderComponent singular image', () => {
     expect(component.selectedImage()).toBeNull();
   });
 
+  it('centers the singular picker in the drop zone while preserving keyboard file access', () => {
+    const { fixture } = harness(true);
+    const dropZone = fixture!.nativeElement.querySelector('[data-cy="event-image-drop-zone"]') as HTMLElement;
+    const picker = fixture!.nativeElement.querySelector('[data-cy="event-image-picker"]') as HTMLInputElement;
+    const style = getComputedStyle(dropZone);
+
+    expect(style.display).toBe('flex');
+    expect(style.alignItems).toBe('center');
+    expect(style.justifyContent).toBe('center');
+    expect(style.textAlign).toBe('center');
+    expect(picker.type).toBe('file');
+    expect(picker.disabled).toBe(false);
+    expect(fixture!.nativeElement.querySelector('label[for="event-image-picker"]')).not.toBeNull();
+  });
+
   it('renders no alt, move, reorder, or multiple controls; red icon remove has accessible pending name', async () => {
     const { component, requests, fixture } = harness(true);
     component.addFiles([file('one.png')]);

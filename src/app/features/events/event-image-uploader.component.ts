@@ -42,8 +42,9 @@ export interface EventImageUploadCard {
   imports: [MatButtonModule],
   styles: [`
     :host { display: block; }
-    [data-cy="event-image-drop-zone"] { padding: 1rem; border: 1px dashed var(--steel); background: var(--black-metal); }
-    [data-cy="event-image-picker-label"] { display: block; margin-bottom: .5rem; font-weight: 800; }
+    [data-cy="event-image-drop-zone"] { display: flex; min-height: 8rem; padding: 1rem; flex-direction: column; align-items: center; justify-content: center; gap: .75rem; border: 1px dashed var(--steel); background: var(--black-metal); text-align: center; }
+    [data-cy="event-image-picker-label"] { display: block; font-weight: 800; }
+    [data-cy="event-image-picker"] { max-width: 100%; }
     .event-image-card { max-width: 24rem; margin-top: 1rem; padding: .75rem; border: 1px solid var(--soot); background: var(--iron); }
     .event-image-card img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--forge); }
     .event-image-card progress { width: 100%; }

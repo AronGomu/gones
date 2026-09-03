@@ -130,7 +130,11 @@ function checkA11y(label, context) {
 function assertNoHorizontalOverflow(label) {
   cy.document().then(document => {
     const overflow = document.documentElement.scrollWidth - document.documentElement.clientWidth;
-    expect(overflow, `${label} horizontal overflow`).to.be.at.most(1);
+    const overflowing = [...document.querySelectorAll('*')]
+      .filter(element => element.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+      .map(element => element.getAttribute('data-cy') || element.tagName.toLowerCase())
+      .slice(0, 8);
+    expect(overflow, `${label} horizontal overflow (${overflowing.join(', ')})`).to.be.at.most(1);
   });
 }
 
@@ -191,6 +195,18 @@ function fillValidForm(referenceAlias = '@myOrganizations') {
 describe('Organizer Event direct create editor', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
+  it('renders trimmed title live before a format is selected', () => {
+    mockSession();
+    mockReferences();
+    visit();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+
+    cy.get('[data-cy="event-title"]').type('  Night Cup  ');
+    cy.get('[data-cy="event-detail-title-text"]').should('have.text', 'Night Cup');
+    cy.get('[data-cy="event-format"]').select('Legacy');
+    cy.get('[data-cy="event-detail-title-text"]').should('have.text', 'Legacy — Night Cup');
+  });
+
   it('renders instant actual-layout Markdown preview without preview HTTP', () => {
     mockSession();
     mockReferences();
@@ -205,7 +221,37 @@ describe('Organizer Event direct create editor', () => {
     cy.get('@removedPreview.all').should('have.length', 0);
     cy.get('@removedAutocomplete.all').should('have.length', 0);
     cy.get('@removedResolve.all').should('have.length', 0);
-    cy.get('[data-cy="event-publish"]').should('be.enabled');
+    cy.get('[data-cy="event-publish"]').should('be.enabled').and('have.class', 'create-action-button');
+    cy.get('[data-cy="event-create-actions"]').then($actions => {
+      cy.get('[data-cy="event-publish"]').then($publish => {
+        expect($publish[0].getBoundingClientRect().width).to.be.closeTo($actions[0].getBoundingClientRect().width, 1);
+      });
+    });
+    cy.get('[data-cy="event-publish-tooltip"]').should('not.have.attr', 'tabindex');
+    cy.get('[data-cy="event-publish-errors"]').should('not.exist');
+  });
+
+  it('exposes every ordered invalid Publish reason on keyboard focus without submitting', () => {
+    mockSession();
+    mockReferences();
+    visit();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+
+    cy.get('[data-cy="event-publish"]').should('be.disabled');
+    cy.get('[data-cy="event-publish-tooltip"]')
+      .should('have.attr', 'tabindex', '0')
+      .and('have.attr', 'aria-describedby')
+      .and('include', 'event-publish-errors');
+    cy.get('body').trigger('keydown', { key: 'Tab', force: true });
+    cy.get('[data-cy="event-publish-tooltip"]').focus();
+    cy.get('[data-cy="event-publish-errors"]').invoke('text').then(text => {
+      const order = ['Event name', 'Format', 'Capacity', 'Country', 'Region', 'Street address', 'Postal code', 'City', 'Start date', 'Start time', 'Location resolution'];
+      const indices = order.map(label => text.indexOf(label));
+      indices.forEach((index, position) => expect(index, order[position]).to.be.greaterThan(-1));
+      for (let index = 1; index < indices.length; index++) expect(indices[index]).to.be.greaterThan(indices[index - 1]);
+    });
+    cy.get('.mat-mdc-tooltip').should('have.class', 'mat-mdc-tooltip-show').and('contain.text', 'Event name').and('contain.text', 'Start time');
+    cy.get('@myOrganizations.all').should('have.length', 1);
   });
 
   it('publishes one image, rejects a second, and renders public lightbox', () => {
@@ -312,18 +358,35 @@ describe('Organizer Event direct create editor', () => {
       });
     });
     cy.get('[data-cy="event-image-picker"]').should('be.visible');
+    cy.get('[data-cy="event-image-drop-zone"]').then($zone => {
+      cy.get('[data-cy="event-image-picker"]').then($picker => {
+        const zone = $zone[0].getBoundingClientRect();
+        const picker = $picker[0].getBoundingClientRect();
+        expect(picker.left + picker.width / 2, 'picker horizontal center').to.be.closeTo(zone.left + zone.width / 2, 2);
+      });
+    });
     assertNoHorizontalOverflow('Event editor @375px');
     checkA11y('Event editor @375px', '[data-cy="event-create-form"]');
 
-    cy.viewport(1024, 800);
+    cy.viewport(1024, 500);
     cy.get('[data-cy="event-editor-shell"]').should('have.css', 'grid-template-columns').and('match', /px .*px/);
     cy.get('[data-cy="event-live-preview"]').should('have.css', 'position', 'sticky');
-    cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-expanded', 'true').and('contain.text', 'Hide preview').click();
-    cy.get('[data-cy="event-live-preview"]').should('exist').and('not.be.visible').and('have.attr', 'hidden');
-    cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-expanded', 'false').and('contain.text', 'Show preview');
+    cy.get('[data-cy="event-live-preview-scroll"]').should('have.css', 'overflow-y', 'auto');
+    cy.get('[data-cy="event-live-preview-header"]').then($header => {
+      const before = $header[0].getBoundingClientRect().top;
+      cy.get('[data-cy="event-live-preview-scroll"]').scrollTo('bottom');
+      cy.get('[data-cy="event-live-preview-header"]').then($after => {
+        expect($after[0].getBoundingClientRect().top, 'preview header after inner scroll').to.be.closeTo(before, 1);
+      });
+    });
+    cy.get('[data-cy="event-preview-collapse"]').should('be.visible').and('have.attr', 'aria-expanded', 'true').and('contain.text', 'Hide preview').click();
+    cy.get('[data-cy="event-live-preview"]').should('exist').and('be.visible');
+    cy.get('[data-cy="event-live-preview-scroll"]').should('not.be.visible').and('have.attr', 'hidden');
+    cy.get('[data-cy="event-preview-collapse"]').should('be.visible').and('have.attr', 'aria-expanded', 'false').and('contain.text', 'Show preview');
     cy.reload();
     cy.wait(['@myOrganizations', '@formats']);
-    cy.get('[data-cy="event-live-preview"]').should('exist').and('not.be.visible').and('have.attr', 'hidden');
+    cy.get('[data-cy="event-live-preview"]').should('exist').and('be.visible');
+    cy.get('[data-cy="event-live-preview-scroll"]').should('not.be.visible').and('have.attr', 'hidden');
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-controls', 'event-live-preview').and('have.attr', 'aria-expanded', 'false');
   });
 

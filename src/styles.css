@@ -391,7 +391,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-when, .event-where { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; margin: 0; }
 .event-hero-topline { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: .75rem; }
 .event-hero-topline .kicker { margin: 0; }
-.event-player-count { color: var(--dim-ash); font-size: 1.1rem; font-weight: 800; white-space: nowrap; }
+.event-type-label, .event-player-count { color: var(--dim-ash); font-size: 1.1rem; font-weight: 800; white-space: nowrap; }
 .event-hero-ics { margin-top: .75rem; }
 .event-hero-organizers { margin-top: .6rem; color: var(--dim-ash); font-size: .82rem; font-style: italic; }
 .maps-icon { width: 1em; height: 1em; margin-right: .3rem; vertical-align: -0.125em; }
@@ -1281,8 +1281,16 @@ a.public-month-event:hover, a.public-month-event:focus-visible { background: col
 .tournament-management-page { width: min(100%, 64rem); margin-inline: auto; }
 .event-editor-shell { display: grid; gap: 16px; align-items: start; }
 .event-editor-shell--collapsed { grid-template-columns: minmax(0, 1fr); }
-.event-live-preview { min-width: 0; }
-.event-live-preview > h2 { margin-top: 0; }
+.event-live-preview { --event-preview-sticky-offset: calc(var(--app-toolbar-height) + 3.75rem); display: grid; gap: 1rem; min-width: 0; }
+.event-live-preview__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+.event-live-preview__title { margin: 0; font-size: clamp(1.5rem, 2vw, 2rem); text-align: left; }
+.event-live-preview__scroll { min-width: 0; }
+.event-create-actions { width: 100%; }
+.event-publish-tooltip, .event-publish-button { display: block; width: 100%; }
+.event-publish-button:not(:disabled) { --mdc-filled-button-container-color: var(--create-green-hot); background-color: var(--create-green-hot) !important; color: var(--forge) !important; }
+.event-publish-tooltip-panel { white-space: pre-line; }
+.event-publish-tooltip-panel .mat-mdc-tooltip-surface { max-width: min(32rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; }
+.event-publish-errors { top: 0; left: 0; white-space: normal; overflow-wrap: anywhere; }
 .tournament-create-form { display: grid; gap: 1.25rem; padding: clamp(1rem, 3vw, 2rem); }
 .tournament-form-lock { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tournament-form-lock:disabled { opacity: .72; }
@@ -1310,7 +1318,9 @@ a.public-month-event:hover, a.public-month-event:focus-visible { background: col
 .tournament-preview-actions { position: sticky; bottom: .75rem; z-index: 5; padding: .75rem; border: 1px solid var(--soot); background: color-mix(in oklch, var(--black-metal) 94%, transparent); }
 @media (min-width: 1024px) {
   .event-editor-shell:not(.event-editor-shell--collapsed) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .event-live-preview { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow: auto; }
+  .event-editor-shell--collapsed { grid-template-columns: minmax(0, 1fr) auto; }
+  .event-live-preview { position: sticky; top: calc(var(--app-toolbar-height) + 3.75rem); }
+  .event-live-preview__scroll { max-height: calc(100dvh - var(--event-preview-sticky-offset)); overflow: auto; }
 }
 @media (max-width: 700px) {
   .tournament-create-grid { grid-template-columns: 1fr; }

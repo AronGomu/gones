@@ -121,10 +121,13 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     const preview = vi.fn();
     const component = setup('Organizer', locationClient({ preview }));
     component.ngOnInit();
+    component.form.patchValue({ title: '  Instant Cup  ' });
+
+    expect(component.draftPreview().displayTitle).toBe('Instant Cup');
+
     component.formats.set([{ id: 'fmt1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
     component.form.patchValue({
       organizationId: 'org-mine',
-      title: 'Instant Cup',
       summary: 'Live summary',
       bodyMarkdown: '**Live Markdown**',
       streetAddress: '1 Rue Test',
@@ -141,10 +144,51 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     controls['startDate']?.setValue('2027-08-01');
     controls['startTime']?.setValue('10:00');
 
-    const draft = (component as unknown as { draftPreview(): { displayTitle: string; bodyHtml: string | undefined } }).draftPreview();
-    expect(draft.displayTitle).toContain('Instant Cup');
+    const draft = component.draftPreview();
+    expect(draft.displayTitle).toBe('Legacy — Instant Cup');
     expect(draft.bodyHtml).toContain('<strong>Live Markdown</strong>');
     expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('derives every disabled Publish error in stable field order without touching controls', () => {
+    const component = setup('Organizer');
+    component.form.patchValue({
+      summary: 'x'.repeat(51),
+      bodyMarkdown: 'x'.repeat(20_001),
+      eventType: '',
+      capacity: 0
+    });
+    component.fieldErrors.set({
+      locationResolution: 'Location resolution failed.',
+      imageId: 'Image failed.',
+      general: 'General failure.',
+      title: 'Duplicate error.',
+      summary: 'Duplicate error.'
+    });
+
+    const errors = component.publishErrors();
+
+    expect(component.form.controls.organizationId.touched).toBe(false);
+    expect(errors).toEqual([
+      'Organisation: Ce champ est obligatoire.',
+      'Nom de l’événement: Duplicate error.',
+      'Résumé: Duplicate error.',
+      'Description: La description ne peut pas dépasser 20 000 caractères.',
+      'Format: Ce champ est obligatoire.',
+      'Type d’événement: Ce champ est obligatoire.',
+      'Capacité: Saisissez une valeur valide.',
+      'Pays: Ce champ est obligatoire.',
+      'Région: Ce champ est obligatoire.',
+      'Adresse: Ce champ est obligatoire.',
+      'Code postal: Ce champ est obligatoire.',
+      'Ville: Ce champ est obligatoire.',
+      'Date de début: Ce champ est obligatoire.',
+      'Heure de début: Ce champ est obligatoire.',
+      'Résolution du lieu: Location resolution failed.',
+      'Image de l’événement: Image failed.',
+      'Général: General failure.'
+    ]);
+    expect(component.publishTooltip()).toBe(errors.join('\n'));
   });
 
   it('persists collapse state for tab session with exact ARIA labels', () => {

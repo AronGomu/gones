@@ -4,6 +4,7 @@ import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angula
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
 import { Client, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
@@ -39,6 +40,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
     RouterLink,
     MatButtonModule,
     MatDialogModule,
+    MatTooltipModule,
     EventDetailViewComponent,
     EventImageUploaderComponent,
     BackButtonComponent
@@ -51,8 +53,6 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
         <div data-cy="event-create-heading-group"><h1 id="organizer-event-title" data-cy="event-create-title">{{ editMode ? i18n.t('eventManage.editTitle') : i18n.t('eventCreate.title') }}</h1></div>
         @if (editMode) {
           <a mat-stroked-button routerLink="/organizer/events" data-cy="event-create-back-to-list">{{ i18n.t('eventManage.backToList') }}</a>
-        } @else {
-          <button mat-stroked-button type="button" data-cy="event-preview-collapse" aria-controls="event-live-preview" [attr.aria-expanded]="!previewCollapsed()" (click)="togglePreview()">{{ previewCollapsed() ? i18n.t('eventCreate.showPreview') : i18n.t('eventCreate.hidePreview') }}</button>
         }
       </header>
 
@@ -190,12 +190,15 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             @if (submitError(); as error) {
               <div class="error tournament-create-recovery" role="alert" data-cy="event-submit-error"><span data-cy="event-submit-error-message">{{ error.message }}</span>@if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }@if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-submit-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }@if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/events" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }@if (error.action === 'retry') { <button mat-stroked-button type="submit" data-cy="event-submit-error-retry">{{ i18n.t('common.retry') }}</button> }</div>
             }
-            <div class="actions" data-cy="event-create-actions">
+            <div class="actions event-create-actions" data-cy="event-create-actions">
               @if (canPublishDirectly()) {
                 @if (editMode) {
                   <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
-                  <button mat-flat-button class="home-primary-action" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
+                  <span class="event-publish-tooltip" data-cy="event-publish-tooltip" [matTooltip]="publishTooltip()" [matTooltipDisabled]="!publishErrors().length" matTooltipClass="event-publish-tooltip-panel" [attr.tabindex]="publishErrors().length ? 0 : null" [attr.aria-describedby]="publishErrors().length ? 'event-publish-errors' : null">
+                    <button mat-flat-button class="home-primary-action create-action-button event-publish-button" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
+                  </span>
+                  @if (publishErrors().length) { <p id="event-publish-errors" class="sr-only event-publish-errors" data-cy="event-publish-errors">{{ publishTooltip() }}</p> }
                 }
               } @else {
                 <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('eventCreate.approvalNotice') }}</p>
@@ -206,7 +209,13 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
           </form>
 
           @if (!editMode) {
-            <aside id="event-live-preview" class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview" [hidden]="previewCollapsed()"><h2 id="event-live-preview-title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></aside>
+            <aside class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview">
+              <header class="event-live-preview__header" data-cy="event-live-preview-header">
+                <h2 id="event-live-preview-title" class="event-live-preview__title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2>
+                <button mat-stroked-button type="button" data-cy="event-preview-collapse" aria-controls="event-live-preview" [attr.aria-expanded]="!previewCollapsed()" (click)="togglePreview()">{{ previewCollapsed() ? i18n.t('eventCreate.showPreview') : i18n.t('eventCreate.hidePreview') }}</button>
+              </header>
+              <div id="event-live-preview" class="event-live-preview__scroll" data-cy="event-live-preview-scroll" [hidden]="previewCollapsed()"><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></div>
+            </aside>
           }
         </div>
 
@@ -295,13 +304,45 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     imageId: new FormControl<string | null>(null)
   });
 
+  readonly publishErrors = computed<readonly string[]>(() => {
+    this.previewRevision();
+    const fields: readonly [keyof typeof this.form.controls, string][] = [
+      ['organizationId', this.i18n.t('eventCreate.organization')],
+      ['title', this.i18n.t('eventCreate.name')],
+      ['summary', this.i18n.t('eventCreate.publishErrorSummary')],
+      ['bodyMarkdown', this.i18n.t('eventCreate.publishErrorDescription')],
+      ['formatId', this.i18n.t('eventCreate.format')],
+      ['eventType', this.i18n.t('event.eventType')],
+      ['capacity', this.i18n.t('event.capacity')],
+      ['country', this.i18n.t('eventCreate.country')],
+      ['region', this.i18n.t('profile.locationRegion')],
+      ['streetAddress', this.i18n.t('eventCreate.street')],
+      ['postalCode', this.i18n.t('eventCreate.postalCode')],
+      ['city', this.i18n.t('event.city')],
+      ['startDate', this.i18n.t('eventCreate.startDate')],
+      ['startTime', this.i18n.t('eventCreate.startTime')]
+    ];
+    const errors = fields.flatMap(([name, label]) => {
+      const message = this.controlError(name, false);
+      return message ? [`${label}: ${message}`] : [];
+    });
+    const locationResolution = this.fieldErrors()['locationResolution'] || this.controlError('timeZoneId', false);
+    if (locationResolution) errors.push(`${this.i18n.t('eventCreate.publishErrorLocationResolution')}: ${locationResolution}`);
+    const image = this.controlError('imageId', false)
+      || (this.imagePublishBlocked() ? this.i18n.t('eventImages.publishBlocked') : '');
+    if (image) errors.push(`${this.i18n.t('eventCreate.publishErrorImage')}: ${image}`);
+    const general = this.fieldErrors()['general'];
+    if (general) errors.push(`${this.i18n.t('eventCreate.publishErrorGeneral')}: ${general}`);
+    return [...new Set(errors)];
+  });
+  readonly publishTooltip = computed(() => this.publishErrors().join('\n'));
+
   readonly publishDisabled = computed(() => {
     this.previewRevision();
-    return this.form.invalid
+    return this.publishErrors().length > 0
       || this.formPending()
       || this.loadingReferences()
-      || !this.organizations().length
-      || this.imagePublishBlocked();
+      || !this.organizations().length;
   });
 
   readonly draftPreview = computed<EventDetailView>(() => {
@@ -315,7 +356,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     return {
       id: '',
       title,
-      displayTitle: title && format ? `${format.name} — ${title}` : '',
+      displayTitle: title && format ? `${format.name} — ${title}` : title,
       slug: '',
       summary: value.summary.trim() || undefined,
       bodyHtml: renderEventMarkdown(value.bodyMarkdown),
@@ -579,10 +620,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   fieldError(name: keyof typeof this.form.controls): string {
+    return this.controlError(name, true);
+  }
+
+  private controlError(name: keyof typeof this.form.controls, touchedOnly: boolean): string {
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
     const control = this.form.controls[name];
-    if (!control.touched || !control.errors) return '';
+    if ((touchedOnly && !control.touched) || !control.errors) return '';
     if (control.errors['required'] || (name === 'title' && control.errors['pattern'])) {
       return this.i18n.t('eventCreate.required');
     }

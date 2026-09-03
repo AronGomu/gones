@@ -75,30 +75,30 @@
 
 ## Impl steps
 
-- [ ] 1. Write red title/type/detail tests.
-  - [ ] 1.1 Pin no-format title fallback.
-  - [ ] 1.2 Pin translated Event Type before player count in shared topline.
-- [ ] 2. Write red editor layout/tooltip/drop-zone tests.
-  - [ ] 2.1 Pin preview header DOM + sticky inner scroll CSS.
-  - [ ] 2.2 Pin full-width success Publish + all-error tooltip keyboard access.
-  - [ ] 2.3 Pin centered drop-zone layout.
-- [ ] 3. Implement draft title + shared detail topline.
-- [ ] 4. Restructure preview aside.
-  - [ ] 4.1 Move toggle into preview header.
-  - [ ] 4.2 Split sticky outer/header from scrollable inner detail.
-  - [ ] 4.3 Use toolbar/breadcrumb-aware top offset.
-- [ ] 5. Implement Publish wrapper/error summary.
-  - [ ] 5.1 Import `MatTooltipModule`.
-  - [ ] 5.2 Derive stable translated error list.
-  - [ ] 5.3 Apply full-width success CSS.
-- [ ] 6. Center singular uploader drop-zone contents.
-- [ ] 7. Add EN/FR copy + `data-cy`; run DOM/visual checks.
+- [x] 1. Write red title/type/detail tests. Evidence: focused Vitest run failed on missing no-format title, `eventTypeLabel`, and shared Event Type DOM.
+  - [x] 1.1 Pin no-format title fallback. Evidence: `expected '' to be 'Instant Cup'`.
+  - [x] 1.2 Pin translated Event Type before player count in shared topline. Evidence: `eventTypeLabel is not a function` and missing `event-detail-event-type`.
+- [x] 2. Write red editor layout/tooltip/drop-zone tests. Evidence: focused Vitest run failed 7 tests / passed 68 before implementation.
+  - [x] 2.1 Pin preview header DOM + sticky inner scroll CSS. Evidence: missing `event-live-preview-header` failure.
+  - [x] 2.2 Pin full-width success Publish + all-error tooltip keyboard access. Evidence: missing `MatTooltipModule` and `publishErrors` failures.
+  - [x] 2.3 Pin centered drop-zone layout. Evidence: computed drop-zone display was `block`, expected `flex`.
+- [x] 3. Implement draft title + shared detail topline. Evidence: focused title/type/detail tests pass.
+- [x] 4. Restructure preview aside. Evidence: focused preview DOM/CSS contract test passes.
+  - [x] 4.1 Move toggle into preview header. Evidence: `event-live-preview-header` contains `event-preview-collapse`.
+  - [x] 4.2 Split sticky outer/header from scrollable inner detail. Evidence: `event-live-preview-scroll` follows header; CSS owns overflow.
+  - [x] 4.3 Use toolbar/breadcrumb-aware top offset. Evidence: CSS pins exact `calc(var(--app-toolbar-height) + 3.75rem)`.
+- [x] 5. Implement Publish wrapper/error summary. Evidence: focused component/state tests pass.
+  - [x] 5.1 Import `MatTooltipModule`. Evidence: template contract test passes.
+  - [x] 5.2 Derive stable translated error list. Evidence: exact 17-error French ordered-list test passes without touching controls.
+  - [x] 5.3 Apply full-width success CSS. Evidence: source/CSS contract test pins `create-action-button` plus 100% widths.
+- [x] 6. Center singular uploader drop-zone contents. Evidence: rendered DOM computed-style test passes with flex center and enabled labeled file input.
+- [x] 7. Add EN/FR copy + `data-cy`; run DOM/visual checks. Evidence: bilingual message-map build passed; targeted release-stack Cypress passed 10/10 with axe, 375/1023/1024 layout, keyboard tooltip, sticky scroll, collapse, and uploader geometry.
 
 ## Validation
 
-- [ ] V1 tests pass: `npm run test -- src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/event-image-uploader.component.test.ts`
-- [ ] V2 Cypress full stack (script owns spec list; args unsupported): `npm run cy:run`
-- [ ] V3 manual check at ≥1024px + <1024px: title updates each keystroke without format; preview header stays; inner detail scrolls; tooltip works mouse + keyboard; Publish spans form.
-- [ ] V4 no silent-failure swallow on path added: `none` (derived UI only).
-- [ ] V5 app functional: `npm run typecheck && npm run lint && npm run build`
+- [x] V1 tests pass: `npm run test -- src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/event-image-uploader.component.test.ts` → 75 passed.
+- [x] V2 Cypress full stack (script owns spec list; args unsupported): `COMPOSE_FILE=compose.yaml:.tmp/compose-cypress-T4.yaml COMPOSE_PROJECT_NAME=gones-t4 npm run cy:run` → 26/26 specs passed; isolated dev port 14200 avoided unrelated PID 255286 on 4200.
+- [x] V3 headless browser check at 375/1023/1024px: title updates without format; preview header stays outside inner scroll; keyboard tooltip opens; Publish spans form; targeted Cypress 10/10 passed.
+- [x] V4 no silent-failure swallow on path added: `none` (derived UI only).
+- [x] V5 app functional: `npm run typecheck && npm run lint && npm run build` passed; build emitted only two pre-existing unused `RouterLink` warnings in admin components.
 - [ ] V6 commit msg draft: `feat(events): keep live preview controls and publish errors visible`

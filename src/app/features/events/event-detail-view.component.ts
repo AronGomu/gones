@@ -2,6 +2,7 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import type { MessageKey } from '../../i18n/messages';
 import { eventDatePresentation, venueMapsUrl } from './public-event-list';
 import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
@@ -38,7 +39,7 @@ export type EventDetailImage = NonNullable<EventDetailView['image']>;
   template: `
     <article class="event-page public-tournament-detail" aria-labelledby="event-title" data-cy="event-detail-view">
       <section class="event-hero panel" data-cy="event-detail-hero">
-        <div class="event-hero-topline" data-cy="event-detail-topline">@if (event().organization.website; as url) { <a class="kicker" data-cy="event-detail-kicker-link" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ organizationName() }}</a> } @else { <p class="kicker" data-cy="event-detail-kicker" [class.muted]="showOrganizationPlaceholder()">{{ organizationName() }}</p> }<span class="event-player-count" data-cy="event-detail-player-count" [class.muted]="showCapacityPlaceholder()">{{ playerCount() }}</span></div>
+        <div class="event-hero-topline" data-cy="event-detail-topline">@if (event().organization.website; as url) { <a class="kicker" data-cy="event-detail-kicker-link" [href]="url" [attr.target]="externalLinkAttrs(url).target" [attr.rel]="externalLinkAttrs(url).rel">{{ organizationName() }}</a> } @else { <p class="kicker" data-cy="event-detail-kicker" [class.muted]="showOrganizationPlaceholder()">{{ organizationName() }}</p> }<span class="event-type-label" data-cy="event-detail-event-type" [class.muted]="showEventTypePlaceholder()">{{ eventTypeLabel() }}</span><span class="event-player-count" data-cy="event-detail-player-count" [class.muted]="showCapacityPlaceholder()">{{ playerCount() }}</span></div>
         <h1 id="event-title" data-cy="event-detail-title"><span data-cy="event-detail-title-text" [class.muted]="showTitlePlaceholder()">{{ displayTitle() }}</span></h1>
         @if (showIcsAction() && icsUrl(); as url) { <a mat-stroked-button class="event-hero-ics" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
@@ -82,6 +83,12 @@ export class EventDetailViewComponent {
   readonly date = computed(() => this.draftPlaceholderMode()
     ? { primary: '' }
     : eventDatePresentation(this.event(), this.i18n.locale()));
+  readonly eventTypeLabel = computed(() => {
+    const eventType = this.event().eventType;
+    return eventType
+      ? this.i18n.t(`event.type.${eventType}` as MessageKey)
+      : this.draftPlaceholderMode() ? this.i18n.t('event.draftTypePlaceholder') : '';
+  });
   readonly playerCount = computed(() => {
     const capacity = this.event().capacity;
     if (capacity === undefined || capacity === null) return this.draftPlaceholderMode()
@@ -102,6 +109,7 @@ export class EventDetailViewComponent {
   readonly showTitlePlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().displayTitle.trim());
   readonly showVenuePlaceholder = computed(() => this.draftPlaceholderMode() && !this.locationComplete());
   readonly showOrganizationPlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().organization.name.trim());
+  readonly showEventTypePlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().eventType);
   readonly showDatePlaceholder = computed(() => this.draftPlaceholderMode() && (!this.event().venueStartDate || !this.event().venueStartTime));
   readonly showCapacityPlaceholder = computed(() => this.draftPlaceholderMode() && this.event().capacity == null);
   readonly venueDisplay = computed(() => this.showVenuePlaceholder() ? this.i18n.t('event.draftLocationPlaceholder') : this.venue());

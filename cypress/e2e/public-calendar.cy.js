@@ -15,6 +15,7 @@ const event = {
   endsAtUtc: '2026-08-01T23:30:00Z',
   capacity: 32,
   status: 'Cancelled',
+  eventType: 'weekly',
   liveTournamentUrl: '/live-tournaments/lyon-legacy',
   archiveTournamentUrl: 'https://archive.example.test/lyon-legacy',
   organization: { id: orgId, name: 'Gones', description: '', website: 'https://example.test', contactEmail: '', organizers: ['adam', 'zoe'] },
@@ -363,6 +364,7 @@ describe('public Calendar V1', () => {
 
     // The hero is a layout claim, so read the rendered text and geometry rather than the template.
     cy.get('[data-cy="event-detail-title"]').should('contain.text', 'Legacy — Lyon Legacy');
+    cy.get('[data-cy="event-detail-event-type"]').should('contain.text', 'Weekly');
     cy.get('[data-cy="event-detail-player-count"]').should('contain.text', '32 players');
     cy.get('[data-cy="event-detail-status"]').should('not.exist');
     cy.get('[data-cy="event-detail-fact-organization"]').should('not.exist');
@@ -392,16 +394,22 @@ describe('public Calendar V1', () => {
     });
   });
 
-  it('player count sits beside the organization on the left', () => {
+  it('puts translated Event Type between organization and player count on one row', () => {
     cy.intercept('GET', '**/api/events/lyon-legacy', { ...event, bodyHtml: '<p>Detail</p>' }).as('detail');
     cy.viewport(1280, 800);
     visit('/events/lyon-legacy');
     cy.wait('@detail');
     cy.get('[data-cy="event-detail-kicker-link"]').then(($organization) => {
-      cy.get('[data-cy="event-detail-player-count"]').then(($count) => {
-        const organizationRight = $organization[0].getBoundingClientRect().right;
-        const countLeft = $count[0].getBoundingClientRect().left;
-        expect(countLeft - organizationRight, 'organization/player gap').to.be.closeTo(12, 2);
+      cy.get('[data-cy="event-detail-event-type"]').then(($type) => {
+        cy.get('[data-cy="event-detail-player-count"]').then(($count) => {
+          const organization = $organization[0].getBoundingClientRect();
+          const type = $type[0].getBoundingClientRect();
+          const count = $count[0].getBoundingClientRect();
+          expect(type.left - organization.right, 'organization/type gap').to.be.closeTo(12, 2);
+          expect(count.left - type.right, 'type/player gap').to.be.closeTo(12, 2);
+          expect(type.top, 'type row').to.be.closeTo(organization.top, 2);
+          expect(count.top, 'count row').to.be.closeTo(organization.top, 2);
+        });
       });
     });
   });
