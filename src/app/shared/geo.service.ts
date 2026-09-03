@@ -20,7 +20,10 @@ export class GeoService {
   private citiesCache?: Promise<Record<string, string[]>>;
 
   countries(): Promise<GeoOption[]> {
-    this.countriesCache ??= firstValueFrom(this.http.get<GeoOption[]>('assets/geo/countries.json'));
+    this.countriesCache ??= firstValueFrom(this.http.get<GeoOption[]>('assets/geo/countries.json')).catch(error => {
+      this.countriesCache = undefined;
+      throw error;
+    });
     return this.countriesCache;
   }
 

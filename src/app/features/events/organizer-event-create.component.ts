@@ -20,6 +20,8 @@ import { PowerUserSettingsService } from '../../shared/power-user-settings.servi
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventImageSelection, EventImageUploaderComponent } from './event-image-uploader.component';
 import { renderEventMarkdown } from './event-markdown';
+import { GeoOption, GeoService } from '../../shared/geo.service';
+import { logBoundaryError } from '../../shared/app-logger';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -118,7 +120,10 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                 <div class="event-form-row event-form-row--location" data-cy="event-row-location">
                   <div class="tournament-create-field" data-cy="event-field-country">
                     <label for="event-country" data-cy="event-label-country">{{ i18n.t('eventCreate.country') }}</label>
-                    <input id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null" />
+                    <select id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null">
+                      <option value="" disabled data-cy="event-country-empty">{{ i18n.t('eventCreate.selectCountry') }}</option>
+                      @for (country of countries(); track country.name) { <option [value]="country.name" [attr.data-cy]="'event-country-option-' + (country.code || 'current')">{{ country.name }}</option> }
+                    </select>
                     @if (fieldError('country'); as message) { <p id="event-country-error" class="field-error" data-cy="event-country-error">{{ message }}</p> }
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-region">
@@ -126,10 +131,17 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                     <input id="event-region" data-cy="event-region" formControlName="region" autocomplete="address-level1" [attr.aria-invalid]="fieldError('region') ? 'true' : null" [attr.aria-describedby]="fieldError('region') ? 'event-region-error' : null" />
                     @if (fieldError('region'); as message) { <p id="event-region-error" class="field-error" data-cy="event-region-error">{{ message }}</p> }
                   </div>
+                  <div class="tournament-create-field" data-cy="event-field-time-zone">
+                    <label for="event-time-zone" data-cy="event-label-time-zone">{{ i18n.t('eventCreate.zone') }}</label>
+                    <select id="event-time-zone" data-cy="event-time-zone" formControlName="timeZoneId" [attr.aria-invalid]="fieldError('timeZoneId') ? 'true' : null" [attr.aria-describedby]="fieldError('timeZoneId') ? 'event-time-zone-error' : null">
+                      <option value="" disabled data-cy="event-time-zone-empty">{{ i18n.t('eventCreate.selectTimeZone') }}</option>
+                      @for (timeZone of timeZones(); track timeZone) { <option [value]="timeZone" [attr.data-cy]="'event-time-zone-option-' + $index">{{ timeZone }}</option> }
+                    </select>
+                    @if (fieldError('timeZoneId'); as message) { <p id="event-time-zone-error" class="field-error" data-cy="event-time-zone-error">{{ message }}</p> }
+                  </div>
                   <div class="tournament-create-field" data-cy="event-field-street">
                     <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
                     <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : null" />
-                    <input type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId" />
                     @if (fieldError('streetAddress'); as message) { <p id="event-street-error" class="field-error" data-cy="event-street-error">{{ message }}</p> }
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-postal-code">
@@ -217,6 +229,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly auth = inject(AuthService);
   private readonly power = inject(PowerUserSettingsService);
   private readonly proposals = inject(EventProposalService);
+  private readonly geo = inject(GeoService);
   private readonly state = new DirectPublicationState();
   private readonly eventId = this.route.snapshot.paramMap.get('id');
   readonly editMode = Boolean(this.eventId);
@@ -226,6 +239,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   readonly organizations = signal<EventOrganizationOption[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
+  readonly countries = signal<GeoOption[]>([]);
+  readonly timeZones = signal<string[]>([]);
   readonly loadingReferences = signal(true);
   readonly referenceError = signal('');
   readonly publishing = signal(false);
@@ -366,8 +381,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.referenceError.set('');
     this.submitError.set(null);
     try {
-      const formats = await firstValueFrom(this.client.formatsAll());
+      const [formats, countries, timeZoneCatalog] = await Promise.all([
+        firstValueFrom(this.client.formatsAll()),
+        this.geo.countries(),
+        firstValueFrom(this.client.listEventTimeZones())
+      ]);
       this.formats.set(formats);
+      this.countries.set(countries);
+      this.timeZones.set(timeZoneCatalog.ids);
       if (this.editMode) {
         const event = await this.findEvent(this.eventId!);
         this.organizations.set([{ id: event.organizationId, name: event.organizationName }]);
@@ -383,11 +404,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       }
       this.syncSelectedOrganization();
       this.previewRevision.update(value => value + 1);
-    } catch {
+    } catch (error) {
+      logBoundaryError('event-editor.load-references', error, { editMode: this.editMode });
       this.organizations.set([]);
       this.formats.set([]);
+      this.countries.set([]);
+      this.timeZones.set([]);
       this.syncSelectedOrganization();
-      this.referenceError.set(this.editMode ? this.i18n.t('eventManage.loadFailed') : this.i18n.t('eventCreate.referencesFailed'));
+      this.referenceError.set(this.i18n.t('eventCreate.referencesFailed'));
     } finally {
       this.loadingReferences.set(false);
     }
@@ -588,6 +612,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private applyCanonical(event: EventManagementResponse): void {
     this.baseEvent.set(event);
     this.form.patchValue(managementToDraft(event), { emitEvent: false });
+    if (!this.countries().some(country => country.name === event.location.country)) {
+      this.countries.update(countries => [...countries, { code: '', name: event.location.country }]);
+    }
+    if (!this.timeZones().includes(event.timeZoneId)) {
+      this.timeZones.update(timeZones => [...timeZones, event.timeZoneId]);
+    }
     this.currentRender.set(managementToDetail(event, this.formats()));
   }
 

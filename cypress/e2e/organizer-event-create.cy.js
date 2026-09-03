@@ -16,17 +16,13 @@ const profile = {
   isBirthYearPublic: false,
   isPreferredLanguagePublic: false
 };
-const resolvedLocation = {
+const manualLocation = {
   streetAddress: '1 Rue Test',
   postalCode: '69001',
   city: 'Lyon',
   country: 'France',
   region: 'Auvergne-Rhône-Alpes',
-  latitude: 45.764,
-  longitude: 4.8357,
-  timeZoneId: 'Europe/Paris',
-  locationToken: 'signed-location-token',
-  expiresAt: '2030-08-01T00:30:00Z'
+  timeZoneId: 'Europe/Paris'
 };
 const imageIds = [
   '55555555-5555-5555-5555-555555555551',
@@ -51,7 +47,7 @@ const detail = {
   liveTournamentUrl: null,
   archiveTournamentUrl: null,
   images: [],
-  venue: resolvedLocation,
+  venue: manualLocation,
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2027-08-01',
   venueStartTime: '10:00:00',
@@ -76,6 +72,7 @@ function mockReferences() {
     { id: ownOrgId, name: 'Owned Club', description: '', website: '', contactEmail: '', role: 'Organizer', createdAt: '2026-08-01T00:00:00Z' }
   ]).as('myOrganizations');
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
+  cy.intercept('GET', '**/api/event-locations/time-zones', { ids: ['Europe/London', 'Europe/Paris'] }).as('timeZones');
 }
 
 function mockPublicOrganizations() {
@@ -86,6 +83,7 @@ function mockPublicOrganizations() {
     totalCount: 1
   }).as('publicOrganizations');
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
+  cy.intercept('GET', '**/api/event-locations/time-zones', { ids: ['Europe/London', 'Europe/Paris'] }).as('timeZones');
 }
 
 function mockAdminOrganizations() {
@@ -99,16 +97,6 @@ function mockAdminOrganizations() {
     pageSize: 100,
     totalCount: 3
   }).as('adminOrganizations');
-}
-
-function mockLocation() {
-  cy.intercept('GET', '**/api/event-locations/autocomplete?*', {
-    suggestions: [{ placeId: 'google-place', primaryText: '1 Rue Test', secondaryText: '69001 Lyon, France' }]
-  }).as('locationAutocomplete');
-  cy.intercept('POST', '**/api/event-locations/resolve', req => {
-    expect(req.body.placeId).to.eq('google-place');
-    req.reply(resolvedLocation);
-  }).as('locationResolve');
 }
 
 function seedLanguage(win, language) {
@@ -195,7 +183,7 @@ function selectImages(count) {
 }
 
 function fillValidForm(referenceAlias = '@myOrganizations') {
-  cy.wait([referenceAlias, '@formats']);
+  cy.wait([referenceAlias, '@formats', '@timeZones']);
   cy.get('[data-cy="event-title"]').type('Lyon Legacy Open');
   cy.get('[data-cy="event-summary"]').type('Raw summary');
   cy.get('[data-cy="event-body"]').type('**Live** body.');
@@ -203,10 +191,12 @@ function fillValidForm(referenceAlias = '@myOrganizations') {
   cy.get('[data-cy="event-capacity"]').type('32');
   cy.get('[data-cy="event-start-date"]').type('2027-08-01');
   cy.get('[data-cy="event-start-time"]').type('10:00');
-  cy.get('[data-cy="event-street"]').type('1 Rue');
-  cy.wait('@locationAutocomplete');
-  cy.get('[data-cy="event-location-suggestion-0"]').click();
-  cy.wait('@locationResolve');
+  cy.get('[data-cy="event-street"]').type(manualLocation.streetAddress);
+  cy.get('[data-cy="event-postal-code"]').type(manualLocation.postalCode);
+  cy.get('[data-cy="event-city"]').type(manualLocation.city);
+  cy.get('[data-cy="event-country"]').select(manualLocation.country);
+  cy.get('[data-cy="event-region"]').type(manualLocation.region);
+  cy.get('[data-cy="event-time-zone"]').select(manualLocation.timeZoneId);
 }
 
 describe('Organizer Event direct create editor', () => {
@@ -215,21 +205,23 @@ describe('Organizer Event direct create editor', () => {
   it('renders instant actual-layout Markdown preview without preview HTTP', () => {
     mockSession();
     mockReferences();
-    mockLocation();
     cy.intercept('POST', '**/api/events/preview').as('removedPreview');
+    cy.intercept('GET', '**/api/event-locations/autocomplete*').as('removedAutocomplete');
+    cy.intercept('POST', '**/api/event-locations/resolve').as('removedResolve');
     visit();
     fillValidForm();
 
     cy.get('[data-cy="event-live-preview-detail"]').should('contain.text', 'Legacy — Lyon Legacy Open');
     cy.get('[data-cy="event-live-preview-detail"] gones-server-sanitized-html strong').should('contain.text', 'Live');
     cy.get('@removedPreview.all').should('have.length', 0);
+    cy.get('@removedAutocomplete.all').should('have.length', 0);
+    cy.get('@removedResolve.all').should('have.length', 0);
     cy.get('[data-cy="event-publish"]').should('be.enabled');
   });
 
   it('publishes 5 ordered images with alt text and renders faithful public Markdown detail', () => {
     mockSession();
     mockReferences();
-    mockLocation();
     mockImageUploads(imageIds);
     visit();
     fillValidForm();
@@ -259,17 +251,11 @@ describe('Organizer Event direct create editor', () => {
     cy.intercept('POST', '**/api/events', req => {
       expect(req.body).not.to.have.property('payload');
       expect(req.body).not.to.have.property('previewTicket');
-      expect(req.body.location).to.deep.eq({
-        streetAddress: resolvedLocation.streetAddress,
-        postalCode: resolvedLocation.postalCode,
-        city: resolvedLocation.city,
-        country: resolvedLocation.country,
-        region: resolvedLocation.region,
-        locationToken: resolvedLocation.locationToken
-      });
+      expect(req.body.location).to.deep.eq(manualLocation);
       expect(req.body).not.to.have.property('timeZoneId');
-      expect(req.body).not.to.have.property('latitude');
-      expect(req.body).not.to.have.property('longitude');
+      expect(req.body.location).not.to.have.property('locationToken');
+      expect(req.body.location).not.to.have.property('latitude');
+      expect(req.body.location).not.to.have.property('longitude');
       expect(req.body.startsAtLocal).to.eq('2027-08-01T10:00');
       expect(req.body.formatIds).to.deep.eq([formatId]);
       expect(req.body.images).to.deep.eq(expectedOrder.map((imageId, index) => ({ imageId, altText: expectedAlt[index] })));
@@ -302,7 +288,6 @@ describe('Organizer Event direct create editor', () => {
   it('publishes a valid Event with no summary, Markdown body, or images', () => {
     mockSession();
     mockReferences();
-    mockLocation();
     visit();
     fillValidForm();
     cy.get('[data-cy="event-summary"]').clear();
@@ -421,7 +406,6 @@ describe('Organizer Event direct create editor', () => {
   it('lets a plain verified User upload and submit ordered proposal images', () => {
     mockSession('User');
     mockPublicOrganizations();
-    mockLocation();
     mockImageUploads([imageIds[0]]);
     cy.intercept('GET', '**/api/event-proposals/approvers?*', [
       { id: profile.id, username: 'organizer-user', globalRole: 'Organizer' }
@@ -429,7 +413,7 @@ describe('Organizer Event direct create editor', () => {
     cy.intercept('POST', '**/api/event-proposals', req => {
       expect(req.body.event.images).to.deep.eq([{ imageId: imageIds[0], altText: 'Proposal poster' }]);
       expect(req.body.event.bodyMarkdown).to.eq('**Live** body.');
-      expect(req.body.event.location.locationToken).to.eq(resolvedLocation.locationToken);
+      expect(req.body.event.location).to.deep.eq(manualLocation);
       expect(req.body.recipientUserIds).to.deep.eq([profile.id]);
       req.reply({ statusCode: 201, body: { id: 'proposal-1', status: 'Pending', expiresAt: '2030-08-08T00:00:00Z', recipientCount: 1 } });
     }).as('proposal');

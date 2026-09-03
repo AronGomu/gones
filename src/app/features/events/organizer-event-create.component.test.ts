@@ -18,6 +18,7 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { GeoOption, GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
@@ -31,13 +32,25 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setupHarness(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}, powerEnabled = true) {
+function setupHarness(
+  globalRole: string,
+  client: Partial<Client> = {},
+  routeValues: Record<string, string> = {},
+  powerEnabled = true,
+  countries: () => Promise<GeoOption[]> = async () => [{ code: 'FR', name: 'France' }]
+) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap(routeValues) } } as unknown as ActivatedRoute;
+  const clientWithCatalog = {
+    formatsAll: () => of([]),
+    listEventTimeZones: () => of({ ids: [] }),
+    ...client
+  };
 
   const injector = Injector.create({ providers: [
-    { provide: Client, useValue: client },
+    { provide: Client, useValue: clientWithCatalog },
+    { provide: GeoService, useValue: { countries } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: {} },
@@ -146,6 +159,56 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     sessionStorage.removeItem('gones.event-editor.preview-collapsed');
   });
 
+  it('loads bundled countries and backend timezone IDs through reference state', async () => {
+    const listEventTimeZones = vi.fn(() => of({ ids: ['America/Toronto', 'Europe/Paris'] }));
+    const countries = vi.fn(async () => [
+      { code: 'CA', name: 'Canada' },
+      { code: 'FR', name: 'France' }
+    ]);
+    const { component, destroy } = setupHarness('Organizer', locationClient({ listEventTimeZones }), {}, true, countries);
+
+    await component.loadReferences();
+
+    expect(countries).toHaveBeenCalledTimes(1);
+    expect(listEventTimeZones).toHaveBeenCalledTimes(1);
+    expect(component.countries()).toEqual([
+      { code: 'CA', name: 'Canada' },
+      { code: 'FR', name: 'France' }
+    ]);
+    expect(component.timeZones()).toEqual(['America/Toronto', 'Europe/Paris']);
+    expect(component.referenceError()).toBe('');
+    destroy();
+  });
+
+  it('logs catalog failure, exposes reference error, then retries every reference', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let attempt = 0;
+    const countries = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error('country catalog unavailable');
+      return [{ code: 'FR', name: 'France' }];
+    });
+    const listEventTimeZones = vi.fn(() => of({ ids: ['Europe/Paris'] }));
+    const { component, destroy } = setupHarness('Organizer', locationClient({ listEventTimeZones }), {}, true, countries);
+
+    await component.loadReferences();
+
+    expect(component.referenceError()).toBe(component.i18n.t('eventCreate.referencesFailed'));
+    expect(component.countries()).toEqual([]);
+    expect(component.timeZones()).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('event-editor.load-references'));
+
+    await component.loadReferences();
+
+    expect(countries).toHaveBeenCalledTimes(2);
+    expect(listEventTimeZones).toHaveBeenCalledTimes(2);
+    expect(component.countries()).toEqual([{ code: 'FR', name: 'France' }]);
+    expect(component.timeZones()).toEqual(['Europe/Paris']);
+    expect(component.referenceError()).toBe('');
+    consoleError.mockRestore();
+    destroy();
+  });
+
   it('requires a manual timezone and blocks direct publish for failed/pending upload', () => {
     const component = setup('Organizer');
     component.form.patchValue({
@@ -183,6 +246,30 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     }],
     version: 3, eTag: '"3"'
   };
+
+  it('appends absent current country and timezone values for editing', async () => {
+    const legacy = {
+      ...managedEvent,
+      location: { ...managedEvent.location, country: 'Legacyland', timeZoneId: 'Legacy/Zone' },
+      country: 'Legacyland',
+      timeZoneId: 'Legacy/Zone'
+    };
+    const component = setup('Organizer', {
+      formatsAll: () => of([]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      listOrganizerEvents: () => of({ items: [legacy], page: 1, pageSize: 100, totalCount: 1 })
+    } as unknown as Partial<Client>, { id: 'event-1' });
+
+    await component.loadReferences();
+
+    expect(component.countries()).toEqual([
+      { code: 'FR', name: 'France' },
+      { code: '', name: 'Legacyland' }
+    ]);
+    expect(component.timeZones()).toEqual(['Europe/Paris', 'Legacy/Zone']);
+    expect(component.form.controls.country.value).toBe('Legacyland');
+    expect(component.form.controls.timeZoneId.value).toBe('Legacy/Zone');
+  });
 
   it('maps missing-image PATCH 404 to media reload recovery instead of permission failure', async () => {
     const latest = { ...managedEvent, images: [], version: 4, eTag: '"4"' };

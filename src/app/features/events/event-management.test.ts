@@ -16,7 +16,7 @@ const event = {
   summary: 'Summary', bodyMarkdown: '**Body**',
   location: {
     streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France',
-    region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token'
+    region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
   },
   streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
   eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',

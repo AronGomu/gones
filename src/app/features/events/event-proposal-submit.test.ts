@@ -21,6 +21,7 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
 import { EventImageSelection } from './event-image-uploader.component';
@@ -46,6 +47,7 @@ function setup(dialogAfterClosed: unknown) {
 
   const injector = Injector.create({ providers: [
     { provide: Client, useValue: {} },
+    { provide: GeoService, useValue: { countries: async () => [] } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: dialogStub },
@@ -164,7 +166,14 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
         { imageId: 'img-2', altText: 'Second' },
         { imageId: 'img-1', altText: undefined }
       ],
-      location: expect.objectContaining({ region: 'Auvergne-Rhône-Alpes', country: 'France', city: 'Lyon' })
+      location: {
+        streetAddress: '1 rue Test',
+        postalCode: '69001',
+        city: 'Lyon',
+        country: 'France',
+        region: 'Auvergne-Rhône-Alpes',
+        timeZoneId: 'Europe/Paris'
+      }
     }), ['id1']);
   });
 

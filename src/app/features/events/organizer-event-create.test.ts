@@ -13,10 +13,13 @@ describe('Organizer Event create state', () => {
     expect(field).toContain('id="event-type-error"');
   });
 
-  it('keeps timezone state hidden pending manual timezone UX without provider geodata', () => {
+  it('renders visible country and timezone catalog selects without provider geodata', () => {
     const source = readFileSync(join(__dirname, 'organizer-event-create.component.ts'), 'utf8');
-    expect(source).not.toContain('id="event-zone"');
-    expect(source).toContain('type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId"');
+    expect(source).toContain('<select id="event-country" data-cy="event-country" formControlName="country"');
+    expect(source).toContain('[value]="country.name"');
+    expect(source).toContain('<select id="event-time-zone" data-cy="event-time-zone" formControlName="timeZoneId"');
+    expect(source).toContain('[value]="timeZone"');
+    expect(source).not.toContain('type="hidden"');
     expect(source).not.toContain('formControlName="latitude"');
     expect(source).not.toContain('formControlName="longitude"');
   });
@@ -32,10 +35,15 @@ describe('Organizer Event create state', () => {
       'event-location-error',
       'event-location-error-message',
       'event-location-retry',
-      'event-location-token-error'
+      'event-location-token-error',
+      'locationToken',
+      'sessionUuid',
+      'expiresAt'
     ]) {
       expect(source).not.toContain(hook);
     }
+    expect(source).not.toContain('/api/event-locations/autocomplete');
+    expect(source).not.toContain('/api/event-locations/resolve');
   });
 
   it('builds exact nested create payload from separate date/time controls with manual timezone', () => {

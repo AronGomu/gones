@@ -60,19 +60,19 @@
 
 ## Impl steps
 
-- [ ] 1. Write failing component/payload tests.
-- [ ] 2. Load country + backend timezone catalogs through reference state.
-- [ ] 3. Replace country input; add timezone select/search control.
-- [ ] 4. Remove autocomplete/provider/token/coord/expiry state and DOM.
-- [ ] 5. Update create/edit/proposal payloads + preview.
-- [ ] 6. Add EN/FR copy + complete `data-cy` coverage.
-- [ ] 7. Run focused checks; prove no provider requests.
+- [x] 1. Write failing component/payload tests. Criterion: focused tests fail before production edits for visible catalogs, fallbacks, failure/Retry, manual payloads, and provider absence. Evidence: V1 command failed with 4 expected assertions before production edits.
+- [x] 2. Load country + backend timezone catalogs through reference state. Criterion: tests prove `GeoService.countries()` and `Client.listEventTimeZones()` populate signals; failures clear catalogs, log, and expose reference Retry. Evidence: focused tests `loads bundled countries…` and `logs catalog failure…` passed.
+- [x] 3. Replace country input; add timezone select/search control. Criterion: source/tests prove visible required selects use canonical names/IDs and retain absent edit values. Evidence: focused visible-select and absent-current-value tests passed.
+- [x] 4. Remove autocomplete/provider/token/coord/expiry state and DOM. Criterion: residue checks find no provider request/state/UI identifiers in T2 frontend paths. Evidence: bounded implementation-source residue command exited 0 with no forbidden matches.
+- [x] 5. Update create/edit/proposal payloads + preview. Criterion: unit/E2E assertions prove all six manual fields reach create, edit, proposal, and live preview. Evidence: 47 affected tests passed; targeted create/edit Cypress specs passed 14/14 with exact six-field `manualLocation` assertions.
+- [x] 6. Add EN/FR copy + complete `data-cy` coverage. Criterion: i18n/data-cy tests, lint, and build pass with matching EN/FR keys. Evidence: EN/FR key pairs compile; full lint and build pass; full suite data-cy gate passed before final rerun.
+- [x] 7. Run focused checks; prove no provider requests. Criterion: V1–V5 evidence is recorded; automated checks pass and provider endpoint residue is absent. Evidence: V1–V5 checked; full Vitest 2216/2216 and targeted Cypress 14/14 passed; implementation residue sweep clean.
 
 ## Validation
 
-- [ ] V1 tests: `npm run test -- src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-management.test.ts src/app/shared/geo-assets.test.ts`
-- [ ] V2 backend-generated contract consumed: `npm run api:check`
-- [ ] V3 no silent failure: catalog catch logs + visible reference Retry; list exact lines.
-- [ ] V4 app functional: `npm run typecheck && npm run lint && npm run build`
-- [ ] V5 manual: create/edit with `Europe/Paris`; invalid/missing timezone blocks publish; no autocomplete/network provider traffic.
-- [ ] V6 commit msg draft: `feat(events): add manual worldwide location editor`
+- [x] V1 tests: `npm run test -- src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-management.test.ts src/app/shared/geo-assets.test.ts`. Criterion: command exits 0. Evidence: 4 files, 43 tests passed.
+- [x] V2 backend-generated contract consumed: `npm run api:check`. Criterion: command exits 0 with generated client unchanged. Evidence: command exited 0; `src/app/api/generated/gones-api.ts` remains unmodified.
+- [x] V3 no silent failure: catalog catch logs + visible reference Retry; list exact lines. Criterion: focused test plus source line evidence proves both behavior paths. Evidence: `organizer-event-create.component.ts:61` renders Retry; `:407-414` logs `event-editor.load-references`, clears catalogs, exposes `eventCreate.referencesFailed`; focused failure/Retry test passed.
+- [x] V4 app functional: `npm run typecheck && npm run lint && npm run build`. Criterion: all three commands exit 0. Evidence: exact chained command exited 0; build emitted only two pre-existing unrelated `NG8113` warnings.
+- [x] V5 manual: create/edit with `Europe/Paris`; invalid/missing timezone blocks publish; no autocomplete/network provider traffic. Criterion: supported automated component/E2E source assertions prove each behavior; no unsupported runtime claim. Evidence: targeted headless Cypress create/edit specs passed 14/14 with `Europe/Paris` and zero provider-call assertions; unit publish-disabled test covers missing timezone. No unsupported manual claim made.
+- [x] V6 commit msg draft: `feat(events): add manual worldwide location editor`. Criterion: draft exactly matches user-locked publication message. Evidence: exact draft recorded here; final report verifies local commit and empty index.
