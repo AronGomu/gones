@@ -93,6 +93,7 @@ function setup(options: {
   result?: Partial<EventCatalogResult>;
   profile?: UserProfileResponse | null;
   authEnabled?: boolean;
+  powerEnabled?: boolean;
   itemCount?: number;
   capability?: ReturnType<typeof vi.fn>;
   register?: ReturnType<typeof vi.fn>;
@@ -144,7 +145,7 @@ function setup(options: {
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: router },
     { provide: AuthService, useValue: auth },
-    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(options.powerEnabled ?? true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -404,6 +405,14 @@ describe('PublicEventListComponent', () => {
     const { component } = setup({ profile: { ...verifiedUserProfile, globalRole: 'Organizer' } });
     expect(component.canCreateEvent()).toBe(true);
   });
+
+  it('shows the create button for a verified admin when Power User mode is off', () => {
+    const { component } = setup({
+      profile: { ...verifiedUserProfile, globalRole: 'Admin' },
+      powerEnabled: false
+    });
+    expect(component.canCreateEvent()).toBe(true);
+  });
 });
 
 describe('PublicEventListComponent top action row layout', () => {
@@ -600,6 +609,13 @@ describe('PublicEventListComponent toolbar row', () => {
     const header = source.slice(headerStart, headerEnd);
     expect(header).toContain('data-cy="event-list-view-tabs"');
     expect(header).toContain('data-cy="event-list-create-event"');
+  });
+
+  it('pushes the create button to the right edge of the header row', () => {
+    const tabsRule = stylesheet.match(/\.calendar-view-tabs\s*\{[^}]*\}/)?.[0] ?? '';
+    const createRule = stylesheet.match(/\.calendar-create-tournament\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(tabsRule).toContain('flex: 1 1 auto');
+    expect(createRule).toContain('margin-left: auto');
   });
 
   it('the create button wears the success green', () => {

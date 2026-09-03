@@ -46,7 +46,7 @@ import { ConfirmDialogComponent } from '../../shared/dialogs';
 import { EventRegistrationService, registrationErrorKey } from './event-registration.service';
 import { RegistrationSuccessDialogComponent } from './registration-success-dialog.component';
 import { canManageArchive } from '../../data/archive-command-ux';
-import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 
 const VIEW_KEY = 'gones.events.view';
 const SEARCH_DEBOUNCE_MS = 300;
@@ -200,10 +200,12 @@ export class PublicEventListComponent implements OnInit, OnDestroy {
   // Named apart from the `eventsByDate` helper it wraps: the two would otherwise differ only by a
   // `this.`, which is a trap for the next reader rather than a nicety.
   readonly dayEventIndex = computed(() => eventsByDate(this.items()));
-  readonly canCreateEvent = computed(() => canUsePowerMutation(
-    this.power.enabled(),
-    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
-  ));
+  readonly canCreateEvent = computed(() => {
+    const profile = this.auth.profile();
+    return profile?.emailVerified === true
+      && canManageArchive(profile.globalRole)
+      && (profile.globalRole === 'Admin' || this.power.enabled());
+  });
   readonly registrationCapabilities = signal<Record<string, EventRegistrationCapabilityResponse>>({});
   readonly pendingEventId = signal<string | null>(null);
   readonly registrationMessageKey = signal<MessageKey | null>(null);

@@ -62,6 +62,11 @@ function organizer() {
   cy.intercept('GET', '**/api/users/me', profile);
 }
 
+function admin() {
+  cy.intercept('POST', '**/api/auth/refresh', { accessToken: 'memory-token', expiresAt: '2030-01-01T01:00:00Z', tokenType: 'Bearer' });
+  cy.intercept('GET', '**/api/users/me', { ...profile, globalRole: 'Admin' });
+}
+
 // `onBeforeLoad` is not dependable on the release topology: once `ngsw-worker.js` controls the page
 // it answers the navigation out of Cache Storage, that response never passes through the Cypress
 // proxy, and Cypress cannot inject the script that calls the hook — no error, no seed. The marker is
@@ -164,6 +169,18 @@ describe('Power User Event, League and Live gates', () => {
     cy.get('[data-cy="event-edit"]').should('exist');
     cy.get('[data-cy="event-cancel"]').should('exist');
     cy.get('[data-cy="event-delete"]').should('exist');
+  });
+
+  it('shows Create Event to Admin in both Event views while Power mode is off', () => {
+    admin();
+    stubPublicEvents();
+    visit('/events?view=calendar&month=2030-08', false);
+
+    cy.wait('@publicEvents');
+    cy.get('[data-cy="event-list-create-event"]').should('be.visible');
+    cy.get('[data-cy="list-view"]').click();
+    cy.location('search').should('contain', 'view=list');
+    cy.get('[data-cy="event-list-create-event"]').should('be.visible');
   });
 
   it('keeps Calendar Register available while Power mode is off', () => {

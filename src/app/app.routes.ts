@@ -2,7 +2,7 @@ import { Routes } from '@angular/router';
 import { DataAuthorityCapabilityFlags } from './config/data-authority';
 import { adminGuard, organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
-import { powerUserGuard } from './shared/power-user.guard';
+import { eventCreatePowerGuard, powerUserGuard } from './shared/power-user.guard';
 
 const authRoutes: Routes = [
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
@@ -19,7 +19,7 @@ const eventId = (params: Record<string, unknown>) => encodeURIComponent(String(p
 
 const registrationAndOrganizerRoutes: Routes = [
   { path: 'registrations', canActivate: [userGuard], loadComponent: () => import('./features/events/my-registrations.component').then((m) => m.MyRegistrationsComponent) },
-  { path: 'events/new', canActivate: [userGuard, verifiedEmailGuard, powerUserGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
+  { path: 'events/new', canActivate: [userGuard, verifiedEmailGuard, eventCreatePowerGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/events', canActivate: [organizerGuard], loadComponent: () => import('./features/events/organizer-event-list.component').then((m) => m.OrganizerEventListComponent) },
   { path: 'organizer/events/:id/edit', canActivate: [organizerGuard, verifiedEmailGuard, powerUserGuard], loadComponent: () => import('./features/events/organizer-event-create.component').then((m) => m.OrganizerEventCreateComponent) },
   { path: 'organizer/events/:id/participants', canActivate: [organizerGuard], loadComponent: () => import('./features/events/organizer-participants.component').then((m) => m.OrganizerParticipantsComponent) },

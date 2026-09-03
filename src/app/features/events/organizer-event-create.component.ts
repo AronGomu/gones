@@ -16,7 +16,7 @@ import { DirectPublicationState, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
 import { canManageArchive } from '../../data/archive-command-ux';
-import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventImageSelection, EventImageUploaderComponent } from './event-image-uploader.component';
 import { renderEventMarkdown } from './event-markdown';
@@ -256,10 +256,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly currentRender = signal<EventDetailView | null>(null);
   readonly initialEditorImages = computed(() => this.baseEvent()?.images ?? []);
   readonly success = signal('');
-  readonly canMutateEvent = computed(() => canUsePowerMutation(
-    this.power.enabled(),
-    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
-  ));
+  readonly canMutateEvent = computed(() => {
+    const profile = this.auth.profile();
+    return profile?.emailVerified === true
+      && canManageArchive(profile.globalRole)
+      && ((!this.editMode && profile.globalRole === 'Admin') || this.power.enabled());
+  });
   readonly canPublishDirectly = this.canMutateEvent;
   private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   readonly proposalPending = signal(false);

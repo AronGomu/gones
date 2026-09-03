@@ -1179,7 +1179,7 @@ html:has(.tournament-result-page), body:has(.tournament-result-page) { height: 1
 .public-calendar-page { gap: 1rem; align-content: start; }
 .public-calendar-page, .public-calendar-page * { min-width: 0; }
 .public-calendar-page > .section-header { display: flex; align-items: center; justify-content: flex-start; }
-.calendar-view-tabs { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.calendar-view-tabs { display: flex; flex: 1 1 auto; align-items: center; flex-wrap: wrap; gap: .5rem; }
 .calendar-view-tabs > button { width: auto; height: 44px; }
 .calendar-view-tabs button[aria-pressed='true'] { border-color: var(--hot-blood); background: color-mix(in oklch, var(--blood) 25%, var(--black-metal)); }
 .calendar-search-row { display: flex; width: 100%; margin: .35rem 0 .5rem; }

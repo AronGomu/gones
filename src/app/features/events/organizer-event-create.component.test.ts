@@ -31,7 +31,7 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setupHarness(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}) {
+function setupHarness(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}, powerEnabled = true) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap(routeValues) } } as unknown as ActivatedRoute;
@@ -43,7 +43,7 @@ function setupHarness(globalRole: string, client: Partial<Client> = {}, routeVal
     { provide: MatDialog, useValue: {} },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: {} },
-    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(powerEnabled), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
@@ -578,6 +578,12 @@ describe('OrganizerEventCreateComponent role gating', () => {
   it('keeps submit enabled for an admin', () => {
     const component = setup('Admin');
     expect(component.canPublishDirectly()).toBe(true);
+  });
+
+  it('keeps Event publication enabled for an admin when Power User mode is off', () => {
+    const { component, destroy } = setupHarness('Admin', {}, {}, false);
+    expect(component.canPublishDirectly()).toBe(true);
+    destroy();
   });
 
   it('uses one required format control without retired end or tournament-link controls', () => {
