@@ -80,8 +80,40 @@ namespace Gones.Infrastructure.Persistence.Migrations
                                  OR (image ->> 'imageId') = '00000000-0000-0000-0000-000000000000'
                                  OR (image ? 'altText' AND jsonb_typeof(image -> 'altText') NOT IN ('null', 'string'))
                                  OR length(COALESCE(image ->> 'altText', '')) > 300)
+                          AND (
+                              jsonb_array_length(payload_json::jsonb -> 'event' -> 'images') = 0
+                              OR EXISTS (
+                                  SELECT 1
+                                  FROM event_images image
+                                  WHERE image.id::text = lower(payload_json::jsonb -> 'event' -> 'images' -> 0 ->> 'imageId')
+                                    AND image.proposal_id = event_proposals.id
+                                    AND image.state = 'ProposalOwned'))
                         FOR UPDATE
                     LOOP
+                        IF jsonb_array_length(proposal_row.envelope -> 'event' -> 'images') = 0 THEN
+                            WITH variant_keys AS (
+                                SELECT image.id,
+                                       'event-images/' || image.id::text || '/' || widths.width::text || '.webp' AS object_key
+                                FROM event_images image
+                                CROSS JOIN LATERAL unnest(
+                                    CASE
+                                        WHEN image.width < 320 THEN ARRAY[image.width]
+                                        ELSE ARRAY(SELECT width FROM unnest(ARRAY[320, 960, 1600]) AS width WHERE width <= image.width)
+                                    END) AS widths(width)
+                                WHERE image.proposal_id = proposal_row.id
+                                  AND image.state = 'ProposalOwned'
+                            )
+                            INSERT INTO event_image_object_deletions
+                                (object_key, image_id, attempts, next_attempt_at, last_error, created_at)
+                            SELECT object_key, id, 0, CURRENT_TIMESTAMP, NULL, CURRENT_TIMESTAMP
+                            FROM variant_keys
+                            ON CONFLICT (object_key) DO NOTHING;
+
+                            DELETE FROM event_images
+                            WHERE proposal_id = proposal_row.id
+                              AND state = 'ProposalOwned';
+                        END IF;
+
                         event_v3 := jsonb_set(
                             (proposal_row.envelope -> 'event') - 'images',
                             '{imageId}',

@@ -123,8 +123,10 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
 
         var missingProposalId = Guid.Parse("60000000-0000-0000-0000-000000000001");
         var malformedProposalId = Guid.Parse("60000000-0000-0000-0000-000000000002");
+        var malformedArrayProposalId = Guid.Parse("60000000-0000-0000-0000-000000000003");
         var missingImageId = Guid.Parse("70000000-0000-0000-0000-000000000001");
         var malformedImageId = Guid.Parse("70000000-0000-0000-0000-000000000002");
+        var malformedArrayImageId = Guid.Parse("70000000-0000-0000-0000-000000000003");
         var location = new { streetAddress = "1 Street", postalCode = "69001", city = "Lyon", country = "France", region = "Rhône", timeZoneId = "Europe/Paris" };
         var eventWithoutImages = new
         {
@@ -166,18 +168,40 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             },
             location
         });
+        var malformedArrayPayload = JsonSerializer.Serialize(new
+        {
+            version = 2,
+            payloadHash = "old",
+            envelopeHash = "old",
+            @event = new
+            {
+                eventWithoutImages.organizationId,
+                eventWithoutImages.title,
+                eventWithoutImages.summary,
+                eventWithoutImages.bodyMarkdown,
+                eventWithoutImages.location,
+                eventWithoutImages.eventType,
+                eventWithoutImages.startsAtLocal,
+                eventWithoutImages.capacity,
+                eventWithoutImages.formatIds,
+                images = new[] { new { imageId = "not-a-guid", altText = "Malformed" } }
+            },
+            location
+        });
 
         await database.Database.ExecuteSqlInterpolatedAsync($$"""
             INSERT INTO event_proposals
                 (id, submitted_by_user_id, payload_json, status, created_at, expires_at, decided_at, decided_by_user_id, rejection_reason, version)
             VALUES
                 ({{missingProposalId}}, {{user.Id}}, {{missingPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1),
-                ({{malformedProposalId}}, {{user.Id}}, {{malformedPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1);
+                ({{malformedProposalId}}, {{user.Id}}, {{malformedPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1),
+                ({{malformedArrayProposalId}}, {{user.Id}}, {{malformedArrayPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1);
             INSERT INTO event_images
                 (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
             VALUES
                 ({{missingImageId}}, {{user.Id}}, 'ProposalOwned', NULL, {{missingProposalId}}, 0, 'Missing', 320, 180, {{Now}}, {{Now + Duration.FromDays(7)}}),
-                ({{malformedImageId}}, {{user.Id}}, 'ProposalOwned', NULL, {{malformedProposalId}}, 0, 'Malformed', 320, 180, {{Now}}, {{Now + Duration.FromDays(7)}});
+                ({{malformedImageId}}, {{user.Id}}, 'ProposalOwned', NULL, {{malformedProposalId}}, 0, 'Malformed', 320, 180, {{Now}}, {{Now + Duration.FromDays(7)}}),
+                ({{malformedArrayImageId}}, {{user.Id}}, 'ProposalOwned', NULL, {{malformedArrayProposalId}}, 0, 'Malformed array', 320, 180, {{Now}}, {{Now + Duration.FromDays(7)}});
             """);
 
         database.ChangeTracker.Clear();
@@ -200,7 +224,7 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             .OrderBy(image => image.Id)
             .Select(image => new { image.Id, image.State, image.EventId, image.ProposalId })
             .ToListAsync();
-        Assert.Equal(new[] { missingImageId, malformedImageId }, retainedImages.Select(image => image.Id));
+        Assert.Equal(new[] { missingImageId, malformedImageId, malformedArrayImageId }, retainedImages.Select(image => image.Id));
         Assert.All(retainedImages, image =>
         {
             Assert.Equal(EventImageState.ProposalOwned, image.State);
@@ -208,6 +232,131 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             Assert.NotNull(image.ProposalId);
         });
         Assert.Empty(await database.Events.AsNoTracking().ToListAsync());
+    }
+
+    [Fact]
+    public async Task Empty_v2_images_are_deleted_and_mismatched_first_image_remains_invalid()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync("20260902070415_DirectEventPublication");
+        var user = User();
+        database.Users.Add(user);
+        await database.SaveChangesAsync();
+
+        var emptyProposalId = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+        var mismatchedProposalId = Guid.Parse("a0000000-0000-0000-0000-000000000002");
+        var emptyFirst = Guid.Parse("b0000000-0000-0000-0000-000000000001");
+        var emptyExtra = Guid.Parse("b0000000-0000-0000-0000-000000000002");
+        var mismatchedSurvivor = Guid.Parse("c0000000-0000-0000-0000-000000000001");
+        var mismatchedPayloadImage = Guid.Parse("c0000000-0000-0000-0000-000000000002");
+        var location = new { streetAddress = "1 Street", postalCode = "69001", city = "Lyon", country = "France", region = "Rhône", timeZoneId = "Europe/Paris" };
+        var eventFields = new
+        {
+            organizationId = Guid.Parse("d0000000-0000-0000-0000-000000000001"),
+            title = "Migration Cup",
+            summary = (string?)null,
+            bodyMarkdown = (string?)null,
+            location,
+            eventType = "weekly",
+            startsAtLocal = "2035-03-04T10:00",
+            capacity = 32,
+            formatIds = new[] { Guid.Parse("e0000000-0000-0000-0000-000000000001") }
+        };
+        var emptyPayload = JsonSerializer.Serialize(new
+        {
+            version = 2,
+            payloadHash = "old",
+            envelopeHash = "old",
+            @event = new
+            {
+                eventFields.organizationId,
+                eventFields.title,
+                eventFields.summary,
+                eventFields.bodyMarkdown,
+                eventFields.location,
+                eventFields.eventType,
+                eventFields.startsAtLocal,
+                eventFields.capacity,
+                eventFields.formatIds,
+                images = Array.Empty<object>()
+            },
+            location
+        });
+        var mismatchedPayload = JsonSerializer.Serialize(new
+        {
+            version = 2,
+            payloadHash = "old",
+            envelopeHash = "old",
+            @event = new
+            {
+                eventFields.organizationId,
+                eventFields.title,
+                eventFields.summary,
+                eventFields.bodyMarkdown,
+                eventFields.location,
+                eventFields.eventType,
+                eventFields.startsAtLocal,
+                eventFields.capacity,
+                eventFields.formatIds,
+                images = new[] { new { imageId = mismatchedPayloadImage, altText = "Conflicting" } }
+            },
+            location
+        });
+
+        await database.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO event_proposals
+                (id, submitted_by_user_id, payload_json, status, created_at, expires_at, decided_at, decided_by_user_id, rejection_reason, version)
+            VALUES
+                ({{emptyProposalId}}, {{user.Id}}, {{emptyPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1),
+                ({{mismatchedProposalId}}, {{user.Id}}, {{mismatchedPayload}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1);
+            INSERT INTO event_images
+                (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
+            VALUES
+                ({{emptyExtra}}, {{user.Id}}, 'ProposalOwned', NULL, {{emptyProposalId}}, 1, 'Extra', 2000, 1125, {{Now}}, {{Now + Duration.FromDays(7)}}),
+                ({{emptyFirst}}, {{user.Id}}, 'ProposalOwned', NULL, {{emptyProposalId}}, 0, 'First', 200, 112, {{Now}}, {{Now + Duration.FromDays(7)}}),
+                ({{mismatchedPayloadImage}}, {{user.Id}}, 'ProposalOwned', NULL, {{mismatchedProposalId}}, 1, 'Conflicting', 960, 540, {{Now}}, {{Now + Duration.FromDays(7)}}),
+                ({{mismatchedSurvivor}}, {{user.Id}}, 'ProposalOwned', NULL, {{mismatchedProposalId}}, 0, 'Survivor', 320, 180, {{Now}}, {{Now + Duration.FromDays(7)}});
+            """);
+
+        database.ChangeTracker.Clear();
+        await database.Database.MigrateAsync();
+
+        var emptyStoredJson = await database.EventProposals.AsNoTracking()
+            .Where(item => item.Id == emptyProposalId)
+            .Select(item => item.PayloadJson)
+            .SingleAsync();
+        var emptyEnvelope = JsonSerializer.Deserialize<EventProposalEnvelope>(emptyStoredJson, EventProposalEndpoints.PayloadJsonOptions)!;
+        Assert.Equal(EventProposalEnvelope.CurrentVersion, emptyEnvelope.Version);
+        Assert.Null(emptyEnvelope.Event.ImageId);
+        Assert.True(emptyEnvelope.HasValidIntegrity());
+        Assert.DoesNotContain("\"images\"", emptyStoredJson, StringComparison.Ordinal);
+        Assert.Empty(await database.EventImages.AsNoTracking().Where(image => image.ProposalId == emptyProposalId).ToListAsync());
+
+        var emptyDeletedKeys = await database.EventImageObjectDeletions.AsNoTracking()
+            .Where(item => item.ImageId == emptyFirst || item.ImageId == emptyExtra)
+            .Select(item => item.ObjectKey)
+            .OrderBy(key => key)
+            .ToListAsync();
+        Assert.Equal(new[]
+        {
+            $"event-images/{emptyFirst:D}/200.webp",
+            $"event-images/{emptyExtra:D}/320.webp",
+            $"event-images/{emptyExtra:D}/960.webp",
+            $"event-images/{emptyExtra:D}/1600.webp"
+        }.OrderBy(key => key), emptyDeletedKeys);
+
+        var mismatchedStoredJson = await database.EventProposals.AsNoTracking()
+            .Where(item => item.Id == mismatchedProposalId)
+            .Select(item => item.PayloadJson)
+            .SingleAsync();
+        using var mismatchedDocument = JsonDocument.Parse(mismatchedStoredJson);
+        Assert.Equal(2, mismatchedDocument.RootElement.GetProperty("version").GetInt32());
+        Assert.False(JsonSerializer.Deserialize<EventProposalEnvelope>(mismatchedStoredJson, EventProposalEndpoints.PayloadJsonOptions)!.HasValidIntegrity());
+        var retainedMismatch = await database.EventImages.AsNoTracking()
+            .Where(image => image.ProposalId == mismatchedProposalId)
+            .Select(image => image.Id)
+            .SingleAsync();
+        Assert.Equal(mismatchedSurvivor, retainedMismatch);
     }
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options);
