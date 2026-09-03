@@ -247,6 +247,41 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-detail-title-text"]').should('have.text', 'Legacy — Night Cup');
   });
 
+  it('persists one account-scoped create draft, blocks canceled navigation, and restores it after reload', () => {
+    mockSession();
+    mockReferences();
+    mockImageUploads([imageIds[0]]);
+    visit();
+    fillValidForm();
+    selectImages(1);
+    cy.wait(350);
+
+    cy.window().then(win => {
+      const key = `gones.event-create.draft.${profile.id}`;
+      const draft = JSON.parse(win.localStorage.getItem(key));
+      expect(draft.version).to.eq(1);
+      expect(draft.userId).to.eq(profile.id);
+      expect(draft.value).to.include({ ...manualLocation, title: 'Lyon Legacy Open', formatId });
+      expect(draft.image.id).to.eq(imageIds[0]);
+      expect(win.localStorage.getItem('gones.event-create.draft.someone-else')).to.eq(null);
+    });
+    cy.get('[data-cy="app-brand-link"]').click();
+    cy.get('[data-cy="confirm-dialog-cancel"]').click();
+    cy.location('pathname').should('eq', '/events/new');
+    cy.window().then(win => {
+      const event = new win.Event('beforeunload', { cancelable: true });
+      win.dispatchEvent(event);
+      expect(event.defaultPrevented).to.eq(true);
+    });
+
+    cy.reload();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-title"]').should('have.value', 'Lyon Legacy Open');
+    cy.get('[data-cy="event-street"]').should('have.value', manualLocation.streetAddress);
+    cy.get('[data-cy="event-time-zone"]').should('have.value', manualLocation.timeZoneId);
+    cy.get(`[data-cy="event-image-card-restored-${imageIds[0]}"]`).should('be.visible');
+  });
+
   it('renders instant actual-layout Markdown preview without preview HTTP', () => {
     mockSession();
     mockReferences();
@@ -343,6 +378,9 @@ describe('Organizer Event direct create editor', () => {
       ['[data-cy="event-time-zone"]', manualLocation.timeZoneId, 'Location resolution']
     ];
     for (const [selector, validValue, label] of freshStates) {
+      cy.window().then(win => win.addEventListener('beforeunload', () => {
+        win.localStorage.removeItem(`gones.event-create.draft.${profile.id}`);
+      }, { once: true }));
       cy.reload();
       fillValidForm('@myOrganizations', selector);
       cy.get('[data-cy="event-publish"]').should('be.disabled');
@@ -405,6 +443,7 @@ describe('Organizer Event direct create editor', () => {
 
     cy.get('[data-cy="event-publish"]').click();
     cy.wait('@publish');
+    cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq(null));
     cy.wait('@detail');
     cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', `${detail.displayTitle} — Event image`);
     cy.get('[data-cy="event-detail-media-hero"]').focus().type('{enter}');

@@ -108,6 +108,34 @@ describe('Organizer Event management', () => {
     });
   });
 
+  it('guards dirty edit navigation, preserves canceled changes, and never touches create draft storage', () => {
+    mockSession();
+    mockFormats();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
+    visit(`/organizer/events/${eventId}/edit`);
+    cy.wait(['@management', '@formats', '@timeZones']);
+    cy.window().then(win => win.localStorage.setItem(`gones.event-create.draft.${profile.id}`, 'sentinel'));
+    cy.get('[data-cy="event-body"]').clear().type('Unsaved edit');
+
+    cy.get('[data-cy="event-create-back-to-list"]').click();
+    cy.get('[data-cy="confirm-dialog-cancel"]').click();
+    cy.location('pathname').should('eq', `/organizer/events/${eventId}/edit`);
+    cy.get('[data-cy="event-body"]').should('have.value', 'Unsaved edit');
+
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 20, totalCount: 1 }).as('listAfterLeave');
+    cy.get('[data-cy="event-create-back-to-list"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.location('pathname').should('eq', '/organizer/events');
+    cy.wait('@listAfterLeave');
+    cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq('sentinel'));
+
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('managementRevisit');
+    visit(`/organizer/events/${eventId}/edit`);
+    cy.wait(['@managementRevisit', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-body"]').should('have.value', event.bodyMarkdown);
+    cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq('sentinel'));
+  });
+
   it('hydrates singular media edit DTO, confirms major start change, and reloads stale canonical state without losing draft first', () => {
     mockSession();
     mockFormats();

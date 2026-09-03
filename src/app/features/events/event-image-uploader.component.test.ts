@@ -91,6 +91,32 @@ describe('EventImageUploaderComponent singular image', () => {
     expect(component.selectedImage()).toBeNull();
   });
 
+  it('restores one unexpired Temporary image through authenticated variant blob reads', () => {
+    vi.setSystemTime('2029-01-01T00:00:00Z');
+    const { component, http } = harness();
+    const changes = vi.fn();
+    component.imageChange.subscribe(changes);
+
+    component.restoreTemporaryImage(uploaded('restored'));
+
+    expect(http.get).toHaveBeenCalledWith('/api/event-images/restored/variants/320', { responseType: 'blob' });
+    expect(component.card()?.localId).toBe('restored-restored');
+    expect(component.selectedImage()?.imageId).toBe('restored');
+    expect(changes).toHaveBeenLastCalledWith(expect.objectContaining({ imageId: 'restored' }));
+    vi.useRealTimers();
+  });
+
+  it('ignores expired Temporary image restoration', () => {
+    vi.setSystemTime('2031-01-01T00:00:00Z');
+    const { component, http } = harness();
+
+    component.restoreTemporaryImage(uploaded('expired'));
+
+    expect(http.get).not.toHaveBeenCalled();
+    expect(component.card()).toBeNull();
+    vi.useRealTimers();
+  });
+
   it('centers the singular picker in the drop zone while preserving keyboard file access', () => {
     const { fixture } = harness(true);
     const dropZone = fixture!.nativeElement.querySelector('[data-cy="event-image-drop-zone"]') as HTMLElement;

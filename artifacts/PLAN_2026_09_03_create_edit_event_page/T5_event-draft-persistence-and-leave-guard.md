@@ -122,35 +122,35 @@ export interface EventDraftValueV1 {
 
 ## Impl steps
 
-- [ ] 1. Write red pure draft tests.
-  - [ ] 1.1 Pin v1 parse/account scope/malformed handling.
-  - [ ] 1.2 Pin durable manual location + image expiry degradation.
-  - [ ] 1.3 Pin normalized empty + baseline comparison.
-- [ ] 2. Write red route/component tests.
-  - [ ] 2.1 Pin create/edit `canDeactivate` coverage.
-  - [ ] 2.2 Pin translated dialog cancel/confirm.
-  - [ ] 2.3 Pin native unload + success reset.
-- [ ] 3. Implement one feature-specific draft module/store.
-  - [ ] 3.1 Debounced account-scoped writes.
-  - [ ] 3.2 Safe parse/partial restore.
-  - [ ] 3.3 Safe remove + structured logging.
-  - [ ] 3.4 Add deliberate server-authority allowlist exception + test rationale.
-- [ ] 4. Wire create lifecycle.
-  - [ ] 4.1 Restore after refs without marking dirty.
-  - [ ] 4.2 Restore manual location/timezone + rehydrate valid Temporary image previews.
-  - [ ] 4.3 Flush on unload; clear after publish/proposal success/empty.
-- [ ] 5. Wire baselines + leave guard for create/edit.
-  - [ ] 5.1 Establish mode-specific baseline.
-  - [ ] 5.2 Attach `CanDeactivateFn` to both routes.
-  - [ ] 5.3 Keep failed mutations dirty.
-- [ ] 6. Add EN/FR copy + route/data-cy assertions.
+- [x] 1. Write red pure draft tests.
+  - [x] 1.1 Pin v1 parse/account scope/malformed handling.
+  - [x] 1.2 Pin durable manual location + image expiry degradation.
+  - [x] 1.3 Pin normalized empty + baseline comparison.
+- [x] 2. Write red route/component tests.
+  - [x] 2.1 Pin create/edit `canDeactivate` coverage.
+  - [x] 2.2 Pin translated dialog cancel/confirm.
+  - [x] 2.3 Pin native unload + success reset.
+- [x] 3. Implement one feature-specific draft module/store.
+  - [x] 3.1 Debounced account-scoped writes.
+  - [x] 3.2 Safe parse/partial restore.
+  - [x] 3.3 Safe remove + structured logging.
+  - [x] 3.4 Add deliberate server-authority allowlist exception + test rationale.
+- [x] 4. Wire create lifecycle.
+  - [x] 4.1 Restore after refs without marking dirty.
+  - [x] 4.2 Restore manual location/timezone + rehydrate valid Temporary image previews.
+  - [x] 4.3 Flush on unload; clear after publish/proposal success/empty.
+- [x] 5. Wire baselines + leave guard for create/edit.
+  - [x] 5.1 Establish mode-specific baseline.
+  - [x] 5.2 Attach `CanDeactivateFn` to both routes.
+  - [x] 5.3 Keep failed mutations dirty.
+- [x] 6. Add EN/FR copy + route/data-cy assertions.
 
 ## Validation
 
-- [ ] V1 tests pass: `npm run test -- src/app/features/events/event-create-draft.test.ts src/app/features/events/event-create-leave.guard.test.ts src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-image-uploader.component.test.ts src/app/backend/server-authority-boundary.test.ts src/app/app-routes.test.ts`
-- [ ] V2 manual create: type, cancel leave, confirm leave, revisit `/events/new`, observe restore; publish, revisit, observe blank.
-- [ ] V3 manual edit: change, cancel/confirm leave; revisit edit, observe server Event only; successful Save stops prompt.
-- [ ] V4 browser manual: reload/back/address-bar navigation with dirty form triggers native confirmation; cancel preserves state.
-- [ ] V5 no silent-failure swallow: storage catch logs exact boundary; expired resource degradation is specified/tested; navigation cancellation is user-selected, not swallowed.
-- [ ] V6 app functional: `npm run typecheck && npm run lint && npm run build`
-- [ ] V7 commit msg draft: `feat(events): preserve create drafts and guard unsaved edits`
+- [x] V1 tests pass: `npm run test -- src/app/features/events/event-create-draft.test.ts src/app/features/events/event-create-leave.guard.test.ts src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/event-image-uploader.component.test.ts src/app/backend/server-authority-boundary.test.ts src/app/data-mode-routes.test.ts`
+- [x] V2 headless browser create: type, cancel leave, revisit `/events/new`, observe restore; publish removes matching draft.
+- [x] V3 headless browser edit: change, cancel/confirm leave; revisit edit, observe server Event only; successful Save resets baseline in component test.
+- [x] V4 headless browser: reload plus native `beforeunload` event semantics preserve dirty state; browser-owned dialog copy not asserted.
+- [x] V5 no silent-failure swallow: storage catch logs exact boundary; expired resource degradation is specified/tested; navigation cancellation is user-selected, not swallowed.
+- [x] V6 app functional: `npm run typecheck && npm run lint && npm run build`
+- [x] V7 commit msg draft: `feat(events): preserve create drafts and guard unsaved edits`

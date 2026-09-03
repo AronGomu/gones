@@ -12,7 +12,8 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { of, throwError } from 'rxjs';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { OrganizerEventCreateComponent } from './organizer-event-create.component';
 import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
@@ -22,6 +23,7 @@ import { GeoOption, GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
+import { EventCreateDraftStore, StoredEventCreateDraftV1 } from './event-create-draft';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -37,11 +39,15 @@ function setupHarness(
   client: Partial<Client> = {},
   routeValues: Record<string, string> = {},
   powerEnabled = true,
-  countries: () => Promise<GeoOption[]> = async () => [{ code: 'FR', name: 'France' }]
+  countries: () => Promise<GeoOption[]> = async () => [{ code: 'FR', name: 'France' }],
+  draftStore: Pick<EventCreateDraftStore, 'read' | 'write' | 'remove'> = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() },
+  dialog: Pick<MatDialog, 'open'> = { open: vi.fn(() => ({ afterClosed: () => of(false) })) } as unknown as Pick<MatDialog, 'open'>,
+  proposals: Pick<EventProposalService, 'listApprovers' | 'submit'> = {} as Pick<EventProposalService, 'listApprovers' | 'submit'>
 ) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap(routeValues) } } as unknown as ActivatedRoute;
+  const router = { navigate: vi.fn(async () => true) };
   const clientWithCatalog = {
     formatsAll: () => of([]),
     listEventTimeZones: () => of({ ids: [] }),
@@ -52,10 +58,11 @@ function setupHarness(
     { provide: Client, useValue: clientWithCatalog },
     { provide: GeoService, useValue: { countries } },
     { provide: ActivatedRoute, useValue: route },
-    { provide: Router, useValue: {} },
-    { provide: MatDialog, useValue: {} },
+    { provide: Router, useValue: router },
+    { provide: MatDialog, useValue: dialog },
     { provide: AuthService, useValue: auth },
-    { provide: EventProposalService, useValue: {} },
+    { provide: EventProposalService, useValue: proposals },
+    { provide: EventCreateDraftStore, useValue: draftStore },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(powerEnabled), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
@@ -63,6 +70,10 @@ function setupHarness(
 
   return {
     component: runInInjectionContext(injector, () => new OrganizerEventCreateComponent()),
+    auth,
+    draftStore,
+    dialog,
+    router,
     destroy: () => injector.destroy()
   };
 }
@@ -262,6 +273,202 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
   });
 });
 
+describe('OrganizerEventCreateComponent draft persistence and leave guard', () => {
+  const draftValue = {
+    organizationId: 'org-mine', title: 'Recovered Cup', summary: 'Summary', bodyMarkdown: '**Body**',
+    streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Rhône',
+    timeZoneId: 'Europe/Paris', eventType: 'weekly' as const, startDate: '2027-08-01', startTime: '10:00',
+    capacity: 32, formatId: 'fmt-1'
+  };
+
+  async function initializedCreate(
+    draftStore: Pick<EventCreateDraftStore, 'read' | 'write' | 'remove'> = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() },
+    dialog?: Pick<MatDialog, 'open'>,
+    client: Partial<Client> = locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    })
+  ) {
+    const harness = setupHarness('Organizer', client, {}, true, undefined, draftStore, dialog);
+    harness.component.ngOnInit();
+    await vi.waitFor(() => expect(harness.component.loadingReferences()).toBe(false));
+    return harness;
+  }
+
+  it('restores only current account draft after references and uses restored data as clean baseline', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue
+    };
+    const draftStore = { read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+
+    expect(draftStore.read).toHaveBeenCalledWith('u1');
+    expect(component.form.getRawValue()).toMatchObject(draftValue);
+    expect(component.dirty()).toBe(false);
+    component.form.controls.title.setValue('Changed');
+    expect(component.dirty()).toBe(true);
+    component.form.controls.title.setValue('Recovered Cup');
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
+  it('keeps writes scoped to account that opened editor if active profile changes', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, auth, destroy } = await initializedCreate(draftStore);
+    auth.profile.set({ id: 'u2', email: 'b@example.test', emailVerified: true, globalRole: 'Organizer' } as unknown as UserProfileResponse);
+    component.form.controls.title.setValue('Owned by u1 editor');
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+
+    component.beforeUnload(event as unknown as BeforeUnloadEvent);
+
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
+    expect(draftStore.write).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'u2' }));
+    destroy();
+  });
+
+  it('debounces normalized create writes for 300ms and writes latest state', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+    vi.useFakeTimers();
+
+    component.form.controls.title.setValue(' First ');
+    component.form.controls.title.setValue(' Latest ');
+    vi.advanceTimersByTime(299);
+    expect(draftStore.write).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(draftStore.write).toHaveBeenCalledTimes(1);
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Latest' })
+    }));
+    component.form.controls.title.setValue('  ');
+    vi.advanceTimersByTime(300);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    vi.useRealTimers();
+    destroy();
+  });
+
+  it('opens translated leave confirmation only while dirty and honors cancel/confirm', async () => {
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const { component, destroy } = await initializedCreate(undefined, dialog);
+    expect(component.confirmLeave()).toBe(true);
+
+    component.form.controls.title.setValue('Changed');
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    expect(dialog.open).toHaveBeenCalledWith(ConfirmDialogComponent, {
+      data: {
+        title: component.i18n.t('eventCreate.leaveTitle'),
+        message: component.i18n.t('eventCreate.leaveBody'),
+        confirmLabel: component.i18n.t('eventCreate.leave')
+      }
+    });
+    afterClosed.mockReturnValue(of(true));
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(true);
+    destroy();
+  });
+
+  it('flushes create state and activates native unload semantics only while dirty', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+    const clean = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(clean as unknown as BeforeUnloadEvent);
+    expect(clean.preventDefault).not.toHaveBeenCalled();
+
+    component.form.controls.title.setValue('Changed');
+    const dirty = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(dirty as unknown as BeforeUnloadEvent);
+
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
+    expect(dirty.preventDefault).toHaveBeenCalledTimes(1);
+    expect(dirty.returnValue).toBe('');
+    destroy();
+  });
+
+  it('keeps leave guard active while publication is in flight', async () => {
+    const response = new Subject<{ slug: string }>();
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST: () => response
+    } as unknown as Partial<Client>));
+    component.form.patchValue(draftValue);
+
+    const publish = component.publish();
+    await Promise.resolve();
+    expect(component.publishing()).toBe(true);
+    expect(component.dirty()).toBe(true);
+    response.next({ slug: 'published-cup' });
+    response.complete();
+    await publish;
+    destroy();
+  });
+
+  it('keeps draft and dirty state after failed publication', async () => {
+    const eventsPOST = vi.fn(() => throwError(() => new Error('network')));
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST
+    }));
+    component.form.patchValue(draftValue);
+
+    await component.publish();
+
+    expect(component.dirty()).toBe(true);
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    expect(component.submitError()).not.toBeNull();
+    destroy();
+  });
+
+  it('removes matching draft and clears dirty before successful publication navigation', async () => {
+    const eventsPOST = vi.fn(() => of({ slug: 'published-cup' }));
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, router, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST
+    }));
+    component.form.patchValue(draftValue);
+    expect(component.dirty()).toBe(true);
+
+    await component.publish();
+
+    expect(eventsPOST).toHaveBeenCalledTimes(1);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    expect(component.dirty()).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/events', 'published-cup']);
+    destroy();
+  });
+
+  it('removes matching draft and clears dirty before successful proposal replacement', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const dialog = { open: vi.fn(() => ({ afterClosed: () => of(['approver-1']) })) } as unknown as Pick<MatDialog, 'open'>;
+    const proposals = {
+      listApprovers: vi.fn(async () => [{ id: 'approver-1', username: 'admin', globalRole: 'Admin' }]),
+      submit: vi.fn(async () => ({ recipientCount: 1 }))
+    } as unknown as Pick<EventProposalService, 'listApprovers' | 'submit'>;
+    const { component, destroy } = setupHarness('User', {
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      organizationsGET: () => of({ items: [{ id: 'org-mine', name: 'Club' }], page: 1, pageSize: 100, totalCount: 1 })
+    } as unknown as Partial<Client>, {}, true, undefined, draftStore, dialog, proposals);
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    component.form.patchValue(draftValue);
+
+    await component.submitForApproval();
+
+    expect(proposals.submit).toHaveBeenCalledTimes(1);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    expect(component.dirty()).toBe(false);
+    expect(component.proposalSentCount()).toBe(1);
+    destroy();
+  });
+});
+
 describe('OrganizerEventCreateComponent edit concurrency', () => {
   const managedEvent = {
     id: 'event-1', organizationId: 'org-1', organizationName: 'Club', title: 'Original', displayTitle: 'Legacy — Original', slug: 'original',
@@ -279,6 +486,31 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     },
     version: 3, eTag: '"3"'
   };
+
+  it('never reads or writes create draft storage and resets dirty only after successful save', async () => {
+    const updated = { ...managedEvent, summary: 'Changed summary', version: 4, eTag: '"4"' };
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const updateEventDetails = vi.fn(() => of(updated));
+    const { component, destroy } = setupHarness('Organizer', {
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      listOrganizerEvents: () => of({ items: [managedEvent], page: 1, pageSize: 100, totalCount: 1 }),
+      updateEventDetails
+    } as unknown as Partial<Client>, { id: 'event-1' }, true, undefined, draftStore);
+
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.dirty()).toBe(false);
+    component.form.controls.summary.setValue('Changed summary');
+    expect(component.dirty()).toBe(true);
+    await component.saveEdit();
+
+    expect(component.dirty()).toBe(false);
+    expect(draftStore.read).not.toHaveBeenCalled();
+    expect(draftStore.write).not.toHaveBeenCalled();
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    destroy();
+  });
 
   it('appends absent current country and timezone values for editing', async () => {
     const legacy = {

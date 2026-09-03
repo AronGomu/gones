@@ -37,8 +37,7 @@ describe('Organizer Event create state', () => {
       'event-location-retry',
       'event-location-token-error',
       'locationToken',
-      'sessionUuid',
-      'expiresAt'
+      'sessionUuid'
     ]) {
       expect(source).not.toContain(hook);
     }

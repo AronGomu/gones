@@ -24,6 +24,7 @@ import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settin
 import { GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
+import { EventCreateDraftStore } from './event-create-draft';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -52,6 +53,7 @@ function setup(dialogAfterClosed: unknown) {
     { provide: MatDialog, useValue: dialogStub },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: proposalsStub },
+    { provide: EventCreateDraftStore, useValue: { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() } },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService

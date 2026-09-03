@@ -1,13 +1,13 @@
-import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom, map } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
+import { Client, EventImageUploadResponse, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -23,6 +23,7 @@ import { EventImageSelection, EventImageUploaderComponent } from './event-image-
 import { renderEventMarkdown } from './event-markdown';
 import { GeoOption, GeoService } from '../../shared/geo.service';
 import { logBoundaryError } from '../../shared/app-logger';
+import { EVENT_CREATE_DRAFT_VERSION, EventCreateDraftStore, EventDirtyShape, EventDraftValueV1, eventCreateDraftIsEmpty, eventDraftIsDirty, normalizeEventDraftValue } from './event-create-draft';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -32,6 +33,7 @@ export interface EventOrganizationOption { id: string; name: string; }
 const PublicOrganizationPageSize = 100;
 const MaximumPublicOrganizationPages = 20;
 const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
+const EventCreateDraftDebounceMs = 300;
 
 @Component({
   standalone: true,
@@ -239,12 +241,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly power = inject(PowerUserSettingsService);
   private readonly proposals = inject(EventProposalService);
   private readonly geo = inject(GeoService);
+  private readonly draftStore = inject(EventCreateDraftStore);
   private readonly state = new DirectPublicationState();
   private readonly eventId = this.route.snapshot.paramMap.get('id');
   readonly editMode = Boolean(this.eventId);
   @ViewChild('titleInput') private titleInput?: ElementRef<HTMLInputElement>;
   @ViewChild('streetInput') private streetInput?: ElementRef<HTMLInputElement>;
   @ViewChild('saveButton', { read: ElementRef }) private saveButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild(EventImageUploaderComponent) private imageUploader?: EventImageUploaderComponent;
 
   readonly organizations = signal<EventOrganizationOption[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
@@ -276,11 +280,25 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly selectedOrganizationId = signal('');
   readonly imagePublishBlocked = signal(false);
   readonly selectedImage = signal<EventImageSelection | null>(null);
+  private readonly draftImage = signal<EventImageUploadResponse | null>(null);
+  private readonly baseline = signal<EventDirtyShape | null>(null);
   private readonly previewRevision = signal(0);
+  private draftWriteTimer?: ReturnType<typeof setTimeout>;
+  private defaultOrganizationId = '';
+  private draftUserId = '';
+  private editorInitialized = false;
+  private createCompleted = false;
+  private viewReady = false;
+  private pendingRestoredImage?: EventImageUploadResponse;
   readonly previewCollapsed = signal(readPreviewCollapsed());
   readonly formPending = computed(() => this.publishing() || this.saving());
   readonly organizationSelected = computed(() =>
     this.organizations().some(option => option.id === this.selectedOrganizationId()));
+  readonly dirty = computed(() => {
+    this.previewRevision();
+    const baseline = this.baseline();
+    return baseline ? eventDraftIsDirty(baseline, this.dirtyShape()) : false;
+  });
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -401,11 +419,38 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.success.set('');
       this.state.reset();
       this.previewRevision.update(value => value + 1);
+      this.queueDraftWrite();
+    });
+    this.destroyRef.onDestroy(() => {
+      if (!this.editMode && !this.createCompleted) this.flushDraft();
+      if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
     });
     void this.loadReferences();
   }
 
-  ngAfterViewInit(): void { queueMicrotask(() => this.titleInput?.nativeElement.focus()); }
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this.hydrateRestoredImage();
+    queueMicrotask(() => this.titleInput?.nativeElement.focus());
+  }
+
+  @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.editMode && !this.createCompleted) this.flushDraft();
+    if (!this.dirty()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
+  confirmLeave(): boolean | Observable<boolean> {
+    if (!this.dirty()) return true;
+    return this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t('eventCreate.leaveTitle'),
+        message: this.i18n.t('eventCreate.leaveBody'),
+        confirmLabel: this.i18n.t('eventCreate.leave')
+      }
+    }).afterClosed().pipe(map(result => result === true));
+  }
 
   togglePreview(): void {
     this.previewCollapsed.update(value => !value);
@@ -414,8 +459,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   onImageChange(image: EventImageSelection | null): void {
     this.selectedImage.set(image);
+    if (!this.editMode) {
+      this.draftImage.set(image && this.isTemporaryImage(image.response) ? image.response : null);
+    }
     const next = image?.imageId ?? null;
-    if (this.form.controls.imageId.value === next) return;
+    if (this.form.controls.imageId.value === next) {
+      this.queueDraftWrite();
+      return;
+    }
     this.form.controls.imageId.setValue(next);
   }
 
@@ -444,6 +495,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
           this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
         }
         if (!organizations.length) this.referenceError.set(this.i18n.t('eventCreate.noOrganizations'));
+        this.initializeCreateState();
       }
       this.syncSelectedOrganization();
       this.previewRevision.update(value => value + 1);
@@ -528,6 +580,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     try {
       const draft = this.form.getRawValue();
       const response = await this.proposals.submit(eventPayload(draft), recipientUserIds);
+      this.completeCreate();
       this.proposalSentCount.set(response.recipientCount);
     } catch (error) {
       this.applyFieldErrors(error);
@@ -547,6 +600,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const key = this.state.idempotencyKey(() => globalThis.crypto.randomUUID());
     try {
       const response = await firstValueFrom(this.client.eventsPOST(key, eventPayload(this.form.getRawValue())));
+      this.completeCreate();
       await this.router.navigate(['/events', response.slug]);
     } catch (error) {
       this.applyFieldErrors(error);
@@ -666,6 +720,105 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.timeZones.update(timeZones => [...timeZones, event.timeZoneId]);
     }
     this.currentRender.set(managementToDetail(event, this.formats()));
+    this.previewRevision.update(value => value + 1);
+    this.baseline.set(this.dirtyShape());
+  }
+
+  private initializeCreateState(): void {
+    if (this.editMode || this.editorInitialized) return;
+    const userId = this.auth.profile()?.id;
+    if (!userId) return;
+    this.defaultOrganizationId = this.organizations()[0]?.id ?? '';
+    this.draftUserId = userId;
+    const restored = this.draftStore.read(userId);
+    if (restored) {
+      this.form.patchValue({ ...restored.value, imageId: restored.image?.id ?? null }, { emitEvent: false });
+      if (restored.value.country && !this.countries().some(country => country.name === restored.value.country)) {
+        this.countries.update(countries => [...countries, { code: '', name: restored.value.country }]);
+      }
+      if (restored.value.timeZoneId && !this.timeZones().includes(restored.value.timeZoneId)) {
+        this.timeZones.update(timeZones => [...timeZones, restored.value.timeZoneId]);
+      }
+      this.draftImage.set(restored.image ?? null);
+      this.pendingRestoredImage = restored.image;
+    }
+    this.editorInitialized = true;
+    this.syncSelectedOrganization();
+    this.previewRevision.update(value => value + 1);
+    this.baseline.set(this.dirtyShape());
+    this.hydrateRestoredImage();
+  }
+
+  private hydrateRestoredImage(): void {
+    if (!this.viewReady || !this.pendingRestoredImage || !this.imageUploader) return;
+    const image = this.pendingRestoredImage;
+    this.pendingRestoredImage = undefined;
+    this.imageUploader.restoreTemporaryImage(image);
+  }
+
+  private queueDraftWrite(): void {
+    if (this.editMode || !this.editorInitialized || this.createCompleted) return;
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = setTimeout(() => this.flushDraft(), EventCreateDraftDebounceMs);
+  }
+
+  private flushDraft(): void {
+    if (this.editMode || !this.editorInitialized || this.createCompleted) return;
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = undefined;
+    const userId = this.draftUserId;
+    if (!userId) return;
+    const value = this.draftValue();
+    const image = this.draftImage();
+    if (eventCreateDraftIsEmpty(value, this.defaultOrganizationId) && !image) {
+      this.draftStore.remove(userId);
+      return;
+    }
+    this.draftStore.write({
+      version: EVENT_CREATE_DRAFT_VERSION,
+      userId,
+      savedAt: new Date().toISOString(),
+      value,
+      ...(image ? { image } : {})
+    });
+  }
+
+  private completeCreate(): void {
+    if (this.editMode) return;
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = undefined;
+    if (this.draftUserId) this.draftStore.remove(this.draftUserId);
+    this.createCompleted = true;
+    this.baseline.set(this.dirtyShape());
+  }
+
+  private isTemporaryImage(response: EventImageSelection['response']): response is EventImageUploadResponse {
+    return response['state'] === 'Temporary' && typeof response['expiresAt'] === 'string';
+  }
+
+  private dirtyShape(): EventDirtyShape {
+    return { value: this.draftValue(), imageId: this.form.controls.imageId.value };
+  }
+
+  private draftValue(): EventDraftValueV1 {
+    const value = this.form.getRawValue();
+    return normalizeEventDraftValue({
+      organizationId: value.organizationId,
+      title: value.title,
+      summary: value.summary,
+      bodyMarkdown: value.bodyMarkdown,
+      streetAddress: value.streetAddress,
+      postalCode: value.postalCode,
+      city: value.city,
+      country: value.country,
+      region: value.region,
+      timeZoneId: value.timeZoneId,
+      eventType: value.eventType,
+      startDate: value.startDate,
+      startTime: value.startTime,
+      capacity: value.capacity,
+      formatId: value.formatId
+    });
   }
 
   private async loadStaleEvent(base: EventManagementResponse): Promise<void> {

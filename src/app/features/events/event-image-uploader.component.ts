@@ -132,6 +132,22 @@ export class EventImageUploaderComponent implements OnDestroy {
     this.emitState();
   }
 
+  restoreTemporaryImage(response: EventImageUploadResponse): void {
+    const expiresAt = Date.parse(response.expiresAt);
+    if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) return;
+    this.request?.unsubscribe();
+    this.request = undefined;
+    if (this.card()) this.revoke(this.card()!.objectUrls);
+    this.card.set({
+      localId: `restored-${response.id}`, fileName: this.i18n.t('eventImages.existingName'), existing: false,
+      status: 'pending', progress: 100, previewUrl: '', srcset: '', response,
+      error: '', retryUpload: false, retryDelete: false, retryPreview: false, removePending: false,
+      expired: false, objectUrls: []
+    });
+    this.limitError.set('');
+    this.loadPreviews(response, false);
+  }
+
   addFiles(files: readonly File[]): void {
     this.limitError.set('');
     if (this.card()) {
@@ -217,9 +233,9 @@ export class EventImageUploaderComponent implements OnDestroy {
     if (!request.closed) this.request = request;
   }
 
-  private loadPreviews(response: EventImageUploadResponse): void {
+  private loadPreviews(response: EventImageUploadResponse, emitPending = true): void {
     const variants = [...response.variants].sort((left, right) => left.width - right.width);
-    this.patch({ status: 'pending', error: '', retryUpload: false, retryDelete: false, retryPreview: false });
+    this.patch({ status: 'pending', error: '', retryUpload: false, retryDelete: false, retryPreview: false }, emitPending);
     const request = forkJoin(variants.map(variant => this.http.get(joinApiUrl(this.baseUrl, variant.url), { responseType: 'blob' }))).subscribe({
       next: blobs => {
         const card = this.card();
@@ -239,7 +255,7 @@ export class EventImageUploaderComponent implements OnDestroy {
   private markExpired(): void { this.request?.unsubscribe(); this.request = undefined; this.patch({ status: 'error', error: this.i18n.t('eventImages.expired'), retryUpload: true, retryDelete: false, retryPreview: false, removePending: false, expired: true }); }
   private responseExpired(response: EventImageClientResponse): boolean { return this.isUploadResponse(response) && (!Number.isFinite(Date.parse(response.expiresAt)) || Date.now() >= Date.parse(response.expiresAt)); }
   private isUploadResponse(response: EventImageClientResponse): response is EventImageUploadResponse { return 'expiresAt' in response; }
-  private patch(patch: Partial<EventImageUploadCard>): void { if (this.card()) this.card.update(card => card ? { ...card, ...patch } : null); this.emitState(); }
+  private patch(patch: Partial<EventImageUploadCard>, emit = true): void { if (this.card()) this.card.update(card => card ? { ...card, ...patch } : null); if (emit) this.emitState(); }
   private revoke(urls: readonly string[]): void { for (const url of urls) URL.revokeObjectURL(url); }
   private emitState(): void {
     if (this.expiryTimer) clearTimeout(this.expiryTimer);
