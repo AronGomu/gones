@@ -101,4 +101,4 @@
 - [x] V3 headless browser check at 375/1023/1024px: title updates without format; preview header stays outside inner scroll; keyboard tooltip opens; Publish spans form; targeted Cypress 10/10 passed.
 - [x] V4 no silent-failure swallow on path added: `none` (derived UI only).
 - [x] V5 app functional: `npm run typecheck && npm run lint && npm run build` passed; build emitted only two pre-existing unused `RouterLink` warnings in admin components.
-- [ ] V6 commit msg draft: `feat(events): keep live preview controls and publish errors visible`
+- [x] V6 commit: `feat(events): keep live preview controls and publish errors visible` (`bcc1e9b`).
