@@ -24,6 +24,38 @@
 - R9 Supersede ADR-0051 through ADR-0057; update ADR-0055 location draft clauses, `AGENT.md`, `docs/CONTEXT.md`, `docs/GLOSSARY.md` only where contract changed.
 - R10 Regenerate OpenAPI client. Remove `/api/event-locations/autocomplete`, `/resolve`, suggestion/resolution DTOs, token fields/expiry. Add timezone catalog + `timeZoneId` write field.
 
+## Inputs
+
+- I1 `backend/src/Gones.Application/Events/EventProviderContracts.cs`
+- I2 `backend/src/Gones.Api/Events/EventLocationEndpoints.cs`
+- I3 `backend/src/Gones.Api/Events/EventLocationTokenService.cs`
+- I4 `backend/src/Gones.Api/Events/EventPublicationEndpoints.cs`
+- I5 `backend/src/Gones.Api/Events/EventLifecycleEndpoints.cs`
+- I6 `backend/src/Gones.Api/Events/EventProposalEndpoints.cs`
+- I7 `backend/src/Gones.Domain/Calendar/Event.cs`
+- I8 `backend/src/Gones.Infrastructure/Persistence/EventRecordConfigurations.cs`
+- I9 `backend/src/Gones.Infrastructure/Persistence/Migrations/`
+- I10 `backend/src/Gones.Infrastructure/EventProviders/`
+- I11 `backend/tests/Gones.IntegrationTests/EventLocationApiTests.cs`
+- I12 `backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs`
+- I13 `backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs`
+- I14 `backend/tests/Gones.IntegrationTests/EventProposalApiTests.cs`
+- I15 `backend/openapi/gones.json`
+- I16 `src/app/api/generated/gones-api.ts`
+- I17 `backend/openapi/README.md`
+- I18 `.env.example`
+- I19 `compose.yaml`
+- I20 `ops/runtime-config.test.ts`
+- I21 `backend/tests/Gones.IntegrationTests/RuntimeContractTests.cs`
+- I22 `docs/EVENT_EDITOR_PROVIDERS.md`
+- I23 `docs/adr/0051-google-resolved-event-locations.md`
+- I24 `docs/adr/0055-account-scoped-event-create-drafts.md`
+- I25 `docs/adr/0057-manual-worldwide-event-locations.md`
+- I26 `docs/CONTEXT.md`
+- I27 `docs/GLOSSARY.md`
+- I28 `AGENT.md`
+- I29 `scripts/generate-api.mjs`
+
 ## Interface contract
 
 - P1 `EventLocationInput { streetAddress, postalCode, city, country, region, timeZoneId }`.

@@ -25,6 +25,25 @@
 - R10 Add/adjust `data-cy` on every rendered element; add EN + FR keys together.
 - R11 Non-retriable catalog failures call `logBoundaryError` and expose existing reference Retry.
 
+## Inputs
+
+- I1 `src/app/features/events/organizer-event-create.component.ts`
+- I2 `src/app/features/events/organizer-event-create.component.test.ts`
+- I3 `src/app/features/events/organizer-event-create.test.ts`
+- I4 `src/app/features/events/organizer-event-create.ts`
+- I5 `src/app/features/events/event-management.ts`
+- I6 `src/app/features/events/event-management.test.ts`
+- I7 `src/app/shared/geo.service.ts`
+- I8 `src/app/shared/geo-assets.test.ts`
+- I9 `src/assets/geo/countries.json`
+- I10 `src/app/i18n/messages.ts`
+- I11 `src/app/shared/app-logger.ts`
+- I12 `src/app/api/generated/gones-api.ts`
+- I13 `cypress/e2e/organizer-event-create.cy.js`
+- I14 `cypress/e2e/organizer-event-management.cy.js`
+- I15 `src/AGENT.md`
+- I16 **From Depends T1:** generated timezone catalog client, `EventLocationInput.timeZoneId`, removed provider endpoints/token fields.
+
 ## Interface contract
 
 - P1 `countries = signal<GeoOption[]>([])` and `timeZones = signal<string[]>([])`.
