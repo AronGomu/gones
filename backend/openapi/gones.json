@@ -9925,30 +9925,9 @@
           }
         }
       },
-      "EventImageInput": {
-        "required": [
-          "imageId",
-          "altText"
-        ],
-        "type": "object",
-        "properties": {
-          "imageId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "altText": {
-            "maxLength": 300,
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "EventImageResponse": {
         "required": [
           "id",
-          "altText",
           "variants"
         ],
         "type": "object",
@@ -9956,12 +9935,6 @@
           "id": {
             "type": "string",
             "format": "uuid"
-          },
-          "altText": {
-            "type": [
-              "null",
-              "string"
-            ]
           },
           "variants": {
             "type": "array",
@@ -10170,7 +10143,7 @@
           "deletedAt",
           "deletedReason",
           "formatIds",
-          "images",
+          "image",
           "version",
           "eTag"
         ],
@@ -10313,11 +10286,15 @@
               "format": "uuid"
             }
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageResponse"
-            }
+          "image": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventImageResponse"
+              }
+            ]
           },
           "version": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -10373,8 +10350,7 @@
           "eventType",
           "startsAtLocal",
           "capacity",
-          "formatIds",
-          "images"
+          "formatIds"
         ],
         "type": "object",
         "properties": {
@@ -10419,13 +10395,6 @@
               "format": "uuid"
             }
           },
-          "images": {
-            "maxItems": 5,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageInput"
-            }
-          },
           "summary": {
             "maxLength": 50,
             "type": [
@@ -10439,6 +10408,13 @@
               "null",
               "string"
             ]
+          },
+          "imageId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -10541,7 +10517,7 @@
           "expiresAt",
           "organizationName",
           "formatNames",
-          "images"
+          "image"
         ],
         "type": "object",
         "properties": {
@@ -10585,11 +10561,15 @@
               "type": "string"
             }
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageResponse"
-            }
+          "image": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventImageResponse"
+              }
+            ]
           }
         }
       },
@@ -12575,7 +12555,7 @@
           "eventType",
           "organization",
           "formats",
-          "images"
+          "image"
         ],
         "type": "object",
         "properties": {
@@ -12670,11 +12650,15 @@
               "$ref": "#/components/schemas/PublicTournamentFormatResponse"
             }
           },
-          "images": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageResponse"
-            }
+          "image": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EventImageResponse"
+              }
+            ]
           }
         }
       },
@@ -13850,8 +13834,7 @@
           "eventType",
           "startsAtLocal",
           "capacity",
-          "formatIds",
-          "images"
+          "formatIds"
         ],
         "type": "object",
         "properties": {
@@ -13906,12 +13889,12 @@
               "format": "uuid"
             }
           },
-          "images": {
-            "maxItems": 5,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/EventImageInput"
-            }
+          "imageId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

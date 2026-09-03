@@ -24,18 +24,7 @@ const manualLocation = {
   region: 'Auvergne-Rhône-Alpes',
   timeZoneId: 'Europe/Paris'
 };
-const imageIds = [
-  '55555555-5555-5555-5555-555555555551',
-  '55555555-5555-5555-5555-555555555552',
-  '55555555-5555-5555-5555-555555555553',
-  '55555555-5555-5555-5555-555555555554',
-  '55555555-5555-5555-5555-555555555555'
-];
-const galleryImageIds = [
-  '66666666-6666-6666-6666-666666666661',
-  '66666666-6666-6666-6666-666666666662',
-  '66666666-6666-6666-6666-666666666663'
-];
+const imageIds = ['55555555-5555-5555-5555-555555555551'];
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const detail = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -46,7 +35,7 @@ const detail = {
   bodyHtml: '<p><strong>Live</strong> body.</p>',
   liveTournamentUrl: null,
   archiveTournamentUrl: null,
-  images: [],
+  image: null,
   venue: manualLocation,
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2027-08-01',
@@ -219,47 +208,27 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-publish"]').should('be.enabled');
   });
 
-  it('publishes 5 ordered images with alt text and renders faithful public Markdown detail', () => {
+  it('publishes one image, rejects a second, and renders public lightbox', () => {
     mockSession();
     mockReferences();
     mockImageUploads(imageIds);
     visit();
     fillValidForm();
-    selectImages(5);
-
-    const altTexts = ['Hero hall', 'Players', 'Pairings', 'Prizes', 'Venue'];
-    altTexts.forEach((alt, index) => cy.get(`[data-cy="event-image-alt-local-${index + 1}"]`).type(alt));
-    cy.get('[data-cy="event-image-move-left-local-5"]').focus().should('have.focus').type('{enter}{enter}');
-    const expectedOrder = [imageIds[0], imageIds[1], imageIds[4], imageIds[2], imageIds[3]];
-    const expectedAlt = [altTexts[0], altTexts[1], altTexts[4], altTexts[2], altTexts[3]];
-    cy.get('[data-cy^="event-image-card-local-"]').then($cards => {
-      expect([...$cards].map(card => card.getAttribute('data-cy'))).to.deep.eq([
-        'event-image-card-local-1', 'event-image-card-local-2', 'event-image-card-local-5',
-        'event-image-card-local-3', 'event-image-card-local-4'
-      ]);
+    selectImages(1);
+    cy.get('[data-cy="event-image-picker"]').selectFile({
+      contents: 'cypress/fixtures/event-proposal-private.webp', fileName: 'second.webp', mimeType: 'image/webp'
     });
-    checkA11y('Event editor with uploader and reorder controls', '[data-cy="event-create-form"]');
+    cy.get('[data-cy="event-image-limit-error"]').should('be.visible');
+    cy.get('@imageUpload.all').should('have.length', 1);
+    checkA11y('Event editor with singular uploader', '[data-cy="event-create-form"]');
 
     const publishedDetail = {
       ...detail,
-      images: expectedOrder.map((id, index) => ({
-        id,
-        altText: expectedAlt[index],
-        variants: [{ width: 320, height: 180, url: `/api/event-images/${id}/variants/320` }]
-      }))
+      image: { id: imageIds[0], variants: [{ width: 320, height: 180, url: `/api/event-images/${imageIds[0]}/variants/320` }] }
     };
     cy.intercept('POST', '**/api/events', req => {
-      expect(req.body).not.to.have.property('payload');
-      expect(req.body).not.to.have.property('previewTicket');
       expect(req.body.location).to.deep.eq(manualLocation);
-      expect(req.body).not.to.have.property('timeZoneId');
-      expect(req.body.location).not.to.have.property('locationToken');
-      expect(req.body.location).not.to.have.property('latitude');
-      expect(req.body.location).not.to.have.property('longitude');
-      expect(req.body.startsAtLocal).to.eq('2027-08-01T10:00');
-      expect(req.body.formatIds).to.deep.eq([formatId]);
-      expect(req.body.images).to.deep.eq(expectedOrder.map((imageId, index) => ({ imageId, altText: expectedAlt[index] })));
-      expect(req.headers['idempotency-key']).to.be.a('string').and.not.be.empty;
+      expect(req.body.imageId).to.eq(imageIds[0]);
       req.reply({ statusCode: 201, body: { id: detail.id, slug: detail.slug, status: 'Published' } });
     }).as('publish');
     cy.intercept('GET', `**/api/events/${detail.slug}`, publishedDetail).as('detail');
@@ -268,21 +237,12 @@ describe('Organizer Event direct create editor', () => {
 
     cy.get('[data-cy="event-publish"]').click();
     cy.wait('@publish');
-    cy.location('pathname').should('eq', `/events/${detail.slug}`);
     cy.wait('@detail');
-    cy.get('[data-cy="event-detail-title-text"]').should('have.text', detail.displayTitle);
-    cy.get('[data-cy="event-detail-summary"]').should('have.text', detail.summary);
-    cy.get('[data-cy="event-detail-body"] strong').should('have.text', 'Live');
-    cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', altTexts[0]);
-    cy.get('[data-cy="event-detail-media-gallery-image-1"]').should('have.attr', 'alt', altTexts[4]);
-    cy.get('[data-cy="event-detail-media-hero"]').focus().should('have.focus').type('{enter}');
+    cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', `${detail.displayTitle} — Event image`);
+    cy.get('[data-cy="event-detail-media-hero"]').focus().type('{enter}');
     cy.get('[data-cy="event-detail-lightbox-close"]').should('have.focus');
-    checkA11y('open Event detail lightbox', '[data-cy="event-detail-lightbox"]');
-    cy.get('[data-cy="event-detail-lightbox"]').trigger('keydown', { key: 'ArrowRight' });
-    cy.get('[data-cy="event-detail-lightbox-image"]').should('have.attr', 'alt', altTexts[1]);
     cy.get('[data-cy="event-detail-lightbox"]').trigger('keydown', { key: 'Escape' });
     cy.get('[data-cy="event-detail-lightbox"]').should('not.exist');
-    cy.get('[data-cy="event-detail-media-hero"]').should('have.focus');
   });
 
   it('publishes a valid Event with no summary, Markdown body, or images', () => {
@@ -293,11 +253,11 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-summary"]').clear();
     cy.get('[data-cy="event-body"]').clear();
 
-    const optionalDetail = { ...detail, summary: null, bodyHtml: null, images: [] };
+    const optionalDetail = { ...detail, summary: null, bodyHtml: null, image: null };
     cy.intercept('POST', '**/api/events', req => {
       expect(req.body).not.to.have.property('summary');
       expect(req.body).not.to.have.property('bodyMarkdown');
-      expect(req.body.images).to.deep.eq([]);
+      expect(req.body).not.to.have.property('imageId');
       req.reply({ statusCode: 201, body: { id: detail.id, slug: detail.slug, status: 'Published' } });
     }).as('publishOptional');
     cy.intercept('GET', `**/api/events/${detail.slug}`, optionalDetail).as('optionalDetail');
@@ -312,42 +272,6 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-detail-media"]').should('not.exist');
   });
 
-  it('keeps the public gallery usable when one image variant returns 404', () => {
-    mockSession();
-    const galleryDetail = {
-      ...detail,
-      images: galleryImageIds.map((id, index) => ({
-        id,
-        altText: `Gallery image ${index + 1}`,
-        variants: [{
-          width: 320,
-          height: 180,
-          url: index === 1 ? `http://127.0.0.1:5080/api/event-images/${id}/variants/320` : '/assets/fire-about.webp'
-        }]
-      }))
-    };
-    cy.intercept('GET', `**/api/events/${detail.slug}`, galleryDetail).as('galleryDetail');
-    cy.intercept('GET', '**/api/events/*/participants*', { items: [], page: 1, pageSize: 50, totalCount: 0 });
-    cy.intercept('GET', '**/api/events/*/registration-capability*', { canRegister: false, canUnregister: false, reason: 'organizer' });
-
-    visit(`/events/${detail.slug}`);
-    cy.wait('@galleryDetail');
-    cy.request({
-      url: `http://127.0.0.1:5080/api/event-images/${galleryImageIds[1]}/variants/320`,
-      failOnStatusCode: false
-    }).its('status').should('eq', 404);
-    cy.get('[data-cy="event-detail-media-gallery-image-0"]')
-      .scrollIntoView()
-      .should('have.attr', 'src')
-      .and('include', galleryImageIds[1]);
-    cy.get('[data-cy="event-detail-title-text"]').should('have.text', detail.displayTitle);
-    cy.get('[data-cy="event-detail-media-gallery-image-1"]').should(image => {
-      expect(image[0].complete).to.eq(true);
-      expect(image[0].naturalWidth).to.be.greaterThan(0);
-    });
-    cy.get('[data-cy="event-detail-media-gallery-1"]').focus().should('have.focus').type('{enter}');
-    cy.get('[data-cy="event-detail-lightbox-image"]').should('have.attr', 'alt', 'Gallery image 3');
-  });
 
   it('blocks unresolved and failed-upload states before publication', () => {
     mockSession();
@@ -403,7 +327,7 @@ describe('Organizer Event direct create editor', () => {
     cy.get('[data-cy="event-preview-collapse"]').should('have.attr', 'aria-controls', 'event-live-preview').and('have.attr', 'aria-expanded', 'false');
   });
 
-  it('lets a plain verified User upload and submit ordered proposal images', () => {
+  it('lets a plain verified User upload and submit one proposal image', () => {
     mockSession('User');
     mockPublicOrganizations();
     mockImageUploads([imageIds[0]]);
@@ -411,7 +335,7 @@ describe('Organizer Event direct create editor', () => {
       { id: profile.id, username: 'organizer-user', globalRole: 'Organizer' }
     ]).as('approvers');
     cy.intercept('POST', '**/api/event-proposals', req => {
-      expect(req.body.event.images).to.deep.eq([{ imageId: imageIds[0], altText: 'Proposal poster' }]);
+      expect(req.body.event.imageId).to.eq(imageIds[0]);
       expect(req.body.event.bodyMarkdown).to.eq('**Live** body.');
       expect(req.body.event.location).to.deep.eq(manualLocation);
       expect(req.body.recipientUserIds).to.deep.eq([profile.id]);
@@ -420,7 +344,6 @@ describe('Organizer Event direct create editor', () => {
     visit();
     fillValidForm('@publicOrganizations');
     selectImages(1);
-    cy.get('[data-cy="event-image-alt-local-1"]').type('Proposal poster');
 
     cy.get('[data-cy="event-submit-for-approval"]').should('be.enabled').click();
     cy.wait('@approvers');

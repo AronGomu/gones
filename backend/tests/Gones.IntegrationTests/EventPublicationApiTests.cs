@@ -60,7 +60,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Direct_publish_attaches_ordered_temporary_images_and_replays_idempotently()
+    public async Task Direct_publish_attaches_one_temporary_image_and_replays_idempotently()
     {
         var first = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 960, 540, Now);
         var second = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 320, 180, Now);
@@ -71,7 +71,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         }
         var payload = Payload(seed.Alpha.Id) with
         {
-            Images = [new(second.Id, " Second "), new(first.Id, null)]
+            ImageId = second.Id
         };
 
         using var published = await PublishAsync(seed.Organizer.Id, "direct-images", payload);
@@ -93,42 +93,26 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Assert.Equal(new LocalTime(23, 59, 59), storedEvent.VenueEndTime);
         var images = await verify.EventImages.AsNoTracking()
             .Where(image => image.EventId == eventId)
-            .OrderBy(image => image.SortOrder)
-            .ToListAsync();
-        Assert.Equal(new[] { second.Id, first.Id }, images.Select(image => image.Id).ToArray());
+                        .ToListAsync();
+        Assert.Equal(new[] { second.Id }, images.Select(image => image.Id).ToArray());
         Assert.All(images, image => Assert.Equal(EventImageState.EventOwned, image.State));
-        Assert.Equal(new[] { "Second", null }, images.Select(image => image.AltText).ToArray());
         Assert.All(images, image => Assert.Null(image.ExpiresAt));
         Assert.Equal(1, await verify.Events.CountAsync(item => item.Id == eventId));
         Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(item => item.Key == "direct-images"));
     }
 
     [Fact]
-    public async Task Image_conflict_rolls_back_Event_and_leaves_temporary_ownership()
+    public async Task Direct_publish_accepts_null_image_without_owned_media()
     {
-        var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 960, 540, Now);
-        await using (var database = CreateContext())
-        {
-            database.EventImages.Add(image);
-            await database.SaveChangesAsync();
-        }
-        var payload = Payload(seed.Alpha.Id) with
-        {
-            Title = "Duplicate Image Cup",
-            Images = [new(image.Id, null), new(image.Id, "duplicate")]
-        };
+        var payload = Payload(seed.Alpha.Id) with { Title = "No Image Cup", ImageId = null };
 
-        using var response = await PublishAsync(seed.Organizer.Id, "duplicate-images", payload);
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("image_state_conflict", await ProblemCode(response));
+        using var response = await PublishAsync(seed.Organizer.Id, "no-image", payload);
 
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var eventId = body.GetProperty("id").GetGuid();
         await using var verify = CreateContext();
-        Assert.Equal(0, await verify.Events.CountAsync(item => item.Title == payload.Title));
-        var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
-        Assert.Equal(EventImageState.Temporary, stored.State);
-        Assert.Null(stored.EventId);
-        Assert.NotNull(stored.ExpiresAt);
-        Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(item => item.Key == "duplicate-images"));
+        Assert.False(await verify.EventImages.AnyAsync(item => item.EventId == eventId));
     }
 
     [Fact]
@@ -145,11 +129,11 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         using var foreignResponse = await PublishAsync(
             seed.Organizer.Id,
             "foreign-image",
-            Payload(seed.Alpha.Id) with { Title = "Foreign Image Cup", Images = [new(foreign.Id, null)] });
+            Payload(seed.Alpha.Id) with { Title = "Foreign Image Cup", ImageId = foreign.Id });
         using var expiredResponse = await PublishAsync(
             seed.Organizer.Id,
             "expired-image",
-            Payload(seed.Alpha.Id) with { Title = "Expired Image Cup", Images = [new(expired.Id, null)] });
+            Payload(seed.Alpha.Id) with { Title = "Expired Image Cup", ImageId = expired.Id });
 
         Assert.Equal(HttpStatusCode.Conflict, foreignResponse.StatusCode);
         Assert.Equal("image_state_conflict", await ProblemCode(foreignResponse));
@@ -166,7 +150,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var payload = Payload(seed.Alpha.Id) with
         {
             Title = "Missing Image Cup",
-            Images = [new(Guid.NewGuid(), null)]
+            ImageId = Guid.NewGuid()
         };
 
         using var response = await PublishAsync(seed.Organizer.Id, "missing-image", payload);
@@ -250,7 +234,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         {
             Title = "Invalid Location Cup",
             Location = Location() with { TimeZoneId = "Europe/Nope" },
-            Images = [new(image.Id, null)]
+            ImageId = image.Id
         };
 
         using var response = await PublishAsync(seed.Organizer.Id, "invalid-location", payload);
@@ -282,18 +266,14 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Null_image_item_returns_nested_validation_error()
+    public async Task Explicit_null_image_is_optional()
     {
-        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
-        json["images"] = JsonNode.Parse("[null]");
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id) with { Title = "Explicit Null Image" }, WebJson))!.AsObject();
+        json["imageId"] = null;
 
         using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "null-image");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
-        Assert.True(errors.TryGetProperty("images[0]", out _), errors.ToString());
-        await using var verify = CreateContext();
-        Assert.Equal(0, await verify.Events.CountAsync());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
@@ -446,7 +426,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         "2035-03-04T10:00",
         64,
         [seed.Legacy.Id],
-        []);
+        null);
 
     private static LocationPayload Location() => new(
         "12 Rue de la Paix",
@@ -488,7 +468,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
-        IReadOnlyList<ImagePayload> Images);
+        Guid? ImageId);
 
     private sealed record LocationPayload(
         string StreetAddress,
@@ -498,7 +478,6 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string Region,
         string TimeZoneId);
 
-    private sealed record ImagePayload(Guid ImageId, string? AltText);
 
     private sealed class MutableClock(Instant current) : IClock
     {

@@ -109,35 +109,35 @@ internal sealed record EventImageResponse(
 
 ## Impl steps
 
-- [ ] 1. Add red backend tests.
-  - [ ] 1.1 Pin nullable publish/proposal/edit shape + exact errors.
-  - [ ] 1.2 Pin owner cardinality + cleanup.
-  - [ ] 1.3 Pin migration first-image policy + proposal v3 rewrite.
-- [ ] 2. Add migration + domain/config changes.
-  - [ ] 2.1 Queue every extra variant in object-deletion table; delete extra image rows.
-  - [ ] 2.2 Rewrite pending proposal JSON/hash/version.
-  - [ ] 2.3 Drop metadata columns + add partial unique indexes.
-  - [ ] 2.4 Remove domain alt/sort members + methods.
-- [ ] 3. Change API services/projections to singular nullable image.
-  - [ ] 3.1 Publish + payload hash.
-  - [ ] 3.2 Proposal submit/review/decision.
-  - [ ] 3.3 Lifecycle edit/list.
-  - [ ] 3.4 Public detail + ETag.
-- [ ] 4. Regenerate OpenAPI client; update Angular mapping/services.
-- [ ] 5. Simplify uploader to one card.
-  - [ ] 5.1 Remove CDK ordering + alt UI/state.
-  - [ ] 5.2 Reject second file without upload.
-  - [ ] 5.3 Add red trash icon + accessible pending state.
-- [ ] 6. Simplify public/preview media to one hero + one-image lightbox.
-- [ ] 7. Remove only newly orphaned imports, keys, funcs, tests.
+- [x] 1. Add red backend tests. Evidence: red compile captured; green focused backend run passes 109 integration + 12 unit tests.
+  - [x] 1.1 Pin nullable publish/proposal/edit shape + exact errors. Evidence: `dotnet test backend/tests/Gones.UnitTests/Gones.UnitTests.csproj --configuration Release --filter FullyQualifiedName~EventImageTests --no-restore` failed red at `EventImageTests.cs(47,15)` because singular `AttachToEvent` signature was not implemented.
+  - [x] 1.2 Pin owner cardinality + cleanup. Evidence: `EventLifecycleApiTests` replacement/removal cases + migration unique-index assertion pass.
+  - [x] 1.3 Pin migration first-image policy + proposal v3 rewrite. Evidence: `EventImageMigrationTests` previous→latest test passes.
+- [x] 2. Add migration + domain/config changes. Evidence: focused backend suite passes.
+  - [x] 2.1 Queue every extra variant in object-deletion table; delete extra image rows. Evidence: migration test asserts four exact deterministic keys + two retained rows.
+  - [x] 2.2 Rewrite pending proposal JSON/hash/version. Evidence: migration test deserializes v3, asserts `imageId`, absent `images`, `HasValidIntegrity()`.
+  - [x] 2.3 Drop metadata columns + add partial unique indexes. Evidence: schema test asserts absent columns; migration test observes `23505` on second Event owner.
+  - [x] 2.4 Remove domain alt/sort members + methods. Evidence: solution builds; updated unit contract passes.
+- [x] 3. Change API services/projections to singular nullable image. Evidence: 109 focused integration tests pass.
+  - [x] 3.1 Publish + payload hash. Evidence: none/one/conflict/missing focused publication tests pass.
+  - [x] 3.2 Proposal submit/review/decision. Evidence: proposal focused tests pass with singular response/promotion.
+  - [x] 3.3 Lifecycle edit/list. Evidence: replace/remove/list/concurrency lifecycle tests pass.
+  - [x] 3.4 Public detail + ETag. Evidence: public detail test passes with singular image; ETag identity includes ID/dimensions.
+- [x] 4. Regenerate OpenAPI client; update Angular mapping/services. Evidence: `npm run api:generate`; TS typecheck passes.
+- [x] 5. Simplify uploader to one card. Evidence: focused Angular suite 80/80 passes.
+  - [x] 5.1 Remove CDK ordering + alt UI/state. Evidence: uploader DOM test asserts no `multiple`, alt, move controls.
+  - [x] 5.2 Reject second file without upload. Evidence: uploader test asserts one POST + unchanged first image.
+  - [x] 5.3 Add red trash icon + accessible pending state. Evidence: uploader DOM/axe test asserts SVG accessible name; pending removal status retained.
+- [x] 6. Simplify public/preview media to one hero + one-image lightbox. Evidence: detail tests assert generated alt, hero/lightbox, no gallery/nav.
+- [x] 7. Remove only newly orphaned imports, keys, funcs, tests. Evidence: `git diff --check`, lint, residue greps, full test suites pass; gallery CSS/i18n and CDK imports removed.
 
 ## Validation
 
-- [ ] V1 tests pass: `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImage|FullyQualifiedName~EventPublication|FullyQualifiedName~EventProposal|FullyQualifiedName~EventLifecycle|FullyQualifiedName~PublicEvent"`
-- [ ] V2 tests pass: `npm run test -- src/app/features/events/event-image-uploader.component.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/event-proposal-submit.test.ts`
-- [ ] V3 API contract: `npm run api:check`
-- [ ] V4 migration transform: `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImageMigrationTests"`; test migrates previous→latest with seeded duplicates/v2 proposal, not empty DB only.
-- [ ] V5 manual check: upload first image, reject second, remove via red trash icon, publish, open public image lightbox, edit remove/replace.
-- [ ] V6 no silent-failure swallow: existing post-commit delete retry/log path retained; uploader upload/preview/delete catches remain visible; list exact sites after impl.
-- [ ] V7 app functional: `npm run typecheck && npm run lint && npm run build`
-- [ ] V8 commit msg draft: `feat(events): enforce singular owned Event image`
+- [x] V1 tests pass: `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImage|FullyQualifiedName~EventPublication|FullyQualifiedName~EventProposal|FullyQualifiedName~EventLifecycle|FullyQualifiedName~PublicEvent"` → 109 integration + 12 unit passed.
+- [x] V2 tests pass: `npm run test -- src/app/features/events/event-image-uploader.component.test.ts src/app/features/events/event-detail-view.component.test.ts src/app/features/events/organizer-event-create.test.ts src/app/features/events/organizer-event-create.component.test.ts src/app/features/events/event-proposal-submit.test.ts` → 80 passed.
+- [x] V3 API contract: `npm run api:check` passed; `src/app/api/event-image-contract.test.ts` asserts optional nullable `imageId`, singular responses, absent `EventImageInput`/`altText`.
+- [x] V4 migration transform: `dotnet test backend/Gones.sln --configuration Release --filter "FullyQualifiedName~EventImageMigrationTests"` → 1 passed; test migrates previous→latest with seeded duplicate Event/proposal images + v2 proposal.
+- [x] V5 headless browser: targeted release-stack Cypress (`organizer-event-create`, `organizer-event-management`, `event-proposal`) → 16 passed; covers first upload, second rejection, red trash removal, publish, public lightbox, edit replace. DOM/Vitest covers remove + Escape/focus lightbox.
+- [x] V6 no silent-failure swallow: backend post-commit warnings remain at `EventLifecycleEndpoints.cs:570-579` + `EventProposalEndpoints.cs:414-425`; worker retry/log at `EventImageCleanupService.cs:157-185`; uploader visible delete/upload/preview failures at `event-image-uploader.component.ts:182-184`, `:214`, `:232`.
+- [x] V7 app functional: `npm run typecheck && npm run lint && npm run build` passed; build emitted only two pre-existing unused `RouterLink` warnings in admin components.
+- [x] V8 commit msg: `feat(events): enforce singular owned Event image`

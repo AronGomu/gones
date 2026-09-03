@@ -25,10 +25,9 @@ const event = {
   streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
   eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '23:59:59', startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
-  status: 'Published', formatIds: [formatId], images: [
-    { id: firstImageId, altText: 'First image', variants: [{ width: 320, height: 180, url: `/api/event-images/${firstImageId}/variants/320` }] },
-    { id: secondImageId, altText: 'Second image', variants: [{ width: 320, height: 180, url: `/api/event-images/${secondImageId}/variants/320` }] }
-  ], version: 3, eTag: '"3"'
+  status: 'Published', formatIds: [formatId], image: {
+    id: firstImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${firstImageId}/variants/320` }]
+  }, version: 3, eTag: '"3"'
 };
 const pastEvent = { ...event, id: '44444444-4444-4444-4444-444444444444', title: 'Started Open', startsAtUtc: '2025-01-01T09:00:00Z', status: 'InProgress', eTag: '"5"', version: 5 };
 
@@ -109,7 +108,7 @@ describe('Organizer Event management', () => {
     });
   });
 
-  it('hydrates nested media edit DTO, confirms major start change, and reloads stale canonical state without losing draft first', () => {
+  it('hydrates singular media edit DTO, confirms major start change, and reloads stale canonical state without losing draft first', () => {
     mockSession();
     mockFormats();
     let listCall = 0;
@@ -118,7 +117,7 @@ describe('Organizer Event management', () => {
       title: 'Server title',
       location: { ...event.location, streetAddress: '9 Server Street' },
       streetAddress: '9 Server Street',
-      images: [{ id: latestImageId, altText: 'Server image', variants: [{ width: 320, height: 180, url: `/api/event-images/${latestImageId}/variants/320` }] }],
+      image: { id: latestImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${latestImageId}/variants/320` }] },
       version: 4,
       eTag: '"4"'
     };
@@ -137,10 +136,9 @@ describe('Organizer Event management', () => {
         eventType: 'weekly',
         startsAtLocal: '2027-08-02T11:00',
         capacity: 32,
-        formatIds: [formatId],
-        images: [{ imageId: secondImageId, altText: 'Local second alt' }]
+        formatIds: [formatId]
       });
-      expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal');
+      expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal', 'imageId');
       req.reply({ statusCode: 412, headers: { 'content-type': 'application/problem+json' }, body: { code: 'stale_etag', title: 'Precondition Failed' } });
     }).as('stale');
 
@@ -151,9 +149,6 @@ describe('Organizer Event management', () => {
     cy.get('[data-cy="event-live-tournament-url"]').should('not.exist');
     cy.get('[data-cy="event-archive-tournament-url"]').should('not.exist');
     cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-move-left-existing-${secondImageId}"]`).click();
-    cy.get(`[data-cy="event-image-alt-existing-${secondImageId}"]`).clear().type('Local second alt');
     cy.get(`[data-cy="event-image-remove-existing-${firstImageId}"]`).click();
     cy.get('[data-cy="event-body"]').clear().type('Local Markdown draft');
     cy.get('[data-cy="event-start-date"]').clear().type('2027-08-02');
@@ -165,17 +160,15 @@ describe('Organizer Event management', () => {
     cy.wait('@management');
     cy.get('[data-cy="event-stale"]').should('contain.text', 'Server title').invoke('text').should('match', /images/i);
     cy.get('[data-cy="event-body"]').should('have.value', 'Local Markdown draft');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('be.visible');
     cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('not.exist');
     cy.get('[data-cy="event-reload-latest"]').click();
     cy.get('[data-cy="event-title"]').should('have.value', 'Server title');
     cy.get('[data-cy="event-street"]').should('have.value', '9 Server Street').and('have.focus');
     cy.get('[data-cy="event-time-zone"]').should('have.value', 'Europe/Paris');
     cy.get(`[data-cy="event-image-card-existing-${latestImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('not.exist');
   });
 
-  it('resolves a changed location and commits Markdown plus remove/add/reorder media in one fresh PATCH', () => {
+  it('resolves a changed location and commits Markdown plus replace media in one fresh PATCH', () => {
     mockSession();
     mockFormats();
     const updated = {
@@ -187,10 +180,7 @@ describe('Organizer Event management', () => {
       city: updatedLocation.city,
       country: updatedLocation.country,
       region: updatedLocation.region,
-      images: [
-        { id: uploadedImageId, altText: 'New hero', variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }] },
-        event.images[1]
-      ],
+      image: { id: uploadedImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }] },
       version: 4,
       eTag: '"4"'
     };
@@ -215,10 +205,7 @@ describe('Organizer Event management', () => {
       expect(req.headers['if-match']).to.eq('"3"');
       expect(req.body.bodyMarkdown).to.eq('Updated **Markdown** body');
       expect(req.body.location).to.deep.eq(updatedLocation);
-      expect(req.body.images).to.deep.eq([
-        { imageId: uploadedImageId, altText: 'New hero' },
-        { imageId: secondImageId, altText: 'Second image' }
-      ]);
+      expect(req.body.imageId).to.eq(uploadedImageId);
       expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal');
       req.reply({ statusCode: 200, body: updated });
     }).as('update');
@@ -232,8 +219,6 @@ describe('Organizer Event management', () => {
       mimeType: 'image/webp'
     });
     cy.wait('@imageUpload');
-    cy.get('[data-cy="event-image-alt-local-1"]').type('New hero');
-    cy.get('[data-cy="event-image-move-left-local-1"]').click();
     cy.get('[data-cy="event-body"]').clear().type('Updated **Markdown** body');
     cy.get('[data-cy="event-street"]').clear().type(updatedLocation.streetAddress);
     cy.get('[data-cy="event-postal-code"]').clear().type(updatedLocation.postalCode);

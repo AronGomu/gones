@@ -240,10 +240,9 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
     venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01', venueEndTime: '23:59:59',
     startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
-    status: 'Published', formatIds: ['fmt-1'], images: [{
-      id: 'image-1', altText: 'Original alt',
-      variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
-    }],
+    status: 'Published', formatIds: ['fmt-1'], image: {
+      id: 'image-1', variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
+    },
     version: 3, eTag: '"3"'
   };
 
@@ -272,7 +271,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
   });
 
   it('maps missing-image PATCH 404 to media reload recovery instead of permission failure', async () => {
-    const latest = { ...managedEvent, images: [], version: 4, eTag: '"4"' };
+    const latest = { ...managedEvent, image: undefined, version: 4, eTag: '"4"' };
     const updateEventDetails = vi.fn(() => throwError(() => new ApiProblemError(404, { code: 'image_not_found' })));
     const listOrganizerEvents = vi.fn(() => of({ items: [latest], page: 1, pageSize: 100, totalCount: 1 }));
     const component = setup('Organizer', { updateEventDetails, listOrganizerEvents } as unknown as Partial<Client>, { id: 'event-1' });
@@ -282,14 +281,14 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
 
     await component.saveEdit();
 
-    expect(component.fieldErrors()['images']).toBe(component.i18n.t('eventManage.imageMissing'));
+    expect(component.fieldErrors()['imageId']).toBe(component.i18n.t('eventManage.imageMissing'));
     expect(component.staleEvent()).toBe(latest);
     expect(component.submitError()).toBeNull();
-    expect(component.fieldErrors()['images']).not.toBe(component.i18n.t('eventManage.forbidden'));
+    expect(component.fieldErrors()['imageId']).not.toBe(component.i18n.t('eventManage.forbidden'));
 
     component.reloadLatest();
 
-    expect(component.fieldErrors()['images']).toBeUndefined();
+    expect(component.fieldErrors()['imageId']).toBeUndefined();
   });
 
   it('sends nested ETag edit, keeps local draft on 412, then explicitly reloads canonical media and location', async () => {
@@ -300,10 +299,9 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
       location: { ...managedEvent.location, streetAddress: '9 Server Street', timeZoneId: 'Europe/London' },
       streetAddress: '9 Server Street',
       timeZoneId: 'Europe/London',
-      images: [{
-        id: 'image-2', altText: 'Server image',
-        variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
-      }],
+      image: {
+        id: 'image-2', variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
+      },
       version: 4,
       eTag: '"4"'
     };
@@ -315,7 +313,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
     editor.applyCanonical(managedEvent);
     component.form.controls.bodyMarkdown.setValue('Local draft body');
-    component.form.controls.images.setValue([{ imageId: 'image-1', altText: 'Local alt' }]);
+    component.form.controls.imageId.setValue('image-1');
 
     await component.saveEdit();
 
@@ -326,7 +324,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
         region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
       },
       eventType: 'weekly', startsAtLocal: '2027-08-01T10:00', capacity: 32, formatIds: ['fmt-1'],
-      images: [{ imageId: 'image-1', altText: 'Local alt' }]
+      imageId: 'image-1'
     });
     const sent = updateEventDetails.mock.calls[0]![2] as Record<string, unknown>;
     expect(sent).not.toHaveProperty('liveTournamentUrl');
@@ -341,7 +339,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     expect(component.form.controls.title.value).toBe('Server title');
     expect(component.form.controls.streetAddress.value).toBe('9 Server Street');
     expect(component.form.controls.timeZoneId.value).toBe('Europe/London');
-    expect(component.form.controls.images.value).toEqual([{ imageId: 'image-2', altText: 'Server image' }]);
+    expect(component.form.controls.imageId.value).toBe('image-2');
     expect(component.baseEvent()).toBe(latest);
   });
 });

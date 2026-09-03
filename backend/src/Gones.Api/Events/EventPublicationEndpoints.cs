@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Gones.Api.Errors;
@@ -107,7 +108,10 @@ internal sealed class EventPublicationService(
     IClock clock)
 {
     private const int MaximumPublishAttempts = 3;
-    private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions StoredJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
 
     public Task<EventPublishOutcome> PublishAsync(
         Guid userId,
@@ -189,7 +193,7 @@ internal sealed class EventPublicationService(
                     [lockedFormat],
                     now);
                 database.Events.Add(tournament);
-                await AttachImagesAsync(tournament.Id, proposalId, actingUserId, request.Images, now, cancellationToken);
+                await AttachImageAsync(tournament.Id, proposalId, actingUserId, request.ImageId, now, cancellationToken);
 
                 var response = new EventPublishResponse(tournament.Id, tournament.Slug, tournament.Status.ToString());
                 database.AuditRecords.Add(new AuditRecord
@@ -198,7 +202,7 @@ internal sealed class EventPublicationService(
                     Action = "tournament.published",
                     EntityType = "scheduled_tournament",
                     EntityId = tournament.Id.ToString("D"),
-                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\",\"images\"]}",
+                    RedactedDiff = "{\"fields\":[\"organizationId\",\"title\",\"schedule\",\"venue\",\"capacity\",\"formats\",\"image\"]}",
                     OccurredAt = now
                 });
                 database.IdempotencyRecords.Add(new IdempotencyRecord
@@ -244,32 +248,22 @@ internal sealed class EventPublicationService(
             requireMembership: false,
             locationFieldPrefix: "event.location.")).Location;
 
-    public async Task AttachImagesToProposalAsync(
+    public async Task AttachImageToProposalAsync(
         Guid proposalId,
         Guid userId,
-        IReadOnlyList<EventImageInput> inputs,
+        Guid? imageId,
         Instant proposalExpiresAt,
         CancellationToken cancellationToken)
     {
-        ValidateImageInputs(inputs);
-        var images = await LockImagesAsync(inputs, cancellationToken);
-        var now = clock.GetCurrentInstant();
-        for (var index = 0; index < inputs.Count; index++)
+        if (imageId is null) return;
+        var image = await LockImageAsync(imageId.Value, cancellationToken);
+        try
         {
-            try
-            {
-                images[inputs[index].ImageId].AttachToProposal(
-                    proposalId,
-                    userId,
-                    index,
-                    inputs[index].AltText,
-                    proposalExpiresAt,
-                    now);
-            }
-            catch (InvalidOperationException)
-            {
-                throw new ResourceConflictException("image_state_conflict");
-            }
+            image.AttachToProposal(proposalId, userId, proposalExpiresAt, clock.GetCurrentInstant());
+        }
+        catch (InvalidOperationException)
+        {
+            throw new ResourceConflictException("image_state_conflict");
         }
     }
 
@@ -374,69 +368,40 @@ internal sealed class EventPublicationService(
         return parsed.Value;
     }
 
-    private async Task AttachImagesAsync(
+    private async Task AttachImageAsync(
         Guid eventId,
         Guid? proposalId,
         Guid userId,
-        IReadOnlyList<EventImageInput> inputs,
+        Guid? imageId,
         Instant now,
         CancellationToken cancellationToken)
     {
-        ValidateImageInputs(inputs);
-        var images = await LockImagesAsync(inputs, cancellationToken);
-        for (var index = 0; index < inputs.Count; index++)
+        if (imageId is null) return;
+        var image = await LockImageAsync(imageId.Value, cancellationToken);
+        try
         {
-            var input = inputs[index];
-            var image = images[input.ImageId];
-            try
+            if (proposalId is { } ownerProposalId)
             {
-                if (proposalId is { } ownerProposalId)
-                {
-                    image.PromoteProposalToEvent(eventId, ownerProposalId, userId, index, input.AltText, now);
-                }
-                else
-                {
-                    image.AttachToEvent(eventId, userId, index, input.AltText, now);
-                }
+                image.PromoteProposalToEvent(eventId, ownerProposalId, userId, now);
             }
-            catch (InvalidOperationException)
+            else
             {
-                throw new ResourceConflictException("image_state_conflict");
+                image.AttachToEvent(eventId, userId, now);
             }
         }
-    }
-
-    private async Task<IReadOnlyDictionary<Guid, EventImage>> LockImagesAsync(
-        IReadOnlyList<EventImageInput> inputs,
-        CancellationToken cancellationToken)
-    {
-        var images = new Dictionary<Guid, EventImage>();
-        foreach (var imageId in inputs.Select(input => input.ImageId).Order())
-        {
-            images[imageId] = await database.EventImages
-                .FromSqlInterpolated($"SELECT * FROM event_images WHERE id = {imageId} FOR UPDATE")
-                .SingleOrDefaultAsync(cancellationToken)
-                ?? throw new ResourceNotFoundException();
-        }
-        return images;
-    }
-
-    private static void ValidateImageInputs(IReadOnlyList<EventImageInput> inputs)
-    {
-        if (inputs.Count > 5) throw Validation("images", "At most five images are allowed.");
-        if (inputs.Select(input => input.ImageId).Distinct().Count() != inputs.Count)
+        catch (InvalidOperationException)
         {
             throw new ResourceConflictException("image_state_conflict");
         }
-        for (var index = 0; index < inputs.Count; index++)
-        {
-            var input = inputs[index];
-            if (input.ImageId == Guid.Empty) throw Validation($"images[{index}].imageId", "Image ID is required.");
-            if (input.AltText?.Length > EventImage.MaximumAltTextLength)
-            {
-                throw Validation($"images[{index}].altText", $"Alt text cannot exceed {EventImage.MaximumAltTextLength} characters.");
-            }
-        }
+    }
+
+    private async Task<EventImage> LockImageAsync(Guid imageId, CancellationToken cancellationToken)
+    {
+        if (imageId == Guid.Empty) throw Validation("imageId", "Image ID is required.");
+        return await database.EventImages
+            .FromSqlInterpolated($"SELECT * FROM event_images WHERE id = {imageId} FOR UPDATE")
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new EventImageNotFoundException();
     }
 
     internal static bool LocationMatches(EventLocationInput input, EventLocationInput location) =>
@@ -484,9 +449,7 @@ internal sealed class EventPublicationService(
             request.StartsAtLocal.Trim(),
             request.Capacity,
             request.FormatIds,
-            request.Images.Select(image => new EventImageInput(
-                image.ImageId,
-                string.IsNullOrWhiteSpace(image.AltText) ? null : image.AltText.Trim())).ToArray());
+            request.ImageId);
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(canonical, StoredJsonOptions))).ToLowerInvariant();
     }
 
@@ -535,24 +498,7 @@ internal sealed class EventPublicationService(
             ValidateObject(payload.Location, prefix + "location.", failures);
         }
         if (payload.FormatIds is null) AddFailure(failures, prefix + "formatIds", "Format IDs are required.");
-        if (payload.Images is null) AddFailure(failures, prefix + "images", "Images are required.");
-        else
-        {
-            for (var index = 0; index < payload.Images.Count; index++)
-            {
-                var image = payload.Images[index];
-                if (image is null)
-                {
-                    AddFailure(failures, $"{prefix}images[{index}]", "Image is required.");
-                    continue;
-                }
-                ValidateObject(image, $"{prefix}images[{index}].", failures);
-                if (image.ImageId == Guid.Empty)
-                {
-                    AddFailure(failures, $"{prefix}images[{index}].imageId", "Image ID is required.");
-                }
-            }
-        }
+        if (payload.ImageId == Guid.Empty) AddFailure(failures, prefix + "imageId", "Image ID is required.");
         if (failures.Count == 0) return;
         throw new ApiValidationException(failures.ToDictionary(
             pair => pair.Key,
@@ -600,7 +546,7 @@ internal sealed class EventPublicationService(
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
-        IReadOnlyList<EventImageInput> Images);
+        Guid? ImageId);
 
     private sealed record StoredPublishResult(string PayloadHash, EventPublishResponse Response);
 }
@@ -652,13 +598,9 @@ internal sealed record EventPayloadRequest(
     [property: Required] string StartsAtLocal,
     [property: Range(1, int.MaxValue)] int Capacity,
     [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
-    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images,
     [property: MaxLength(Event.MaximumSummaryLength)] string? Summary = null,
-    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown = null);
-
-internal sealed record EventImageInput(
-    Guid ImageId,
-    [property: MaxLength(EventImage.MaximumAltTextLength)] string? AltText);
+    [property: MaxLength(Event.MaximumBodyMarkdownLength)] string? BodyMarkdown = null,
+    Guid? ImageId = null);
 
 internal sealed record EventPublishResponse(Guid Id, string Slug, string Status);
 internal sealed record EventPublishOutcome(EventPublishResponse Response, string Location, string ETag);

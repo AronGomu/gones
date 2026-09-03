@@ -378,16 +378,12 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .event-media-trigger { display: block; width: 100%; padding: 0; overflow: hidden; border: 1px solid var(--soot); background: var(--black-metal); color: inherit; cursor: pointer; }
 .event-media-trigger:focus-visible { outline: 2px solid var(--hot-blood); outline-offset: 2px; }
 .event-media-hero { aspect-ratio: 16 / 9; }
-.event-media-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
-.event-media-gallery-item { aspect-ratio: 16 / 9; }
 .event-media-image { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--black-metal); }
 .event-lightbox-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / .88); }
 .event-lightbox { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(96vw, 100rem); height: min(94vh, 70rem); gap: .75rem; padding: 1rem; border: 1px solid var(--steel); background: var(--black-metal); }
 .event-lightbox-close { justify-self: end; min-width: 2.75rem; font-size: 1.5rem; }
 .event-lightbox-image { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
-.event-lightbox-actions { display: flex; justify-content: center; gap: 1rem; }
 @media (max-width: 700px) {
-  .event-media-gallery { grid-template-columns: 1fr; }
   .event-lightbox { width: 100%; height: 100%; }
 }
 /* Scoped override: the app-wide h1 clamp tops out at 4rem, which dwarfs a hero that now carries four more rows under it (feedback round 6). */

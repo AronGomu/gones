@@ -24,7 +24,6 @@ import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settin
 import { GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
-import { EventImageSelection } from './event-image-uploader.component';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -81,7 +80,7 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     startTime: '10:00',
     capacity: 32,
     formatId: 'fmt1',
-    images: []
+    imageId: null
   });
 }
 
@@ -135,44 +134,21 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
     expect(proposalsStub.submit).not.toHaveBeenCalled();
   });
 
-  it('confirming posts the payload with ordered images and recipients', async () => {
+  it('confirming posts the payload with one image and recipients', async () => {
     const { component, proposalsStub } = setup(['id1']);
     fillValidForm(component);
-    const images = [
-      {
-        imageId: 'img-2',
-        altText: 'Second',
-        response: { id: 'img-2', variants: [] },
-        previewUrl: 'blob:second',
-        srcset: ''
-      },
-      {
-        imageId: 'img-1',
-        altText: null,
-        response: { id: 'img-1', variants: [] },
-        previewUrl: 'blob:first',
-        srcset: ''
-      }
-    ] as unknown as EventImageSelection[];
-    component.onImagesChange(images);
+    component.onImageChange({
+      imageId: 'img-1', response: { id: 'img-1', variants: [] }, previewUrl: 'blob:first', srcset: ''
+    });
 
     await component.submitForApproval();
 
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
     expect(proposalsStub.submit).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'weekly',
-      formatIds: ['fmt1'],
-      images: [
-        { imageId: 'img-2', altText: 'Second' },
-        { imageId: 'img-1', altText: undefined }
-      ],
+      eventType: 'weekly', formatIds: ['fmt1'], imageId: 'img-1',
       location: {
-        streetAddress: '1 rue Test',
-        postalCode: '69001',
-        city: 'Lyon',
-        country: 'France',
-        region: 'Auvergne-Rhône-Alpes',
-        timeZoneId: 'Europe/Paris'
+        streetAddress: '1 rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+        region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
       }
     }), ['id1']);
   });

@@ -11128,16 +11128,8 @@ export interface EmailChangeRequest {
     [key: string]: any;
 }
 
-export interface EventImageInput {
-    imageId: string;
-    altText: string | undefined;
-
-    [key: string]: any;
-}
-
 export interface EventImageResponse {
     id: string;
-    altText: string | undefined;
     variants: EventImageVariantResponse[];
 
     [key: string]: any;
@@ -11219,7 +11211,7 @@ export interface EventManagementResponse {
     deletedAt: string | undefined;
     deletedReason: string | undefined;
     formatIds: string[];
-    images: EventImageResponse[];
+    image: EventImageResponse | undefined;
     version: number;
     eTag: string;
 
@@ -11244,9 +11236,9 @@ export interface EventPayloadRequest {
     startsAtLocal: string;
     capacity: number;
     formatIds: string[];
-    images: EventImageInput[];
     summary?: string | undefined;
     bodyMarkdown?: string | undefined;
+    imageId?: string | undefined;
 
     [key: string]: any;
 }
@@ -11293,7 +11285,7 @@ export interface EventProposalReviewResponse {
     expiresAt: string;
     organizationName: string;
     formatNames: string[];
-    images: EventImageResponse[];
+    image: EventImageResponse | undefined;
 
     [key: string]: any;
 }
@@ -11865,7 +11857,7 @@ export interface PublicEventDetailResponse {
     eventType: PublicCalendarEventType | undefined;
     organization: PublicEventOrganizationResponse;
     formats: PublicTournamentFormatResponse[];
-    images: EventImageResponse[];
+    image: EventImageResponse | undefined;
 
     [key: string]: any;
 }
@@ -12193,7 +12185,7 @@ export interface UpdateEventDetailsRequest {
     startsAtLocal: string;
     capacity: number;
     formatIds: string[];
-    images: EventImageInput[];
+    imageId?: string | undefined;
 
     [key: string]: any;
 }

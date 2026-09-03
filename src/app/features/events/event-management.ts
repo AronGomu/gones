@@ -40,7 +40,7 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     startTime: event.startsAtLocal.slice(11, 16),
     capacity: event.capacity ?? null,
     formatId: event.formatIds[0] ?? '',
-    images: event.images.map(image => ({ imageId: image.id, altText: image.altText }))
+    imageId: event.image?.id ?? null
   };
 }
 
@@ -61,10 +61,7 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
     startsAtLocal: `${value.startDate}T${value.startTime}`,
     capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    images: value.images.map(image => ({
-      imageId: image.imageId,
-      altText: optional(image.altText ?? '')
-    }))
+    imageId: value.imageId ?? undefined
   };
 }
 
@@ -147,11 +144,10 @@ export function managementToDetail(
     eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 }),
-    images: event.images.map(image => ({
-      id: image.id,
-      altText: image.altText,
-      variants: image.variants.map(variant => ({ ...variant }))
-    }))
+    image: event.image ? {
+      id: event.image.id,
+      variants: event.image.variants.map(variant => ({ ...variant }))
+    } : undefined
   };
 }
 
@@ -161,8 +157,12 @@ function optional(value: string): string | undefined {
 }
 
 function sameImages(left: EventManagementResponse, right: EventManagementResponse): boolean {
-  return left.images.length === right.images.length
-    && left.images.every((image, index) => image.id === right.images[index]?.id && image.altText === right.images[index]?.altText);
+  if (!left.image || !right.image) return left.image === right.image;
+  return left.image.id === right.image.id
+    && left.image.variants.length === right.image.variants.length
+    && left.image.variants.every((variant, index) =>
+      variant.width === right.image!.variants[index]?.width
+      && variant.height === right.image!.variants[index]?.height);
 }
 
 function same(left: unknown, right: unknown): boolean {

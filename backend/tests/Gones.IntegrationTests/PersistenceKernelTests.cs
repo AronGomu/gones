@@ -16,7 +16,7 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task Migrations_apply_from_empty_and_provider_geodata_removal_is_irreversible()
+    public async Task Migrations_apply_from_empty_and_singular_image_cleanup_is_irreversible()
     {
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
@@ -30,7 +30,7 @@ public sealed class PersistenceKernelTests : IAsyncLifetime
         Assert.Equal(PostgresErrorCodes.CheckViolation, constraintError.SqlState);
 
         var downError = await Assert.ThrowsAsync<NotSupportedException>(() => db.Database.MigrateAsync("0"));
-        Assert.Equal("Dropped Event provider geodata cannot be reconstructed.", downError.Message);
+        Assert.Equal("Discarded Event images and removed metadata cannot be reconstructed.", downError.Message);
     }
 
     [Fact]

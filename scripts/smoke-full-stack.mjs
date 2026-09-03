@@ -65,7 +65,8 @@ const expectedMigrations = [
   '20260831190301_RestrictEventImageOwnerDeletes',
   '20260901174816_UseEventMarkdown',
   '20260902070415_DirectEventPublication',
-  '20260903090430_RemoveEventProviderGeodata'
+  '20260903090430_RemoveEventProviderGeodata',
+  '20260903174856_SingularEventImage'
 ];
 const actualMigrations = outputs[2].stdout.trim().split(/\r?\n/).filter(Boolean);
 if (JSON.stringify(actualMigrations) !== JSON.stringify(expectedMigrations)) {

@@ -104,7 +104,7 @@ public sealed class PublicEventApiTests : IAsyncLifetime
     [Fact]
     public async Task Detail_participants_and_ics_are_anonymous_cacheable_and_safe()
     {
-        var expectedImageIds = await SeedDetailImagesAsync();
+        var expectedImageId = await SeedDetailImageAsync();
         using var detail = await Client.GetAsync("/api/events/search-cup");
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.NotNull(detail.Headers.ETag);
@@ -112,13 +112,12 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         var detailBody = await detail.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("<p>Public <strong>body</strong></p>", detailBody.GetProperty("bodyHtml").GetString());
         Assert.Equal("Pioneer — Search Cup", detailBody.GetProperty("displayTitle").GetString());
-        var images = detailBody.GetProperty("images").EnumerateArray().ToArray();
-        Assert.Equal(expectedImageIds, images.Select(image => image.GetProperty("id").GetGuid()));
-        Assert.Null(images[0].GetProperty("altText").GetString());
-        Assert.Equal("Detail second", images[1].GetProperty("altText").GetString());
-        Assert.Equal(new[] { 320, 960 }, images[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
-        Assert.Equal(new[] { 180, 540 }, images[0].GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("height").GetInt32()));
-        Assert.Equal($"/api/event-images/{expectedImageIds[0]:D}/variants/960", images[0].GetProperty("variants")[1].GetProperty("url").GetString());
+        var image = detailBody.GetProperty("image");
+        Assert.Equal(expectedImageId, image.GetProperty("id").GetGuid());
+        Assert.False(image.TryGetProperty("altText", out _));
+        Assert.Equal(new[] { 320, 960 }, image.GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("width").GetInt32()));
+        Assert.Equal(new[] { 180, 540 }, image.GetProperty("variants").EnumerateArray().Select(variant => variant.GetProperty("height").GetInt32()));
+        Assert.Equal($"/api/event-images/{expectedImageId:D}/variants/960", image.GetProperty("variants")[1].GetProperty("url").GetString());
         Assert.Equal("/live/search-cup", detailBody.GetProperty("liveTournamentUrl").GetString());
         Assert.Equal("https://example.test/archive/search-cup", detailBody.GetProperty("archiveTournamentUrl").GetString());
         Assert.False(detailBody.TryGetProperty("createdByUserId", out _));
@@ -128,6 +127,14 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         notModifiedRequest.Headers.TryAddWithoutValidation("If-None-Match", etag);
         using var notModified = await Client.SendAsync(notModifiedRequest);
         Assert.Equal(HttpStatusCode.NotModified, notModified.StatusCode);
+
+        await using (var database = CreateContext())
+        {
+            await database.EventImages.Where(image => image.Id == expectedImageId)
+                .ExecuteUpdateAsync(update => update.SetProperty(image => image.Width, 1600));
+        }
+        using var imageChanged = await Client.GetAsync("/api/events/search-cup");
+        Assert.NotEqual(etag, imageChanged.Headers.ETag?.ToString());
 
         using var unicodeDetail = await Client.GetAsync("/api/events/cancelled-cup");
         Assert.Equal(HttpStatusCode.OK, unicodeDetail.StatusCode);
@@ -282,24 +289,19 @@ public sealed class PublicEventApiTests : IAsyncLifetime
         return new SeedRows(alpha, beta);
     }
 
-    private async Task<Guid[]> SeedDetailImagesAsync()
+    private async Task<Guid> SeedDetailImageAsync()
     {
         await using var database = CreateContext();
         var owner = await database.Events.AsNoTracking()
             .Where(item => item.Slug == "search-cup")
             .Select(item => new { item.Id, item.CreatedByUserId })
             .SingleAsync();
-        var ids = new[] { Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid() };
-        for (var index = 0; index < ids.Length; index++)
-        {
-            var altText = index == 1 ? "Detail second" : null;
-            await database.Database.ExecuteSqlInterpolatedAsync($$"""
-                INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
-                VALUES ({{ids[index]}}, {{owner.CreatedByUserId}}, 'EventOwned', {{owner.Id}}, NULL, {{index}}, {{altText}}, 960, 540, {{Now}}, NULL)
-                """);
-        }
-
-        return ids;
+        var id = Guid.NewGuid();
+        await database.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, width, height, created_at, expires_at)
+            VALUES ({{id}}, {{owner.CreatedByUserId}}, 'EventOwned', {{owner.Id}}, NULL, 960, 540, {{Now}}, NULL)
+            """);
+        return id;
     }
 
     private GonesDbContext CreateContext()

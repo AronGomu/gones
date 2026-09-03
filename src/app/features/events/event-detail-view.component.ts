@@ -27,9 +27,9 @@ export interface EventDetailView {
   eventType: PublicEventDetailResponse['eventType'];
   organization: PublicEventDetailResponse['organization'];
   formats: PublicEventDetailResponse['formats'];
-  images: PublicEventDetailResponse['images'];
+  image: PublicEventDetailResponse['image'];
 }
-export type EventDetailImage = EventDetailView['images'][number];
+export type EventDetailImage = NonNullable<EventDetailView['image']>;
 
 @Component({
   selector: 'gones-event-detail-view',
@@ -49,18 +49,9 @@ export type EventDetailImage = EventDetailView['images'][number];
       </section>
       @if (heroImage(); as image) {
         <section class="event-media" data-cy="event-detail-media">
-          <button type="button" class="event-media-trigger event-media-hero" data-cy="event-detail-media-hero" (click)="openLightbox(0, $event.currentTarget)">
-            <img class="event-media-image" data-cy="event-detail-media-hero-image" [src]="imageSource(image)" [srcset]="imageSourceSet(image)" sizes="100vw" [attr.width]="largestVariant(image)?.width" [attr.height]="largestVariant(image)?.height" [alt]="imageAlt(image, 0)" loading="eager" />
+          <button type="button" class="event-media-trigger event-media-hero" data-cy="event-detail-media-hero" (click)="openLightbox($event.currentTarget)">
+            <img class="event-media-image" data-cy="event-detail-media-hero-image" [src]="imageSource(image)" [srcset]="imageSourceSet(image)" sizes="100vw" [attr.width]="largestVariant(image)?.width" [attr.height]="largestVariant(image)?.height" [alt]="imageAlt()" loading="eager" />
           </button>
-          @if (galleryImages().length) {
-            <div class="event-media-gallery" data-cy="event-detail-media-gallery">
-              @for (image of galleryImages(); track image.id; let position = $index) {
-                <button type="button" class="event-media-trigger event-media-gallery-item" [attr.data-cy]="'event-detail-media-gallery-' + position" (click)="openLightbox(position + 1, $event.currentTarget)">
-                  <img class="event-media-image" [attr.data-cy]="'event-detail-media-gallery-image-' + position" [src]="imageSource(image)" [srcset]="imageSourceSet(image)" sizes="(max-width: 700px) 100vw, 33vw" [attr.width]="largestVariant(image)?.width" [attr.height]="largestVariant(image)?.height" [alt]="imageAlt(image, position + 1)" loading="lazy" />
-                </button>
-              }
-            </div>
-          }
         </section>
       }
       <section class="event-section panel" data-cy="event-detail-description" aria-labelledby="event-description-title">
@@ -72,13 +63,7 @@ export type EventDetailImage = EventDetailView['images'][number];
         <div class="event-lightbox-backdrop" data-cy="event-detail-lightbox-backdrop">
           <div #lightbox class="event-lightbox" role="dialog" aria-modal="true" [attr.aria-label]="i18n.t('event.imageDialogLabel')" tabindex="-1" data-cy="event-detail-lightbox" (keydown)="onLightboxKeydown($event)">
             <button #lightboxClose mat-stroked-button type="button" class="event-lightbox-close" data-cy="event-detail-lightbox-close" [attr.aria-label]="i18n.t('event.imageClose')" (click)="closeLightbox()">×</button>
-            <img class="event-lightbox-image" data-cy="event-detail-lightbox-image" [src]="imageSource(image)" [srcset]="imageSourceSet(image)" sizes="100vw" [attr.width]="largestVariant(image)?.width" [attr.height]="largestVariant(image)?.height" [alt]="imageAlt(image, lightboxIndex()!)" />
-            @if (images().length > 1) {
-              <div class="event-lightbox-actions" data-cy="event-detail-lightbox-actions">
-                <button mat-stroked-button type="button" data-cy="event-detail-lightbox-previous" [attr.aria-label]="i18n.t('event.imagePrevious')" (click)="moveLightbox(-1)">←</button>
-                <button mat-stroked-button type="button" data-cy="event-detail-lightbox-next" [attr.aria-label]="i18n.t('event.imageNext')" (click)="moveLightbox(1)">→</button>
-              </div>
-            }
+            <img class="event-lightbox-image" data-cy="event-detail-lightbox-image" [src]="imageSource(image)" [srcset]="imageSourceSet(image)" sizes="100vw" [attr.width]="largestVariant(image)?.width" [attr.height]="largestVariant(image)?.height" [alt]="imageAlt()" />
           </div>
         </div>
       }
@@ -91,7 +76,7 @@ export class EventDetailViewComponent {
   readonly icsUrl = input<string>();
   readonly showIcsAction = input<boolean>(true);
   readonly draftPlaceholderMode = input<boolean>(false);
-  readonly lightboxIndex = signal<number | null>(null);
+  readonly lightboxOpen = signal(false);
   private lightboxTrigger: HTMLElement | null = null;
 
   readonly date = computed(() => this.draftPlaceholderMode()
@@ -110,13 +95,8 @@ export class EventDetailViewComponent {
     : this.i18n.formatDate(this.event().venueStartDate, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
   readonly startTime = computed(() => this.showDatePlaceholder() ? '—' : this.event().venueStartTime.slice(0, 5));
   readonly organizers = computed(() => this.event().organization.organizers ?? []);
-  readonly images = computed(() => this.event().images ?? []);
-  readonly heroImage = computed(() => this.images()[0]);
-  readonly galleryImages = computed(() => this.images().slice(1));
-  readonly lightboxImage = computed(() => {
-    const index = this.lightboxIndex();
-    return index === null ? undefined : this.images()[index];
-  });
+  readonly heroImage = computed(() => this.event().image ?? undefined);
+  readonly lightboxImage = computed(() => this.lightboxOpen() ? this.heroImage() : undefined);
   readonly displayTitle = computed(() => this.event().displayTitle.trim() || (this.draftPlaceholderMode() ? this.i18n.t('event.draftTitlePlaceholder') : ''));
   readonly organizationName = computed(() => this.event().organization.name.trim() || (this.draftPlaceholderMode() ? this.i18n.t('event.draftOrganizationPlaceholder') : ''));
   readonly showTitlePlaceholder = computed(() => this.draftPlaceholderMode() && !this.event().displayTitle.trim());
@@ -140,8 +120,8 @@ export class EventDetailViewComponent {
     return [venue.streetAddress, venue.postalCode, venue.city, venue.country].filter(Boolean).join(', ');
   }
 
-  imageAlt(image: EventDetailImage, position: number): string {
-    return image.altText?.trim() || `${this.displayTitle()} — image ${position + 1}`;
+  imageAlt(): string {
+    return `${this.displayTitle()} — ${this.i18n.t('event.image')}`;
   }
 
   largestVariant(image: EventDetailImage): EventDetailImage['variants'][number] | undefined {
@@ -159,12 +139,12 @@ export class EventDetailViewComponent {
     return image.variants.map(variant => `${variant.url} ${variant.width}w`).join(', ');
   }
 
-  openLightbox(index: number, trigger: EventTarget | null): void {
-    if (!this.images()[index]) return;
+  openLightbox(trigger: EventTarget | null): void {
+    if (!this.heroImage()) return;
     this.lightboxTrigger = trigger instanceof HTMLElement ? trigger : null;
-    this.lightboxIndex.set(index);
+    this.lightboxOpen.set(true);
     setTimeout(() => {
-      if (this.lightboxIndex() === null) return;
+      if (!this.lightboxOpen()) return;
       const root = this.lightboxTrigger?.closest<HTMLElement>('[data-cy="event-detail-view"]');
       (root?.querySelector<HTMLElement>('[data-cy="event-detail-lightbox-close"]')
         ?? root?.querySelector<HTMLElement>('[data-cy="event-detail-lightbox"]'))?.focus();
@@ -172,29 +152,18 @@ export class EventDetailViewComponent {
   }
 
   closeLightbox(): void {
-    if (this.lightboxIndex() === null) return;
-    this.lightboxIndex.set(null);
+    if (!this.lightboxOpen()) return;
+    this.lightboxOpen.set(false);
     const trigger = this.lightboxTrigger;
     this.lightboxTrigger = null;
     trigger?.focus();
   }
 
-  moveLightbox(offset: number): void {
-    const current = this.lightboxIndex();
-    const count = this.images().length;
-    if (current === null || count === 0) return;
-    this.lightboxIndex.set((current + offset + count) % count);
-  }
 
   onLightboxKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
       this.closeLightbox();
-      return;
-    }
-    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-      event.preventDefault();
-      this.moveLightbox(event.key === 'ArrowLeft' ? -1 : 1);
       return;
     }
     const dialog = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;

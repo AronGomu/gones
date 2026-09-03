@@ -314,20 +314,20 @@ public sealed class EventImageApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Migration_enforces_state_shape_and_alt_text_length()
+    public async Task Migration_enforces_state_shape_without_alt_or_order_columns()
     {
         await using var database = CreateContext();
         var invalidState = await Assert.ThrowsAsync<PostgresException>(() => database.Database.ExecuteSqlInterpolatedAsync($$"""
-            INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
-            VALUES ({{Guid.NewGuid()}}, {{owner.Id}}, 'Temporary', {{Guid.NewGuid()}}, NULL, NULL, NULL, 320, 180, {{Now}}, {{Now + Duration.FromHours(24)}})
+            INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, width, height, created_at, expires_at)
+            VALUES ({{Guid.NewGuid()}}, {{owner.Id}}, 'Temporary', {{Guid.NewGuid()}}, NULL, 320, 180, {{Now}}, {{Now + Duration.FromHours(24)}})
             """));
         Assert.Equal(PostgresErrorCodes.CheckViolation, invalidState.SqlState);
-
-        var longAltText = await Assert.ThrowsAsync<PostgresException>(() => database.Database.ExecuteSqlInterpolatedAsync($$"""
-            INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
-            VALUES ({{Guid.NewGuid()}}, {{owner.Id}}, 'Temporary', NULL, NULL, NULL, {{new string('x', 301)}}, 320, 180, {{Now}}, {{Now + Duration.FromHours(24)}})
-            """));
-        Assert.Equal(PostgresErrorCodes.StringDataRightTruncation, longAltText.SqlState);
+        var columns = await database.Database.SqlQueryRaw<string>("""
+            SELECT column_name AS "Value" FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'event_images'
+            """).ToListAsync();
+        Assert.DoesNotContain("alt_text", columns);
+        Assert.DoesNotContain("sort_order", columns);
     }
 
     private Task<HttpResponseMessage> UploadAsync(Guid userId, HttpContent content) => SendAsync(HttpMethod.Post, "/api/event-images", userId, content);
@@ -358,8 +358,8 @@ public sealed class EventImageApiTests : IAsyncLifetime
         try
         {
             await database.Database.ExecuteSqlInterpolatedAsync($$"""
-                INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, sort_order, alt_text, width, height, created_at, expires_at)
-                VALUES ({{id}}, {{owner.Id}}, {{state.ToString()}}, {{eventId}}, {{proposalId}}, 0, NULL, 320, 180, {{Now}}, {{(state == EventImageState.EventOwned ? null : Now + Duration.FromHours(24))}})
+                INSERT INTO event_images (id, uploaded_by_user_id, state, event_id, proposal_id, width, height, created_at, expires_at)
+                VALUES ({{id}}, {{owner.Id}}, {{state.ToString()}}, {{eventId}}, {{proposalId}}, 320, 180, {{Now}}, {{(state == EventImageState.EventOwned ? null : Now + Duration.FromHours(24))}})
                 """);
         }
         finally

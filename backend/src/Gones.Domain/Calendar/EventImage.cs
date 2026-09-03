@@ -11,7 +11,6 @@ public enum EventImageState
 
 public sealed class EventImage
 {
-    public const int MaximumAltTextLength = 300;
     public static readonly Duration TemporaryLifetime = Duration.FromHours(24);
     private static readonly int[] StandardVariantWidths = [320, 960, 1600];
 
@@ -22,8 +21,6 @@ public sealed class EventImage
     public EventImageState State { get; private set; }
     public Guid? EventId { get; private set; }
     public Guid? ProposalId { get; private set; }
-    public int? SortOrder { get; private set; }
-    public string? AltText { get; private set; }
     public int Width { get; private init; }
     public int Height { get; private init; }
     public Instant CreatedAt { get; private init; }
@@ -47,11 +44,10 @@ public sealed class EventImage
         };
     }
 
-    public void AttachToEvent(Guid eventId, Guid userId, int sortOrder, string? altText, Instant now)
+    public void AttachToEvent(Guid eventId, Guid userId, Instant now)
     {
         if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
         if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
-        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
         if (State != EventImageState.Temporary || UploadedByUserId != userId || ExpiresAt <= now)
         {
             throw new InvalidOperationException("Event image is not attachable.");
@@ -59,34 +55,17 @@ public sealed class EventImage
         State = EventImageState.EventOwned;
         EventId = eventId;
         ProposalId = null;
-        SortOrder = sortOrder;
-        AltText = NormalizeAltText(altText);
         ExpiresAt = null;
-    }
-
-    public void UpdateEventDetails(Guid eventId, int sortOrder, string? altText)
-    {
-        if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
-        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
-        if (State != EventImageState.EventOwned || EventId != eventId)
-        {
-            throw new InvalidOperationException("Event image does not belong to this Event.");
-        }
-        SortOrder = sortOrder;
-        AltText = NormalizeAltText(altText);
     }
 
     public void AttachToProposal(
         Guid proposalId,
         Guid userId,
-        int sortOrder,
-        string? altText,
         Instant proposalExpiresAt,
         Instant now)
     {
         if (proposalId == Guid.Empty) throw new ArgumentException("Proposal ID cannot be empty.", nameof(proposalId));
         if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
-        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
         if (proposalExpiresAt <= now) throw new ArgumentOutOfRangeException(nameof(proposalExpiresAt));
         if (State != EventImageState.Temporary || UploadedByUserId != userId || ExpiresAt <= now)
         {
@@ -95,8 +74,6 @@ public sealed class EventImage
         State = EventImageState.ProposalOwned;
         EventId = null;
         ProposalId = proposalId;
-        SortOrder = sortOrder;
-        AltText = NormalizeAltText(altText);
         ExpiresAt = proposalExpiresAt;
     }
 
@@ -104,20 +81,14 @@ public sealed class EventImage
         Guid eventId,
         Guid proposalId,
         Guid userId,
-        int sortOrder,
-        string? altText,
         Instant now)
     {
         if (eventId == Guid.Empty) throw new ArgumentException("Event ID cannot be empty.", nameof(eventId));
         if (proposalId == Guid.Empty) throw new ArgumentException("Proposal ID cannot be empty.", nameof(proposalId));
         if (userId == Guid.Empty) throw new ArgumentException("User ID cannot be empty.", nameof(userId));
-        if (sortOrder < 0) throw new ArgumentOutOfRangeException(nameof(sortOrder));
-        var normalizedAlt = NormalizeAltText(altText);
         if (State != EventImageState.ProposalOwned
             || ProposalId != proposalId
             || UploadedByUserId != userId
-            || SortOrder != sortOrder
-            || !string.Equals(AltText, normalizedAlt, StringComparison.Ordinal)
             || ExpiresAt <= now)
         {
             throw new InvalidOperationException("Proposal image is not publishable.");
@@ -134,16 +105,6 @@ public sealed class EventImage
         return sourceWidth < StandardVariantWidths[0]
             ? [sourceWidth]
             : StandardVariantWidths.Where(width => width <= sourceWidth).ToArray();
-    }
-
-    private static string? NormalizeAltText(string? altText)
-    {
-        var normalized = string.IsNullOrWhiteSpace(altText) ? null : altText.Trim();
-        if (normalized?.Length > MaximumAltTextLength)
-        {
-            throw new ArgumentException($"Alt text cannot exceed {MaximumAltTextLength} characters.", nameof(altText));
-        }
-        return normalized;
     }
 }
 

@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, EventImageInput, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
+import { Client, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -178,7 +178,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                 </div>
 
-                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImages]="initialEditorImages()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
+                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
               </div>
             </fieldset>
 
@@ -251,7 +251,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly staleEvent = signal<EventManagementResponse | null>(null);
   readonly staleChanges = signal<string[]>([]);
   readonly currentRender = signal<EventDetailView | null>(null);
-  readonly initialEditorImages = computed(() => this.baseEvent()?.images ?? []);
+  readonly initialEditorImage = computed(() => this.baseEvent()?.image);
   readonly success = signal('');
   readonly canMutateEvent = computed(() => {
     const profile = this.auth.profile();
@@ -266,7 +266,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly proposalError = signal('');
   readonly selectedOrganizationId = signal('');
   readonly imagePublishBlocked = signal(false);
-  readonly selectedImages = signal<readonly EventImageSelection[]>([]);
+  readonly selectedImage = signal<EventImageSelection | null>(null);
   private readonly previewRevision = signal(0);
   readonly previewCollapsed = signal(readPreviewCollapsed());
   readonly formPending = computed(() => this.publishing() || this.saving());
@@ -292,7 +292,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     startTime: new FormControl('', { nonNullable: true, validators: Validators.required }),
     capacity: new FormControl<number | null>(null, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]),
     formatId: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    images: new FormControl<EventImageInput[]>([], { nonNullable: true })
+    imageId: new FormControl<string | null>(null)
   });
 
   readonly publishDisabled = computed(() => {
@@ -340,11 +340,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       eventType: (value.eventType || undefined) as EventDetailView['eventType'],
       organization: { id: value.organizationId, name: organization?.name ?? '', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
       formats: format ? [format] : [],
-      images: this.selectedImages().map(image => ({
-        id: image.imageId,
-        altText: image.altText ?? undefined,
-        variants: image.response.variants.map(variant => ({ ...variant, url: image.previewUrl }))
-      }))
+      image: this.selectedImage() ? {
+        id: this.selectedImage()!.imageId,
+        variants: this.selectedImage()!.response.variants.map(variant => ({ ...variant, url: this.selectedImage()!.previewUrl }))
+      } : undefined
     };
   });
 
@@ -367,13 +366,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     sessionStorage.setItem(PreviewCollapsedKey, String(this.previewCollapsed()));
   }
 
-  onImagesChange(images: readonly EventImageSelection[]): void {
-    this.selectedImages.set(images);
-    const next = images.map(image => ({ imageId: image.imageId, altText: image.altText ?? undefined }));
-    const current = this.form.controls.images.value;
-    if (current.length === next.length && current.every((image, index) =>
-      image.imageId === next[index]?.imageId && (image.altText ?? null) === (next[index]?.altText ?? null))) return;
-    this.form.controls.images.setValue(next);
+  onImageChange(image: EventImageSelection | null): void {
+    this.selectedImage.set(image);
+    const next = image?.imageId ?? null;
+    if (this.form.controls.imageId.value === next) return;
+    this.form.controls.imageId.setValue(next);
   }
 
   async loadReferences(): Promise<void> {
@@ -549,10 +546,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     } catch (error) {
       this.applyFieldErrors(error);
       if (error instanceof ApiProblemError && error.problem.code === 'image_state_conflict') {
-        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageConflict') }));
+        this.fieldErrors.update(errors => ({ ...errors, imageId: this.i18n.t('eventManage.imageConflict') }));
       }
       if (error instanceof ApiProblemError && error.status === 404 && error.problem.code === 'image_not_found') {
-        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageMissing') }));
+        this.fieldErrors.update(errors => ({ ...errors, imageId: this.i18n.t('eventManage.imageMissing') }));
         await this.loadStaleEvent(base);
       } else if (error instanceof ApiProblemError && error.status === 412) {
         await this.loadStaleEvent(base);
@@ -571,9 +568,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.staleEvent.set(null);
     this.staleChanges.set([]);
     this.fieldErrors.update(errors => {
-      if (!errors['images']) return errors;
+      if (!errors['imageId']) return errors;
       const current = { ...errors };
-      delete current['images'];
+      delete current['imageId'];
       return current;
     });
     this.submitError.set(null);
@@ -648,7 +645,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodymarkdown: 'bodyMarkdown',
       locationstreetaddress: 'streetAddress', locationpostalcode: 'postalCode', locationcity: 'city', locationcountry: 'country',
       locationregion: 'region', locationtimezoneid: 'timeZoneId', eventtype: 'eventType', startsatlocal: 'startDate',
-      capacity: 'capacity', formatids: 'formatId', images: 'images'
+      capacity: 'capacity', formatids: 'formatId', imageid: 'imageId'
     };
     for (const [field, messages] of Object.entries(error.problem.errors)) {
       const normalized = field.replace(/[^a-z]/gi, '').toLowerCase();
@@ -664,7 +661,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         mapped['general'] = message;
         continue;
       }
-      const name = normalized.startsWith('images') ? 'images' : names[normalized];
+      const name = normalized === 'imageid' ? 'imageId' : names[normalized];
       if (name) mapped[name] = message;
     }
     this.fieldErrors.set(mapped);

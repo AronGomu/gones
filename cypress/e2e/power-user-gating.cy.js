@@ -16,7 +16,7 @@ const publicEvent = {
   ...managedEvent,
   displayTitle: 'Legacy — Power Gate Event',
   bodyHtml: '<p>Body</p>',
-  images: [],
+  image: null,
   venue: { streetAddress: managedEvent.streetAddress, postalCode: managedEvent.postalCode, city: managedEvent.city, country: managedEvent.country },
   organization: { id: managedEvent.organizationId, name: managedEvent.organizationName, description: '', website: '', contactEmail: '' },
   formats: [{ id: managedEvent.formatIds[0], name: 'Legacy', slug: 'legacy', sortOrder: 1 }],

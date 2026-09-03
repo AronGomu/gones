@@ -32,8 +32,6 @@ public sealed class EventImageTests
         Assert.Equal(EventImageState.Temporary, image.State);
         Assert.Null(image.EventId);
         Assert.Null(image.ProposalId);
-        Assert.Null(image.SortOrder);
-        Assert.Null(image.AltText);
         Assert.Equal(960, image.Width);
         Assert.Equal(540, image.Height);
         Assert.Equal(Now, image.CreatedAt);
@@ -41,19 +39,15 @@ public sealed class EventImageTests
     }
 
     [Fact]
-    public void Event_owned_image_accepts_same_Event_reorder_and_alt_edit_only()
+    public void Event_owned_image_has_singular_owner_without_order_or_alt_metadata()
     {
         var eventId = Guid.NewGuid();
         var image = EventImage.CreateTemporary(Guid.NewGuid(), Guid.NewGuid(), 960, 540, Now);
-        image.AttachToEvent(eventId, image.UploadedByUserId, 0, "Old alt", Now);
 
-        image.UpdateEventDetails(eventId, 2, "  New alt  ");
+        image.AttachToEvent(eventId, image.UploadedByUserId, Now);
 
         Assert.Equal(EventImageState.EventOwned, image.State);
         Assert.Equal(eventId, image.EventId);
-        Assert.Equal(2, image.SortOrder);
-        Assert.Equal("New alt", image.AltText);
-        Assert.Throws<InvalidOperationException>(() => image.UpdateEventDetails(Guid.NewGuid(), 0, null));
     }
 
     [Theory]

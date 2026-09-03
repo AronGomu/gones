@@ -1,6 +1,6 @@
 # ADR-0056: Singular Event image contract
 
-> Status: accepted; planned
+> Status: accepted; implemented
 > Decided: 2026-09-03
 > Owners: Event editor, API, Worker, persistence
 > Relates: ADR-0024 (proposal ownership), ADR-0039 (public Event cache)
@@ -8,7 +8,7 @@
 
 ## Status
 
-Accepted. Not yet implemented.
+Accepted. Implemented by Event API, persistence migration, generated client, editor, proposal review, and public detail.
 
 ## Context
 

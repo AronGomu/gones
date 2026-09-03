@@ -67,19 +67,12 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
             <gones-server-sanitized-html class="tournament-request-body" data-cy="event-request-body" [html]="review.bodyHtml || ''" />
-            @if (review.images.length) {
+            @if (review.image; as image) {
               <section data-cy="event-request-images" aria-labelledby="event-request-images-title">
                 <h2 id="event-request-images-title" data-cy="event-request-images-title">{{ i18n.t('eventImages.title') }}</h2>
-                <ul class="event-request-images" data-cy="event-request-image-list">
-                  @for (image of review.images; track image.id) {
-                    <li [attr.data-cy]="'event-request-image-item-' + image.id">
-                      <figure [attr.data-cy]="'event-request-image-figure-' + image.id">
-                        <img [src]="reviewImageUrl(image)" [attr.srcset]="reviewImageSrcset(image)" sizes="(max-width: 480px) 100vw, 320px" [alt]="image.altText || ''" loading="eager" [attr.data-cy]="'event-request-image-' + image.id" />
-                        @if (image.altText) { <figcaption [attr.data-cy]="'event-request-image-caption-' + image.id">{{ image.altText }}</figcaption> }
-                      </figure>
-                    </li>
-                  }
-                </ul>
+                <figure data-cy="event-request-image-figure">
+                  <img [src]="reviewImageUrl(image)" [attr.srcset]="reviewImageSrcset(image)" sizes="(max-width: 480px) 100vw, 320px" [alt]="review.event.title + ' — ' + i18n.t('event.image')" loading="eager" data-cy="event-request-image" />
+                </figure>
               </section>
             }
             <div class="info-actions" data-cy="event-request-actions">

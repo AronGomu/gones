@@ -251,7 +251,7 @@ internal sealed class EventLifecycleService(
         var formats = await RequireFormatsAsync(request.FormatIds, cancellationToken);
         var now = clock.GetCurrentInstant();
         var location = EventPublicationService.NormalizeLocation(request.Location);
-        var media = await UpdateImagesAsync(tournament.Id, actorUserId, request.Images, now, cancellationToken);
+        var media = await UpdateImagesAsync(tournament.Id, actorUserId, request.ImageId, now, cancellationToken);
         var before = EventAuditSnapshot.From(tournament);
         var draft = ToDraft(request, tournament, location);
         TournamentChangeSeverity severity;
@@ -496,94 +496,66 @@ internal sealed class EventLifecycleService(
             request.StartsAtLocal,
             request.Capacity,
             request.FormatIds,
-            request.Images,
             request.Summary,
-            request.BodyMarkdown));
-        if (request.Images.Select(image => image.ImageId).Distinct().Count() != request.Images.Count)
-        {
-            throw new ResourceConflictException("image_state_conflict");
-        }
+            request.BodyMarkdown,
+            request.ImageId));
     }
 
     private async Task<MediaUpdateResult> UpdateImagesAsync(
         Guid eventId,
         Guid actorUserId,
-        IReadOnlyList<EventImageInput> inputs,
+        Guid? imageId,
         Instant now,
         CancellationToken cancellationToken)
     {
-        var requestedIds = inputs.Select(input => input.ImageId).ToArray();
-        var requestedStates = await database.EventImages.AsNoTracking()
-            .Where(image => requestedIds.Contains(image.Id))
-            .Select(image => new { image.Id, image.State, image.EventId })
-            .ToListAsync(cancellationToken);
-        if (requestedStates.Any(image => image.State != EventImageState.Temporary
-            && (image.State != EventImageState.EventOwned || image.EventId != eventId)))
-        {
-            throw new ResourceConflictException("image_state_conflict");
-        }
-        var locked = await database.EventImages.FromSqlInterpolated($$"""
-            SELECT * FROM event_images
-            WHERE event_id = {{eventId}} OR id = ANY({{requestedIds}})
-            ORDER BY id
-            FOR UPDATE
-            """).ToListAsync(cancellationToken);
-        var byId = locked.ToDictionary(image => image.Id);
-        var current = locked
-            .Where(image => image.State == EventImageState.EventOwned && image.EventId == eventId)
-            .OrderBy(image => image.SortOrder)
-            .ToArray();
-        var currentShape = current.Select(image => new ImageShape(image.Id, image.AltText)).ToArray();
-        var requestedShape = inputs.Select(input => new ImageShape(input.ImageId, NormalizeAltText(input.AltText))).ToArray();
-        var changed = !currentShape.SequenceEqual(requestedShape);
+        var locked = imageId is { } requestedId
+            ? await database.EventImages.FromSqlInterpolated($$"""
+                SELECT * FROM event_images
+                WHERE event_id = {{eventId}} OR id = {{requestedId}}
+                ORDER BY id
+                FOR UPDATE
+                """).ToListAsync(cancellationToken)
+            : await database.EventImages.FromSqlInterpolated($$"""
+                SELECT * FROM event_images
+                WHERE event_id = {{eventId}}
+                ORDER BY id
+                FOR UPDATE
+                """).ToListAsync(cancellationToken);
+        var current = locked.SingleOrDefault(image =>
+            image.State == EventImageState.EventOwned && image.EventId == eventId);
+        if (current?.Id == imageId) return new MediaUpdateResult(false, []);
 
-        foreach (var input in inputs)
+        EventImage? requested = null;
+        if (imageId is { } id)
         {
-            if (!byId.TryGetValue(input.ImageId, out var image)) throw new EventImageNotFoundException();
-            if (image.State == EventImageState.EventOwned && image.EventId == eventId) continue;
-            if (image.State == EventImageState.Temporary
-                && image.UploadedByUserId == actorUserId
-                && image.ExpiresAt > now)
+            requested = locked.SingleOrDefault(image => image.Id == id)
+                ?? throw new EventImageNotFoundException();
+            if (requested.State != EventImageState.Temporary
+                || requested.UploadedByUserId != actorUserId
+                || requested.ExpiresAt <= now)
             {
-                continue;
+                throw new ResourceConflictException("image_state_conflict");
             }
-            throw new ResourceConflictException("image_state_conflict");
         }
 
-        if (changed && current.Length > 0)
+        var removedIds = current is null ? [] : new[] { current.Id };
+        if (current is not null)
         {
-            await database.Database.ExecuteSqlInterpolatedAsync($$"""
-                UPDATE event_images SET sort_order = -sort_order - 1 WHERE event_id = {{eventId}}
-                """, cancellationToken);
+            imageCleanup.Enqueue(current);
+            await database.SaveChangesAsync(cancellationToken);
         }
-
-        for (var index = 0; index < inputs.Count; index++)
+        if (requested is not null)
         {
-            var input = inputs[index];
-            var image = byId[input.ImageId];
             try
             {
-                if (image.State == EventImageState.EventOwned)
-                {
-                    image.UpdateEventDetails(eventId, index, input.AltText);
-                    if (changed) database.Entry(image).Property(item => item.SortOrder).IsModified = true;
-                }
-                else image.AttachToEvent(eventId, actorUserId, index, input.AltText, now);
+                requested.AttachToEvent(eventId, actorUserId, now);
             }
             catch (InvalidOperationException)
             {
                 throw new ResourceConflictException("image_state_conflict");
             }
-            catch (ArgumentException exception)
-            {
-                throw Validation($"images[{index}].altText", exception.Message);
-            }
         }
-
-        var requested = requestedIds.ToHashSet();
-        var removed = current.Where(image => !requested.Contains(image.Id)).ToArray();
-        foreach (var image in removed) imageCleanup.Enqueue(image);
-        return new MediaUpdateResult(changed, removed.Select(image => image.Id).ToArray());
+        return new MediaUpdateResult(true, removedIds);
     }
 
     private async Task ProcessRemovedImagesAsync(IReadOnlyList<Guid> imageIds)
@@ -632,15 +604,13 @@ internal sealed class EventLifecycleService(
         var eventIds = tournaments.Select(item => item.Id).ToArray();
         var images = (await database.EventImages.AsNoTracking()
             .Where(item => eventIds.Contains(item.EventId!.Value) && item.State == EventImageState.EventOwned)
-            .OrderBy(item => item.EventId)
-            .ThenBy(item => item.SortOrder)
             .ToListAsync(cancellationToken))
-            .ToLookup(item => item.EventId!.Value);
+            .ToDictionary(item => item.EventId!.Value);
         var items = tournaments.Select(item => ToResponse(
             item,
             organizationNames[item.OrganizationId],
             formatNames[item.Formats.Single().TournamentFormatId],
-            images[item.Id])).ToArray();
+            images.GetValueOrDefault(item.Id))).ToArray();
         await transaction.CommitAsync(cancellationToken);
         return new EventManagementListResponse(items, page, pageSize, total);
     }
@@ -658,11 +628,9 @@ internal sealed class EventLifecycleService(
             .Where(item => item.Id == formatId)
             .Select(item => item.Name)
             .SingleAsync(cancellationToken);
-        var images = await database.EventImages.AsNoTracking()
-            .Where(item => item.EventId == tournament.Id && item.State == EventImageState.EventOwned)
-            .OrderBy(item => item.SortOrder)
-            .ToListAsync(cancellationToken);
-        return ToResponse(tournament, organizationName, formatName, images);
+        var image = await database.EventImages.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.EventId == tournament.Id && item.State == EventImageState.EventOwned, cancellationToken);
+        return ToResponse(tournament, organizationName, formatName, image);
     }
 
     private async Task SaveAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction, CancellationToken cancellationToken)
@@ -707,7 +675,7 @@ internal sealed class EventLifecycleService(
         Event item,
         string organizationName,
         string formatName,
-        IEnumerable<EventImage> images) =>
+        EventImage? image) =>
         new(
             item.Id,
             item.OrganizationId,
@@ -739,13 +707,12 @@ internal sealed class EventLifecycleService(
             item.DeletedAt,
             item.DeletedReason,
             item.Formats.Select(format => format.TournamentFormatId).Order().ToArray(),
-            images.OrderBy(image => image.SortOrder).Select(ToImageResponse).ToArray(),
+            image is null ? null : ToImageResponse(image),
             item.Version,
             StrongETag.Encode(item.Version));
 
     private static EventImageResponse ToImageResponse(EventImage image) => new(
         image.Id,
-        image.AltText,
         EventImage.VariantWidthsFor(image.Width)
             .Select(width => new EventImageVariantResponse(
                 width,
@@ -782,9 +749,6 @@ internal sealed class EventLifecycleService(
         return parsed.Value;
     }
 
-    private static string? NormalizeAltText(string? value) =>
-        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-
     private static AuditRecord NewAudit(Guid actorUserId, string action, Guid eventId, string diff, Instant now) => new()
     {
         ActorId = actorUserId,
@@ -798,7 +762,6 @@ internal sealed class EventLifecycleService(
     private static ApiValidationException Validation(string field, string message) =>
         new(new Dictionary<string, string[]> { [field] = [message] });
 
-    private sealed record ImageShape(Guid Id, string? AltText);
     private sealed record MediaUpdateResult(bool Changed, IReadOnlyList<Guid> RemovedImageIds);
     private sealed record StoredLifecycleMutation(string Command, Guid EventId, EventMutationResponse Response);
 }
@@ -825,7 +788,7 @@ internal sealed record UpdateEventDetailsRequest(
     [property: Required] string StartsAtLocal,
     [property: Range(1, int.MaxValue)] int Capacity,
     [property: Required, MinLength(1), MaxLength(1)] IReadOnlyList<Guid> FormatIds,
-    [property: Required, MaxLength(5)] IReadOnlyList<EventImageInput> Images)
+    Guid? ImageId = null)
 {
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalFields { get; init; }
@@ -875,7 +838,7 @@ internal sealed record EventManagementResponse(
     Instant? DeletedAt,
     string? DeletedReason,
     IReadOnlyList<Guid> FormatIds,
-    IReadOnlyList<EventImageResponse> Images,
+    EventImageResponse? Image,
     long Version,
     string ETag);
 

@@ -66,28 +66,28 @@ internal sealed class EventImageConfiguration : IEntityTypeConfiguration<EventIm
         builder.ToTable("event_images");
         builder.HasKey(image => image.Id);
         builder.Property(image => image.State).HasConversion<string>().HasMaxLength(20);
-        builder.Property(image => image.AltText).HasMaxLength(EventImage.MaximumAltTextLength);
         builder.HasIndex(image => new { image.UploadedByUserId, image.State });
         builder.HasIndex(image => new { image.State, image.ExpiresAt });
-        builder.HasIndex(image => new { image.EventId, image.SortOrder })
+        builder.HasIndex(image => image.EventId)
             .IsUnique()
-            .HasFilter("event_id IS NOT NULL");
-        builder.HasIndex(image => new { image.ProposalId, image.SortOrder })
+            .HasFilter("event_id IS NOT NULL")
+            .HasDatabaseName("ux_event_images_event_id");
+        builder.HasIndex(image => image.ProposalId)
             .IsUnique()
-            .HasFilter("proposal_id IS NOT NULL");
+            .HasFilter("proposal_id IS NOT NULL")
+            .HasDatabaseName("ux_event_images_proposal_id");
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(image => image.UploadedByUserId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Event>().WithMany().HasForeignKey(image => image.EventId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<EventProposal>().WithMany().HasForeignKey(image => image.ProposalId).OnDelete(DeleteBehavior.Restrict);
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("ck_event_images_state", "state IN ('Temporary','ProposalOwned','EventOwned')");
-            table.HasCheckConstraint("ck_event_images_alt_text", $"alt_text IS NULL OR length(alt_text) <= {EventImage.MaximumAltTextLength}");
             table.HasCheckConstraint("ck_event_images_dimensions", "width > 0 AND height > 0");
             table.HasCheckConstraint(
                 "ck_event_images_ownership",
-                "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND sort_order IS NULL AND expires_at IS NOT NULL) OR " +
-                "(state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND sort_order IS NOT NULL AND expires_at IS NOT NULL) OR " +
-                "(state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND sort_order IS NOT NULL AND expires_at IS NULL)");
+                "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND expires_at IS NOT NULL) OR " +
+                "(state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND expires_at IS NOT NULL) OR " +
+                "(state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND expires_at IS NULL)");
         });
     }
 }
