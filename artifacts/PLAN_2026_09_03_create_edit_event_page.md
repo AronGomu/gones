@@ -42,4 +42,4 @@ Shared Angular editor/test/i18n hotspots force serial impl in one worktree. No s
 | T2 | Ship country + timezone selects with manual worldwide address fields. | DONE | [[PLAN_2026_09_03_create_edit_event_page/T2_worldwide-location-editor]] |
 | T3 | Replace plural Event media with singular image end to end. | DONE | [[PLAN_2026_09_03_create_edit_event_page/T3_singular-event-image]] |
 | T4 | Make preview + publish layout match feedback. | DONE | [[PLAN_2026_09_03_create_edit_event_page/T4_live-preview-and-publish-layout]] |
-| T5 | Persist create draft + guard unsaved create/edit navigation. | NOT STARTED | [[PLAN_2026_09_03_create_edit_event_page/T5_event-draft-persistence-and-leave-guard]] |
+| T5 | Persist create draft + guard unsaved create/edit navigation. | DONE | [[PLAN_2026_09_03_create_edit_event_page/T5_event-draft-persistence-and-leave-guard]] |
