@@ -40,7 +40,9 @@ export interface EventDirtyShape {
 
 const eventTypes = new Set<EventDraftValueV1['eventType']>(['', 'weekly', 'monthly', 'major']);
 const MaximumImagePixels = 25_000_000;
-const MaximumImageVariants = 3;
+const StandardImageVariantWidths = [320, 960, 1600] as const;
+const CanonicalGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const EmptyGuid = '00000000-0000-0000-0000-000000000000';
 export function eventCreateDraftKey(userId: string): string {
   return `${EVENT_CREATE_DRAFT_KEY_PREFIX}${userId}`;
 }
@@ -168,23 +170,26 @@ function isDraftValue(value: unknown): value is EventDraftValueV1 {
 function temporaryImage(value: unknown, nowMs: number): EventImageUploadResponse | null {
   if (!isRecord(value)
     || typeof value['id'] !== 'string'
-    || value['id'].trim() === ''
+    || !CanonicalGuid.test(value['id'])
+    || value['id'] === EmptyGuid
     || value['state'] !== 'Temporary'
     || !isPositiveInteger(value['width'])
     || !isPositiveInteger(value['height'])
     || value['width'] * value['height'] > MaximumImagePixels
     || typeof value['expiresAt'] !== 'string'
     || !Array.isArray(value['variants'])
-    || value['variants'].length === 0
-    || value['variants'].length > MaximumImageVariants
     || !Number.isFinite(Date.parse(value['expiresAt']))
     || nowMs >= Date.parse(value['expiresAt'])) return null;
+  const sourceWidth = value['width'];
+  const expectedWidths = sourceWidth < StandardImageVariantWidths[0]
+    ? [sourceWidth]
+    : StandardImageVariantWidths.filter(width => width <= sourceWidth);
+  if (value['variants'].length !== expectedWidths.length) return null;
   const variants: EventImageUploadResponse['variants'] = [];
-  let previousWidth = 0;
-  for (const variant of value['variants']) {
-    if (!isImageVariant(variant, value['id'], value['width'], value['height'], previousWidth)) return null;
+  for (let index = 0; index < expectedWidths.length; index++) {
+    const variant = value['variants'][index];
+    if (!isImageVariant(variant, value['id'], expectedWidths[index], value['height'])) return null;
     variants.push({ width: variant.width, height: variant.height, url: variant.url });
-    previousWidth = variant.width;
   }
   return {
     id: value['id'],
@@ -196,14 +201,12 @@ function temporaryImage(value: unknown, nowMs: number): EventImageUploadResponse
   };
 }
 
-function isImageVariant(value: unknown, imageId: string, sourceWidth: number, sourceHeight: number, previousWidth: number): value is EventImageUploadResponse['variants'][number] {
+function isImageVariant(value: unknown, imageId: string, expectedWidth: number, sourceHeight: number): value is EventImageUploadResponse['variants'][number] {
   return isRecord(value)
-    && isPositiveInteger(value['width'])
+    && value['width'] === expectedWidth
     && isPositiveInteger(value['height'])
-    && value['width'] > previousWidth
-    && value['width'] <= sourceWidth
     && value['height'] <= sourceHeight
-    && value['url'] === `/api/event-images/${imageId}/variants/${value['width']}`;
+    && value['url'] === `/api/event-images/${imageId}/variants/${expectedWidth}`;
 }
 
 function isPositiveInteger(value: unknown): value is number {

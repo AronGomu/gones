@@ -8,6 +8,7 @@ import { Subject, of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { API_BASE_URL, EventImageUploadResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
+import { parseEventCreateDraft } from './event-create-draft';
 import { EventImageUploaderComponent } from './event-image-uploader.component';
 
 TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
@@ -89,6 +90,37 @@ describe('EventImageUploaderComponent singular image', () => {
     await component.remove();
     expect(http.delete).not.toHaveBeenCalled();
     expect(component.selectedImage()).toBeNull();
+  });
+
+  it('does no uploader HTTP when draft parser omits a path-traversing image', () => {
+    const maliciousId = '../users/me';
+    const restored = parseEventCreateDraft(JSON.stringify({
+      version: 1,
+      userId: 'u1',
+      savedAt: '2029-01-01T00:00:00Z',
+      value: {
+        organizationId: 'org-1', title: 'Retained Cup', summary: '', bodyMarkdown: '', streetAddress: '',
+        postalCode: '', city: '', country: '', region: '', timeZoneId: '', eventType: 'weekly',
+        startDate: '', startTime: '', capacity: null, formatId: ''
+      },
+      image: {
+        id: maliciousId, state: 'Temporary', width: 960, height: 540, expiresAt: '2030-01-02T12:00:00Z',
+        variants: [
+          { width: 320, height: 180, url: `/api/event-images/${maliciousId}/variants/320` },
+          { width: 960, height: 540, url: `/api/event-images/${maliciousId}/variants/960` }
+        ]
+      }
+    }), 'u1', Date.parse('2029-01-01T00:00:00Z'));
+    const { component, http } = harness();
+
+    if (restored?.image) component.restoreTemporaryImage(restored.image);
+
+    expect(restored?.value.title).toBe('Retained Cup');
+    expect(restored?.image).toBeUndefined();
+    expect(component.card()).toBeNull();
+    expect(http.request).not.toHaveBeenCalled();
+    expect(http.get).not.toHaveBeenCalled();
+    expect(http.delete).not.toHaveBeenCalled();
   });
 
   it('restores one unexpired Temporary image through authenticated variant blob reads', () => {

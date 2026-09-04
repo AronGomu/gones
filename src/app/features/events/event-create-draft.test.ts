@@ -19,10 +19,15 @@ const value = (patch: Partial<EventDraftValueV1> = {}): EventDraftValueV1 => ({
   ...patch
 });
 
-const image = (expiresAt = '2030-01-02T12:00:00Z'): EventImageUploadResponse => ({
-  id: 'image-1', state: 'Temporary', width: 960, height: 540, expiresAt,
-  variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
+const imageId = '123e4567-e89b-42d3-a456-426614174000';
+const imageWithId = (id: string, expiresAt = '2030-01-02T12:00:00Z'): EventImageUploadResponse => ({
+  id, state: 'Temporary', width: 960, height: 540, expiresAt,
+  variants: [
+    { width: 320, height: 180, url: `/api/event-images/${id}/variants/320` },
+    { width: 960, height: 540, url: `/api/event-images/${id}/variants/960` }
+  ]
 });
+const image = (expiresAt = '2030-01-02T12:00:00Z'): EventImageUploadResponse => imageWithId(imageId, expiresAt);
 
 const raw = (userId: string, patch: Record<string, unknown> = {}) => JSON.stringify({
   version: EVENT_CREATE_DRAFT_VERSION,
@@ -64,20 +69,43 @@ describe('Event create draft codec', () => {
   });
 
   it.each([
-    ['empty id', { ...image(), id: '' }],
+    [200, [200]],
+    [320, [320]],
+    [1600, [320, 960, 1600]]
+  ])('restores exact backend variant widths for source width %i', (width, widths) => {
+    const temporary = {
+      ...image(), width, height: 100,
+      variants: widths.map(variantWidth => ({
+        width: variantWidth, height: 100,
+        url: `/api/event-images/${imageId}/variants/${variantWidth}`
+      }))
+    };
+
+    expect(parseEventCreateDraft(raw('u1', { image: temporary }), 'u1', Date.parse('2029-01-01T00:00:00Z'))?.image).toEqual(temporary);
+  });
+
+  it.each([
+    ['empty id', imageWithId('')],
+    ['empty GUID value', imageWithId('00000000-0000-0000-0000-000000000000')],
+    ['uppercase GUID', imageWithId(imageId.toUpperCase())],
+    ['path-traversing id', imageWithId('../users/me')],
+    ['encoded path-traversing id', imageWithId('%2e%2e%2fusers%2fme')],
+    ['path-suffixed id', imageWithId(`${imageId}/../users/me`)],
+    ['query-suffixed id', imageWithId(`${imageId}?target=users`)],
+    ['fragment-suffixed id', imageWithId(`${imageId}#target`)],
     ['non-positive source width', { ...image(), width: 0 }],
     ['non-finite source height', { ...image(), height: 'NaN' }],
-    ['empty variant url', { ...image(), variants: [{ width: 320, height: 180, url: '  ' }] }],
-    ['non-positive variant dimension', { ...image(), variants: [{ width: 320, height: -1, url: '/api/event-images/image-1/variants/320' }] }],
-    ['variant larger than source', { ...image(), variants: [{ width: 961, height: 541, url: '/api/event-images/image-1/variants/961' }] }],
+    ['empty variants', { ...image(), variants: [] }],
+    ['missing variant', { ...image(), variants: [image().variants[0]] }],
+    ['extra variant', { ...image(), variants: [...image().variants, { width: 961, height: 540, url: `/api/event-images/${imageId}/variants/961` }] }],
     ['duplicate variants', { ...image(), variants: [image().variants[0], image().variants[0]] }],
-    ['too many variants', { ...image(), variants: [
-      { width: 100, height: 50, url: '/api/event-images/image-1/variants/100' },
-      { width: 200, height: 100, url: '/api/event-images/image-1/variants/200' },
-      { width: 300, height: 150, url: '/api/event-images/image-1/variants/300' },
-      { width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }
-    ] }],
-    ['unexpected variant url', { ...image(), variants: [{ width: 320, height: 180, url: '/api/users/me' }] }]
+    ['wrong variant order', { ...image(), variants: [image().variants[1], image().variants[0]] }],
+    ['wrong variant width', { ...image(), variants: [image().variants[0], { ...image().variants[1], width: 959, url: `/api/event-images/${imageId}/variants/959` }] }],
+    ['non-positive variant dimension', { ...image(), variants: [image().variants[0], { ...image().variants[1], height: -1 }] }],
+    ['non-finite variant dimension', { ...image(), variants: [image().variants[0], { ...image().variants[1], height: 'NaN' }] }],
+    ['unexpected variant URL', { ...image(), variants: [image().variants[0], { ...image().variants[1], url: '/api/users/me' }] }],
+    ['query-suffixed variant URL', { ...image(), variants: [image().variants[0], { ...image().variants[1], url: `${image().variants[1].url}?target=users` }] }],
+    ['fragment-suffixed variant URL', { ...image(), variants: [image().variants[0], { ...image().variants[1], url: `${image().variants[1].url}#target` }] }]
   ])('omits malformed Temporary image payload (%s) while retaining other draft fields', (_label, malformedImage) => {
     const restored = parseEventCreateDraft(raw('u1', { image: malformedImage }), 'u1', Date.parse('2029-01-01T00:00:00Z'));
 
@@ -118,7 +146,7 @@ describe('Event create draft codec', () => {
       userId: 'u1',
       savedAt: '2029-01-01T00:00:00Z',
       value: value(),
-      image: { ...image(), accessToken: 'must-not-persist', variants: [{ ...image().variants[0], secret: 'must-not-persist' }] }
+      image: { ...image(), accessToken: 'must-not-persist', variants: image().variants.map(variant => ({ ...variant, secret: 'must-not-persist' })) }
     });
 
     const stored = localStorage.getItem(eventCreateDraftKey('u1')) ?? '';
