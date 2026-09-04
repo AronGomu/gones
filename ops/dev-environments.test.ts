@@ -618,6 +618,8 @@ describe('seeder safety boundaries', () => {
     expect(seedEvents).not.toContain('locationToken');
     expect(seedEvents).toContain('streetAddress: entry.streetAddress');
     expect(seedEvents).toContain('timeZoneId: entry.timeZoneId');
+    expect(seedEvents).toContain('imageId: null');
+    expect(seedEvents).not.toContain('images: []');
   });
 
   it('bulk loads fixture Events without removed provider geodata columns', () => {

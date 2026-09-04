@@ -12,7 +12,7 @@ const review = {
       city: 'Lyon',
       country: 'France',
       region: 'Auvergne-Rhône-Alpes',
-      locationToken: 'proposal-location-token'
+      timeZoneId: 'Europe/Paris'
     },
     eventType: 'weekly',
     startsAtLocal: '2035-08-01T10:00',

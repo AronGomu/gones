@@ -84,6 +84,20 @@ describe('EventImageUploaderComponent singular image', () => {
     expect(component.limitError()).toBeTruthy();
   });
 
+  it('emits interaction identity before upload ID and clears it when failed selection is removed', async () => {
+    const { component, requests } = harness();
+    const interactions = vi.fn();
+    component.imageInteractionChange.subscribe(interactions);
+
+    component.addFiles([file('one.png')]);
+    expect(interactions).toHaveBeenLastCalledWith('local-1');
+    requests[0].error(new Error('network'));
+    expect(interactions).toHaveBeenLastCalledWith('local-1');
+
+    await component.remove();
+    expect(interactions).toHaveBeenLastCalledWith(null);
+  });
+
   it('hydrates one existing image and removes it locally without DELETE', async () => {
     const { component, http } = harness();
     component.initialImage = { id: 'existing', variants: [{ width: 320, height: 180, url: '/image' }] };
@@ -145,7 +159,9 @@ describe('EventImageUploaderComponent singular image', () => {
     const second = new Subject<Blob>();
     http.get.mockReturnValueOnce(first).mockReturnValueOnce(second);
     const blocked = vi.fn();
+    const selections = vi.fn();
     component.publishBlockedChange.subscribe(blocked);
+    component.imageChange.subscribe(selections);
     const response = {
       ...uploaded('restored'),
       variants: [
@@ -157,6 +173,7 @@ describe('EventImageUploaderComponent singular image', () => {
     component.restoreTemporaryImage(response);
     expect(component.publishBlocked()).toBe(true);
     expect(blocked).toHaveBeenLastCalledWith(true);
+    expect(selections).toHaveBeenLastCalledWith(expect.objectContaining({ imageId: 'restored' }));
 
     first.next(new Blob());
     first.complete();
@@ -175,7 +192,9 @@ describe('EventImageUploaderComponent singular image', () => {
     const failed = new Subject<Blob>();
     http.get.mockReturnValueOnce(failed);
     const temporaryImages = vi.fn();
+    const selections = vi.fn();
     component.temporaryImageChange.subscribe(temporaryImages);
+    component.imageChange.subscribe(selections);
     const response = uploaded('restored');
 
     component.restoreTemporaryImage(response);
@@ -183,6 +202,7 @@ describe('EventImageUploaderComponent singular image', () => {
 
     expect(component.card()).toMatchObject({ status: 'error', response, retryPreview: true });
     expect(temporaryImages).toHaveBeenLastCalledWith(response);
+    expect(selections).toHaveBeenLastCalledWith(expect.objectContaining({ imageId: 'restored' }));
     expect(component.publishBlocked()).toBe(true);
 
     http.get.mockReturnValueOnce(of(new Blob()));
@@ -209,11 +229,14 @@ describe('EventImageUploaderComponent singular image', () => {
     vi.useFakeTimers();
     vi.setSystemTime('2029-01-01T00:00:00Z');
     const { component, fixture } = harness(true);
+    const selections = vi.fn();
+    component.imageChange.subscribe(selections);
     component.restoreTemporaryImage({ ...uploaded('restored'), expiresAt: '2029-01-01T00:00:01Z' });
     vi.advanceTimersByTime(1_000);
     fixture!.detectChanges();
 
     expect(component.card()).toMatchObject({ status: 'error', expired: true, retryUpload: false, retryPreview: false });
+    expect(selections).toHaveBeenLastCalledWith(null);
     expect(fixture!.nativeElement.querySelector('[data-cy="event-image-error-restored-restored"]')?.textContent).toContain('Expired');
     expect(fixture!.nativeElement.querySelector('[data-cy="event-image-retry-restored-restored"]')).toBeNull();
     expect(fixture!.nativeElement.querySelector('[data-cy="event-image-remove-restored-restored"]')).not.toBeNull();

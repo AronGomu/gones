@@ -182,7 +182,7 @@ const EventCreateDraftDebounceMs = 300;
                   </div>
                 </div>
 
-                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (temporaryImageChange)="onTemporaryImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
+                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (imageInteractionChange)="onImageInteractionChange($event)" (temporaryImageChange)="onTemporaryImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
               </div>
             </fieldset>
 
@@ -199,10 +199,10 @@ const EventCreateDraftDebounceMs = 300;
                 @if (editMode) {
                   <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
-                  <span class="event-publish-tooltip" data-cy="event-publish-tooltip" [matTooltip]="publishTooltip()" [matTooltipDisabled]="!publishErrors().length" matTooltipClass="event-publish-tooltip-panel" [attr.tabindex]="publishErrors().length ? 0 : null" [attr.aria-describedby]="publishErrors().length ? 'event-publish-errors' : null">
+                  <span class="event-publish-tooltip" data-cy="event-publish-tooltip" [matTooltip]="publishTooltip()" [matTooltipDisabled]="!publishDisabled()" matTooltipClass="event-publish-tooltip-panel" [attr.tabindex]="publishDisabled() ? 0 : null" [attr.aria-describedby]="publishReasons().length ? 'event-publish-errors' : null">
                     <button mat-flat-button class="home-primary-action create-action-button event-publish-button" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
                   </span>
-                  @if (publishErrors().length) { <p id="event-publish-errors" class="sr-only event-publish-errors" data-cy="event-publish-errors">{{ publishTooltip() }}</p> }
+                  @if (publishReasons().length) { <p id="event-publish-errors" class="sr-only event-publish-errors" data-cy="event-publish-errors">{{ publishTooltip() }}</p> }
                 }
               } @else {
                 <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('eventCreate.approvalNotice') }}</p>
@@ -282,6 +282,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly selectedOrganizationId = signal('');
   readonly imagePublishBlocked = signal(false);
   readonly selectedImage = signal<EventImageSelection | null>(null);
+  private readonly imageInteraction = signal<string | null>(null);
   private readonly draftImage = signal<EventImageUploadResponse | null>(null);
   private readonly baseline = signal<EventDirtyShape | null>(null);
   private readonly previewRevision = signal(0);
@@ -351,11 +352,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       ['startTime', this.i18n.t('eventCreate.startTime')]
     ];
     const errors: string[] = [];
-    const seenMessages = new Set<string>();
+    const seenErrors = new Set<string>();
     const addError = (label: string, message: string) => {
-      if (!message || seenMessages.has(message)) return;
-      seenMessages.add(message);
-      errors.push(`${label}: ${message}`);
+      const labelled = `${label}: ${message}`;
+      if (!message || seenErrors.has(labelled)) return;
+      seenErrors.add(labelled);
+      errors.push(labelled);
     };
     for (const [name, label] of fields) addError(label, this.controlError(name, false));
     addError(
@@ -368,7 +370,15 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     addError(this.i18n.t('eventCreate.publishErrorGeneral'), this.fieldErrors()['general'] || '');
     return errors;
   });
-  readonly publishTooltip = computed(() => this.publishErrors().join('\n'));
+  readonly publishReasons = computed<readonly string[]>(() => {
+    const reasons = [...this.publishErrors()];
+    const general = this.i18n.t('eventCreate.publishErrorGeneral');
+    if (this.formPending()) reasons.push(`${general}: ${this.i18n.t('eventCreate.publishing')}`);
+    if (this.loadingReferences()) reasons.push(`${general}: ${this.i18n.t('eventCreate.loadingReferences')}`);
+    if (!this.loadingReferences() && !this.organizations().length) reasons.push(`${general}: ${this.i18n.t('eventCreate.noOrganizations')}`);
+    return [...new Set(reasons)];
+  });
+  readonly publishTooltip = computed(() => this.publishReasons().join('\n'));
 
   readonly publishDisabled = computed(() => {
     this.previewRevision();
@@ -477,6 +487,13 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       return;
     }
     this.form.controls.imageId.setValue(next);
+  }
+
+  onImageInteractionChange(interaction: string | null): void {
+    if (this.draftAccountMismatch()) return;
+    this.imageInteraction.set(interaction);
+    this.previewRevision.update(value => value + 1);
+    this.queueDraftWrite();
   }
 
   onTemporaryImageChange(image: EventImageUploadResponse | null): void {
@@ -734,6 +751,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.timeZones.update(timeZones => [...timeZones, event.timeZoneId]);
     }
     this.currentRender.set(managementToDetail(event, this.formats()));
+    this.imageInteraction.set(event.image?.id ?? null);
     this.previewRevision.update(value => value + 1);
     this.baseline.set(this.dirtyShape());
   }
@@ -761,7 +779,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const mergedValue = restored
       ? this.mergeDraftValue(restored.value, initial.value, current.value)
       : this.mergeDraftValue(cleanValue, initial.value, current.value);
-    const currentImageChanged = current.imageId !== initial.imageId || this.imagePublishBlocked() || this.draftImage() !== null;
+    const currentImageChanged = current.imageId !== initial.imageId
+      || current.imageInteraction !== initial.imageInteraction
+      || this.imagePublishBlocked()
+      || this.draftImage() !== null;
     const cleanImageId = restored?.image?.id ?? null;
     const mergedImageId = currentImageChanged ? current.imageId : cleanImageId;
     this.form.patchValue({ ...mergedValue, imageId: mergedImageId }, { emitEvent: false });
@@ -773,11 +794,12 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     }
     if (!currentImageChanged) {
       this.draftImage.set(restored?.image ?? null);
+      this.imageInteraction.set(cleanImageId);
       this.pendingRestoredImage = restored?.image;
     }
     this.syncSelectedOrganization();
     this.previewRevision.update(value => value + 1);
-    this.baseline.set({ value: normalizeEventDraftValue(cleanValue), imageId: cleanImageId });
+    this.baseline.set({ value: normalizeEventDraftValue(cleanValue), imageId: cleanImageId, imageInteraction: cleanImageId });
     this.hydrateRestoredImage();
   }
 
@@ -838,7 +860,11 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   private dirtyShape(): EventDirtyShape {
-    return { value: this.draftValue(), imageId: this.form.controls.imageId.value };
+    return {
+      value: this.draftValue(),
+      imageId: this.form.controls.imageId.value,
+      imageInteraction: this.imageInteraction()
+    };
   }
 
   private draftValue(): EventDraftValueV1 {

@@ -13,7 +13,8 @@ describe('release Event publication journey', () => {
     expect(journey).toContain('location: {');
     expect(journey).toContain("timeZoneId: 'Europe/Paris'");
     expect(journey).toContain("eventType: 'major'");
-    expect(journey).toContain('images: []');
+    expect(journey).toContain('imageId: null');
+    expect(journey).not.toContain('altText');
   });
 
   it('contains no retired preview ticket journey', () => {

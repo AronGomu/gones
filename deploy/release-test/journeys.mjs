@@ -112,33 +112,25 @@ async function uploadFixtureAndReadPrivateVariants(token, fileName) {
   return { ...upload.json, variantHashes };
 }
 
-async function verifyPublicGallery(images, expected) {
-  check(images.map((image) => image.id).join('|') === expected.map((item) => item.upload.id).join('|'),
-    'the public gallery preserves exact image order');
-  check(images.map((image) => image.altText).join('|') === expected.map((item) => item.altText).join('|'),
-    'the public gallery preserves exact alt text');
-
-  for (let index = 0; index < expected.length; index++) {
-    const image = images[index];
-    const item = expected[index];
-    if (!image || image.id !== item.upload.id) continue;
-    for (const variant of image.variants) {
-      const first = await callBytes(variant.url);
-      const repeated = await callBytes(variant.url);
-      const etag = first.headers.get('etag') ?? '';
-      check(first.status === 200
-          && first.headers.get('content-type')?.startsWith('image/webp')
-          && first.headers.get('cache-control') === 'public, max-age=31536000, immutable'
-          && /^"[^"]+"$/.test(etag)
-          && first.bytes.length > 0,
-        `the public ${variant.width}px Event image serves immutable WebP bytes with ETag (${first.status}, ${first.bytes.length} bytes, ${etag || 'missing'})`);
-      check(repeated.status === 200
-          && repeated.headers.get('etag') === etag
-          && sha256(repeated.bytes) === sha256(first.bytes),
-        `the public ${variant.width}px Event image ETag and bytes are deterministic`);
-      check(sha256(first.bytes) === item.upload.variantHashes.get(variant.width),
-        `the public ${variant.width}px bytes equal the uploaded private variant`);
-    }
+async function verifyPublicImage(image, expectedUpload) {
+  check(image?.id === expectedUpload.id, 'the public Event preserves its singular image identity');
+  if (!image || image.id !== expectedUpload.id) return;
+  for (const variant of image.variants) {
+    const first = await callBytes(variant.url);
+    const repeated = await callBytes(variant.url);
+    const etag = first.headers.get('etag') ?? '';
+    check(first.status === 200
+        && first.headers.get('content-type')?.startsWith('image/webp')
+        && first.headers.get('cache-control') === 'public, max-age=31536000, immutable'
+        && /^"[^"]+"$/.test(etag)
+        && first.bytes.length > 0,
+      `the public ${variant.width}px Event image serves immutable WebP bytes with ETag (${first.status}, ${first.bytes.length} bytes, ${etag || 'missing'})`);
+    check(repeated.status === 200
+        && repeated.headers.get('etag') === etag
+        && sha256(repeated.bytes) === sha256(first.bytes),
+      `the public ${variant.width}px Event image ETag and bytes are deterministic`);
+    check(sha256(first.bytes) === expectedUpload.variantHashes.get(variant.width),
+      `the public ${variant.width}px bytes equal the uploaded private variant`);
   }
 }
 
@@ -232,7 +224,7 @@ function eventPayload(
     startsAtLocal: startsAtLocal.slice(0, 16),
     capacity: 8,
     formatIds,
-    images: []
+    imageId: null
   };
 }
 
@@ -440,8 +432,7 @@ async function eventLifecycleStage() {
     throw new Error('event lifecycle state is missing organization, Organizer, or format identifiers');
   }
 
-  const first = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-first.webp');
-  const second = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-second.webp');
+  const original = await uploadFixtureAndReadPrivateVariants(organizer.token, 'direct-original.webp');
   const startsAtLocal = futureLocal(80);
   const directPayload = eventPayload(
     state.organizationId,
@@ -450,10 +441,7 @@ async function eventLifecycleStage() {
     `Integrated Event ${randomUUID().slice(0, 8)}`);
   directPayload.summary = 'Integrated real-storage journey';
   directPayload.bodyMarkdown = 'Created with **Markdown** and real image bytes.';
-  directPayload.images = [
-    { imageId: second.id, altText: 'Second upload leads' },
-    { imageId: first.id, altText: 'First upload follows' }
-  ];
+  directPayload.imageId = original.id;
 
   const published = await call('/api/events', {
     method: 'POST',
@@ -477,10 +465,7 @@ async function eventLifecycleStage() {
       && createdDetail.json?.bodyHtml === '<p>Created with <strong>Markdown</strong> and real image bytes.</p>'
       && createdDetail.json?.venue?.streetAddress === directPayload.location.streetAddress,
     'direct Event public detail preserves Markdown and manual location');
-  await verifyPublicGallery(createdDetail.json.images, [
-    { upload: second, altText: 'Second upload leads' },
-    { upload: first, altText: 'First upload follows' }
-  ]);
+  await verifyPublicImage(createdDetail.json.image, original);
 
   const added = await uploadFixtureAndReadPrivateVariants(organizer.token, 'edit-added.webp');
   const management = await call('/api/organizer/events?pageSize=100', { token: organizer.token });
@@ -509,33 +494,27 @@ async function eventLifecycleStage() {
     body: {
       title: `${directPayload.title} Edited`,
       summary: 'Edited integrated journey',
-      bodyMarkdown: 'Edited with **Markdown**, reordered and replaced media.',
+      bodyMarkdown: 'Edited with **Markdown** and replaced media.',
       location: changedLocationPayload.location,
       eventType: directPayload.eventType,
       startsAtLocal: directPayload.startsAtLocal,
       capacity: directPayload.capacity,
       formatIds,
-      images: [
-        { imageId: first.id, altText: 'Retained image reordered first' },
-        { imageId: added.id, altText: 'New image added second' }
-      ]
+      imageId: added.id
     }
   });
   check(edited.status === 200
       && /^"[^"]+"$/.test(edited.headers.get('etag') ?? '')
       && edited.json?.location?.streetAddress === changedLocationPayload.location.streetAddress,
-    `If-Match edit commits manual location, Markdown, media add/remove/reorder (${edited.status})`);
+    `If-Match edit commits manual location, Markdown and image replacement (${edited.status})`);
 
   const editedDetail = await call(`/api/events/${published.json.slug}`);
   check(editedDetail.status === 200
-      && editedDetail.json?.bodyHtml === '<p>Edited with <strong>Markdown</strong>, reordered and replaced media.</p>'
+      && editedDetail.json?.bodyHtml === '<p>Edited with <strong>Markdown</strong> and replaced media.</p>'
       && editedDetail.json?.venue?.streetAddress === changedLocationPayload.location.streetAddress,
     'edited public detail preserves new Markdown and manual location');
-  await verifyPublicGallery(editedDetail.json.images, [
-    { upload: first, altText: 'Retained image reordered first' },
-    { upload: added, altText: 'New image added second' }
-  ]);
-  const removed = await callBytes(`/api/event-images/${second.id}/variants/${second.variants[0].width}`);
+  await verifyPublicImage(editedDetail.json.image, added);
+  const removed = await callBytes(`/api/event-images/${original.id}/variants/${original.variants[0].width}`);
   check(removed.status === 404, `removed Event image stops resolving after committed edit (${removed.status})`);
 
   const proposalUpload = await uploadFixtureAndReadPrivateVariants(plainUser.token, 'proposal.webp');
@@ -546,7 +525,7 @@ async function eventLifecycleStage() {
     `Integrated Proposal ${randomUUID().slice(0, 8)}`);
   proposalPayload.summary = 'Plain User proposal';
   proposalPayload.bodyMarkdown = 'Proposal with **private** media.';
-  proposalPayload.images = [{ imageId: proposalUpload.id, altText: 'Proposal gallery image' }];
+  proposalPayload.imageId = proposalUpload.id;
   const approvers = await call(`/api/event-proposals/approvers?organizationId=${state.organizationId}`, { token: plainUser.token });
   check(approvers.status === 200 && approvers.json?.some((item) => item.id === state.organizerId),
     'the plain User can select the organization Organizer as proposal reviewer');
@@ -565,12 +544,9 @@ async function eventLifecycleStage() {
     'the proposal review token reaches the local mail sink');
   if (!reviewToken) throw new Error('proposal review token did not reach local mail sink');
   const review = await call(`/api/event-proposals/by-token/${encodeURIComponent(reviewToken)}`);
-  check(review.status === 200
-      && review.json?.images?.length === 1
-      && review.json.images[0].id === proposalUpload.id
-      && review.json.images[0].altText === 'Proposal gallery image',
-    'token review preserves private proposal image order and alt text');
-  const reviewVariant = review.json?.images?.[0]?.variants?.[0];
+  check(review.status === 200 && review.json?.image?.id === proposalUpload.id,
+    'token review preserves private proposal image identity');
+  const reviewVariant = review.json?.image?.variants?.[0];
   if (!reviewVariant) throw new Error(`proposal review image missing: ${review.status} ${review.text.slice(0, 200)}`);
   const privateReview = await callBytes(reviewVariant.url);
   check(privateReview.status === 200
@@ -586,9 +562,7 @@ async function eventLifecycleStage() {
   check(proposalDetail.status === 200
       && proposalDetail.json?.bodyHtml === '<p>Proposal with <strong>private</strong> media.</p>',
     'approved proposal Markdown becomes public detail');
-  await verifyPublicGallery(proposalDetail.json.images, [
-    { upload: proposalUpload, altText: 'Proposal gallery image' }
-  ]);
+  await verifyPublicImage(proposalDetail.json.image, proposalUpload);
 
   check(failures.length === 0, 'the clean-volume Event lifecycle traverses real API, Postgres and MinIO');
   emit({ integratedEventId: published.json.id, proposalEventSlug: approval.json.slug });
@@ -671,7 +645,7 @@ async function dateChangeStage() {
       startsAtLocal: startsAtLocal.slice(0, 16),
       capacity: entry.capacity,
       formatIds: entry.formatIds,
-      images: entry.images.map((image) => ({ imageId: image.id, altText: image.altText }))
+      imageId: entry.image?.id ?? null
     }
   });
   check(update.status === 200, `the Organizer moves the tournament date (${update.status})`);

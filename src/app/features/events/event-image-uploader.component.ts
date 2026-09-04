@@ -101,9 +101,14 @@ export class EventImageUploaderComponent implements OnDestroy {
   readonly publishBlocked = computed(() => this.card() !== null && (this.card()!.status !== 'uploaded' || this.card()!.expired));
   readonly selectedImage = computed<EventImageSelection | null>(() => {
     const card = this.card();
-    return card?.response && card.status === 'uploaded'
+    return card?.response && !card.expired && !this.responseExpired(card.response)
       ? { imageId: card.response.id, response: card.response, previewUrl: card.previewUrl, srcset: card.srcset }
       : null;
+  });
+  readonly imageInteraction = computed<string | null>(() => {
+    const card = this.card();
+    if (!card || card.expired || (card.response && this.responseExpired(card.response))) return null;
+    return card.response?.id ?? card.localId;
   });
   readonly temporaryImage = computed<EventImageUploadResponse | null>(() => {
     const card = this.card();
@@ -114,6 +119,7 @@ export class EventImageUploaderComponent implements OnDestroy {
 
   @Input() blockedMessageKey: MessageKey = 'eventImages.publishBlocked';
   @Output() readonly imageChange = new EventEmitter<EventImageSelection | null>();
+  @Output() readonly imageInteractionChange = new EventEmitter<string | null>();
   @Output() readonly temporaryImageChange = new EventEmitter<EventImageUploadResponse | null>();
   @Output() readonly publishBlockedChange = new EventEmitter<boolean>();
 
@@ -272,6 +278,7 @@ export class EventImageUploaderComponent implements OnDestroy {
       this.expiryTimer = setTimeout(() => this.markExpired(), delay);
     }
     this.imageChange.emit(this.selectedImage());
+    this.imageInteractionChange.emit(this.imageInteraction());
     this.temporaryImageChange.emit(this.temporaryImage());
     this.publishBlockedChange.emit(this.publishBlocked());
   }

@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Gones.Api.Events;
 using Gones.Domain.Calendar;
 using Gones.Domain.Organizations;
@@ -6,6 +8,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
+using NodaTime.Serialization.SystemTextJson;
 using Npgsql;
 
 namespace Gones.IntegrationTests;
@@ -36,26 +39,10 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
         var eventExtra = Guid.Parse("40000000-0000-0000-0000-000000000002");
         var proposalFirst = Guid.Parse("50000000-0000-0000-0000-000000000001");
         var proposalExtra = Guid.Parse("50000000-0000-0000-0000-000000000002");
-        var payload = JsonSerializer.Serialize(new
-        {
-            version = 2,
-            payloadHash = "old",
-            envelopeHash = "old",
-            @event = new
-            {
-                organizationId = organization.Id,
-                title = "Migration Cup",
-                summary = "Summary",
-                bodyMarkdown = "Body",
-                location = new { streetAddress = "1 Street", postalCode = "69001", city = "Lyon", country = "France", region = "Rhône", timeZoneId = "Europe/Paris" },
-                eventType = "weekly",
-                startsAtLocal = "2035-03-04T10:00",
-                capacity = 32,
-                formatIds = new[] { formatId },
-                images = new[] { new { imageId = proposalFirst, altText = "First" }, new { imageId = proposalExtra, altText = "Extra" } }
-            },
-            location = new { streetAddress = "1 Street", postalCode = "69001", city = "Lyon", country = "France", region = "Rhône", timeZoneId = "Europe/Paris" }
-        });
+        var payload = PreviousEnvelope(
+            organization.Id,
+            formatId,
+            [(proposalFirst, "First"), (proposalExtra, "Extra")]);
 
         await database.Database.ExecuteSqlInterpolatedAsync($$"""
             INSERT INTO tournament_formats (id, name, slug, sort_order, created_at, updated_at, deleted_at, version)
@@ -101,7 +88,10 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
         var envelope = JsonSerializer.Deserialize<EventProposalEnvelope>(storedJson, EventProposalEndpoints.PayloadJsonOptions)!;
         Assert.Equal(EventProposalEnvelope.CurrentVersion, envelope.Version);
         Assert.Equal(proposalFirst, envelope.Event.ImageId);
+        Assert.Equal("Europe/Paris", envelope.Event.Location.TimeZoneId);
+        Assert.Equal("Europe/Paris", envelope.Location.TimeZoneId);
         Assert.DoesNotContain("\"images\"", storedJson, StringComparison.Ordinal);
+        Assert.DoesNotContain("locationToken", storedJson, StringComparison.Ordinal);
         Assert.Equal(EventPublicationService.PayloadHash(envelope.Event), envelope.PayloadHash);
         Assert.True(envelope.HasValidIntegrity());
 
@@ -235,6 +225,56 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Tampered_v2_payload_or_hash_remains_unusable_and_is_not_rehashed()
+    {
+        await using var database = CreateContext();
+        await database.Database.MigrateAsync("20260902070415_DirectEventPublication");
+        var user = User();
+        database.Users.Add(user);
+        await database.SaveChangesAsync();
+
+        var organizationId = Guid.Parse("91000000-0000-0000-0000-000000000001");
+        var formatId = Guid.Parse("92000000-0000-0000-0000-000000000001");
+        var payloadTamperedId = Guid.Parse("93000000-0000-0000-0000-000000000001");
+        var payloadHashTamperedId = Guid.Parse("93000000-0000-0000-0000-000000000002");
+        var envelopeHashTamperedId = Guid.Parse("93000000-0000-0000-0000-000000000003");
+        var valid = JsonNode.Parse(PreviousEnvelope(organizationId, formatId, []))!.AsObject();
+        var payloadTampered = valid.DeepClone().AsObject();
+        payloadTampered["event"]!["title"] = "Tampered Cup";
+        var payloadHashTampered = valid.DeepClone().AsObject();
+        payloadHashTampered["payloadHash"] = new string('0', 64);
+        var envelopeHashTampered = valid.DeepClone().AsObject();
+        envelopeHashTampered["envelopeHash"] = new string('f', 64);
+
+        await database.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO event_proposals
+                (id, submitted_by_user_id, payload_json, status, created_at, expires_at, decided_at, decided_by_user_id, rejection_reason, version)
+            VALUES
+                ({{payloadTamperedId}}, {{user.Id}}, {{payloadTampered.ToJsonString()}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1),
+                ({{payloadHashTamperedId}}, {{user.Id}}, {{payloadHashTampered.ToJsonString()}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1),
+                ({{envelopeHashTamperedId}}, {{user.Id}}, {{envelopeHashTampered.ToJsonString()}}::jsonb, 'Pending', {{Now}}, {{Now + Duration.FromDays(7)}}, NULL, NULL, NULL, 1);
+            """);
+
+        database.ChangeTracker.Clear();
+        await database.Database.MigrateAsync();
+
+        var stored = await database.EventProposals.AsNoTracking()
+            .Where(item => item.Id == payloadTamperedId || item.Id == payloadHashTamperedId || item.Id == envelopeHashTamperedId)
+            .OrderBy(item => item.Id)
+            .Select(item => item.PayloadJson)
+            .ToListAsync();
+        Assert.All(stored, json =>
+        {
+            using var document = JsonDocument.Parse(json);
+            Assert.Equal(2, document.RootElement.GetProperty("version").GetInt32());
+            Assert.NotEqual(EventProposalEnvelope.CurrentVersion, document.RootElement.GetProperty("version").GetInt32());
+        });
+        Assert.Equal("Tampered Cup", JsonNode.Parse(stored[0])!["event"]!["title"]!.GetValue<string>());
+        Assert.Equal(new string('0', 64), JsonNode.Parse(stored[1])!["payloadHash"]!.GetValue<string>());
+        Assert.Equal(new string('f', 64), JsonNode.Parse(stored[2])!["envelopeHash"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Empty_v2_images_are_deleted_and_mismatched_first_image_remains_invalid()
     {
         await using var database = CreateContext();
@@ -262,46 +302,11 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             capacity = 32,
             formatIds = new[] { Guid.Parse("e0000000-0000-0000-0000-000000000001") }
         };
-        var emptyPayload = JsonSerializer.Serialize(new
-        {
-            version = 2,
-            payloadHash = "old",
-            envelopeHash = "old",
-            @event = new
-            {
-                eventFields.organizationId,
-                eventFields.title,
-                eventFields.summary,
-                eventFields.bodyMarkdown,
-                eventFields.location,
-                eventFields.eventType,
-                eventFields.startsAtLocal,
-                eventFields.capacity,
-                eventFields.formatIds,
-                images = Array.Empty<object>()
-            },
-            location
-        });
-        var mismatchedPayload = JsonSerializer.Serialize(new
-        {
-            version = 2,
-            payloadHash = "old",
-            envelopeHash = "old",
-            @event = new
-            {
-                eventFields.organizationId,
-                eventFields.title,
-                eventFields.summary,
-                eventFields.bodyMarkdown,
-                eventFields.location,
-                eventFields.eventType,
-                eventFields.startsAtLocal,
-                eventFields.capacity,
-                eventFields.formatIds,
-                images = new[] { new { imageId = mismatchedPayloadImage, altText = "Conflicting" } }
-            },
-            location
-        });
+        var emptyPayload = PreviousEnvelope(eventFields.organizationId, eventFields.formatIds[0], []);
+        var mismatchedPayload = PreviousEnvelope(
+            eventFields.organizationId,
+            eventFields.formatIds[0],
+            [(mismatchedPayloadImage, "Conflicting")]);
 
         await database.Database.ExecuteSqlInterpolatedAsync($$"""
             INSERT INTO event_proposals
@@ -351,13 +356,92 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             .SingleAsync();
         using var mismatchedDocument = JsonDocument.Parse(mismatchedStoredJson);
         Assert.Equal(2, mismatchedDocument.RootElement.GetProperty("version").GetInt32());
-        Assert.False(JsonSerializer.Deserialize<EventProposalEnvelope>(mismatchedStoredJson, EventProposalEndpoints.PayloadJsonOptions)!.HasValidIntegrity());
+        Assert.NotEqual(EventProposalEnvelope.CurrentVersion, mismatchedDocument.RootElement.GetProperty("version").GetInt32());
         var retainedMismatch = await database.EventImages.AsNoTracking()
             .Where(image => image.ProposalId == mismatchedProposalId)
             .Select(image => image.Id)
             .SingleAsync();
         Assert.Equal(mismatchedSurvivor, retainedMismatch);
     }
+
+    private static string PreviousEnvelope(
+        Guid organizationId,
+        Guid formatId,
+        IReadOnlyList<(Guid ImageId, string? AltText)> images)
+    {
+        var inputLocation = new
+        {
+            streetAddress = "1 Street",
+            postalCode = "69001",
+            city = "Lyon",
+            country = "France",
+            region = "Rhône",
+            locationToken = "signed-provider-token"
+        };
+        var storedImages = images.Select(image => new { imageId = image.ImageId, altText = image.AltText }).ToArray();
+        var previousEvent = new
+        {
+            organizationId,
+            title = "Migration Cup",
+            location = inputLocation,
+            eventType = "weekly",
+            startsAtLocal = "2035-03-04T10:00",
+            capacity = 32,
+            formatIds = new[] { formatId },
+            images = storedImages,
+            summary = "Summary",
+            bodyMarkdown = "Body"
+        };
+        var canonicalPayload = new
+        {
+            organizationId,
+            previousEvent.title,
+            previousEvent.summary,
+            previousEvent.bodyMarkdown,
+            location = inputLocation,
+            previousEvent.eventType,
+            previousEvent.startsAtLocal,
+            previousEvent.capacity,
+            previousEvent.formatIds,
+            images = storedImages
+        };
+        var payloadHash = Sha256(JsonSerializer.SerializeToUtf8Bytes(canonicalPayload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        var expiresAt = Instant.FromUtc(2035, 3, 4, 11, 0);
+        var location = new
+        {
+            placeId = "provider-place",
+            inputLocation.streetAddress,
+            inputLocation.postalCode,
+            inputLocation.city,
+            inputLocation.country,
+            inputLocation.region,
+            latitude = 45.5m,
+            longitude = 4.75m,
+            timeZoneId = "Europe/Paris",
+            expiresAt
+        };
+        var claims = new
+        {
+            version = 2,
+            payloadHash,
+            location.placeId,
+            location.streetAddress,
+            location.postalCode,
+            location.city,
+            location.country,
+            location.region,
+            location.latitude,
+            location.longitude,
+            location.timeZoneId,
+            expiresAtUnixTicks = (expiresAt - Instant.FromUnixTimeTicks(0)).ToTimeSpan().Ticks
+        };
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        options.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
+        var envelopeHash = Sha256(JsonSerializer.SerializeToUtf8Bytes(claims, options));
+        return JsonSerializer.Serialize(new { version = 2, payloadHash, envelopeHash, @event = previousEvent, location }, options);
+    }
+
+    private static string Sha256(byte[] value) => Convert.ToHexStringLower(SHA256.HashData(value));
 
     private GonesDbContext CreateContext() => new(new DbContextOptionsBuilder<GonesDbContext>().ConfigureGones(postgres.GetConnectionString()).Options);
 

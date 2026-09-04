@@ -78,8 +78,8 @@ describe('Event management state', () => {
 
   it('detects canonical image identity and dimensions for stale reload', () => {
     const second = { id: 'image-2', variants: [{ width: 320, height: 180, url: '/image-2' }] };
-    expect(changedEventFields(event, { ...event, image: second })).toContain('images');
-    expect(changedEventFields(event, { ...event, image: { ...event.image!, variants: [{ width: 640, height: 360, url: '/image-1' }] } })).toContain('images');
+    expect(changedEventFields(event, { ...event, image: second })).toContain('image');
+    expect(changedEventFields(event, { ...event, image: { ...event.image!, variants: [{ width: 640, height: 360, url: '/image-1' }] } })).toContain('image');
     expect(changedEventFields(event, { ...event, bodyMarkdown: 'Changed' })).toContain('description');
   });
 

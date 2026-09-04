@@ -154,3 +154,7 @@ export interface EventDraftValueV1 {
 - [x] V5 no silent-failure swallow: storage catch logs exact boundary; expired resource degradation is specified/tested; navigation cancellation is user-selected, not swallowed.
 - [x] V6 app functional: `npm run typecheck && npm run lint && npm run build`
 - [x] V7 commit msg draft: `feat(events): preserve create drafts and guard unsaved edits`
+
+## Cumulative review closure (2026-09-04)
+
+- [x] R1 Local file selection/upload failure marks create dirty before server image ID exists; removing failed selection restores clean baseline. Restored Temporary image retains baseline ID and remains clean during preview fetch/error; expiry/removal clears selection explicitly. Evidence: focused frontend run → 211/211 passed; `event-image-uploader.component.test.ts` covers pending/error/non-null restore emission + expiry null emission.

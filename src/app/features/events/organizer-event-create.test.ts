@@ -115,8 +115,8 @@ describe('Organizer Event create state', () => {
     expect(component).toContain('MatTooltipModule');
     expect(component).toContain('data-cy="event-publish-tooltip"');
     expect(component).toContain('[matTooltip]="publishTooltip()"');
-    expect(component).toContain('[attr.tabindex]="publishErrors().length ? 0 : null"');
-    expect(component).toContain("[attr.aria-describedby]=\"publishErrors().length ? 'event-publish-errors' : null\"");
+    expect(component).toContain('[attr.tabindex]="publishDisabled() ? 0 : null"');
+    expect(component).toContain("[attr.aria-describedby]=\"publishReasons().length ? 'event-publish-errors' : null\"");
     expect(component).toContain('data-cy="event-publish-errors"');
     expect(component).toContain('class="home-primary-action create-action-button event-publish-button"');
     expect(styles).toMatch(/\.event-create-actions \{[^}]*width: 100%/);

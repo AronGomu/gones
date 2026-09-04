@@ -169,6 +169,8 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
       eventType: '',
       capacity: 0
     });
+    component.loadingReferences.set(false);
+    component.organizations.set([{ id: 'org', name: 'Club' }]);
     component.fieldErrors.set({
       locationResolution: 'Location resolution failed.',
       imageId: 'Image failed.',
@@ -183,13 +185,49 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     expect(errors).toEqual([
       'Organisation: Ce champ est obligatoire.',
       'Nom de l’événement: Duplicate error.',
+      'Résumé: Duplicate error.',
       'Description: La description ne peut pas dépasser 20 000 caractères.',
+      'Format: Ce champ est obligatoire.',
+      'Type d’événement: Ce champ est obligatoire.',
       'Capacité: Saisissez une valeur valide.',
+      'Pays: Ce champ est obligatoire.',
+      'Région: Ce champ est obligatoire.',
+      'Adresse: Ce champ est obligatoire.',
+      'Code postal: Ce champ est obligatoire.',
+      'Ville: Ce champ est obligatoire.',
+      'Date de début: Ce champ est obligatoire.',
+      'Heure de début: Ce champ est obligatoire.',
       'Résolution du lieu: Location resolution failed.',
       'Image de l’événement: Image failed.',
       'Général: General failure.'
     ]);
     expect(component.publishTooltip()).toBe(errors.join('\n'));
+  });
+
+  it('supplies translated general reasons for every non-field Publish disable state', () => {
+    const component = setup('Organizer');
+    component.form.patchValue({
+      organizationId: 'org', title: 'Cup', streetAddress: 'Street', postalCode: '69001', city: 'Lyon', country: 'France',
+      region: 'Rhône', timeZoneId: 'Europe/Paris', eventType: 'weekly', startDate: '2035-03-04', startTime: '10:00',
+      capacity: 32, formatId: 'fmt'
+    });
+    component.organizations.set([]);
+    component.loadingReferences.set(true);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.loadingReferences')}`
+    ]);
+
+    component.loadingReferences.set(false);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.noOrganizations')}`
+    ]);
+
+    component.organizations.set([{ id: 'org', name: 'Club' }]);
+    component.publishing.set(true);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.publishing')}`
+    ]);
+    expect(component.publishTooltip()).not.toBe('');
   });
 
   it('persists collapse state for tab session with exact ARIA labels', () => {
@@ -473,6 +511,46 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
     destroy();
   });
 
+  it('counts image interaction dirty before upload identity exists and clears after removal restores baseline', async () => {
+    const { component, destroy } = await initializedCreate();
+
+    component.onImageInteractionChange('local-1');
+    expect(component.form.controls.imageId.value).toBeNull();
+    expect(component.dirty()).toBe(true);
+
+    component.onImageInteractionChange(null);
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
+  it('keeps untouched restored image clean through hydration pending and error state', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue,
+      image: {
+        id: 'image-restored', state: 'Temporary', width: 960, height: 540, expiresAt: '2030-01-01T00:00:00Z',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/image-restored/variants/320' }]
+      }
+    };
+    const { component, destroy } = await initializedCreate({ read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() });
+    const selection = {
+      imageId: stored.image!.id,
+      response: stored.image!,
+      previewUrl: '',
+      srcset: ''
+    };
+
+    component.onImageInteractionChange(stored.image!.id);
+    component.onImageChange(selection);
+    component.imagePublishBlocked.set(true);
+    expect(component.form.controls.imageId.value).toBe(stored.image!.id);
+    expect(component.dirty()).toBe(false);
+
+    component.onImageInteractionChange(stored.image!.id);
+    component.onImageChange(selection);
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
   it('retains restored Temporary image through preview error, draft flush, and next reload', async () => {
     const stored: StoredEventCreateDraftV1 = {
       version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue,
@@ -488,7 +566,8 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
       remove: vi.fn()
     };
     const first = await initializedCreate(draftStore);
-    first.component.onImageChange(null);
+    first.component.onImageInteractionChange(stored.image!.id);
+    first.component.onImageChange({ imageId: stored.image!.id, response: stored.image!, previewUrl: '', srcset: '' });
     first.component.form.controls.title.setValue('Changed while preview failed');
     first.component.beforeUnload({ preventDefault: vi.fn(), returnValue: undefined } as unknown as BeforeUnloadEvent);
 

@@ -36,6 +36,7 @@ export type RestoredEventCreateDraft = StoredEventCreateDraftV1;
 export interface EventDirtyShape {
   value: EventDraftValueV1;
   imageId: string | null;
+  imageInteraction: string | null;
 }
 
 const eventTypes = new Set<EventDraftValueV1['eventType']>(['', 'weekly', 'monthly', 'major']);
@@ -93,6 +94,7 @@ export function parseEventCreateDraft(raw: string | null, userId: string, nowMs:
 
 export function eventDraftIsDirty(baseline: EventDirtyShape, current: EventDirtyShape): boolean {
   return baseline.imageId !== current.imageId
+    || baseline.imageInteraction !== current.imageInteraction
     || JSON.stringify(normalizeEventDraftValue(baseline.value)) !== JSON.stringify(normalizeEventDraftValue(current.value));
 }
 

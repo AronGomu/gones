@@ -121,9 +121,10 @@ describe('Event create draft codec', () => {
     expect(eventCreateDraftIsEmpty(empty, 'org-1')).toBe(true);
     expect(eventCreateDraftIsEmpty({ ...empty, title: ' Cup ' }, 'org-1')).toBe(false);
 
-    const baseline = { value: normalizeEventDraftValue(value({ title: ' Cup ' })), imageId: 'image-1' };
-    expect(eventDraftIsDirty(baseline, { value: normalizeEventDraftValue(value({ title: 'Cup' })), imageId: 'image-1' })).toBe(false);
-    expect(eventDraftIsDirty(baseline, { ...baseline, imageId: null })).toBe(true);
+    const baseline = { value: normalizeEventDraftValue(value({ title: ' Cup ' })), imageId: 'image-1', imageInteraction: 'image-1' };
+    expect(eventDraftIsDirty(baseline, { value: normalizeEventDraftValue(value({ title: 'Cup' })), imageId: 'image-1', imageInteraction: 'image-1' })).toBe(false);
+    expect(eventDraftIsDirty(baseline, { ...baseline, imageId: null, imageInteraction: null })).toBe(true);
+    expect(eventDraftIsDirty({ ...baseline, imageId: null, imageInteraction: null }, { ...baseline, imageId: null, imageInteraction: 'local-1' })).toBe(true);
   });
 
   it('removes and logs malformed account data without exposing another account key', () => {

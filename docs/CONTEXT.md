@@ -53,7 +53,7 @@ _Formerly_: Scheduled Tournament, Calendar Tournament, `/api/tournaments`
 _Avoid_: Tournament on its own, Archive Tournament, Live Tournament
 
 **Event Image**:
-An image attached to one Event in a deliberate order with optional alt text. Its object stays private in S3-compatible storage; DB ownership state controls Temporary, Proposal-owned, and Event-owned access and cleanup (ADR 0052).
+One nullable image attached to an Event, without author alt/order metadata. Its object stays private in S3-compatible storage; DB ownership state controls Temporary, Proposal-owned, and Event-owned access and cleanup (ADR 0052, amended by ADR 0056).
 _Avoid_: public bucket image, URL-only image
 
 **Manual Event Location**:

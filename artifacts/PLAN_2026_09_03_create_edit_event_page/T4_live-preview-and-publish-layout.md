@@ -102,3 +102,7 @@
 - [x] V4 no silent-failure swallow on path added: `none` (derived UI only).
 - [x] V5 app functional: `npm run typecheck && npm run lint && npm run build` passed; build emitted only two pre-existing unused `RouterLink` warnings in admin components.
 - [x] V6 commit: `feat(events): keep live preview controls and publish errors visible` (`bcc1e9b`).
+
+## Cumulative review closure (2026-09-04)
+
+- [x] R1 Publish summary retains every distinct field-labelled error in ticket order; dedupe applies only to exact final labelled strings. Loading, pending, and no-organization disables expose translated general reasons through focusable tooltip wrapper. Evidence: focused frontend run → 211/211 passed; full `npm run test` → 2272/2272 passed.

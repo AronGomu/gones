@@ -334,7 +334,7 @@ async function seedEvents(environment, tokens, organizationIds, formatIds, forma
       startsAtLocal: localDateTime(entry.startsAtLocalOffsetDays, entry.startsAtLocalTime),
       capacity: entry.capacity,
       formatIds: entry.formatKeys.map((key) => formatIds.get(key)),
-      images: []
+      imageId: null
     };
 
     const published = await requireResponse(await api('POST', '/api/events', {

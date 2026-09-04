@@ -141,3 +141,8 @@ internal sealed record EventImageResponse(
 - [x] V6 no silent-failure swallow: backend post-commit warnings remain at `EventLifecycleEndpoints.cs:570-579` + `EventProposalEndpoints.cs:414-425`; worker retry/log at `EventImageCleanupService.cs:157-185`; uploader visible delete/upload/preview failures at `event-image-uploader.component.ts:182-184`, `:214`, `:232`.
 - [x] V7 app functional: `npm run typecheck && npm run lint && npm run build` passed; build emitted only two pre-existing unused `RouterLink` warnings in admin components.
 - [x] V8 commit msg: `feat(events): enforce singular owned Event image`
+
+## Cumulative review closure (2026-09-04)
+
+- [x] R1 Migration reads exact predecessor v2 envelope shape, validates original payload/envelope hashes before conversion, derives manual `timeZoneId` from outer validated location, preserves empty-image cleanup + survivor reconciliation, leaves tampered rows at v2. Evidence: `dotnet test backend/tests/Gones.IntegrationTests/Gones.IntegrationTests.csproj --configuration Release --filter FullyQualifiedName~EventImageMigrationTests --no-restore` → 4/4 passed.
+- [x] R2 Release/dev contracts use nullable `imageId` + singular `image`; proposal review residue + plural UI copy removed. Evidence: `npm run test` → 2272/2272 passed; `npm run release:rehearsal` passed full clean-volume Postgres/MinIO lifecycle.

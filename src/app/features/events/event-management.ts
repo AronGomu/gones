@@ -8,7 +8,7 @@ import { renderEventMarkdown } from './event-markdown';
 import { EventDetailView } from './event-detail-view.component';
 
 export type MajorEventField = 'start' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
-export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'images' | 'status';
+export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'image' | 'status';
 
 const defaultMajorLabels: Record<MajorEventField, string> = {
   start: 'start date/time',
@@ -99,7 +99,7 @@ export function changedEventFields(
   changed.push(...locationFields
     .filter(([, key]) => original.location[key] !== latest.location[key])
     .map(([field]) => field));
-  if (!sameImages(original, latest)) changed.push('images');
+  if (!sameImage(original, latest)) changed.push('image');
   return changed.map(label);
 }
 
@@ -156,7 +156,7 @@ function optional(value: string): string | undefined {
   return trimmed || undefined;
 }
 
-function sameImages(left: EventManagementResponse, right: EventManagementResponse): boolean {
+function sameImage(left: EventManagementResponse, right: EventManagementResponse): boolean {
   if (!left.image || !right.image) return left.image === right.image;
   return left.image.id === right.image.id
     && left.image.variants.length === right.image.variants.length
