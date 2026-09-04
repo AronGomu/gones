@@ -22,7 +22,7 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();
 
     [Fact]
-    public async Task Previous_schema_duplicates_and_v2_envelope_migrate_to_singular_v3_with_cleanup()
+    public async Task Previous_schema_duplicates_and_v2_envelope_with_exact_expiry_tick_migrate_to_singular_v3_with_cleanup()
     {
         await using var database = CreateContext();
         await database.Database.MigrateAsync("20260902070415_DirectEventPublication");
@@ -39,10 +39,14 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
         var eventExtra = Guid.Parse("40000000-0000-0000-0000-000000000002");
         var proposalFirst = Guid.Parse("50000000-0000-0000-0000-000000000001");
         var proposalExtra = Guid.Parse("50000000-0000-0000-0000-000000000002");
+        var predecessorExpiry = Instant.FromUnixTimeTicks(Instant.FromUtc(2035, 3, 4, 11, 0).ToUnixTimeTicks() + 1);
         var payload = PreviousEnvelope(
             organization.Id,
             formatId,
-            [(proposalFirst, "First"), (proposalExtra, "Extra")]);
+            [(proposalFirst, "First"), (proposalExtra, "Extra")],
+            predecessorExpiry);
+        Assert.Equal(1, predecessorExpiry.ToUnixTimeTicks() % 10);
+        Assert.Contains(".0000001Z", payload, StringComparison.Ordinal);
 
         await database.Database.ExecuteSqlInterpolatedAsync($$"""
             INSERT INTO tournament_formats (id, name, slug, sort_order, created_at, updated_at, deleted_at, version)
@@ -367,7 +371,8 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
     private static string PreviousEnvelope(
         Guid organizationId,
         Guid formatId,
-        IReadOnlyList<(Guid ImageId, string? AltText)> images)
+        IReadOnlyList<(Guid ImageId, string? AltText)> images,
+        Instant? expiry = null)
     {
         var inputLocation = new
         {
@@ -406,7 +411,7 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             images = storedImages
         };
         var payloadHash = Sha256(JsonSerializer.SerializeToUtf8Bytes(canonicalPayload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        var expiresAt = Instant.FromUtc(2035, 3, 4, 11, 0);
+        var expiresAt = expiry ?? Instant.FromUtc(2035, 3, 4, 11, 0);
         var location = new
         {
             placeId = "provider-place",
@@ -433,7 +438,7 @@ public sealed class EventImageMigrationTests : IAsyncLifetime
             location.latitude,
             location.longitude,
             location.timeZoneId,
-            expiresAtUnixTicks = (expiresAt - Instant.FromUnixTimeTicks(0)).ToTimeSpan().Ticks
+            expiresAtUnixTicks = expiresAt.ToUnixTimeTicks()
         };
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         options.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);

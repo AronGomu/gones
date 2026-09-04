@@ -407,7 +407,7 @@ describe('Organizer Event direct create editor', () => {
     const freshStates = [
       ['[data-cy="event-format"]', 'Legacy', 'Format'],
       ['[data-cy="event-country"]', manualLocation.country, 'Country'],
-      ['[data-cy="event-time-zone"]', manualLocation.timeZoneId, 'Location resolution']
+      ['[data-cy="event-time-zone"]', manualLocation.timeZoneId, 'IANA time zone']
     ];
     for (const [selector, validValue, label] of freshStates) {
       cy.window().then(win => win.addEventListener('beforeunload', () => {

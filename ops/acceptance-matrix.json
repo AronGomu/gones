@@ -123,6 +123,18 @@
                 },
                 {
                     "gate": "cypress",
+                    "target": "cypress/e2e/organizer-event-create.cy.js",
+                    "assertion": "exposes every inducible Publish reason through its hidden ARIA summary",
+                    "detail": "English create errors label the manual IANA time zone directly in stable field order"
+                },
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/organizer-event-management.cy.js",
+                    "assertion": "labels manual IANA time zone errors directly in French edit mode",
+                    "detail": "French edit errors use the IANA time zone field label without retired provider wording"
+                },
+                {
+                    "gate": "cypress",
                     "target": "cypress/e2e/organizer-event-management.cy.js",
                     "assertion": "resolves a changed location and commits Markdown plus replace media in one fresh PATCH",
                     "detail": "browser edit flow with Markdown, manual timezone, singular image replacement and stale recovery"

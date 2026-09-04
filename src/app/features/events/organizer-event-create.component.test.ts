@@ -172,7 +172,7 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     component.loadingReferences.set(false);
     component.organizations.set([{ id: 'org', name: 'Club' }]);
     component.fieldErrors.set({
-      locationResolution: 'Location resolution failed.',
+      timeZoneId: 'Time zone is invalid.',
       imageId: 'Image failed.',
       general: 'General failure.',
       title: 'Duplicate error.',
@@ -197,7 +197,7 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
       'Ville: Ce champ est obligatoire.',
       'Date de début: Ce champ est obligatoire.',
       'Heure de début: Ce champ est obligatoire.',
-      'Résolution du lieu: Location resolution failed.',
+      'Fuseau horaire IANA: Time zone is invalid.',
       'Image de l’événement: Image failed.',
       'Général: General failure.'
     ]);

@@ -205,6 +205,21 @@ describe('Organizer Event management', () => {
     cy.get(`[data-cy="event-image-card-existing-${latestImageId}"]`).should('be.visible');
   });
 
+  it('labels manual IANA time zone errors directly in French edit mode', () => {
+    mockSession();
+    mockFormats();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
+
+    visit(`/organizer/events/${eventId}/edit`, 'fr');
+    cy.wait(['@management', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-label-time-zone"]').should('have.text', 'Fuseau horaire IANA');
+    cy.get('[data-cy="event-time-zone"]').invoke('val', '').trigger('change');
+    cy.get('[data-cy="event-save"]').click();
+    cy.get('[data-cy="event-time-zone-error"]')
+      .should('be.visible')
+      .and('have.text', 'Ce champ est obligatoire.');
+  });
+
   it('resolves a changed location and commits Markdown plus replace media in one fresh PATCH', () => {
     mockSession();
     mockFormats();

@@ -361,8 +361,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     };
     for (const [name, label] of fields) addError(label, this.controlError(name, false));
     addError(
-      this.i18n.t('eventCreate.publishErrorLocationResolution'),
-      this.fieldErrors()['locationResolution'] || this.controlError('timeZoneId', false));
+      this.i18n.t('eventCreate.zone'),
+      this.controlError('timeZoneId', false));
     addError(
       this.i18n.t('eventCreate.publishErrorImage'),
       this.controlError('imageId', false)

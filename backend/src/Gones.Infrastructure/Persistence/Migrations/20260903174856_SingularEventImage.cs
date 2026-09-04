@@ -54,6 +54,33 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     END LOOP;
                     RETURN result || '"';
                 END $$;
+
+                CREATE FUNCTION pg_temp.gones_instant_unix_ticks(value text)
+                RETURNS bigint
+                LANGUAGE plpgsql
+                IMMUTABLE
+                STRICT
+                AS $$
+                DECLARE
+                    parts text[];
+                    whole_seconds bigint;
+                    fractional_digits text;
+                BEGIN
+                    parts := regexp_match(
+                        value,
+                        '^([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?:\.([0-9]{1,9}))?Z$');
+                    IF parts IS NULL
+                       OR NOT pg_input_is_valid(parts[1] || 'Z', 'timestamp with time zone') THEN
+                        RETURN NULL;
+                    END IF;
+
+                    whole_seconds := extract(epoch FROM (parts[1] || 'Z')::timestamptz)::bigint;
+                    fractional_digits := COALESCE(parts[2], '');
+                    RETURN whole_seconds * 10000000
+                        + substr(rpad(fractional_digits, 7, '0'), 1, 7)::bigint;
+                EXCEPTION WHEN others THEN
+                    RETURN NULL;
+                END $$;
                 """);
             migrationBuilder.Sql("""
                 WITH ranked AS (
@@ -112,7 +139,7 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         FROM event_proposals
                         WHERE status = 'Pending'
                           AND payload_json::jsonb ->> 'version' = '2'
-                          AND pg_input_is_valid(payload_json::jsonb -> 'location' ->> 'expiresAt', 'timestamp with time zone')
+                          AND pg_temp.gones_instant_unix_ticks(payload_json::jsonb -> 'location' ->> 'expiresAt') IS NOT NULL
                           AND jsonb_typeof(payload_json::jsonb -> 'event' -> 'images') = 'array'
                           AND jsonb_array_length(CASE
                               WHEN jsonb_typeof(payload_json::jsonb -> 'event' -> 'images') = 'array'
@@ -177,7 +204,7 @@ namespace Gones.Infrastructure.Persistence.Migrations
                             ',"latitude":' || (proposal_row.envelope -> 'location' -> 'latitude')::text ||
                             ',"longitude":' || (proposal_row.envelope -> 'location' -> 'longitude')::text ||
                             ',"timeZoneId":' || pg_temp.gones_stj_json_string(proposal_row.envelope -> 'location' ->> 'timeZoneId')::text ||
-                            ',"expiresAtUnixTicks":' || ((extract(epoch FROM (proposal_row.envelope -> 'location' ->> 'expiresAt')::timestamptz) * 10000000)::bigint)::text || '}';
+                            ',"expiresAtUnixTicks":' || pg_temp.gones_instant_unix_ticks(proposal_row.envelope -> 'location' ->> 'expiresAt')::text || '}';
                         previous_envelope_hash := encode(digest(convert_to(previous_canonical_envelope, 'UTF8'), 'sha256'), 'hex');
 
                         IF proposal_row.envelope ->> 'payloadHash' = previous_payload_hash
