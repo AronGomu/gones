@@ -23,7 +23,7 @@ import { EventImageSelection, EventImageUploaderComponent } from './event-image-
 import { renderEventMarkdown } from './event-markdown';
 import { GeoOption, GeoService } from '../../shared/geo.service';
 import { logBoundaryError } from '../../shared/app-logger';
-import { EVENT_CREATE_DRAFT_VERSION, EventCreateDraftStore, EventDirtyShape, EventDraftValueV1, eventCreateDraftIsEmpty, eventDraftIsDirty, normalizeEventDraftValue } from './event-create-draft';
+import { EVENT_CREATE_DRAFT_VERSION, EventCreateDraftStore, EventDirtyShape, EventDraftValueV1, RestoredEventCreateDraft, eventCreateDraftIsEmpty, eventDraftIsDirty, normalizeEventDraftValue } from './event-create-draft';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -69,6 +69,8 @@ const EventCreateDraftDebounceMs = 300;
           <p data-cy="event-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p>
           <a mat-stroked-button routerLink="/events" data-cy="event-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a>
         </section>
+      } @else if (draftAccountMismatch()) {
+        <p class="error" role="alert" data-cy="event-draft-account-mismatch">{{ i18n.t('eventCreate.accountChanged') }}</p>
       } @else {
         <div class="event-editor-shell" data-cy="event-editor-shell" [class.event-editor-shell--collapsed]="previewCollapsed() || editMode">
           <form class="panel tournament-create-form" data-cy="event-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : publish()" novalidate [attr.aria-busy]="formPending()">
@@ -180,7 +182,7 @@ const EventCreateDraftDebounceMs = 300;
                   </div>
                 </div>
 
-                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
+                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (temporaryImageChange)="onTemporaryImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
               </div>
             </fieldset>
 
@@ -285,17 +287,25 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly previewRevision = signal(0);
   private draftWriteTimer?: ReturnType<typeof setTimeout>;
   private defaultOrganizationId = '';
-  private draftUserId = '';
+  private readonly draftUserId = signal('');
+  private readonly draftContextInitialized = signal(false);
   private editorInitialized = false;
+  private createReferencesInitialized = false;
   private createCompleted = false;
   private viewReady = false;
+  private pendingRestoredDraft?: RestoredEventCreateDraft;
   private pendingRestoredImage?: EventImageUploadResponse;
   readonly previewCollapsed = signal(readPreviewCollapsed());
   readonly formPending = computed(() => this.publishing() || this.saving());
   readonly organizationSelected = computed(() =>
     this.organizations().some(option => option.id === this.selectedOrganizationId()));
+  readonly draftAccountMismatch = computed(() => {
+    const draftUserId = this.draftUserId();
+    return !this.editMode && this.draftContextInitialized() && this.auth.profile()?.id !== draftUserId;
+  });
   readonly dirty = computed(() => {
     this.previewRevision();
+    if (this.draftAccountMismatch()) return false;
     const baseline = this.baseline();
     return baseline ? eventDraftIsDirty(baseline, this.dirtyShape()) : false;
   });
@@ -412,6 +422,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   });
 
   ngOnInit(): void {
+    this.initializeCreateDraftContext();
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncSelectedOrganization();
       this.fieldErrors.set({});
@@ -458,10 +469,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   onImageChange(image: EventImageSelection | null): void {
+    if (this.draftAccountMismatch()) return;
     this.selectedImage.set(image);
-    if (!this.editMode) {
-      this.draftImage.set(image && this.isTemporaryImage(image.response) ? image.response : null);
-    }
     const next = image?.imageId ?? null;
     if (this.form.controls.imageId.value === next) {
       this.queueDraftWrite();
@@ -470,7 +479,14 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.form.controls.imageId.setValue(next);
   }
 
+  onTemporaryImageChange(image: EventImageUploadResponse | null): void {
+    if (this.draftAccountMismatch()) return;
+    if (!this.editMode) this.draftImage.set(image);
+    this.queueDraftWrite();
+  }
+
   async loadReferences(): Promise<void> {
+    this.initializeCreateDraftContext();
     this.loadingReferences.set(true);
     this.referenceError.set('');
     this.submitError.set(null);
@@ -491,9 +507,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       } else {
         const organizations = await this.loadOrganizationOptions();
         this.organizations.set(organizations);
-        if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
-          this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
-        }
         if (!organizations.length) this.referenceError.set(this.i18n.t('eventCreate.noOrganizations'));
         this.initializeCreateState();
       }
@@ -556,6 +569,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async submitForApproval(): Promise<void> {
+    if (this.draftAccountMismatch()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     if (this.form.invalid || this.proposalPending() || this.imagePublishBlocked()) return;
@@ -591,7 +605,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async publish(): Promise<void> {
-    if (!this.canMutateEvent()) return;
+    if (!this.canMutateEvent() || this.draftAccountMismatch()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     this.submitError.set(null);
@@ -724,29 +738,55 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.baseline.set(this.dirtyShape());
   }
 
-  private initializeCreateState(): void {
+  private initializeCreateDraftContext(): void {
     if (this.editMode || this.editorInitialized) return;
     const userId = this.auth.profile()?.id;
     if (!userId) return;
-    this.defaultOrganizationId = this.organizations()[0]?.id ?? '';
-    this.draftUserId = userId;
-    const restored = this.draftStore.read(userId);
-    if (restored) {
-      this.form.patchValue({ ...restored.value, imageId: restored.image?.id ?? null }, { emitEvent: false });
-      if (restored.value.country && !this.countries().some(country => country.name === restored.value.country)) {
-        this.countries.update(countries => [...countries, { code: '', name: restored.value.country }]);
-      }
-      if (restored.value.timeZoneId && !this.timeZones().includes(restored.value.timeZoneId)) {
-        this.timeZones.update(timeZones => [...timeZones, restored.value.timeZoneId]);
-      }
-      this.draftImage.set(restored.image ?? null);
-      this.pendingRestoredImage = restored.image;
-    }
+    this.draftUserId.set(userId);
+    this.draftContextInitialized.set(true);
+    this.pendingRestoredDraft = this.draftStore.read(userId) ?? undefined;
     this.editorInitialized = true;
+    this.baseline.set(this.dirtyShape());
+  }
+
+  private initializeCreateState(): void {
+    if (this.editMode || !this.editorInitialized || this.createReferencesInitialized || this.draftAccountMismatch()) return;
+    this.createReferencesInitialized = true;
+    this.defaultOrganizationId = this.organizations()[0]?.id ?? '';
+    const initial = this.baseline() ?? this.dirtyShape();
+    const current = this.dirtyShape();
+    const restored = this.pendingRestoredDraft;
+    this.pendingRestoredDraft = undefined;
+    const cleanValue = restored?.value ?? { ...initial.value, organizationId: this.defaultOrganizationId };
+    const mergedValue = restored
+      ? this.mergeDraftValue(restored.value, initial.value, current.value)
+      : this.mergeDraftValue(cleanValue, initial.value, current.value);
+    const currentImageChanged = current.imageId !== initial.imageId || this.imagePublishBlocked() || this.draftImage() !== null;
+    const cleanImageId = restored?.image?.id ?? null;
+    const mergedImageId = currentImageChanged ? current.imageId : cleanImageId;
+    this.form.patchValue({ ...mergedValue, imageId: mergedImageId }, { emitEvent: false });
+    if (restored?.value.country && !this.countries().some(country => country.name === restored.value.country)) {
+      this.countries.update(countries => [...countries, { code: '', name: restored.value.country }]);
+    }
+    if (restored?.value.timeZoneId && !this.timeZones().includes(restored.value.timeZoneId)) {
+      this.timeZones.update(timeZones => [...timeZones, restored.value.timeZoneId]);
+    }
+    if (!currentImageChanged) {
+      this.draftImage.set(restored?.image ?? null);
+      this.pendingRestoredImage = restored?.image;
+    }
     this.syncSelectedOrganization();
     this.previewRevision.update(value => value + 1);
-    this.baseline.set(this.dirtyShape());
+    this.baseline.set({ value: normalizeEventDraftValue(cleanValue), imageId: cleanImageId });
     this.hydrateRestoredImage();
+  }
+
+  private mergeDraftValue(base: EventDraftValueV1, initial: EventDraftValueV1, current: EventDraftValueV1): EventDraftValueV1 {
+    const merged = { ...base };
+    for (const key of Object.keys(initial) as (keyof EventDraftValueV1)[]) {
+      if (current[key] !== initial[key]) Object.assign(merged, { [key]: current[key] });
+    }
+    return normalizeEventDraftValue(merged);
   }
 
   private hydrateRestoredImage(): void {
@@ -757,19 +797,23 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   private queueDraftWrite(): void {
-    if (this.editMode || !this.editorInitialized || this.createCompleted) return;
+    if (this.editMode || !this.editorInitialized || this.createCompleted || this.draftAccountMismatch()) return;
     if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
     this.draftWriteTimer = setTimeout(() => this.flushDraft(), EventCreateDraftDebounceMs);
   }
 
   private flushDraft(): void {
-    if (this.editMode || !this.editorInitialized || this.createCompleted) return;
     if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
     this.draftWriteTimer = undefined;
-    const userId = this.draftUserId;
+    if (this.editMode || !this.editorInitialized || this.createCompleted || this.draftAccountMismatch()) return;
+    const userId = this.draftUserId();
     if (!userId) return;
-    const value = this.draftValue();
-    const image = this.draftImage();
+    const current = this.draftValue();
+    const initial = this.baseline()?.value;
+    const value = this.pendingRestoredDraft && initial
+      ? this.mergeDraftValue(this.pendingRestoredDraft.value, initial, current)
+      : current;
+    const image = this.draftImage() ?? this.pendingRestoredDraft?.image;
     if (eventCreateDraftIsEmpty(value, this.defaultOrganizationId) && !image) {
       this.draftStore.remove(userId);
       return;
@@ -787,13 +831,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     if (this.editMode) return;
     if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
     this.draftWriteTimer = undefined;
-    if (this.draftUserId) this.draftStore.remove(this.draftUserId);
+    const userId = this.draftUserId();
+    if (userId && !this.draftAccountMismatch()) this.draftStore.remove(userId);
     this.createCompleted = true;
     this.baseline.set(this.dirtyShape());
-  }
-
-  private isTemporaryImage(response: EventImageSelection['response']): response is EventImageUploadResponse {
-    return response['state'] === 'Temporary' && typeof response['expiresAt'] === 'string';
   }
 
   private dirtyShape(): EventDirtyShape {

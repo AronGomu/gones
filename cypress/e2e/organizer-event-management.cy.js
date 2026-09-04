@@ -112,12 +112,14 @@ describe('Organizer Event management', () => {
     mockSession();
     mockFormats();
     cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
-    visit(`/organizer/events/${eventId}/edit`);
+    visit('/organizer/events');
+    cy.wait('@management');
+    cy.get(`[data-cy="event-row-${eventId}"] [data-cy="event-edit"]`).click();
     cy.wait(['@management', '@formats', '@timeZones']);
     cy.window().then(win => win.localStorage.setItem(`gones.event-create.draft.${profile.id}`, 'sentinel'));
     cy.get('[data-cy="event-body"]').clear().type('Unsaved edit');
 
-    cy.get('[data-cy="event-create-back-to-list"]').click();
+    cy.window().then(win => win.history.back());
     cy.get('[data-cy="confirm-dialog-cancel"]').click();
     cy.location('pathname').should('eq', `/organizer/events/${eventId}/edit`);
     cy.get('[data-cy="event-body"]').should('have.value', 'Unsaved edit');
@@ -127,6 +129,13 @@ describe('Organizer Event management', () => {
     cy.get('[data-cy="confirm-dialog-confirm"]').click();
     cy.location('pathname').should('eq', '/organizer/events');
     cy.wait('@listAfterLeave');
+
+    cy.get(`[data-cy="event-row-${eventId}"] [data-cy="event-edit"]`).click();
+    cy.wait(['@listAfterLeave', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-body"]').clear().type('History confirmed edit');
+    cy.window().then(win => win.history.back());
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.location('pathname').should('eq', '/organizer/events');
     cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq('sentinel'));
 
     cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('managementRevisit');

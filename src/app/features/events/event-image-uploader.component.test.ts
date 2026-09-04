@@ -106,6 +106,62 @@ describe('EventImageUploaderComponent singular image', () => {
     vi.useRealTimers();
   });
 
+  it('keeps publish blocked until every restored variant blob finishes', () => {
+    vi.setSystemTime('2029-01-01T00:00:00Z');
+    const { component, http } = harness();
+    const first = new Subject<Blob>();
+    const second = new Subject<Blob>();
+    http.get.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const blocked = vi.fn();
+    component.publishBlockedChange.subscribe(blocked);
+    const response = {
+      ...uploaded('restored'),
+      variants: [
+        { width: 320, height: 180, url: '/api/event-images/restored/variants/320' },
+        { width: 960, height: 540, url: '/api/event-images/restored/variants/960' }
+      ]
+    };
+
+    component.restoreTemporaryImage(response);
+    expect(component.publishBlocked()).toBe(true);
+    expect(blocked).toHaveBeenLastCalledWith(true);
+
+    first.next(new Blob());
+    first.complete();
+    expect(component.publishBlocked()).toBe(true);
+    second.next(new Blob());
+    second.complete();
+
+    expect(component.publishBlocked()).toBe(false);
+    expect(blocked).toHaveBeenLastCalledWith(false);
+    vi.useRealTimers();
+  });
+
+  it('retains Temporary response through preview failure and retries without original File', () => {
+    vi.setSystemTime('2029-01-01T00:00:00Z');
+    const { component, http } = harness();
+    const failed = new Subject<Blob>();
+    http.get.mockReturnValueOnce(failed);
+    const temporaryImages = vi.fn();
+    component.temporaryImageChange.subscribe(temporaryImages);
+    const response = uploaded('restored');
+
+    component.restoreTemporaryImage(response);
+    failed.error(new Error('network'));
+
+    expect(component.card()).toMatchObject({ status: 'error', response, retryPreview: true });
+    expect(temporaryImages).toHaveBeenLastCalledWith(response);
+    expect(component.publishBlocked()).toBe(true);
+
+    http.get.mockReturnValueOnce(of(new Blob()));
+    component.retry();
+
+    expect(component.selectedImage()?.imageId).toBe('restored');
+    expect(component.publishBlocked()).toBe(false);
+    expect(http.request).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it('ignores expired Temporary image restoration', () => {
     vi.setSystemTime('2031-01-01T00:00:00Z');
     const { component, http } = harness();
@@ -114,6 +170,22 @@ describe('EventImageUploaderComponent singular image', () => {
 
     expect(http.get).not.toHaveBeenCalled();
     expect(component.card()).toBeNull();
+    vi.useRealTimers();
+  });
+
+  it('shows expired restored image as remove-and-reselect with no dead retry action', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime('2029-01-01T00:00:00Z');
+    const { component, fixture } = harness(true);
+    component.restoreTemporaryImage({ ...uploaded('restored'), expiresAt: '2029-01-01T00:00:01Z' });
+    vi.advanceTimersByTime(1_000);
+    fixture!.detectChanges();
+
+    expect(component.card()).toMatchObject({ status: 'error', expired: true, retryUpload: false, retryPreview: false });
+    expect(fixture!.nativeElement.querySelector('[data-cy="event-image-error-restored-restored"]')?.textContent).toContain('Expired');
+    expect(fixture!.nativeElement.querySelector('[data-cy="event-image-retry-restored-restored"]')).toBeNull();
+    expect(fixture!.nativeElement.querySelector('[data-cy="event-image-remove-restored-restored"]')).not.toBeNull();
+    fixture!.destroy();
     vi.useRealTimers();
   });
 

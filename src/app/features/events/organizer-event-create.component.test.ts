@@ -21,7 +21,7 @@ import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
 import { GeoOption, GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
-import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, PublicFormatResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
 import { EventCreateDraftStore, StoredEventCreateDraftV1 } from './event-create-draft';
 
@@ -312,7 +312,7 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
     destroy();
   });
 
-  it('keeps writes scoped to account that opened editor if active profile changes', async () => {
+  it('fails closed without displaying, guarding, or writing prior-account input after active profile changes', async () => {
     const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
     const { component, auth, destroy } = await initializedCreate(draftStore);
     auth.profile.set({ id: 'u2', email: 'b@example.test', emailVerified: true, globalRole: 'Organizer' } as unknown as UserProfileResponse);
@@ -321,8 +321,12 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
 
     component.beforeUnload(event as unknown as BeforeUnloadEvent);
 
-    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
-    expect(draftStore.write).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'u2' }));
+    expect(component.draftAccountMismatch()).toBe(true);
+    expect(component.dirty()).toBe(false);
+    expect(component.confirmLeave()).toBe(true);
+    expect(draftStore.write).not.toHaveBeenCalled();
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
     destroy();
   });
 
@@ -345,6 +349,90 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
     vi.advanceTimersByTime(300);
     expect(draftStore.remove).toHaveBeenCalledWith('u1');
     vi.useRealTimers();
+    destroy();
+  });
+
+  it('protects input entered while references are delayed, then merges defaults without overwriting it', async () => {
+    const formats = new Subject<PublicFormatResponse[]>();
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const { component, destroy } = setupHarness('Organizer', locationClient({
+      formatsAll: () => formats,
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    }), {}, true, undefined, draftStore, dialog);
+    component.ngOnInit();
+
+    component.form.controls.title.setValue('Typed while loading');
+    await new Promise(resolve => setTimeout(resolve, 320));
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Typed while loading' })
+    }));
+    expect(component.dirty()).toBe(true);
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    const unload = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(unload as unknown as BeforeUnloadEvent);
+    expect(unload.preventDefault).toHaveBeenCalledTimes(1);
+
+    formats.next([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    formats.complete();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.form.controls.title.value).toBe('Typed while loading');
+    expect(component.form.controls.organizationId.value).toBe('org-mine');
+    expect(component.dirty()).toBe(true);
+    destroy();
+  });
+
+  it('merges a delayed restored draft without overwriting input entered before references finish', async () => {
+    const formats = new Subject<PublicFormatResponse[]>();
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue
+    };
+    const draftStore = { read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = setupHarness('Organizer', locationClient({
+      formatsAll: () => formats,
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    }), {}, true, undefined, draftStore);
+    component.ngOnInit();
+    component.form.controls.title.setValue('Typed over recovery');
+    await new Promise(resolve => setTimeout(resolve, 320));
+
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      value: expect.objectContaining({ title: 'Typed over recovery', summary: draftValue.summary })
+    }));
+
+    formats.next([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    formats.complete();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.form.controls.title.value).toBe('Typed over recovery');
+    expect(component.form.controls.summary.value).toBe(draftValue.summary);
+    expect(component.dirty()).toBe(true);
+    destroy();
+  });
+
+  it('protects debounced input, navigation, and beforeunload after references reject', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { component, destroy } = setupHarness(
+      'Organizer', locationClient(), {}, true,
+      async () => { throw new Error('references unavailable'); }, draftStore, dialog
+    );
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+
+    component.form.controls.title.setValue('Typed after failure');
+    await new Promise(resolve => setTimeout(resolve, 320));
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Typed after failure' })
+    }));
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    const unload = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(unload as unknown as BeforeUnloadEvent);
+    expect(unload.preventDefault).toHaveBeenCalledTimes(1);
+    expect(component.form.controls.title.value).toBe('Typed after failure');
+    consoleError.mockRestore();
     destroy();
   });
 
@@ -383,6 +471,34 @@ describe('OrganizerEventCreateComponent draft persistence and leave guard', () =
     expect(dirty.preventDefault).toHaveBeenCalledTimes(1);
     expect(dirty.returnValue).toBe('');
     destroy();
+  });
+
+  it('retains restored Temporary image through preview error, draft flush, and next reload', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue,
+      image: {
+        id: 'image-restored', state: 'Temporary', width: 960, height: 540, expiresAt: '2030-01-01T00:00:00Z',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/image-restored/variants/320' }]
+      }
+    };
+    let persisted = stored;
+    const draftStore = {
+      read: vi.fn(() => persisted),
+      write: vi.fn((draft: StoredEventCreateDraftV1) => { persisted = draft; }),
+      remove: vi.fn()
+    };
+    const first = await initializedCreate(draftStore);
+    first.component.onImageChange(null);
+    first.component.form.controls.title.setValue('Changed while preview failed');
+    first.component.beforeUnload({ preventDefault: vi.fn(), returnValue: undefined } as unknown as BeforeUnloadEvent);
+
+    expect(persisted.image?.id).toBe('image-restored');
+    first.destroy();
+
+    const second = await initializedCreate(draftStore);
+    expect(second.component.form.controls.imageId.value).toBe('image-restored');
+    expect(second.component.form.controls.title.value).toBe('Changed while preview failed');
+    second.destroy();
   });
 
   it('keeps leave guard active while publication is in flight', async () => {

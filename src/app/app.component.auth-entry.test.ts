@@ -80,8 +80,8 @@ describe('AppComponent toolbar auth entry', () => {
   });
 });
 
-function setupApp(initialUrl = '/') {
-  const navigate = vi.fn().mockResolvedValue(true);
+function setupApp(initialUrl = '/', navigateResult = true) {
+  const navigate = vi.fn().mockResolvedValue(navigateResult);
   const logout = vi.fn().mockResolvedValue(undefined);
   const injector = Injector.create({ providers: [
     { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -112,6 +112,29 @@ describe('AppComponent logout and showSignInLink', () => {
     component.currentUrl.set('/events?view=list&q=lyon');
     await component.logout();
     expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events?view=list&q=lyon' } });
+  });
+
+  it('runs guarded navigation before auth teardown', async () => {
+    const { component, navigate, logout } = setupApp();
+    navigate.mockImplementation(async () => {
+      expect(logout).not.toHaveBeenCalled();
+      return true;
+    });
+
+    await component.logout();
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(logout).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps auth when guarded logout navigation is canceled', async () => {
+    const { component, navigate, logout } = setupApp('/events/new', false);
+    component.currentUrl.set('/events/new');
+
+    await component.logout();
+
+    expect(navigate).toHaveBeenCalledWith(['/login'], { queryParams: { returnUrl: '/events/new' } });
+    expect(logout).not.toHaveBeenCalled();
   });
 
   it('hides the sign-in link on auth pages', () => {

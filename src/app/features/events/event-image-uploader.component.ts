@@ -105,9 +105,16 @@ export class EventImageUploaderComponent implements OnDestroy {
       ? { imageId: card.response.id, response: card.response, previewUrl: card.previewUrl, srcset: card.srcset }
       : null;
   });
+  readonly temporaryImage = computed<EventImageUploadResponse | null>(() => {
+    const card = this.card();
+    return card?.response && this.isUploadResponse(card.response) && !card.expired && !this.responseExpired(card.response)
+      ? card.response
+      : null;
+  });
 
   @Input() blockedMessageKey: MessageKey = 'eventImages.publishBlocked';
   @Output() readonly imageChange = new EventEmitter<EventImageSelection | null>();
+  @Output() readonly temporaryImageChange = new EventEmitter<EventImageUploadResponse | null>();
   @Output() readonly publishBlockedChange = new EventEmitter<boolean>();
 
   @Input() set initialImage(image: EventImageResponse | undefined) {
@@ -145,7 +152,7 @@ export class EventImageUploaderComponent implements OnDestroy {
       expired: false, objectUrls: []
     });
     this.limitError.set('');
-    this.loadPreviews(response, false);
+    this.loadPreviews(response);
   }
 
   addFiles(files: readonly File[]): void {
@@ -252,7 +259,7 @@ export class EventImageUploaderComponent implements OnDestroy {
   }
 
   private fail(error: string, retryUpload = false): void { this.patch({ status: 'error', error, retryUpload, retryDelete: false, retryPreview: false, expired: false }); }
-  private markExpired(): void { this.request?.unsubscribe(); this.request = undefined; this.patch({ status: 'error', error: this.i18n.t('eventImages.expired'), retryUpload: true, retryDelete: false, retryPreview: false, removePending: false, expired: true }); }
+  private markExpired(): void { this.request?.unsubscribe(); this.request = undefined; this.patch({ status: 'error', error: this.i18n.t('eventImages.expired'), retryUpload: false, retryDelete: false, retryPreview: false, removePending: false, expired: true }); }
   private responseExpired(response: EventImageClientResponse): boolean { return this.isUploadResponse(response) && (!Number.isFinite(Date.parse(response.expiresAt)) || Date.now() >= Date.parse(response.expiresAt)); }
   private isUploadResponse(response: EventImageClientResponse): response is EventImageUploadResponse { return 'expiresAt' in response; }
   private patch(patch: Partial<EventImageUploadCard>, emit = true): void { if (this.card()) this.card.update(card => card ? { ...card, ...patch } : null); if (emit) this.emitState(); }
@@ -265,6 +272,7 @@ export class EventImageUploaderComponent implements OnDestroy {
       this.expiryTimer = setTimeout(() => this.markExpired(), delay);
     }
     this.imageChange.emit(this.selectedImage());
+    this.temporaryImageChange.emit(this.temporaryImage());
     this.publishBlockedChange.emit(this.publishBlocked());
   }
 }

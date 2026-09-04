@@ -282,6 +282,38 @@ describe('Organizer Event direct create editor', () => {
     cy.get(`[data-cy="event-image-card-restored-${imageIds[0]}"]`).should('be.visible');
   });
 
+  it('guards browser-history back for create and preserves input when canceled', () => {
+    mockSession();
+    mockReferences();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [], page: 1, pageSize: 20, totalCount: 0 }).as('eventList');
+    visit('/organizer/events');
+    cy.wait('@eventList');
+    cy.get('[data-cy="organizer-events-create"]').click();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-title"]').type('History guarded create');
+
+    cy.window().then(win => win.history.back());
+    cy.get('[data-cy="confirm-dialog-cancel"]').click();
+    cy.location('pathname').should('eq', '/events/new');
+    cy.get('[data-cy="event-title"]').should('have.value', 'History guarded create');
+  });
+
+  it('leaves create after confirmed browser-history back', () => {
+    mockSession();
+    mockReferences();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [], page: 1, pageSize: 20, totalCount: 0 }).as('eventList');
+    visit('/organizer/events');
+    cy.wait('@eventList');
+    cy.get('[data-cy="organizer-events-create"]').click();
+    cy.wait(['@myOrganizations', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-title"]').type('History confirmed create');
+
+    cy.window().then(win => win.history.back());
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.location('pathname').should('eq', '/organizer/events');
+    cy.get('[data-cy="event-title"]').should('not.exist');
+  });
+
   it('renders instant actual-layout Markdown preview without preview HTTP', () => {
     mockSession();
     mockReferences();

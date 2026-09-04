@@ -63,6 +63,28 @@ describe('Event create draft codec', () => {
     expect(parseEventCreateDraft(raw('u1', { image: { ...image('2031-01-01T00:00:00Z'), state: 'Owned' } }), 'u1', now)?.image).toBeUndefined();
   });
 
+  it.each([
+    ['empty id', { ...image(), id: '' }],
+    ['non-positive source width', { ...image(), width: 0 }],
+    ['non-finite source height', { ...image(), height: 'NaN' }],
+    ['empty variant url', { ...image(), variants: [{ width: 320, height: 180, url: '  ' }] }],
+    ['non-positive variant dimension', { ...image(), variants: [{ width: 320, height: -1, url: '/api/event-images/image-1/variants/320' }] }],
+    ['variant larger than source', { ...image(), variants: [{ width: 961, height: 541, url: '/api/event-images/image-1/variants/961' }] }],
+    ['duplicate variants', { ...image(), variants: [image().variants[0], image().variants[0]] }],
+    ['too many variants', { ...image(), variants: [
+      { width: 100, height: 50, url: '/api/event-images/image-1/variants/100' },
+      { width: 200, height: 100, url: '/api/event-images/image-1/variants/200' },
+      { width: 300, height: 150, url: '/api/event-images/image-1/variants/300' },
+      { width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }
+    ] }],
+    ['unexpected variant url', { ...image(), variants: [{ width: 320, height: 180, url: '/api/users/me' }] }]
+  ])('omits malformed Temporary image payload (%s) while retaining other draft fields', (_label, malformedImage) => {
+    const restored = parseEventCreateDraft(raw('u1', { image: malformedImage }), 'u1', Date.parse('2029-01-01T00:00:00Z'));
+
+    expect(restored?.value).toEqual(value());
+    expect(restored?.image).toBeUndefined();
+  });
+
   it('normalizes persisted fields, treats only default organization and weekly type as empty, and compares selected image id', () => {
     const empty = value({
       title: '  ', streetAddress: '', postalCode: '', city: '', country: '', region: '', timeZoneId: '',

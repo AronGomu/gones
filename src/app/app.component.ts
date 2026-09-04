@@ -176,8 +176,9 @@ export class AppComponent {
 
   async logout(): Promise<void> {
     const returnUrl = this.currentUrl();
+    const leftPage = await this.router.navigate(['/login'], { queryParams: { returnUrl } });
+    if (!leftPage) return;
     await this.auth.logout();
-    await this.router.navigate(['/login'], { queryParams: { returnUrl } });
   }
 
   async resendBanner(): Promise<void> {
