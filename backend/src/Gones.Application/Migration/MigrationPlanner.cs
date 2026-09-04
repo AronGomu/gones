@@ -435,6 +435,10 @@ public static partial class MigrationPlanner
             if (city is null) eventErrors.Add(Missing(entity.Id, "city"));
             var country = FirstNonEmpty(eventMapping.Country, source.Country);
             if (country is null) eventErrors.Add(Missing(entity.Id, "country"));
+            var postalCode = FirstNonEmpty(eventMapping.PostalCode);
+            if (postalCode is null) eventErrors.Add(Missing(entity.Id, "postalCode"));
+            var region = FirstNonEmpty(eventMapping.Region);
+            if (region is null) eventErrors.Add(Missing(entity.Id, "region"));
 
             if (eventMapping.FormatSlugs is null || eventMapping.FormatSlugs.Count == 0)
             {
@@ -492,13 +496,14 @@ public static partial class MigrationPlanner
                 summary,
                 bodyMarkdown,
                 address!,
-                FirstNonEmpty(eventMapping.PostalCode),
+                postalCode,
                 city!,
                 country!,
                 zone!.Id,
                 eventDate!.Value.At(startTime!.Value),
                 endTime is null ? null : eventDate.Value.At(endTime.Value),
-                eventMapping.Capacity);
+                eventMapping.Capacity,
+                Region: region);
             planned.Add(new PlannedScheduledTournament(entity.Id, draft, eventMapping.FormatSlugs!, eventMapping.Status!));
             summaries.Add(new MigrationCalendarMappingSummary(
                 entity.Id, title, slug, draft.StartsAtLocal.ToString("yyyy-MM-dd'T'HH:mm", CultureInfo.InvariantCulture),

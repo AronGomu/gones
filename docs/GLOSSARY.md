@@ -24,7 +24,7 @@
 | event link | Optional `liveTournamentUrl` or `archiveTournamentUrl` on an Event; navigation string only, no data-authority coupling, broken links are valid (ADR 0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | event type | Public Event cadence: weekly, monthly, or major | `backend/src/Gones.Domain/Calendar/Event.cs`, `CalendarEventType` |
 | event image | Private S3 object whose DB state controls Event ownership | `backend/src/Gones.Domain/Calendar/EventImage.cs` |
-| resolved event location | Google result carried by a signed server token | `backend/src/Gones.Api/Events/EventLocationTokenService.cs` |
+| manual event location | Required address fields plus backend-validated IANA timezone; no provider or coordinates | `backend/src/Gones.Api/Events/EventLocationEndpoints.cs` |
 | markdown description | Event description source rendered as sanitized public HTML | `backend/src/Gones.Domain/Calendar/Event.cs`, `BodyMarkdown` |
 | staged edit | Power-User opt-in that keeps Archive Tournament mutations in a memory draft until explicit Save Changes; one atomic batch per save (ADR 0037) | `src/app/features/archive/tournament-detail.component.ts` |
 | sync bar | Per-page "last synced" label + Synchronize button implementing the ADR 0039 cache contract | `src/app/shared/sync-bar.component.ts` |

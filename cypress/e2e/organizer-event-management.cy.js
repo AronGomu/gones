@@ -11,11 +11,7 @@ const updatedLocation = {
   city: 'Lyon',
   country: 'France',
   region: 'Auvergne-Rhône-Alpes',
-  latitude: 45.75,
-  longitude: 4.84,
-  timeZoneId: 'Europe/Paris',
-  locationToken: 'updated-location-token',
-  expiresAt: '2999-01-01T13:00:00Z'
+  timeZoneId: 'Europe/Paris'
 };
 const profile = {
   id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', email: 'organizer@example.test', emailVerified: true, globalRole: 'Organizer',
@@ -25,14 +21,13 @@ const profile = {
 const event = {
   id: eventId, organizationId: orgId, organizationName: 'Owned Club', title: 'Lyon Legacy Open', displayTitle: 'Legacy — Lyon Legacy Open', slug: 'lyon-legacy-open',
   summary: 'Summary', bodyMarkdown: 'Body', liveTournamentUrl: '/live/keep-exact', archiveTournamentUrl: '/archive/keep-exact',
-  location: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token' },
+  location: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris' },
   streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
-  eventType: 'weekly', timeZoneId: 'Europe/Paris', locationTokenExpiresAt: '2999-01-01T12:30:00Z', startsAtLocal: '2027-08-01T10:00', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
+  eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00', venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01',
   venueEndTime: '23:59:59', startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
-  status: 'Published', formatIds: [formatId], images: [
-    { id: firstImageId, altText: 'First image', variants: [{ width: 320, height: 180, url: `/api/event-images/${firstImageId}/variants/320` }] },
-    { id: secondImageId, altText: 'Second image', variants: [{ width: 320, height: 180, url: `/api/event-images/${secondImageId}/variants/320` }] }
-  ], version: 3, eTag: '"3"'
+  status: 'Published', formatIds: [formatId], image: {
+    id: firstImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${firstImageId}/variants/320` }]
+  }, version: 3, eTag: '"3"'
 };
 const pastEvent = { ...event, id: '44444444-4444-4444-4444-444444444444', title: 'Started Open', startsAtUtc: '2025-01-01T09:00:00Z', status: 'InProgress', eTag: '"5"', version: 5 };
 
@@ -43,6 +38,7 @@ function mockSession(globalRole = 'Organizer') {
 
 function mockFormats() {
   cy.intercept('GET', '**/api/formats', [{ id: formatId, name: 'Legacy', slug: 'legacy', sortOrder: 1 }]).as('formats');
+  cy.intercept('GET', '**/api/event-locations/time-zones', { ids: ['Europe/London', 'Europe/Paris'] }).as('timeZones');
 }
 
 const SEED_MARKER = 'gones.e2e.storage-seeded';
@@ -112,16 +108,53 @@ describe('Organizer Event management', () => {
     });
   });
 
-  it('hydrates nested media edit DTO, confirms major start change, and reloads stale canonical state without losing draft first', () => {
+  it('guards dirty edit navigation, preserves canceled changes, and never touches create draft storage', () => {
+    mockSession();
+    mockFormats();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
+    visit('/organizer/events');
+    cy.wait('@management');
+    cy.get(`[data-cy="event-row-${eventId}"] [data-cy="event-edit"]`).click();
+    cy.wait(['@management', '@formats', '@timeZones']);
+    cy.window().then(win => win.localStorage.setItem(`gones.event-create.draft.${profile.id}`, 'sentinel'));
+    cy.get('[data-cy="event-body"]').clear().type('Unsaved edit');
+
+    cy.window().then(win => win.history.back());
+    cy.get('[data-cy="confirm-dialog-cancel"]').click();
+    cy.location('pathname').should('eq', `/organizer/events/${eventId}/edit`);
+    cy.get('[data-cy="event-body"]').should('have.value', 'Unsaved edit');
+
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 20, totalCount: 1 }).as('listAfterLeave');
+    cy.get('[data-cy="event-create-back-to-list"]').click();
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.location('pathname').should('eq', '/organizer/events');
+    cy.wait('@listAfterLeave');
+
+    cy.get(`[data-cy="event-row-${eventId}"] [data-cy="event-edit"]`).click();
+    cy.wait(['@listAfterLeave', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-body"]').clear().type('History confirmed edit');
+    cy.window().then(win => win.history.back());
+    cy.get('[data-cy="confirm-dialog-confirm"]').click();
+    cy.location('pathname').should('eq', '/organizer/events');
+    cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq('sentinel'));
+
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('managementRevisit');
+    visit(`/organizer/events/${eventId}/edit`);
+    cy.wait(['@managementRevisit', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-body"]').should('have.value', event.bodyMarkdown);
+    cy.window().then(win => expect(win.localStorage.getItem(`gones.event-create.draft.${profile.id}`)).to.eq('sentinel'));
+  });
+
+  it('hydrates singular media edit DTO, confirms major start change, and reloads stale canonical state without losing draft first', () => {
     mockSession();
     mockFormats();
     let listCall = 0;
     const latest = {
       ...event,
       title: 'Server title',
-      location: { ...event.location, streetAddress: '9 Server Street', locationToken: 'latest-location-token' },
+      location: { ...event.location, streetAddress: '9 Server Street' },
       streetAddress: '9 Server Street',
-      images: [{ id: latestImageId, altText: 'Server image', variants: [{ width: 320, height: 180, url: `/api/event-images/${latestImageId}/variants/320` }] }],
+      image: { id: latestImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${latestImageId}/variants/320` }] },
       version: 4,
       eTag: '"4"'
     };
@@ -140,23 +173,19 @@ describe('Organizer Event management', () => {
         eventType: 'weekly',
         startsAtLocal: '2027-08-02T11:00',
         capacity: 32,
-        formatIds: [formatId],
-        images: [{ imageId: secondImageId, altText: 'Local second alt' }]
+        formatIds: [formatId]
       });
-      expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal');
+      expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal', 'imageId');
       req.reply({ statusCode: 412, headers: { 'content-type': 'application/problem+json' }, body: { code: 'stale_etag', title: 'Precondition Failed' } });
     }).as('stale');
 
     visit(`/organizer/events/${eventId}/edit`);
-    cy.wait(['@management', '@formats']);
+    cy.wait(['@management', '@formats', '@timeZones']);
     cy.get('[data-cy="event-title"]').should('have.value', event.title);
     cy.get('[data-cy="event-end"]').should('not.exist');
     cy.get('[data-cy="event-live-tournament-url"]').should('not.exist');
     cy.get('[data-cy="event-archive-tournament-url"]').should('not.exist');
     cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-move-left-existing-${secondImageId}"]`).click();
-    cy.get(`[data-cy="event-image-alt-existing-${secondImageId}"]`).clear().type('Local second alt');
     cy.get(`[data-cy="event-image-remove-existing-${firstImageId}"]`).click();
     cy.get('[data-cy="event-body"]').clear().type('Local Markdown draft');
     cy.get('[data-cy="event-start-date"]').clear().type('2027-08-02');
@@ -166,19 +195,32 @@ describe('Organizer Event management', () => {
     cy.get('mat-dialog-container button').contains(/save changes|enregistrer les modifications/i).click();
     cy.wait('@stale');
     cy.wait('@management');
-    cy.get('[data-cy="event-stale"]').should('contain.text', 'Server title').invoke('text').should('match', /images/i);
+    cy.get('[data-cy="event-stale"]').should('contain.text', 'Server title').invoke('text').should('match', /image/i);
     cy.get('[data-cy="event-body"]').should('have.value', 'Local Markdown draft');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('be.visible');
     cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('not.exist');
     cy.get('[data-cy="event-reload-latest"]').click();
     cy.get('[data-cy="event-title"]').should('have.value', 'Server title');
     cy.get('[data-cy="event-street"]').should('have.value', '9 Server Street').and('have.focus');
-    cy.get('[data-cy="event-location-token"]').should('have.value', 'latest-location-token');
+    cy.get('[data-cy="event-time-zone"]').should('have.value', 'Europe/Paris');
     cy.get(`[data-cy="event-image-card-existing-${latestImageId}"]`).should('be.visible');
-    cy.get(`[data-cy="event-image-card-existing-${secondImageId}"]`).should('not.exist');
   });
 
-  it('resolves a changed location and commits Markdown plus remove/add/reorder media in one fresh PATCH', () => {
+  it('labels manual IANA time zone errors directly in French edit mode', () => {
+    mockSession();
+    mockFormats();
+    cy.intercept('GET', '**/api/organizer/events?*', { items: [event], page: 1, pageSize: 100, totalCount: 1 }).as('management');
+
+    visit(`/organizer/events/${eventId}/edit`, 'fr');
+    cy.wait(['@management', '@formats', '@timeZones']);
+    cy.get('[data-cy="event-label-time-zone"]').should('have.text', 'Fuseau horaire IANA');
+    cy.get('[data-cy="event-time-zone"]').invoke('val', '').trigger('change');
+    cy.get('[data-cy="event-save"]').click();
+    cy.get('[data-cy="event-time-zone-error"]')
+      .should('be.visible')
+      .and('have.text', 'Ce champ est obligatoire.');
+  });
+
+  it('resolves a changed location and commits Markdown plus replace media in one fresh PATCH', () => {
     mockSession();
     mockFormats();
     const updated = {
@@ -190,10 +232,7 @@ describe('Organizer Event management', () => {
       city: updatedLocation.city,
       country: updatedLocation.country,
       region: updatedLocation.region,
-      images: [
-        { id: uploadedImageId, altText: 'New hero', variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }] },
-        event.images[1]
-      ],
+      image: { id: uploadedImageId, variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }] },
       version: 4,
       eTag: '"4"'
     };
@@ -214,34 +253,17 @@ describe('Organizer Event management', () => {
         variants: [{ width: 320, height: 180, url: `/api/event-images/${uploadedImageId}/variants/320` }]
       }
     }).as('imageUpload');
-    cy.intercept('GET', '**/api/event-locations/autocomplete?*', {
-      suggestions: [{ placeId: 'updated-google-place', primaryText: '9 New Street', secondaryText: '69002 Lyon, France' }]
-    }).as('locationAutocomplete');
-    cy.intercept('POST', '**/api/event-locations/resolve', req => {
-      expect(req.body.placeId).to.eq('updated-google-place');
-      req.reply(updatedLocation);
-    }).as('locationResolve');
     cy.intercept('PATCH', `**/api/organizer/events/${eventId}/details`, req => {
       expect(req.headers['if-match']).to.eq('"3"');
       expect(req.body.bodyMarkdown).to.eq('Updated **Markdown** body');
-      expect(req.body.location).to.deep.eq({
-        streetAddress: updatedLocation.streetAddress,
-        postalCode: updatedLocation.postalCode,
-        city: updatedLocation.city,
-        country: updatedLocation.country,
-        region: updatedLocation.region,
-        locationToken: updatedLocation.locationToken
-      });
-      expect(req.body.images).to.deep.eq([
-        { imageId: uploadedImageId, altText: 'New hero' },
-        { imageId: secondImageId, altText: 'Second image' }
-      ]);
+      expect(req.body.location).to.deep.eq(updatedLocation);
+      expect(req.body.imageId).to.eq(uploadedImageId);
       expect(req.body).not.to.have.keys('liveTournamentUrl', 'archiveTournamentUrl', 'endsAtLocal');
       req.reply({ statusCode: 200, body: updated });
     }).as('update');
 
     visit(`/organizer/events/${eventId}/edit`);
-    cy.wait(['@management', '@formats']);
+    cy.wait(['@management', '@formats', '@timeZones']);
     cy.get(`[data-cy="event-image-remove-existing-${firstImageId}"]`).click();
     cy.get('[data-cy="event-image-picker"]').selectFile({
       contents: 'cypress/fixtures/event-proposal-private.webp',
@@ -249,13 +271,13 @@ describe('Organizer Event management', () => {
       mimeType: 'image/webp'
     });
     cy.wait('@imageUpload');
-    cy.get('[data-cy="event-image-alt-local-1"]').type('New hero');
-    cy.get('[data-cy="event-image-move-left-local-1"]').click();
     cy.get('[data-cy="event-body"]').clear().type('Updated **Markdown** body');
-    cy.get('[data-cy="event-street"]').clear().type('9 New');
-    cy.wait('@locationAutocomplete');
-    cy.get('[data-cy="event-location-suggestion-0"]').click();
-    cy.wait('@locationResolve');
+    cy.get('[data-cy="event-street"]').clear().type(updatedLocation.streetAddress);
+    cy.get('[data-cy="event-postal-code"]').clear().type(updatedLocation.postalCode);
+    cy.get('[data-cy="event-city"]').clear().type(updatedLocation.city);
+    cy.get('[data-cy="event-country"]').select(updatedLocation.country);
+    cy.get('[data-cy="event-region"]').clear().type(updatedLocation.region);
+    cy.get('[data-cy="event-time-zone"]').select(updatedLocation.timeZoneId);
     cy.get('[data-cy="event-save"]').click();
     cy.get('mat-dialog-container button').contains(/save changes|enregistrer les modifications/i).click();
     cy.wait('@update');
@@ -308,7 +330,7 @@ describe('Organizer Event management', () => {
 
     visit(`/organizer/tournaments/${eventId}/edit`);
     cy.location('pathname').should('eq', `/organizer/events/${eventId}/edit`);
-    cy.wait(['@list', '@formats']);
+    cy.wait(['@list', '@formats', '@timeZones']);
     cy.get('[data-cy="event-title"]').should('have.value', event.title);
 
     mockSession('Admin');

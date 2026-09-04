@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Gones.Api.Errors;
 using Gones.Api.Identity;
@@ -184,7 +185,7 @@ internal static class EventProposalEndpoints
             proposal.ExpiresAt,
             organizationName,
             formatNames,
-            await ProposalImagesAsync(database, proposal.Id, token, cancellationToken)));
+            await ProposalImageAsync(database, proposal.Id, token, cancellationToken)));
     }
 
     private static async Task<IResult> ReadProposalImageVariantAsync(
@@ -219,26 +220,23 @@ internal static class EventProposalEndpoints
         }
     }
 
-    private static async Task<IReadOnlyList<EventImageResponse>> ProposalImagesAsync(
+    private static async Task<EventImageResponse?> ProposalImageAsync(
         GonesDbContext database,
         Guid proposalId,
         string token,
         CancellationToken cancellationToken)
     {
-        var images = await database.EventImages.AsNoTracking()
-            .Where(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned)
-            .OrderBy(image => image.SortOrder)
-            .ToListAsync(cancellationToken);
+        var image = await database.EventImages.AsNoTracking()
+            .SingleOrDefaultAsync(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned, cancellationToken);
+        if (image is null) return null;
         var escapedToken = Uri.EscapeDataString(token);
-        return images.Select(image => new EventImageResponse(
+        return new EventImageResponse(
             image.Id,
-            image.AltText,
             EventImage.VariantWidthsFor(image.Width).Select(width => new EventImageVariantResponse(
                 width,
                 Math.Max(1, (int)Math.Round(image.Height * (double)width / image.Width, MidpointRounding.AwayFromZero)),
                 $"/api/event-requests/{escapedToken}/images/{image.Id:D}/variants/{width}"))
-                .ToArray()))
-            .ToArray();
+                .ToArray());
     }
 
     /// <summary>
@@ -568,7 +566,6 @@ internal static class EventProposalEndpoints
         if (envelope.Version != EventProposalEnvelope.CurrentVersion
             || envelope.Event is null
             || envelope.Event.Location is null
-            || envelope.Event.Images is null
             || envelope.Location is null
             || string.IsNullOrWhiteSpace(envelope.PayloadHash)
             || string.IsNullOrWhiteSpace(envelope.EnvelopeHash))
@@ -630,7 +627,10 @@ internal static class EventProposalEndpoints
 
     private static JsonSerializerOptions CreatePayloadJsonOptions()
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
         options.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
         return options;
     }
@@ -695,10 +695,10 @@ internal sealed class EventProposalService(
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         database.EventProposals.Add(proposal);
-        await publication.AttachImagesToProposalAsync(
+        await publication.AttachImageToProposalAsync(
             proposal.Id,
             submitterUserId,
-            payload.Images,
+            payload.ImageId,
             proposal.ExpiresAt,
             cancellationToken);
         await database.SaveChangesAsync(cancellationToken);
@@ -808,11 +808,11 @@ internal sealed record EventProposalEnvelope(
     string PayloadHash,
     string EnvelopeHash,
     EventPayloadRequest Event,
-    ValidatedEventLocation Location)
+    EventLocationInput Location)
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
-    public static EventProposalEnvelope Create(EventPayloadRequest payload, ValidatedEventLocation location)
+    public static EventProposalEnvelope Create(EventPayloadRequest payload, EventLocationInput location)
     {
         var payloadHash = EventPublicationService.PayloadHash(payload);
         return new(CurrentVersion, payloadHash, Hash(CurrentVersion, payloadHash, location), payload, location);
@@ -822,36 +822,28 @@ internal sealed record EventProposalEnvelope(
         EventPublicationService.FixedTimePayloadHash(PayloadHash, EventPublicationService.PayloadHash(Event))
         && EventPublicationService.FixedTimePayloadHash(EnvelopeHash, Hash(Version, PayloadHash, Location));
 
-    private static string Hash(int version, string payloadHash, ValidatedEventLocation location) =>
+    private static string Hash(int version, string payloadHash, EventLocationInput location) =>
         Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
             new EventProposalEnvelopeClaims(
                 version,
                 payloadHash,
-                location.PlaceId,
                 location.StreetAddress,
                 location.PostalCode,
                 location.City,
                 location.Country,
                 location.Region,
-                location.Latitude,
-                location.Longitude,
-                location.TimeZoneId,
-                location.ExpiresAt.ToUnixTimeTicks()),
+                location.TimeZoneId),
             EventProposalEndpoints.PayloadJsonOptions))).ToLowerInvariant();
 
     private sealed record EventProposalEnvelopeClaims(
         int Version,
         string PayloadHash,
-        string PlaceId,
         string StreetAddress,
         string PostalCode,
         string City,
         string Country,
         string Region,
-        decimal Latitude,
-        decimal Longitude,
-        string TimeZoneId,
-        long ExpiresAtUnixTicks);
+        string TimeZoneId);
 }
 
 internal sealed record EventProposalRequest(
@@ -873,7 +865,7 @@ internal sealed record EventProposalReviewResponse(
     Instant ExpiresAt,
     string OrganizationName,
     IReadOnlyList<string> FormatNames,
-    IReadOnlyList<EventImageResponse> Images);
+    EventImageResponse? Image = null);
 
 internal sealed record EventProposalDecisionResponse(Guid ProposalId, string Status, string? Slug);
 

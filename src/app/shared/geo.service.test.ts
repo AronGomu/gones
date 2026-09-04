@@ -1,7 +1,7 @@
 import '@angular/compiler';
 import { HttpClient } from '@angular/common/http';
 import { Injector } from '@angular/core';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import { GeoService } from './geo.service';
 
@@ -27,6 +27,18 @@ describe('GeoService', () => {
     await service.countries();
     await service.countries();
     expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries countries after a failed asset request', async () => {
+    const get = vi.fn()
+      .mockReturnValueOnce(throwError(() => new Error('asset unavailable')))
+      .mockReturnValueOnce(of(countries));
+    const injector = Injector.create({ providers: [GeoService, { provide: HttpClient, useValue: { get } }] });
+    const service = injector.get(GeoService);
+
+    await expect(service.countries()).rejects.toThrow('asset unavailable');
+    await expect(service.countries()).resolves.toEqual(countries);
+    expect(get).toHaveBeenCalledTimes(2);
   });
 
   it('does not fetch cities before FR is selected', async () => {

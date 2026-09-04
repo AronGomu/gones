@@ -54,8 +54,8 @@ describe('messages', () => {
   });
 
   it('proposal image blocking copy says submit rather than publish in both languages', () => {
-    expect(translate('en', 'eventImages.proposalBlocked')).toBe('Finish or remove failed image uploads before submitting your proposal.');
-    expect(translate('fr', 'eventImages.proposalBlocked')).toBe('Terminez ou retirez les envois d’images en échec avant de soumettre votre proposition.');
+    expect(translate('en', 'eventImages.proposalBlocked')).toBe('Finish or remove failed image upload before submitting your proposal.');
+    expect(translate('fr', 'eventImages.proposalBlocked')).toBe('Terminez ou retirez l’envoi d’image en échec avant de soumettre votre proposition.');
   });
 
   it('no french label still says mondial', () => {

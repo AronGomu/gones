@@ -12,15 +12,18 @@ vi.mock('@angular/core', async (importOriginal) => {
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
-import { of, Subject, throwError } from 'rxjs';
+import { ConfirmDialogComponent } from '../../shared/dialogs';
+import { Observable, Subject, firstValueFrom, of, throwError } from 'rxjs';
 import { OrganizerEventCreateComponent } from './organizer-event-create.component';
 import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { GeoOption, GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
-import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, UserProfileResponse } from '../../api/generated/gones-api';
+import { AdminOrganizationListResponse, AdminOrganizationResponse, Client, OrganizationListResponse, PublicFormatResponse, UserProfileResponse } from '../../api/generated/gones-api';
 import { ApiProblemError } from '../../api/api-boundary';
+import { EventCreateDraftStore, StoredEventCreateDraftV1 } from './event-create-draft';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -31,25 +34,46 @@ function paramMap(values: Record<string, string> = {}): ParamMap {
   };
 }
 
-function setupHarness(globalRole: string, client: Partial<Client> = {}, routeValues: Record<string, string> = {}) {
+function setupHarness(
+  globalRole: string,
+  client: Partial<Client> = {},
+  routeValues: Record<string, string> = {},
+  powerEnabled = true,
+  countries: () => Promise<GeoOption[]> = async () => [{ code: 'FR', name: 'France' }],
+  draftStore: Pick<EventCreateDraftStore, 'read' | 'write' | 'remove'> = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() },
+  dialog: Pick<MatDialog, 'open'> = { open: vi.fn(() => ({ afterClosed: () => of(false) })) } as unknown as Pick<MatDialog, 'open'>,
+  proposals: Pick<EventProposalService, 'listApprovers' | 'submit'> = {} as Pick<EventProposalService, 'listApprovers' | 'submit'>
+) {
   const profile = { id: 'u1', email: 'a@example.test', emailVerified: true, globalRole } as unknown as UserProfileResponse;
   const auth = { profile: signal<UserProfileResponse | null>(profile) } as unknown as AuthService;
   const route = { snapshot: { paramMap: paramMap(routeValues) } } as unknown as ActivatedRoute;
+  const router = { navigate: vi.fn(async () => true) };
+  const clientWithCatalog = {
+    formatsAll: () => of([]),
+    listEventTimeZones: () => of({ ids: [] }),
+    ...client
+  };
 
   const injector = Injector.create({ providers: [
-    { provide: Client, useValue: client },
+    { provide: Client, useValue: clientWithCatalog },
+    { provide: GeoService, useValue: { countries } },
     { provide: ActivatedRoute, useValue: route },
-    { provide: Router, useValue: {} },
-    { provide: MatDialog, useValue: {} },
+    { provide: Router, useValue: router },
+    { provide: MatDialog, useValue: dialog },
     { provide: AuthService, useValue: auth },
-    { provide: EventProposalService, useValue: {} },
-    { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
+    { provide: EventProposalService, useValue: proposals },
+    { provide: EventCreateDraftStore, useValue: draftStore },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(powerEnabled), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
   ] });
 
   return {
     component: runInInjectionContext(injector, () => new OrganizerEventCreateComponent()),
+    auth,
+    draftStore,
+    dialog,
+    router,
     destroy: () => injector.destroy()
   };
 }
@@ -65,276 +89,6 @@ function locationClient(extra: Record<string, unknown> = {}): Partial<Client> {
     ...extra
   } as unknown as Partial<Client>;
 }
-
-const suggestion = {
-  placeId: 'google-place',
-  primaryText: '10 Rue de la République',
-  secondaryText: '69001 Lyon, France'
-};
-
-const resolvedLocation = {
-  streetAddress: '10 Rue de la République',
-  postalCode: '69001',
-  city: 'Lyon',
-  country: 'France',
-  region: 'Auvergne-Rhône-Alpes',
-  latitude: 45.764,
-  longitude: 4.8357,
-  timeZoneId: 'Europe/Paris',
-  locationToken: 'signed-location-token',
-  expiresAt: '2030-01-01T12:30:00Z'
-};
-
-describe('OrganizerEventCreateComponent resolved location', () => {
-  it('debounces street autocomplete and sends nothing below three characters', async () => {
-    vi.useFakeTimers();
-    try {
-      const autocompleteEventLocations = vi.fn(() => of({ suggestions: [suggestion] }));
-      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
-      component.ngOnInit();
-
-      component.form.controls.streetAddress.setValue('Pa');
-      await vi.advanceTimersByTimeAsync(300);
-      expect(autocompleteEventLocations).not.toHaveBeenCalled();
-
-      component.form.controls.streetAddress.setValue('Par');
-      await vi.advanceTimersByTimeAsync(299);
-      expect(autocompleteEventLocations).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1);
-
-      expect(autocompleteEventLocations).toHaveBeenCalledTimes(1);
-      expect(autocompleteEventLocations).toHaveBeenCalledWith('Par', expect.any(String), component.i18n.language());
-      expect(component.locationSuggestions()).toEqual([suggestion]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('marks a successful empty autocomplete so the form can explain no matches', async () => {
-    vi.useFakeTimers();
-    try {
-      const component = setup('Organizer', locationClient({
-        autocompleteEventLocations: () => of({ suggestions: [] })
-      }));
-      component.ngOnInit();
-
-      component.form.controls.streetAddress.setValue('Unknown street');
-      await vi.advanceTimersByTimeAsync(300);
-
-      expect(component.locationSearchComplete()).toBe(true);
-      expect(component.locationSuggestions()).toEqual([]);
-      expect(component.locationError()).toBe('');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('keeps only the latest autocomplete response and renders at most five suggestions', async () => {
-    vi.useFakeTimers();
-    try {
-      const first = new Subject<{ suggestions: typeof suggestion[] }>();
-      const second = new Subject<{ suggestions: typeof suggestion[] }>();
-      const autocompleteEventLocations = vi.fn((input: string) => input === 'Paris' ? first : second);
-      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
-      component.ngOnInit();
-
-      component.form.controls.streetAddress.setValue('Paris');
-      await vi.advanceTimersByTimeAsync(300);
-      component.form.controls.streetAddress.setValue('Parish');
-      await vi.advanceTimersByTimeAsync(300);
-      second.next({ suggestions: Array.from({ length: 7 }, (_, index) => ({ ...suggestion, placeId: `latest-${index}` })) });
-      first.next({ suggestions: [{ ...suggestion, placeId: 'stale' }] });
-
-      expect(component.locationSuggestions()).toHaveLength(5);
-      expect(component.locationSuggestions()[0].placeId).toBe('latest-0');
-      expect(component.locationSuggestions().some(item => item.placeId === 'stale')).toBe(false);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('cancels an in-flight autocomplete when street drops below three characters', async () => {
-    vi.useFakeTimers();
-    try {
-      const pending = new Subject<{ suggestions: typeof suggestion[] }>();
-      const autocompleteEventLocations = vi.fn(() => pending);
-      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
-      component.ngOnInit();
-
-      component.form.controls.streetAddress.setValue('Paris');
-      await vi.advanceTimersByTimeAsync(300);
-      component.form.controls.streetAddress.setValue('Pa');
-      pending.next({ suggestions: [{ ...suggestion, placeId: 'stale' }] });
-
-      expect(autocompleteEventLocations).toHaveBeenCalledTimes(1);
-      expect(component.locationSuggestions()).toEqual([]);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('fills canonical fields and hidden resolution claims after selection', async () => {
-    const component = setup('Organizer', locationClient({ resolveEventLocation: () => of(resolvedLocation) }));
-    component.ngOnInit();
-
-    await component.resolveLocation(suggestion);
-
-    expect(component.form.getRawValue()).toMatchObject({
-      streetAddress: resolvedLocation.streetAddress,
-      postalCode: resolvedLocation.postalCode,
-      city: resolvedLocation.city,
-      country: resolvedLocation.country,
-      region: resolvedLocation.region,
-      latitude: resolvedLocation.latitude,
-      longitude: resolvedLocation.longitude,
-      timeZoneId: resolvedLocation.timeZoneId,
-      locationToken: resolvedLocation.locationToken
-    });
-    expect(component.form.controls.locationToken.valid).toBe(true);
-    expect(component.locationSuggestions()).toEqual([]);
-    expect(component.locationError()).toBe('');
-  });
-
-  it('reuses one UUID billing token for autocomplete and resolve during the editing session', async () => {
-    vi.useFakeTimers();
-    try {
-      const autocompleteEventLocations = vi.fn((_input: string, _sessionToken: string, _language: string) => of({ suggestions: [suggestion] }));
-      const resolveEventLocation = vi.fn((_request: { sessionToken: string }) => of(resolvedLocation));
-      const component = setup('Organizer', locationClient({ autocompleteEventLocations, resolveEventLocation }));
-      component.ngOnInit();
-
-      component.form.controls.streetAddress.setValue('Paris');
-      await vi.advanceTimersByTimeAsync(300);
-      await component.resolveLocation(suggestion);
-
-      const autocompleteSessionToken = autocompleteEventLocations.mock.calls[0]![1];
-      const resolveSessionToken = resolveEventLocation.mock.calls[0]![0].sessionToken;
-      expect(autocompleteSessionToken).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-      expect(resolveSessionToken).toBe(autocompleteSessionToken);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('ignores a stale resolve response after the user edits a location field', async () => {
-    const pending = new Subject<typeof resolvedLocation>();
-    const component = setup('Organizer', locationClient({ resolveEventLocation: () => pending }));
-    component.ngOnInit();
-
-    const resolving = component.resolveLocation(suggestion);
-    component.form.controls.region.setValue('Île-de-France');
-    pending.next(resolvedLocation);
-    pending.complete();
-    await resolving;
-
-    expect(component.form.controls.region.value).toBe('Île-de-France');
-    expect(component.form.controls.locationToken.value).toBe('');
-    expect(component.form.controls.timeZoneId.value).toBe('');
-  });
-
-  it('clears token, timezone, and coordinates synchronously after each visible location field edit', async () => {
-    const component = setup('Organizer', locationClient({ resolveEventLocation: () => of(resolvedLocation) }));
-    component.ngOnInit();
-
-    for (const field of ['streetAddress', 'postalCode', 'city', 'country', 'region'] as const) {
-      await component.resolveLocation(suggestion);
-
-      component.form.controls[field].setValue(`${component.form.controls[field].value} edited`);
-
-      expect(component.form.controls.locationToken.value, field).toBe('');
-      expect(component.form.controls.timeZoneId.value, field).toBe('');
-      expect(component.form.controls.latitude.value, field).toBeNull();
-      expect(component.form.controls.longitude.value, field).toBeNull();
-      expect(component.form.controls.locationToken.invalid, field).toBe(true);
-    }
-  });
-
-  it('cancels pending debounce, subscriptions, and in-flight location HTTP work on destroy', async () => {
-    vi.useFakeTimers();
-    try {
-      const beforeDebounce = vi.fn(() => of({ suggestions: [suggestion] }));
-      const first = setupHarness('Organizer', locationClient({ autocompleteEventLocations: beforeDebounce }));
-      first.component.ngOnInit();
-      first.component.form.controls.streetAddress.setValue('Paris');
-
-      first.destroy();
-      await vi.advanceTimersByTimeAsync(300);
-
-      expect(beforeDebounce).not.toHaveBeenCalled();
-
-      const pending = new Subject<{ suggestions: typeof suggestion[] }>();
-      const inFlight = vi.fn(() => pending);
-      const second = setupHarness('Organizer', locationClient({ autocompleteEventLocations: inFlight }));
-      second.component.ngOnInit();
-      second.component.form.controls.streetAddress.setValue('Paris');
-      await vi.advanceTimersByTimeAsync(300);
-      expect(pending.observed).toBe(true);
-
-      second.destroy();
-
-      expect(pending.observed).toBe(false);
-      pending.next({ suggestions: [suggestion] });
-      expect(second.component.locationSuggestions()).toEqual([]);
-
-      const pendingResolve = new Subject<typeof resolvedLocation>();
-      const third = setupHarness('Organizer', locationClient({ resolveEventLocation: () => pendingResolve }));
-      third.component.ngOnInit();
-      const resolving = third.component.resolveLocation(suggestion);
-      expect(pendingResolve.observed).toBe(true);
-
-      third.destroy();
-      await resolving;
-
-      expect(pendingResolve.observed).toBe(false);
-      expect(third.component.locationError()).toBe('');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('keeps street input and retries autocomplete after provider outage', async () => {
-    vi.useFakeTimers();
-    try {
-      const autocompleteEventLocations = vi.fn()
-        .mockReturnValueOnce(throwError(() => new ApiProblemError(503, { code: 'location_provider_unavailable' })))
-        .mockReturnValueOnce(of({ suggestions: [suggestion] }));
-      const component = setup('Organizer', locationClient({ autocompleteEventLocations }));
-      component.ngOnInit();
-      component.form.controls.streetAddress.setValue('Paris');
-      await vi.advanceTimersByTimeAsync(300);
-
-      expect(component.form.controls.streetAddress.value).toBe('Paris');
-      expect(component.locationError()).toBeTruthy();
-      expect(component.canRetryLocation()).toBe(true);
-
-      await component.retryLocationResolution();
-
-      expect(autocompleteEventLocations).toHaveBeenCalledTimes(2);
-      expect(component.locationSuggestions()).toEqual([suggestion]);
-      expect(component.locationError()).toBe('');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('keeps entered address and exposes retry after provider outage', async () => {
-    const resolveEventLocation = vi.fn(() => throwError(() => new ApiProblemError(503, {
-      code: 'location_provider_unavailable',
-      message: 'Event location provider is unavailable.'
-    })));
-    const component = setup('Organizer', locationClient({ resolveEventLocation }));
-    component.ngOnInit();
-    component.form.controls.streetAddress.setValue('10 Rue de la République');
-
-    await component.resolveLocation(suggestion);
-
-    expect(component.form.controls.streetAddress.value).toBe('10 Rue de la République');
-    expect(component.locationError()).toBeTruthy();
-    expect(component.canRetryLocation()).toBe(true);
-    await component.retryLocationResolution();
-    expect(resolveEventLocation).toHaveBeenCalledTimes(2);
-  });
-});
 
 describe('OrganizerEventCreateComponent live direct editor', () => {
   it('requires a trimmed title and enforces the 160-character client limit', () => {
@@ -378,10 +132,13 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     const preview = vi.fn();
     const component = setup('Organizer', locationClient({ preview }));
     component.ngOnInit();
+    component.form.patchValue({ title: '  Instant Cup  ' });
+
+    expect(component.draftPreview().displayTitle).toBe('Instant Cup');
+
     component.formats.set([{ id: 'fmt1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
     component.form.patchValue({
       organizationId: 'org-mine',
-      title: 'Instant Cup',
       summary: 'Live summary',
       bodyMarkdown: '**Live Markdown**',
       streetAddress: '1 Rue Test',
@@ -389,7 +146,7 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
       city: 'Lyon',
       country: 'France',
       region: 'Auvergne-Rhône-Alpes',
-      locationToken: 'signed-location-token',
+      timeZoneId: 'Europe/Paris',
       eventType: 'weekly',
       capacity: 32,
       formatId: 'fmt1'
@@ -398,10 +155,79 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     controls['startDate']?.setValue('2027-08-01');
     controls['startTime']?.setValue('10:00');
 
-    const draft = (component as unknown as { draftPreview(): { displayTitle: string; bodyHtml: string | undefined } }).draftPreview();
-    expect(draft.displayTitle).toContain('Instant Cup');
+    const draft = component.draftPreview();
+    expect(draft.displayTitle).toBe('Legacy — Instant Cup');
     expect(draft.bodyHtml).toContain('<strong>Live Markdown</strong>');
     expect(preview).not.toHaveBeenCalled();
+  });
+
+  it('derives disabled Publish errors in stable field order and collapses duplicate messages by first occurrence without touching controls', () => {
+    const component = setup('Organizer');
+    component.form.patchValue({
+      summary: 'x'.repeat(51),
+      bodyMarkdown: 'x'.repeat(20_001),
+      eventType: '',
+      capacity: 0
+    });
+    component.loadingReferences.set(false);
+    component.organizations.set([{ id: 'org', name: 'Club' }]);
+    component.fieldErrors.set({
+      timeZoneId: 'Time zone is invalid.',
+      imageId: 'Image failed.',
+      general: 'General failure.',
+      title: 'Duplicate error.',
+      summary: 'Duplicate error.'
+    });
+
+    const errors = component.publishErrors();
+
+    expect(component.form.controls.organizationId.touched).toBe(false);
+    expect(errors).toEqual([
+      'Organisation: Ce champ est obligatoire.',
+      'Nom de l’événement: Duplicate error.',
+      'Résumé: Duplicate error.',
+      'Description: La description ne peut pas dépasser 20 000 caractères.',
+      'Format: Ce champ est obligatoire.',
+      'Type d’événement: Ce champ est obligatoire.',
+      'Capacité: Saisissez une valeur valide.',
+      'Pays: Ce champ est obligatoire.',
+      'Région: Ce champ est obligatoire.',
+      'Adresse: Ce champ est obligatoire.',
+      'Code postal: Ce champ est obligatoire.',
+      'Ville: Ce champ est obligatoire.',
+      'Date de début: Ce champ est obligatoire.',
+      'Heure de début: Ce champ est obligatoire.',
+      'Fuseau horaire IANA: Time zone is invalid.',
+      'Image de l’événement: Image failed.',
+      'Général: General failure.'
+    ]);
+    expect(component.publishTooltip()).toBe(errors.join('\n'));
+  });
+
+  it('supplies translated general reasons for every non-field Publish disable state', () => {
+    const component = setup('Organizer');
+    component.form.patchValue({
+      organizationId: 'org', title: 'Cup', streetAddress: 'Street', postalCode: '69001', city: 'Lyon', country: 'France',
+      region: 'Rhône', timeZoneId: 'Europe/Paris', eventType: 'weekly', startDate: '2035-03-04', startTime: '10:00',
+      capacity: 32, formatId: 'fmt'
+    });
+    component.organizations.set([]);
+    component.loadingReferences.set(true);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.loadingReferences')}`
+    ]);
+
+    component.loadingReferences.set(false);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.noOrganizations')}`
+    ]);
+
+    component.organizations.set([{ id: 'org', name: 'Club' }]);
+    component.publishing.set(true);
+    expect(component.publishReasons()).toEqual([
+      `Général: ${component.i18n.t('eventCreate.publishing')}`
+    ]);
+    expect(component.publishTooltip()).not.toBe('');
   });
 
   it('persists collapse state for tab session with exact ARIA labels', () => {
@@ -416,7 +242,57 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     sessionStorage.removeItem('gones.event-editor.preview-collapsed');
   });
 
-  it('blocks direct publish for unresolved location or failed/pending upload', () => {
+  it('loads bundled countries and backend timezone IDs through reference state', async () => {
+    const listEventTimeZones = vi.fn(() => of({ ids: ['America/Toronto', 'Europe/Paris'] }));
+    const countries = vi.fn(async () => [
+      { code: 'CA', name: 'Canada' },
+      { code: 'FR', name: 'France' }
+    ]);
+    const { component, destroy } = setupHarness('Organizer', locationClient({ listEventTimeZones }), {}, true, countries);
+
+    await component.loadReferences();
+
+    expect(countries).toHaveBeenCalledTimes(1);
+    expect(listEventTimeZones).toHaveBeenCalledTimes(1);
+    expect(component.countries()).toEqual([
+      { code: 'CA', name: 'Canada' },
+      { code: 'FR', name: 'France' }
+    ]);
+    expect(component.timeZones()).toEqual(['America/Toronto', 'Europe/Paris']);
+    expect(component.referenceError()).toBe('');
+    destroy();
+  });
+
+  it('logs catalog failure, exposes reference error, then retries every reference', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let attempt = 0;
+    const countries = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error('country catalog unavailable');
+      return [{ code: 'FR', name: 'France' }];
+    });
+    const listEventTimeZones = vi.fn(() => of({ ids: ['Europe/Paris'] }));
+    const { component, destroy } = setupHarness('Organizer', locationClient({ listEventTimeZones }), {}, true, countries);
+
+    await component.loadReferences();
+
+    expect(component.referenceError()).toBe(component.i18n.t('eventCreate.referencesFailed'));
+    expect(component.countries()).toEqual([]);
+    expect(component.timeZones()).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('event-editor.load-references'));
+
+    await component.loadReferences();
+
+    expect(countries).toHaveBeenCalledTimes(2);
+    expect(listEventTimeZones).toHaveBeenCalledTimes(2);
+    expect(component.countries()).toEqual([{ code: 'FR', name: 'France' }]);
+    expect(component.timeZones()).toEqual(['Europe/Paris']);
+    expect(component.referenceError()).toBe('');
+    consoleError.mockRestore();
+    destroy();
+  });
+
+  it('requires a manual timezone and blocks direct publish for failed/pending upload', () => {
     const component = setup('Organizer');
     component.form.patchValue({
       organizationId: 'org', title: 'Cup', streetAddress: 'Street', postalCode: '69001', city: 'Lyon', country: 'France',
@@ -426,10 +302,365 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
       imagePublishBlocked: { set(value: boolean): void };
       publishDisabled(): boolean;
     };
+    expect(component.form.controls.timeZoneId.invalid).toBe(true);
     expect(editor.publishDisabled()).toBe(true);
-    component.form.controls.locationToken.setValue('token');
+    component.form.controls.timeZoneId.setValue('Europe/Paris');
+    expect(component.form.controls.timeZoneId.valid).toBe(true);
     editor.imagePublishBlocked.set(true);
     expect(editor.publishDisabled()).toBe(true);
+  });
+});
+
+describe('OrganizerEventCreateComponent draft persistence and leave guard', () => {
+  const draftValue = {
+    organizationId: 'org-mine', title: 'Recovered Cup', summary: 'Summary', bodyMarkdown: '**Body**',
+    streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Rhône',
+    timeZoneId: 'Europe/Paris', eventType: 'weekly' as const, startDate: '2027-08-01', startTime: '10:00',
+    capacity: 32, formatId: 'fmt-1'
+  };
+
+  async function initializedCreate(
+    draftStore: Pick<EventCreateDraftStore, 'read' | 'write' | 'remove'> = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() },
+    dialog?: Pick<MatDialog, 'open'>,
+    client: Partial<Client> = locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    })
+  ) {
+    const harness = setupHarness('Organizer', client, {}, true, undefined, draftStore, dialog);
+    harness.component.ngOnInit();
+    await vi.waitFor(() => expect(harness.component.loadingReferences()).toBe(false));
+    return harness;
+  }
+
+  it('restores only current account draft after references and uses restored data as clean baseline', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue
+    };
+    const draftStore = { read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+
+    expect(draftStore.read).toHaveBeenCalledWith('u1');
+    expect(component.form.getRawValue()).toMatchObject(draftValue);
+    expect(component.dirty()).toBe(false);
+    component.form.controls.title.setValue('Changed');
+    expect(component.dirty()).toBe(true);
+    component.form.controls.title.setValue('Recovered Cup');
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
+  it('fails closed without displaying, guarding, or writing prior-account input after active profile changes', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, auth, destroy } = await initializedCreate(draftStore);
+    auth.profile.set({ id: 'u2', email: 'b@example.test', emailVerified: true, globalRole: 'Organizer' } as unknown as UserProfileResponse);
+    component.form.controls.title.setValue('Owned by u1 editor');
+    const event = { preventDefault: vi.fn(), returnValue: undefined };
+
+    component.beforeUnload(event as unknown as BeforeUnloadEvent);
+
+    expect(component.draftAccountMismatch()).toBe(true);
+    expect(component.dirty()).toBe(false);
+    expect(component.confirmLeave()).toBe(true);
+    expect(draftStore.write).not.toHaveBeenCalled();
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    destroy();
+  });
+
+  it('debounces normalized create writes for 300ms and writes latest state', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+    vi.useFakeTimers();
+
+    component.form.controls.title.setValue(' First ');
+    component.form.controls.title.setValue(' Latest ');
+    vi.advanceTimersByTime(299);
+    expect(draftStore.write).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+
+    expect(draftStore.write).toHaveBeenCalledTimes(1);
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Latest' })
+    }));
+    component.form.controls.title.setValue('  ');
+    vi.advanceTimersByTime(300);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    vi.useRealTimers();
+    destroy();
+  });
+
+  it('protects input entered while references are delayed, then merges defaults without overwriting it', async () => {
+    const formats = new Subject<PublicFormatResponse[]>();
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const { component, destroy } = setupHarness('Organizer', locationClient({
+      formatsAll: () => formats,
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    }), {}, true, undefined, draftStore, dialog);
+    component.ngOnInit();
+
+    component.form.controls.title.setValue('Typed while loading');
+    await new Promise(resolve => setTimeout(resolve, 320));
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Typed while loading' })
+    }));
+    expect(component.dirty()).toBe(true);
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    const unload = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(unload as unknown as BeforeUnloadEvent);
+    expect(unload.preventDefault).toHaveBeenCalledTimes(1);
+
+    formats.next([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    formats.complete();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.form.controls.title.value).toBe('Typed while loading');
+    expect(component.form.controls.organizationId.value).toBe('org-mine');
+    expect(component.dirty()).toBe(true);
+    destroy();
+  });
+
+  it('merges a delayed restored draft without overwriting input entered before references finish', async () => {
+    const formats = new Subject<PublicFormatResponse[]>();
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue
+    };
+    const draftStore = { read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = setupHarness('Organizer', locationClient({
+      formatsAll: () => formats,
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] })
+    }), {}, true, undefined, draftStore);
+    component.ngOnInit();
+    component.form.controls.title.setValue('Typed over recovery');
+    await new Promise(resolve => setTimeout(resolve, 320));
+
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      value: expect.objectContaining({ title: 'Typed over recovery', summary: draftValue.summary })
+    }));
+
+    formats.next([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
+    formats.complete();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.form.controls.title.value).toBe('Typed over recovery');
+    expect(component.form.controls.summary.value).toBe(draftValue.summary);
+    expect(component.dirty()).toBe(true);
+    destroy();
+  });
+
+  it('protects debounced input, navigation, and beforeunload after references reject', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { component, destroy } = setupHarness(
+      'Organizer', locationClient(), {}, true,
+      async () => { throw new Error('references unavailable'); }, draftStore, dialog
+    );
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+
+    component.form.controls.title.setValue('Typed after failure');
+    await new Promise(resolve => setTimeout(resolve, 320));
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'u1', value: expect.objectContaining({ title: 'Typed after failure' })
+    }));
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    const unload = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(unload as unknown as BeforeUnloadEvent);
+    expect(unload.preventDefault).toHaveBeenCalledTimes(1);
+    expect(component.form.controls.title.value).toBe('Typed after failure');
+    consoleError.mockRestore();
+    destroy();
+  });
+
+  it('opens translated leave confirmation only while dirty and honors cancel/confirm', async () => {
+    const afterClosed = vi.fn(() => of(false));
+    const dialog = { open: vi.fn(() => ({ afterClosed })) } as unknown as Pick<MatDialog, 'open'>;
+    const { component, destroy } = await initializedCreate(undefined, dialog);
+    expect(component.confirmLeave()).toBe(true);
+
+    component.form.controls.title.setValue('Changed');
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(false);
+    expect(dialog.open).toHaveBeenCalledWith(ConfirmDialogComponent, {
+      data: {
+        title: component.i18n.t('eventCreate.leaveTitle'),
+        message: component.i18n.t('eventCreate.leaveBody'),
+        confirmLabel: component.i18n.t('eventCreate.leave')
+      }
+    });
+    afterClosed.mockReturnValue(of(true));
+    expect(await firstValueFrom(component.confirmLeave() as Observable<boolean>)).toBe(true);
+    destroy();
+  });
+
+  it('flushes create state and activates native unload semantics only while dirty', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore);
+    const clean = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(clean as unknown as BeforeUnloadEvent);
+    expect(clean.preventDefault).not.toHaveBeenCalled();
+
+    component.form.controls.title.setValue('Changed');
+    const dirty = { preventDefault: vi.fn(), returnValue: undefined };
+    component.beforeUnload(dirty as unknown as BeforeUnloadEvent);
+
+    expect(draftStore.write).toHaveBeenCalledWith(expect.objectContaining({ userId: 'u1' }));
+    expect(dirty.preventDefault).toHaveBeenCalledTimes(1);
+    expect(dirty.returnValue).toBe('');
+    destroy();
+  });
+
+  it('counts image interaction dirty before upload identity exists and clears after removal restores baseline', async () => {
+    const { component, destroy } = await initializedCreate();
+
+    component.onImageInteractionChange('local-1');
+    expect(component.form.controls.imageId.value).toBeNull();
+    expect(component.dirty()).toBe(true);
+
+    component.onImageInteractionChange(null);
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
+  it('keeps untouched restored image clean through hydration pending and error state', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue,
+      image: {
+        id: 'image-restored', state: 'Temporary', width: 960, height: 540, expiresAt: '2030-01-01T00:00:00Z',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/image-restored/variants/320' }]
+      }
+    };
+    const { component, destroy } = await initializedCreate({ read: vi.fn(() => stored), write: vi.fn(), remove: vi.fn() });
+    const selection = {
+      imageId: stored.image!.id,
+      response: stored.image!,
+      previewUrl: '',
+      srcset: ''
+    };
+
+    component.onImageInteractionChange(stored.image!.id);
+    component.onImageChange(selection);
+    component.imagePublishBlocked.set(true);
+    expect(component.form.controls.imageId.value).toBe(stored.image!.id);
+    expect(component.dirty()).toBe(false);
+
+    component.onImageInteractionChange(stored.image!.id);
+    component.onImageChange(selection);
+    expect(component.dirty()).toBe(false);
+    destroy();
+  });
+
+  it('retains restored Temporary image through preview error, draft flush, and next reload', async () => {
+    const stored: StoredEventCreateDraftV1 = {
+      version: 1, userId: 'u1', savedAt: '2026-09-03T00:00:00Z', value: draftValue,
+      image: {
+        id: 'image-restored', state: 'Temporary', width: 960, height: 540, expiresAt: '2030-01-01T00:00:00Z',
+        variants: [{ width: 320, height: 180, url: '/api/event-images/image-restored/variants/320' }]
+      }
+    };
+    let persisted = stored;
+    const draftStore = {
+      read: vi.fn(() => persisted),
+      write: vi.fn((draft: StoredEventCreateDraftV1) => { persisted = draft; }),
+      remove: vi.fn()
+    };
+    const first = await initializedCreate(draftStore);
+    first.component.onImageInteractionChange(stored.image!.id);
+    first.component.onImageChange({ imageId: stored.image!.id, response: stored.image!, previewUrl: '', srcset: '' });
+    first.component.form.controls.title.setValue('Changed while preview failed');
+    first.component.beforeUnload({ preventDefault: vi.fn(), returnValue: undefined } as unknown as BeforeUnloadEvent);
+
+    expect(persisted.image?.id).toBe('image-restored');
+    first.destroy();
+
+    const second = await initializedCreate(draftStore);
+    expect(second.component.form.controls.imageId.value).toBe('image-restored');
+    expect(second.component.form.controls.title.value).toBe('Changed while preview failed');
+    second.destroy();
+  });
+
+  it('keeps leave guard active while publication is in flight', async () => {
+    const response = new Subject<{ slug: string }>();
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST: () => response
+    } as unknown as Partial<Client>));
+    component.form.patchValue(draftValue);
+
+    const publish = component.publish();
+    await Promise.resolve();
+    expect(component.publishing()).toBe(true);
+    expect(component.dirty()).toBe(true);
+    response.next({ slug: 'published-cup' });
+    response.complete();
+    await publish;
+    destroy();
+  });
+
+  it('keeps draft and dirty state after failed publication', async () => {
+    const eventsPOST = vi.fn(() => throwError(() => new Error('network')));
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST
+    }));
+    component.form.patchValue(draftValue);
+
+    await component.publish();
+
+    expect(component.dirty()).toBe(true);
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    expect(component.submitError()).not.toBeNull();
+    destroy();
+  });
+
+  it('removes matching draft and clears dirty before successful publication navigation', async () => {
+    const eventsPOST = vi.fn(() => of({ slug: 'published-cup' }));
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const { component, router, destroy } = await initializedCreate(draftStore, undefined, locationClient({
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      eventsPOST
+    }));
+    component.form.patchValue(draftValue);
+    expect(component.dirty()).toBe(true);
+
+    await component.publish();
+
+    expect(eventsPOST).toHaveBeenCalledTimes(1);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    expect(component.dirty()).toBe(false);
+    expect(router.navigate).toHaveBeenCalledWith(['/events', 'published-cup']);
+    destroy();
+  });
+
+  it('removes matching draft and clears dirty before successful proposal replacement', async () => {
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const dialog = { open: vi.fn(() => ({ afterClosed: () => of(['approver-1']) })) } as unknown as Pick<MatDialog, 'open'>;
+    const proposals = {
+      listApprovers: vi.fn(async () => [{ id: 'approver-1', username: 'admin', globalRole: 'Admin' }]),
+      submit: vi.fn(async () => ({ recipientCount: 1 }))
+    } as unknown as Pick<EventProposalService, 'listApprovers' | 'submit'>;
+    const { component, destroy } = setupHarness('User', {
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      organizationsGET: () => of({ items: [{ id: 'org-mine', name: 'Club' }], page: 1, pageSize: 100, totalCount: 1 })
+    } as unknown as Partial<Client>, {}, true, undefined, draftStore, dialog, proposals);
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    component.form.patchValue(draftValue);
+
+    await component.submitForApproval();
+
+    expect(proposals.submit).toHaveBeenCalledTimes(1);
+    expect(draftStore.remove).toHaveBeenCalledWith('u1');
+    expect(component.dirty()).toBe(false);
+    expect(component.proposalSentCount()).toBe(1);
+    destroy();
   });
 });
 
@@ -439,59 +670,69 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     summary: 'Summary', bodyMarkdown: 'Original body', liveTournamentUrl: '/live/keep', archiveTournamentUrl: '/archive/keep',
     location: {
       streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
-      region: 'Auvergne-Rhône-Alpes', locationToken: 'fresh-editor-token'
+      region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
     },
     streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
-    eventType: 'weekly', timeZoneId: 'Europe/Paris', locationTokenExpiresAt: '2999-01-01T12:30:00Z', startsAtLocal: '2027-08-01T10:00',
+    eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
     venueStartDate: '2027-08-01', venueStartTime: '10:00:00', venueEndDate: '2027-08-01', venueEndTime: '23:59:59',
     startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
-    status: 'Published', formatIds: ['fmt-1'], images: [{
-      id: 'image-1', altText: 'Original alt',
-      variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
-    }],
+    status: 'Published', formatIds: ['fmt-1'], image: {
+      id: 'image-1', variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }]
+    },
     version: 3, eTag: '"3"'
   };
 
-  it('blocks a known-expired management token until location is re-resolved', async () => {
-    const saved = {
+  it('never reads or writes create draft storage and resets dirty only after successful save', async () => {
+    const updated = { ...managedEvent, summary: 'Changed summary', version: 4, eTag: '"4"' };
+    const draftStore = { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() };
+    const updateEventDetails = vi.fn(() => of(updated));
+    const { component, destroy } = setupHarness('Organizer', {
+      formatsAll: () => of([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      listOrganizerEvents: () => of({ items: [managedEvent], page: 1, pageSize: 100, totalCount: 1 }),
+      updateEventDetails
+    } as unknown as Partial<Client>, { id: 'event-1' }, true, undefined, draftStore);
+
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    expect(component.dirty()).toBe(false);
+    component.form.controls.summary.setValue('Changed summary');
+    expect(component.dirty()).toBe(true);
+    await component.saveEdit();
+
+    expect(component.dirty()).toBe(false);
+    expect(draftStore.read).not.toHaveBeenCalled();
+    expect(draftStore.write).not.toHaveBeenCalled();
+    expect(draftStore.remove).not.toHaveBeenCalled();
+    destroy();
+  });
+
+  it('appends absent current country and timezone values for editing', async () => {
+    const legacy = {
       ...managedEvent,
-      location: { ...managedEvent.location, locationToken: 'replacement-token' },
-      locationTokenExpiresAt: '2999-01-01T13:00:00Z'
+      location: { ...managedEvent.location, country: 'Legacyland', timeZoneId: 'Legacy/Zone' },
+      country: 'Legacyland',
+      timeZoneId: 'Legacy/Zone'
     };
-    const updateEventDetails = vi.fn(() => of(saved));
-    const resolveEventLocation = vi.fn(() => of({
-      streetAddress: managedEvent.location.streetAddress,
-      postalCode: managedEvent.location.postalCode,
-      city: managedEvent.location.city,
-      country: managedEvent.location.country,
-      region: managedEvent.location.region,
-      latitude: 45.764,
-      longitude: 4.8357,
-      timeZoneId: managedEvent.timeZoneId,
-      locationToken: 'replacement-token',
-      expiresAt: '2999-01-01T13:00:00Z'
-    }));
-    const component = setup('Organizer', { updateEventDetails, resolveEventLocation } as unknown as Partial<Client>, { id: 'event-1' });
-    const editor = component as unknown as { applyCanonical(event: unknown): void };
-    component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
-    editor.applyCanonical({ ...managedEvent, locationTokenExpiresAt: '2000-01-01T00:00:00Z' });
+    const component = setup('Organizer', {
+      formatsAll: () => of([]),
+      listEventTimeZones: () => of({ ids: ['Europe/Paris'] }),
+      listOrganizerEvents: () => of({ items: [legacy], page: 1, pageSize: 100, totalCount: 1 })
+    } as unknown as Partial<Client>, { id: 'event-1' });
 
-    await component.saveEdit();
+    await component.loadReferences();
 
-    expect(component.locationExpired()).toBe(true);
-    expect(component.fieldError('locationToken')).toBe(component.i18n.t('eventManage.locationExpired'));
-    expect(updateEventDetails).not.toHaveBeenCalled();
-
-    await component.resolveLocation(suggestion);
-    expect(component.locationExpired()).toBe(false);
-    expect(component.form.controls.locationToken.value).toBe('replacement-token');
-
-    await component.saveEdit();
-    expect(updateEventDetails).toHaveBeenCalledTimes(1);
+    expect(component.countries()).toEqual([
+      { code: 'FR', name: 'France' },
+      { code: '', name: 'Legacyland' }
+    ]);
+    expect(component.timeZones()).toEqual(['Europe/Paris', 'Legacy/Zone']);
+    expect(component.form.controls.country.value).toBe('Legacyland');
+    expect(component.form.controls.timeZoneId.value).toBe('Legacy/Zone');
   });
 
   it('maps missing-image PATCH 404 to media reload recovery instead of permission failure', async () => {
-    const latest = { ...managedEvent, images: [], version: 4, eTag: '"4"' };
+    const latest = { ...managedEvent, image: undefined, version: 4, eTag: '"4"' };
     const updateEventDetails = vi.fn(() => throwError(() => new ApiProblemError(404, { code: 'image_not_found' })));
     const listOrganizerEvents = vi.fn(() => of({ items: [latest], page: 1, pageSize: 100, totalCount: 1 }));
     const component = setup('Organizer', { updateEventDetails, listOrganizerEvents } as unknown as Partial<Client>, { id: 'event-1' });
@@ -501,14 +742,14 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
 
     await component.saveEdit();
 
-    expect(component.fieldErrors()['images']).toBe(component.i18n.t('eventManage.imageMissing'));
+    expect(component.fieldErrors()['imageId']).toBe(component.i18n.t('eventManage.imageMissing'));
     expect(component.staleEvent()).toBe(latest);
     expect(component.submitError()).toBeNull();
-    expect(component.fieldErrors()['images']).not.toBe(component.i18n.t('eventManage.forbidden'));
+    expect(component.fieldErrors()['imageId']).not.toBe(component.i18n.t('eventManage.forbidden'));
 
     component.reloadLatest();
 
-    expect(component.fieldErrors()['images']).toBeUndefined();
+    expect(component.fieldErrors()['imageId']).toBeUndefined();
   });
 
   it('sends nested ETag edit, keeps local draft on 412, then explicitly reloads canonical media and location', async () => {
@@ -516,12 +757,12 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
       ...managedEvent,
       title: 'Server title',
       bodyMarkdown: 'Server body',
-      location: { ...managedEvent.location, streetAddress: '9 Server Street', locationToken: 'latest-token' },
+      location: { ...managedEvent.location, streetAddress: '9 Server Street', timeZoneId: 'Europe/London' },
       streetAddress: '9 Server Street',
-      images: [{
-        id: 'image-2', altText: 'Server image',
-        variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
-      }],
+      timeZoneId: 'Europe/London',
+      image: {
+        id: 'image-2', variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
+      },
       version: 4,
       eTag: '"4"'
     };
@@ -533,7 +774,7 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
     component.formats.set([{ id: 'fmt-1', name: 'Legacy', slug: 'legacy', sortOrder: 1 }]);
     editor.applyCanonical(managedEvent);
     component.form.controls.bodyMarkdown.setValue('Local draft body');
-    component.form.controls.images.setValue([{ imageId: 'image-1', altText: 'Local alt' }]);
+    component.form.controls.imageId.setValue('image-1');
 
     await component.saveEdit();
 
@@ -541,10 +782,10 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
       title: 'Original', summary: 'Summary', bodyMarkdown: 'Local draft body',
       location: {
         streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
-        region: 'Auvergne-Rhône-Alpes', locationToken: 'fresh-editor-token'
+        region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
       },
       eventType: 'weekly', startsAtLocal: '2027-08-01T10:00', capacity: 32, formatIds: ['fmt-1'],
-      images: [{ imageId: 'image-1', altText: 'Local alt' }]
+      imageId: 'image-1'
     });
     const sent = updateEventDetails.mock.calls[0]![2] as Record<string, unknown>;
     expect(sent).not.toHaveProperty('liveTournamentUrl');
@@ -558,8 +799,8 @@ describe('OrganizerEventCreateComponent edit concurrency', () => {
 
     expect(component.form.controls.title.value).toBe('Server title');
     expect(component.form.controls.streetAddress.value).toBe('9 Server Street');
-    expect(component.form.controls.locationToken.value).toBe('latest-token');
-    expect(component.form.controls.images.value).toEqual([{ imageId: 'image-2', altText: 'Server image' }]);
+    expect(component.form.controls.timeZoneId.value).toBe('Europe/London');
+    expect(component.form.controls.imageId.value).toBe('image-2');
     expect(component.baseEvent()).toBe(latest);
   });
 });
@@ -578,6 +819,12 @@ describe('OrganizerEventCreateComponent role gating', () => {
   it('keeps submit enabled for an admin', () => {
     const component = setup('Admin');
     expect(component.canPublishDirectly()).toBe(true);
+  });
+
+  it('keeps Event publication enabled for an admin when Power User mode is off', () => {
+    const { component, destroy } = setupHarness('Admin', {}, {}, false);
+    expect(component.canPublishDirectly()).toBe(true);
+    destroy();
   });
 
   it('uses one required format control without retired end or tournament-link controls', () => {

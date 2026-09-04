@@ -163,6 +163,9 @@ describe('canonical browser store containment', () => {
       // Cross-tab markers, the session generation, and the account id owning that generation
       // (removed on teardown). No profile or domain data.
       'src/app/auth/auth-session-coordination.service.ts',
+      // Account-scoped unsent Event-create recovery draft (ADR 0055). Never server authority or
+      // synchronised; retained across logout by confirmed design.
+      'src/app/features/events/event-create-draft.ts',
       // Browser view preference.
       'src/app/features/events/public-event-list.component.ts',
       // Public read cache (C39) — anonymous GET responses only, never a mutation source.

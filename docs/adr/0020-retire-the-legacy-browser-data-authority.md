@@ -4,6 +4,8 @@
 
 Accepted. Supersedes ADR 0019 and retires ADR 0008; amends ADR 0004 and ADR 0006.
 
+> Amended by [ADR-0055](0055-account-scoped-event-create-drafts.md): one account-scoped unsent Event-create draft may use `localStorage`; it is recovery input, never canonical Event authority.
+
 ## Context
 
 ADR 0019 (C42) replaced four inferred per-capability flags with one declared data authority, typed

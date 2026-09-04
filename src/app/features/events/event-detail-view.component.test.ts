@@ -12,7 +12,7 @@ import { Injector, createComponent, runInInjectionContext, signal } from '@angul
 import { createApplication } from '@angular/platform-browser';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PublicEventDetailResponse } from '../../api/generated/gones-api';
+import { PublicCalendarEventType, PublicEventDetailResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
@@ -27,12 +27,7 @@ const event = {
   slug: 'gones-night',
   summary: 'Weekly night',
   bodyHtml: '<p>Body</p>',
-  images: [
-    { id: 'image-1', altText: 'Hero alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }, { width: 960, height: 540, url: '/api/event-images/image-1/variants/960' }] },
-    { id: 'image-2', altText: undefined, variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }] },
-    { id: 'image-3', altText: 'Third alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-3/variants/320' }] },
-    { id: 'image-4', altText: 'Fourth alt', variants: [{ width: 320, height: 180, url: '/api/event-images/image-4/variants/320' }] }
-  ],
+  image: { id: 'image-1', variants: [{ width: 320, height: 180, url: '/api/event-images/image-1/variants/320' }, { width: 960, height: 540, url: '/api/event-images/image-1/variants/960' }] },
   venue: { streetAddress: '1 Rue Test', postalCode: '69001', city: 'Lyon', country: 'France' },
   timeZoneId: 'Europe/Paris',
   venueStartDate: '2026-08-01',
@@ -43,6 +38,7 @@ const event = {
   endsAtUtc: '2026-08-01T16:00:00Z',
   capacity: 32,
   status: 'Published',
+  eventType: 'weekly',
   liveTournamentUrl: '/live-tournaments/gones-night',
   archiveTournamentUrl: 'https://archive.example.test/gones-night',
   organization: { id: '22222222-2222-2222-2222-222222222222', name: 'Gones', description: undefined, website: 'https://example.test', contactEmail: undefined, organizers: ['adam', 'zoe'] },
@@ -69,6 +65,22 @@ describe('EventDetailViewComponent hero', () => {
     expect(title).not.toContain('titleFormat');
     expect(title).not.toContain('event().capacity');
     expect(source).not.toContain('titleFormat = computed');
+  });
+
+  it('renders translated Event Type between organization and player count in shared topline', () => {
+    const topline = source.slice(source.indexOf('data-cy="event-detail-topline"'), source.indexOf('</div>', source.indexOf('data-cy="event-detail-topline"')));
+    const organizationIndex = Math.min(
+      ...['event-detail-kicker-link', 'event-detail-kicker'].map(hook => topline.indexOf(hook)).filter(index => index >= 0)
+    );
+    const typeIndex = topline.indexOf('event-detail-event-type');
+    const countIndex = topline.indexOf('event-detail-player-count');
+
+    expect(build({ eventType: PublicCalendarEventType.Weekly }).eventTypeLabel()).toBe(translate('fr', 'event.type.weekly'));
+    expect(build({ eventType: PublicCalendarEventType.Monthly }).eventTypeLabel()).toBe(translate('fr', 'event.type.monthly'));
+    expect(build({ eventType: PublicCalendarEventType.Major }).eventTypeLabel()).toBe(translate('fr', 'event.type.major'));
+    expect(organizationIndex).toBeGreaterThanOrEqual(0);
+    expect(typeIndex).toBeGreaterThan(organizationIndex);
+    expect(countIndex).toBeGreaterThan(typeIndex);
   });
 
   it('renders localized singular, plural and unlimited player counts beside the heading', () => {
@@ -223,13 +235,14 @@ describe('EventDetailViewComponent hero', () => {
     const hero = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>', source.indexOf('<section class="event-hero panel"')));
     const toplineEnd = hero.indexOf('</div>', hero.indexOf('data-cy="event-detail-topline"'));
     const toplineContent = hero.slice(0, toplineEnd);
+    expect(toplineContent).toContain('data-cy="event-detail-event-type"');
     expect(toplineContent).toContain('data-cy="event-detail-player-count"');
     const h1End = hero.indexOf('</h1>', hero.indexOf('<h1'));
     const h1Content = hero.slice(hero.indexOf('<h1'), h1End);
     expect(h1Content).not.toContain('data-cy="event-detail-player-count"');
     const toplineRule = stylesheet.match(/\.event-hero-topline \{[^}]*\}/)?.[0] ?? '';
     expect(toplineRule).toContain('justify-content: flex-start');
-    const countRule = stylesheet.match(/\.event-player-count \{[^}]*\}/)?.[0] ?? '';
+    const countRule = stylesheet.match(/\.event-type-label, \.event-player-count \{[^}]*\}/)?.[0] ?? '';
     expect(countRule).toContain('font-size: 1.1rem');
   });
 
@@ -276,34 +289,28 @@ describe('EventDetailViewComponent hero', () => {
     expect(source).not.toContain('event-detail-when-where');
   });
 
-  it('renders ordered responsive hero and gallery media with exact alt fallback', () => {
+  it('renders one responsive hero with generated title alt and no gallery navigation', () => {
     const component = build();
-    expect(component.imageAlt(event.images[0], 0)).toBe('Hero alt');
-    expect(component.imageAlt(event.images[1], 1)).toBe('Modern — AURA Open — image 2');
-    expect(component.imageSource(event.images[0])).toBe('/api/event-images/image-1/variants/960');
-    expect(component.imageSourceSet(event.images[0])).toBe('/api/event-images/image-1/variants/320 320w, /api/event-images/image-1/variants/960 960w');
+    expect(component.imageAlt()).toBe(`Modern — AURA Open — ${translate('fr', 'event.image')}`);
+    expect(component.imageSource(event.image!)).toBe('/api/event-images/image-1/variants/960');
+    expect(component.imageSourceSet(event.image!)).toBe('/api/event-images/image-1/variants/320 320w, /api/event-images/image-1/variants/960 960w');
     expect(source).toContain('data-cy="event-detail-media-hero"');
-    expect(source).toContain('data-cy="event-detail-media-gallery"');
-    expect(source).toContain('@for (image of galleryImages(); track image.id; let position = $index)');
+    expect(source).not.toContain('event-detail-media-gallery');
+    expect(source).not.toContain('event-detail-lightbox-previous');
+    expect(source).not.toContain('event-detail-lightbox-next');
     expect(stylesheet).toMatch(/\.event-media-hero[^}]*aspect-ratio:\s*16\s*\/\s*9/);
     expect(stylesheet).toMatch(/\.event-media-image[^}]*object-fit:\s*contain/);
-    expect(stylesheet).toMatch(/\.event-media-gallery[^}]*grid-template-columns:\s*repeat\(3,/);
-    expect(stylesheet).toMatch(/@media[^}]*max-width:\s*700px[\s\S]*\.event-media-gallery[^}]*grid-template-columns:\s*1fr/);
   });
 
-  it('implements dialog keyboard navigation, focus trap, Escape close and trigger focus restore', () => {
+  it('implements dialog focus trap, Escape close and trigger focus restore', () => {
     const component = build();
     const trigger = document.createElement('button');
     const focus = vi.spyOn(trigger, 'focus');
 
-    component.openLightbox(1, trigger);
-    expect(component.lightboxIndex()).toBe(1);
-    component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'ArrowRight', cancelable: true }));
-    expect(component.lightboxIndex()).toBe(2);
-    component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'ArrowLeft', cancelable: true }));
-    expect(component.lightboxIndex()).toBe(1);
+    component.openLightbox(trigger);
+    expect(component.lightboxOpen()).toBe(true);
     component.onLightboxKeydown(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
-    expect(component.lightboxIndex()).toBeNull();
+    expect(component.lightboxOpen()).toBe(false);
     expect(focus).toHaveBeenCalledOnce();
 
     const dialog = document.createElement('div');
@@ -342,12 +349,9 @@ describe('EventDetailViewComponent hero', () => {
     const dialog = host.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.getAttribute('aria-label')).toBe(translate('fr', 'event.imageDialogLabel'));
-    expect(dialog.querySelector('img')?.getAttribute('alt')).toBe('Hero alt');
+    expect(dialog.querySelector('img')?.getAttribute('alt')).toBe(`Modern — AURA Open — ${translate('fr', 'event.image')}`);
     expect(document.activeElement).toBe(dialog.querySelector('[data-cy="event-detail-lightbox-close"]'));
 
-    dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
-    reference.changeDetectorRef.detectChanges();
-    expect(dialog.querySelector('img')?.getAttribute('alt')).toBe('Modern — AURA Open — image 2');
     dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     reference.changeDetectorRef.detectChanges();
     expect(host.querySelector('[role="dialog"]')).toBeNull();

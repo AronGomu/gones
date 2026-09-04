@@ -203,9 +203,6 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
       literal(event.city),
       literal(event.country),
       literal(event.region),
-      literal(`stress-${event.key}`),
-      String(45.764),
-      String(4.8357),
       literal(storedEventType(event.eventType)),
       literal(event.timeZoneId),
       literal(startsLocal.slice(0, 10)),
@@ -313,7 +310,7 @@ export function bulkLoadStress({ environment, auditRecords, organizationIds, for
     'BEGIN;',
     ...insertStatements('events', [
       'id', 'organization_id', 'title', 'slug', 'summary', 'body_markdown', 'street_address', 'postal_code',
-      'city', 'country', 'region', 'provider_place_id', 'latitude', 'longitude', 'event_type', 'time_zone_id', 'venue_start_date', 'venue_start_time', 'venue_end_date',
+      'city', 'country', 'region', 'event_type', 'time_zone_id', 'venue_start_date', 'venue_start_time', 'venue_end_date',
       'venue_end_time', 'starts_at_utc', 'ends_at_utc', 'capacity', 'status', 'created_by_user_id',
       'created_at', 'updated_at', 'normalized_search_text', 'version'
     ], eventRows),

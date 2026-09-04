@@ -474,6 +474,7 @@ public sealed class AccountDeletionTests : IAsyncLifetime
         PostalCode: "69001",
         City: "Lyon",
         Country: "France",
+        Region: "Auvergne-Rhône-Alpes",
         TimeZoneId: "Europe/Paris",
         StartsAtLocal: new LocalDateTime(2026, 8, 2, 10, 0),
         EndsAtLocal: new LocalDateTime(2026, 8, 2, 18, 0),

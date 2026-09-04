@@ -1,4 +1,4 @@
-import type { EventImageInput, EventPayloadRequest } from '../../api/generated/gones-api';
+import type { EventPayloadRequest } from '../../api/generated/gones-api';
 
 export interface EventDraftValue {
   organizationId: string;
@@ -10,16 +10,13 @@ export interface EventDraftValue {
   city: string;
   country: string;
   region: string;
-  locationToken: string;
-  latitude: number | null;
-  longitude: number | null;
   eventType: '' | 'weekly' | 'monthly' | 'major';
   timeZoneId: string;
   startDate: string;
   startTime: string;
   capacity: number | null;
   formatId: string;
-  images: EventImageInput[];
+  imageId: string | null;
 }
 
 export function eventPayload(value: EventDraftValue): EventPayloadRequest {
@@ -34,16 +31,13 @@ export function eventPayload(value: EventDraftValue): EventPayloadRequest {
       city: value.city.trim(),
       country: value.country.trim(),
       region: value.region.trim(),
-      locationToken: value.locationToken
+      timeZoneId: value.timeZoneId.trim()
     },
     eventType: eventTypeValue(value.eventType),
     startsAtLocal: `${value.startDate}T${value.startTime}`,
     capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    images: value.images.map(image => ({
-      imageId: image.imageId,
-      altText: optional(image.altText ?? '')
-    }))
+    imageId: value.imageId ?? undefined
   };
 }
 

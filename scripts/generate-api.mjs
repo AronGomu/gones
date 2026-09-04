@@ -77,27 +77,11 @@ try {
     const property = document.components?.schemas?.[schemaName]?.properties?.eventType;
     if (property) document.components.schemas[schemaName].properties.eventType = { type: 'string', enum: eventTypeValues };
   }
-  // ASP.NET OpenAPI emits NodaTime Instant as an empty object and drops date-time metadata from
-  // location token expiry fields. Keep every generated timestamp on its RFC 3339 string contract.
+  // ASP.NET OpenAPI emits NodaTime Instant as an empty object. Keep generated timestamps on their
+  // RFC 3339 string contract.
   const dateTimeString = { type: 'string', format: 'date-time' };
   const instant = document.components?.schemas?.Instant;
   if (instant) Object.assign(instant, dateTimeString);
-  const resolvedLocationExpiry = document.components?.schemas?.ResolvedEventLocationResponse?.properties?.expiresAt;
-  if (resolvedLocationExpiry) Object.assign(resolvedLocationExpiry, dateTimeString);
-  const managementLocationExpiry = document.components?.schemas?.EventManagementResponse?.properties?.locationTokenExpiresAt;
-  if (managementLocationExpiry) Object.assign(managementLocationExpiry, dateTimeString);
-  // Runtime accepts omissions so endpoint can return per-field errors instead of framework-level
-  // malformed_request. They remain required in public contract plus generated callers.
-  const locationAutocompleteParameters = document.paths?.['/api/event-locations/autocomplete']?.get?.parameters ?? [];
-  for (const name of ['input', 'sessionToken', 'language']) {
-    const index = locationAutocompleteParameters.findIndex(candidate => candidate.name === name && candidate.in === 'query');
-    if (index >= 0) {
-      const parameter = { ...locationAutocompleteParameters[index] };
-      delete parameter.required;
-      delete parameter.schema;
-      locationAutocompleteParameters[index] = { ...parameter, required: true, schema: { type: 'string' } };
-    }
-  }
   const eventImageResponse = document.components?.schemas?.EventImageUploadResponse;
   if (eventImageResponse?.properties?.state) eventImageResponse.properties.state = { type: 'string', enum: ['Temporary'] };
   if (eventImageResponse?.properties?.expiresAt) eventImageResponse.properties.expiresAt = { type: 'string', format: 'date-time' };

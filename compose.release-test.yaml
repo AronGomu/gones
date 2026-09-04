@@ -155,8 +155,6 @@ services:
       # The rehearsal replays whole role journeys from one address; the per-account auth limiter is
       # a C40 concern with its own tests (RateLimitPolicyTests) and would only add noise here.
       GONES_AUTH_RATE_LIMIT_PERMIT_LIMIT: "1000"
-      # Event location resolution stays inside isolated network through deterministic provider fixture.
-      GONES_EVENT_LOCATION_USE_FAKE: "true"
       GONES_EVENT_IMAGES_S3_ENDPOINT: http://minio:9000
       GONES_EVENT_IMAGES_S3_BUCKET: gones-event-images
       GONES_EVENT_IMAGES_S3_REGION: us-east-1

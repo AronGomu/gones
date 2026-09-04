@@ -26,12 +26,10 @@ describe('event editor provider runtime contract', () => {
     }
   });
 
-  it('documents every provider key and user-owned setup action', () => {
+  it('documents image provider keys without retired Maps configuration', () => {
     const example = read('.env.example');
     const guide = read('docs/EVENT_EDITOR_PROVIDERS.md');
     const keys = [
-      'GONES_GOOGLE_MAPS_API_KEY',
-      'GONES_GOOGLE_MAPS_API_KEY_FILE',
       'GONES_EVENT_IMAGES_S3_ENDPOINT',
       'GONES_EVENT_IMAGES_S3_BUCKET',
       'GONES_EVENT_IMAGES_S3_REGION',
@@ -43,16 +41,8 @@ describe('event editor provider runtime contract', () => {
       expect(example).toContain(`${key}=`);
       expect(guide).toContain(key);
     }
-    for (const action of [
-      'Places API',
-      'Place Details API',
-      'Time Zone API',
-      'billing',
-      'server key',
-      'deployment egress',
-      'private S3'
-    ]) {
-      expect(guide.toLowerCase()).toContain(action.toLowerCase());
-    }
+    expect(guide.toLowerCase()).toContain('private s3');
+    expect(example).not.toContain('GONES_GOOGLE_MAPS_API_KEY');
+    expect(guide).not.toContain('GONES_GOOGLE_MAPS_API_KEY');
   });
 });

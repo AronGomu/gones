@@ -17,7 +17,7 @@ Power preference cannot grant server privilege. ADR 0021/0028 authority boundari
 - Browser-local key `gones.settings.power-user`; default false; usable signed out.
 - UX capability only. Never role/claim/security boundary.
 - Mode off keeps browse/export/registration/Settings available.
-- Mode off blocks advanced Event source-data mutations in shipped UI/routes (create/edit/publish/cancel/delete), every League Archive/Archive Tournament mutation at UI/repository, and every Live Tournament mutation at UI/repository.
+- Mode off blocks advanced Event source-data mutations in shipped UI/routes (create/edit/publish/cancel/delete) for Organizer Users, every League Archive/Archive Tournament mutation at UI/repository, and every Live Tournament mutation at UI/repository. Admin Users retain Event creation so they can publish for any active non-draft Organization.
 - Event registration remains available. Existing regular-User proposal API remains callable but hidden from shipped UI/routes. Event create/edit UI additionally requires verified Organizer/Admin.
 - Local browser owns all local Archive Tournaments. Any Organizer/Admin may edit server Archive Tournaments.
 

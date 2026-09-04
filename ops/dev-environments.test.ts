@@ -609,6 +609,29 @@ describe('seeder safety boundaries', () => {
     expect(seedEvents).toContain('expectedEventSlug(entry.title, formatSlugs.get(entry.formatKeys[0]))');
     expect(seedEvents).toContain('published slug');
   });
+
+  it('publishes fixture Events with manual location and timezone fields', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/seed-dev-environment.mjs'), 'utf8');
+    const seedEvents = source.slice(source.indexOf('async function seedEvents'), source.indexOf('async function seedRegistrations'));
+
+    expect(seedEvents).not.toContain('/api/event-locations/resolve');
+    expect(seedEvents).not.toContain('locationToken');
+    expect(seedEvents).toContain('streetAddress: entry.streetAddress');
+    expect(seedEvents).toContain('timeZoneId: entry.timeZoneId');
+    expect(seedEvents).toContain('imageId: null');
+    expect(seedEvents).not.toContain('images: []');
+  });
+
+  it('bulk loads fixture Events without removed provider geodata columns', () => {
+    const source = readFileSync(join(process.cwd(), 'scripts/bulk-load-stress.mjs'), 'utf8');
+    const eventInsert = source.slice(source.indexOf("...insertStatements('events'"), source.indexOf("...insertStatements('event_formats'"));
+
+    expect(source).not.toContain('provider_place_id');
+    expect(source).not.toContain('latitude');
+    expect(source).not.toContain('longitude');
+    expect(eventInsert).toContain("'street_address'");
+    expect(eventInsert).toContain("'time_zone_id'");
+  });
 });
 
 describe('relative fixture dates', () => {

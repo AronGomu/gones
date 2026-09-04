@@ -1,99 +1,31 @@
-## Calendar Page
+# Create/Edit Event Page
 
-## Event Page
+1. The preview must be updated live. Whenever I type in any of the input of the form, this must update in real time the Live Preview.
 
-1. Move the number of players to be justified left next to the name of the organization that organized the tournament, and make the font size bigger.
+- Event Name does not update live when no format is selected. Even with no format show it.
 
-2. On the "participants" sections, move the number of registered players and the capacity to be on the same row as the "participants" title. Format it to : {number registered} / (Max number) registered
+2. In the preview and in the actual event page, add the type of the tournament : "Weekly | Monthly | Major" before the number of player, same row.
 
-3. Always show the participants.
+3. Country input must be a select with all the countries in the world
 
-4. If the participant is an unknown user and the participant’s ID matches the ID of a player with statistics, add a redirection link to that player’s stat page.
+4. Calculate the cost of making a region, cities and street adress, postal code offer auto complete. My guess, the whole database for that cannot be stored without storage or performance issues locally by the user (especially its not the point of the app). See if there are free api online that offer that service. In any case, these cannot be a select unlike the countries, only autocompletion.
 
-## Home page
+5. Remove "Location search is temporarily unavailable. Your address is preserved; retry." message.
 
-1. Add image to each card of home page. The images should be a bit more opaque and have a fade in the middle, fade to black. The image should be visible on the right side, and on the left side it should fade to black to expose more of the text of the card.
+6. When scrolling down, part of the top of the live preview is eaten. Make sure to give enough margin and keep the button "Hide Preview" in the live preview section (not scrolled).
 
-Events: Snapcaster Mage
-My Registration: Scroll Rack
-Global Rankings: Force of Will
-Leagues Archive: Library of Alexandria
-Live Tournament: Lightning Bolt
-About: Fire/Ice (Use Both image, each one take left and right side with blend one to the another)
-Settings: Grim Monolith
+7. Allow only 1 image for the event post.
 
-Must be only the art of the card.
+8. Remove alternative text for the image or any positioning (because only 1 image now).
 
-2. Even if you are not connected as a user, you should be able to see the My Inscriptions card on the homepage, but it is disabled.
+9. Replace remove button by red trash icon
 
-3. Hide for users and organizers :
+10. Pulish event button must take whole width of the form section and be green. On hover tooltip, show all form errors.
 
-- "Global Rankings"
-- "Leagues Archives"
-- "Live Tournaments"
-  They will be released after.
+11. Live Preview Title must be bigger and justified left for Live preview section.
 
-## Refont About Page
+12. "Hide Preview" button must be on same row as "Live Preview" title, justified right.
 
-1. Fetch fire and ice mtg card illustration : upscale them to full hd and put as background behind bloc of texts
+13. When trying to leave the page, if any information has been inputed, show dialog confirmation to leave the page (when trying to exist the page back button, browser or trying to navigate to another url)
 
-2. Update Bio for those :
-
-### Alex Noir - :
-
-EN : 80's born, MtG player since 1998, Korean enthousiast, salt taster, punk spreader.
-FR : 80's born, Joueur de MtG depuis 1998, fan Coreen, gouteur de sel et punk spreader.
-Avatar : /home/aron/Downloads/alpha_bolt.jpeg (move image to project and use it as illustration)
-
-### Luka Mrakovcic - Community Manager
-
-EN :
-Learned to play magic too late to buy Reserved List (thanks proxy).
-Tempo for Life 💙❤️(🖤💚).
-MtgOnes for Ever ❤️‍🔥.
-
-FR :
-A appris a jouer a Magic trop tard pour acheter des cartes reserves listes (merci les proxys).
-Tempo for Life 💙❤️(🖤💚).
-MtgOnes for Ever ❤️‍🔥.
-
-Avatar : ../../Downloads/lukas_avatar.jpg
-
-### Loïc Chowchow - Cook in Chief :
-
-EN:
-I begin playing MTG in 1996 at school. After a long break of ~20 years. I came back with the Balek bar and MtgOnes to Legacy.
-Official kitchen chef for the Fire/Ice tournament with my wife Emmanuelle and my slave Lukas!
-EldraGROZIZI and rakdos reanimator player.
-Find me as Pouhaskaye Pulsky on social media.
-
-FR :
-J'ai commence a jouer a Magic en 1996 a l'ecole. Apres une longue pause ~20 ans. Je suis revenu avec le Balek bar et MTGones au Legacy.
-Cuisinier officiel pour le tournoi Fire/Ice avec ma femme Emmanuelle et mon esclave Lukas !
-Joueur d'EldraGROZIZI et rakdos reanimator.
-Trouvez moi au nom de Pouhaskaye Pulsky sur les reseaux.
-
-Avatar : /home/aron/brain/1_projects/FIRE-CAMPAIGN/08-25-chowchow-votre-cuisinier/chowchow.jpg
-
-### Gregory Millon - Founder :
-
-## Settings Page
-
-1. Merge the account settings page into the settings page and split each page into its own tab. On the same row as the Return to Menu button, there should be two tab buttons. When clicking one, it updates the page to the selected settings. The names for both settings buttons are App Settings and Account Settings. They each have distinct URLs. If you need to download or request any information for one or the other page settings, make the requests. Whenever you load either of those two pages, load the information for the other one as well. They are treated as a single, same page.
-
-2. Move the synchronize button to be on the same row as the return to menu button and the two tabs button.
-
-3. Move Power User mode to the bottom of the page and hide it for Organizer and User for now.
-
-4. Same for deck archetypes.
-
-5. On the app settings page, remove the Account section and open Account Settings. It's already replaced by the tab button.
-
-6. Make the text within "Resynchronize everything" to take the whole width of the card.
-
-PRIO :
-
-1. Landing Page
-2. Avoir le site avec calendar (Release 1.0)
-3. Archive Tournoi fonctionel (Release 1.1)
-4. Classement Global fully fonctionel (Release 1.2)
+14. For the drag and drop section, center the text within

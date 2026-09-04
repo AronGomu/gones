@@ -94,44 +94,56 @@
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventPublicationApiTests.cs",
-                    "assertion": "Direct_publish_attaches_ordered_temporary_images_and_replays_idempotently",
-                    "detail": "direct publication composes resolved location, Markdown, ordered images and public detail"
+                    "assertion": "Direct_publish_attaches_one_temporary_image_and_replays_idempotently",
+                    "detail": "direct publication composes manual timezone location, Markdown, singular image and public detail"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventLifecycleApiTests.cs",
-                    "assertion": "Fresh_media_edit_reorders_promotes_and_removes_atomically_then_deletes_objects_post_commit",
+                    "assertion": "Fresh_media_edit_replaces_owned_image_and_deletes_objects_post_commit",
                     "detail": "fresh and stale media edits preserve hidden URLs and delete objects only after commit"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventProposalTests.cs",
-                    "assertion": "Submit_promotes_ordered_images_to_proposal_ownership_and_blocks_reuse",
-                    "detail": "verified User submission promotes ordered temporary images into proposal ownership"
+                    "assertion": "Submit_promotes_one_image_to_proposal_ownership_and_blocks_reuse",
+                    "detail": "verified User submission promotes one temporary image into proposal ownership"
                 },
                 {
                     "gate": "dotnet",
                     "target": "backend/tests/Gones.IntegrationTests/EventProposalDecisionTests.cs",
-                    "assertion": "Approve_atomically_promotes_proposal_images_to_the_published_event",
+                    "assertion": "Approve_atomically_promotes_proposal_image_to_the_published_event",
                     "detail": "token review, approval, rejection and expiry preserve media ownership boundaries"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/organizer-event-create.cy.js",
-                    "assertion": "publishes 5 ordered images with alt text and renders faithful public Markdown detail",
-                    "detail": "browser create and proposal submission flow with media and resolved location"
+                    "assertion": "publishes one image, rejects a second, and renders public lightbox",
+                    "detail": "browser create and proposal submission flow with singular image and manual timezone"
+                },
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/organizer-event-create.cy.js",
+                    "assertion": "exposes every inducible Publish reason through its hidden ARIA summary",
+                    "detail": "English create errors label the manual IANA time zone directly in stable field order"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/organizer-event-management.cy.js",
-                    "assertion": "resolves a changed location and commits Markdown plus remove/add/reorder media in one fresh PATCH",
-                    "detail": "browser edit flow with Markdown, resolved location, media ordering and stale recovery"
+                    "assertion": "labels manual IANA time zone errors directly in French edit mode",
+                    "detail": "French edit errors use the IANA time zone field label without retired provider wording"
+                },
+                {
+                    "gate": "cypress",
+                    "target": "cypress/e2e/organizer-event-management.cy.js",
+                    "assertion": "resolves a changed location and commits Markdown plus replace media in one fresh PATCH",
+                    "detail": "browser edit flow with Markdown, manual timezone, singular image replacement and stale recovery"
                 },
                 {
                     "gate": "cypress",
                     "target": "cypress/e2e/event-proposal.cy.js",
-                    "assertion": "renders the proposal with private images, then validates it and shows the published link",
-                    "detail": "private proposal review images become a public Event after approval"
+                    "assertion": "renders the proposal with private image, then validates it and shows the published link",
+                    "detail": "private proposal review image becomes a public Event after approval"
                 },
                 {
                     "gate": "rehearsal",

@@ -47,7 +47,7 @@ public sealed class MigrationPlannerTests
     {
         var eventJson = EventJsonText("event-1", startTime: "", address: "", location: "", country: "", city: "");
         var bundle = Bundle(InstanceA, "sha256:aa", eventsJson: $"[{eventJson},{EventJsonText("event-2", slug: "other-cup")}]");
-        var mapping = Mapping(("event-1", new CalendarEventMapping(null, null, null, null, null, null, null, null, null, null, null)));
+        var mapping = Mapping(("event-1", new CalendarEventMapping(null, null, null, null, null, null, null, null, null, null, null, null)));
         var evaluation = MigrationPlanner.Evaluate(
             [bundle],
             Manifest(("sha256:aa", InstanceA, "authoritative")),
@@ -310,7 +310,8 @@ public sealed class MigrationPlannerTests
         Address: null,
         City: null,
         Country: null,
-        PostalCode: null,
+        PostalCode: "69002",
+        Region: "Auvergne-Rhône-Alpes",
         FormatSlugs: ["legacy"],
         Status: "published",
         Capacity: null);

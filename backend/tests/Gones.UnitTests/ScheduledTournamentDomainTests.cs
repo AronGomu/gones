@@ -15,8 +15,10 @@ public sealed class ScheduledTournamentDomainTests
     {
         Assert.Throws<ArgumentException>(() => Create(Draft() with { Title = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { StreetAddress = " " }));
+        Assert.Throws<ArgumentException>(() => Create(Draft() with { PostalCode = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { City = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { Country = " " }));
+        Assert.Throws<ArgumentException>(() => Create(Draft() with { Region = " " }));
         Assert.Throws<ArgumentException>(() => Create(Draft() with { TimeZoneId = "Europe/Nope" }));
         Assert.Throws<ArgumentException>(() => Event.Create(OrganizationId, UserId, Draft(), [], Now));
 
@@ -183,18 +185,6 @@ public sealed class ScheduledTournamentDomainTests
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { City = "Paris" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { Region = "Île-de-France" }, [legacy]));
         Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(Draft() with { EventType = CalendarEventType.Major }, [legacy]));
-    }
-
-    [Fact]
-    public void Provider_place_identity_or_coordinates_change_is_major_even_when_visible_location_and_zone_match()
-    {
-        var legacy = TournamentFormat.CreateLegacy(Now);
-        var resolvedDraft = Draft() with { ProviderPlaceId = "place-1", Latitude = 45.764m, Longitude = 4.8357m };
-        var tournament = Event.Create(OrganizationId, UserId, resolvedDraft, [legacy], Now);
-
-        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { ProviderPlaceId = "place-2" }, [legacy]));
-        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Latitude = 45.765m }, [legacy]));
-        Assert.Equal(TournamentChangeSeverity.Major, tournament.ClassifyChange(resolvedDraft with { Longitude = 4.836m }, [legacy]));
     }
 
     [Fact]

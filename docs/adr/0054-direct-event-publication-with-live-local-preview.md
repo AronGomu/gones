@@ -9,6 +9,8 @@
 
 Accepted. Not yet implemented.
 
+> Amended by [ADR-0056](0056-singular-event-image-contract.md): Event writes carry nullable `imageId`, not ordered `images`.
+
 ## Context
 
 Current organizer flow submits payload to `POST /api/events/preview`, receives short-lived preview ticket plus server render, replaces form with preview page, then submits ticket and same payload to `POST /api/events`. Any form change invalidates ticket. Product now requires live preview beside form, no Preview button, and one Publish action.

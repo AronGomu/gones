@@ -2,8 +2,9 @@ import '@angular/compiler';
 import { Injector, runInInjectionContext, signal } from '@angular/core';
 import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { describe, expect, it, vi } from 'vitest';
+import { AuthService } from '../auth/auth.service';
 import { PowerUserSettingsService } from './power-user-settings.service';
-import { powerUserGuard } from './power-user.guard';
+import { eventCreatePowerGuard, powerUserGuard } from './power-user.guard';
 
 function invoke(url: string, enabled: boolean): { result: boolean | UrlTree; createUrlTree: ReturnType<typeof vi.fn> } {
   const createUrlTree = vi.fn((commands: string[]) => ({ redirect: commands.join('/') }) as unknown as UrlTree);
@@ -16,6 +17,20 @@ function invoke(url: string, enabled: boolean): { result: boolean | UrlTree; cre
     { url } as RouterStateSnapshot
   )) as boolean | UrlTree;
   return { result, createUrlTree };
+}
+
+async function invokeEventCreate(enabled: boolean, globalRole: string): Promise<{ result: boolean | UrlTree; whenSessionReady: ReturnType<typeof vi.fn> }> {
+  const whenSessionReady = vi.fn(async () => undefined);
+  const injector = Injector.create({ providers: [
+    { provide: AuthService, useValue: { profile: signal({ globalRole }), whenSessionReady } },
+    { provide: PowerUserSettingsService, useValue: { enabled: signal(enabled) } },
+    { provide: Router, useValue: { createUrlTree: vi.fn((commands: string[]) => ({ redirect: commands.join('/') }) as unknown as UrlTree) } }
+  ] });
+  const result = await runInInjectionContext(injector, () => eventCreatePowerGuard(
+    {} as ActivatedRouteSnapshot,
+    { url: '/events/new' } as RouterStateSnapshot
+  ));
+  return { result: result as boolean | UrlTree, whenSessionReady };
 }
 
 describe('powerUserGuard', () => {
@@ -32,5 +47,17 @@ describe('powerUserGuard', () => {
 
     expect(result).not.toBe(true);
     expect(createUrlTree).toHaveBeenCalledWith([fallback]);
+  });
+});
+
+describe('eventCreatePowerGuard', () => {
+  it('allows Admin to create an Event while Power User mode is disabled after session restore', async () => {
+    const { result, whenSessionReady } = await invokeEventCreate(false, 'Admin');
+    expect(whenSessionReady).toHaveBeenCalledOnce();
+    expect(result).toBe(true);
+  });
+
+  it('still requires Power User mode for Organizer', async () => {
+    expect((await invokeEventCreate(false, 'Organizer')).result).not.toBe(true);
   });
 });

@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { buildRoutes, eventRoutes } from './app.routes';
 import { organizerGuard, userGuard, verifiedEmailGuard } from './auth/auth.guards';
 import { firstVisitHomeGuard, markVisitedGuard } from './shared/first-visit.guard';
-import { powerUserGuard } from './shared/power-user.guard';
+import { eventCreatePowerGuard, powerUserGuard } from './shared/power-user.guard';
+import { eventEditorCanDeactivate } from './features/events/event-create-leave.guard';
 
 const noCapabilities = { authV1: false, adminV1: false };
 const allCapabilities = { authV1: true, adminV1: true };
@@ -145,10 +146,11 @@ describe('route exposure per capability flag', () => {
     expect(paths(allCapabilities)).toContain('events/new');
   });
 
-  it('guards events/new with user, verified-email and Power User gates in order', () => {
+  it('guards events/new with user, verified-email and Admin-aware Power User gates in order', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'events/new');
     expect(route).toBeDefined();
-    expect(route!.canActivate).toEqual([userGuard, verifiedEmailGuard, powerUserGuard]);
+    expect(route!.canActivate).toEqual([userGuard, verifiedEmailGuard, eventCreatePowerGuard]);
+    expect(route!.canDeactivate).toEqual([eventEditorCanDeactivate]);
   });
 
   it('matches events/new before the events/:slug detail route', () => {
@@ -187,6 +189,8 @@ describe('route exposure per capability flag', () => {
   it('keeps organizer edit behind organizer, verified-email and Power User gates in order', () => {
     const route = buildRoutes(allCapabilities).find((route) => route.path === 'organizer/events/:id/edit');
     expect(route?.canActivate).toEqual([organizerGuard, verifiedEmailGuard, powerUserGuard]);
+    expect(route?.canDeactivate).toEqual([eventEditorCanDeactivate]);
+    expect(buildRoutes(allCapabilities).indexOf(route!)).toBeLessThan(buildRoutes(allCapabilities).findIndex(candidate => candidate.path === '**'));
   });
 
   it('redirects the home route to /about on the first visit', () => {

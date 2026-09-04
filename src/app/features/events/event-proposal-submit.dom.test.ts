@@ -115,13 +115,13 @@ describe('OrganizerEventCreateComponent proposal DOM', () => {
     uploader.addFiles([file()]);
     fixture.detectChanges();
 
-    expect(uploader.cards()[0].status).toBe('pending');
+    expect(uploader.card()!.status).toBe('pending');
     expect(submit.disabled).toBe(true);
 
     uploads[0].error(new Error('injected upload failure'));
     fixture.detectChanges();
 
-    expect(uploader.cards()[0].status).toBe('error');
+    expect(uploader.card()!.status).toBe('error');
     expect(submit.disabled).toBe(true);
     expect(fixture.nativeElement.querySelector('[data-cy="event-image-publish-blocked"]').textContent)
       .toContain('eventImages.proposalBlocked');

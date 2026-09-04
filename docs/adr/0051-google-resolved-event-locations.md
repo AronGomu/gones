@@ -1,13 +1,14 @@
 # ADR-0051: Google-resolved Event locations
 
-> Status: accepted; planned
+> Status: superseded
 > Decided: 2026-08-31
 > Owners: Calendar Event API and editor
 > Relates: ADR-0035 (Event vocabulary), ADR-0039 (server-backed Event reads)
+> Superseded by: ADR-0057 (manual worldwide Event locations)
 
 ## Status
 
-Accepted. Not yet implemented.
+Superseded by [ADR-0057](0057-manual-worldwide-event-locations.md). Provider-backed locations were implemented, then removed before release.
 
 ## Context
 

@@ -16,7 +16,7 @@ const event = {
   summary: 'Summary', bodyMarkdown: '**Body**',
   location: {
     streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France',
-    region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token'
+    region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
   },
   streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
   eventType: 'weekly', timeZoneId: 'Europe/Paris', startsAtLocal: '2027-08-01T10:00',
@@ -24,21 +24,21 @@ const event = {
   startsAtUtc: '2027-08-01T08:00:00Z', endsAtUtc: '2027-08-01T21:59:59Z', capacity: 32,
   status: 'Published', deletedAt: undefined, deletedReason: undefined, formatIds: ['legacy'], version: 3, eTag: '"3"',
   displayTitle: 'Legacy — Legacy Open', liveTournamentUrl: '/live/123', archiveTournamentUrl: 'https://example.test/archive/123',
-  images: [{
-    id: 'image-1', altText: 'Poster', variants: [
+  image: {
+    id: 'image-1', variants: [
       { width: 320, height: 180, url: '/api/event-images/image-1/variants/320' },
       { width: 960, height: 540, url: '/api/event-images/image-1/variants/960' }
     ]
-  }]
+  }
 } as unknown as EventManagementResponse;
 
 describe('Event management state', () => {
-  it('hydrates canonical nested location, Markdown, and ordered images into edit draft', () => {
+  it('hydrates canonical nested location, Markdown, and singular image into edit draft', () => {
     expect(managementToDraft(event)).toEqual({
       organizationId: 'org', title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '**Body**', streetAddress: '1 Old Street',
-      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token', latitude: null, longitude: null,
+      postalCode: '69001', city: 'Lyon', country: 'France', region: 'Auvergne-Rhône-Alpes',
       eventType: 'weekly', timeZoneId: 'Europe/Paris', startDate: '2027-08-01', startTime: '10:00',
-      capacity: 32, formatId: 'legacy', images: [{ imageId: 'image-1', altText: 'Poster' }]
+      capacity: 32, formatId: 'legacy', imageId: 'image-1'
     });
   });
 
@@ -49,47 +49,44 @@ describe('Event management state', () => {
     expect(majorEventChanges(legacy, { ...draft, eventType: 'weekly' })).toContain('Event Type');
   });
 
-  it('classifies location, start, type, capacity, and format as major but Markdown and images as minor', () => {
+  it('classifies location, start, type, capacity, and format as major but Markdown and image as minor', () => {
     const draft = { ...managementToDraft(event), streetAddress: '2 New Street', startDate: '2027-08-02', startTime: '11:00' };
     expect(majorEventChanges(event, draft)).toEqual(['start date/time', 'street address']);
     expect(majorEventChanges(event, { ...managementToDraft(event), capacity: 64, formatId: 'modern' })).toEqual(['capacity', 'formats']);
-    expect(majorEventChanges(event, { ...managementToDraft(event), bodyMarkdown: 'Changed', images: [] })).toEqual([]);
+    expect(majorEventChanges(event, { ...managementToDraft(event), bodyMarkdown: 'Changed', imageId: null })).toEqual([]);
   });
 
   it('builds exact nested update payload without hidden URLs or end control', () => {
     const payload = eventUpdatePayload({
       ...managementToDraft(event),
       bodyMarkdown: '  line  \nnext  ',
-      images: [{ imageId: 'image-1', altText: '  Poster alt  ' }]
+      imageId: 'image-1'
     });
     expect(payload).toEqual({
       title: 'Legacy Open', summary: 'Summary', bodyMarkdown: '  line  \nnext  ',
       location: {
         streetAddress: '1 Old Street', postalCode: '69001', city: 'Lyon', country: 'France',
-        region: 'Auvergne-Rhône-Alpes', locationToken: 'editor-location-token'
+        region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
       },
       eventType: 'weekly', startsAtLocal: '2027-08-01T10:00', capacity: 32, formatIds: ['legacy'],
-      images: [{ imageId: 'image-1', altText: 'Poster alt' }]
+      imageId: 'image-1'
     });
     expect(payload).not.toHaveProperty('liveTournamentUrl');
     expect(payload).not.toHaveProperty('archiveTournamentUrl');
     expect(payload).not.toHaveProperty('endsAtLocal');
   });
 
-  it('detects canonical image membership, alt, and order changes for stale reload', () => {
-    const second = {
-      id: 'image-2', altText: undefined,
-      variants: [{ width: 320, height: 180, url: '/api/event-images/image-2/variants/320' }]
-    };
-    expect(changedEventFields(event, { ...event, images: [second, ...event.images] })).toContain('images');
-    expect(changedEventFields(event, { ...event, images: [{ ...event.images[0]!, altText: 'Changed' }] })).toContain('images');
+  it('detects canonical image identity and dimensions for stale reload', () => {
+    const second = { id: 'image-2', variants: [{ width: 320, height: 180, url: '/image-2' }] };
+    expect(changedEventFields(event, { ...event, image: second })).toContain('image');
+    expect(changedEventFields(event, { ...event, image: { ...event.image!, variants: [{ width: 640, height: 360, url: '/image-1' }] } })).toContain('image');
     expect(changedEventFields(event, { ...event, bodyMarkdown: 'Changed' })).toContain('description');
   });
 
-  it('maps management response into current public-detail preview including images', () => {
+  it('maps management response into current public-detail preview including image', () => {
     expect(managementToDetail(event, [{ id: 'legacy', name: 'Legacy', slug: 'legacy', sortOrder: 0 }])).toMatchObject({
       displayTitle: 'Legacy — Legacy Open', liveTournamentUrl: '/live/123', archiveTournamentUrl: 'https://example.test/archive/123',
-      images: [{ id: 'image-1', altText: 'Poster' }]
+      image: { id: 'image-1' }
     });
   });
 

@@ -15,9 +15,9 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
   standalone: true,
   imports: [RouterLink, FormsModule, MatButtonModule, BackButtonComponent, ServerSanitizedHtmlComponent],
   styles: [`
-    .event-request-images { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; margin: 1rem 0; padding: 0; list-style: none; }
-    .event-request-images figure { margin: 0; }
-    .event-request-images img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--forge); }
+    .event-request-image { max-width: 24rem; margin: 1rem 0; }
+    .event-request-image figure { margin: 0; }
+    .event-request-image img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--forge); }
   `],
   template: `
     <gones-back-button [link]="['/']" [label]="i18n.t('nav.returnToMenu')" position="top" data-cy="event-request-back-top" />
@@ -67,19 +67,12 @@ type EventRequestState = 'loading' | 'review' | 'reason' | 'approved' | 'refused
               <dd data-cy="event-request-fact-summary">{{ review.event.summary || '—' }}</dd>
             </dl>
             <gones-server-sanitized-html class="tournament-request-body" data-cy="event-request-body" [html]="review.bodyHtml || ''" />
-            @if (review.images.length) {
-              <section data-cy="event-request-images" aria-labelledby="event-request-images-title">
-                <h2 id="event-request-images-title" data-cy="event-request-images-title">{{ i18n.t('eventImages.title') }}</h2>
-                <ul class="event-request-images" data-cy="event-request-image-list">
-                  @for (image of review.images; track image.id) {
-                    <li [attr.data-cy]="'event-request-image-item-' + image.id">
-                      <figure [attr.data-cy]="'event-request-image-figure-' + image.id">
-                        <img [src]="reviewImageUrl(image)" [attr.srcset]="reviewImageSrcset(image)" sizes="(max-width: 480px) 100vw, 320px" [alt]="image.altText || ''" loading="eager" [attr.data-cy]="'event-request-image-' + image.id" />
-                        @if (image.altText) { <figcaption [attr.data-cy]="'event-request-image-caption-' + image.id">{{ image.altText }}</figcaption> }
-                      </figure>
-                    </li>
-                  }
-                </ul>
+            @if (review.image; as image) {
+              <section class="event-request-image" data-cy="event-request-image-section" aria-labelledby="event-request-image-title">
+                <h2 id="event-request-image-title" data-cy="event-request-image-title">{{ i18n.t('eventImages.title') }}</h2>
+                <figure data-cy="event-request-image-figure">
+                  <img [src]="reviewImageUrl(image)" [attr.srcset]="reviewImageSrcset(image)" sizes="(max-width: 480px) 100vw, 320px" [alt]="review.event.title + ' — ' + i18n.t('event.image')" loading="eager" data-cy="event-request-image" />
+                </figure>
               </section>
             }
             <div class="info-actions" data-cy="event-request-actions">

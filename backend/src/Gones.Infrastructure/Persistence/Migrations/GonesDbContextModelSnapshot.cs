@@ -283,20 +283,10 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("event_type");
 
-                    b.Property<decimal>("Latitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("numeric(9,6)")
-                        .HasColumnName("latitude");
-
                     b.Property<string>("LiveTournamentUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)")
                         .HasColumnName("live_tournament_url");
-
-                    b.Property<decimal>("Longitude")
-                        .HasPrecision(9, 6)
-                        .HasColumnType("numeric(9,6)")
-                        .HasColumnName("longitude");
 
                     b.Property<string>("NormalizedSearchText")
                         .IsRequired()
@@ -313,12 +303,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("postal_code");
-
-                    b.Property<string>("ProviderPlaceId")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("provider_place_id");
 
                     b.Property<string>("Region")
                         .IsRequired()
@@ -485,11 +469,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<string>("AltText")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)")
-                        .HasColumnName("alt_text");
-
                     b.Property<Instant>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -510,10 +489,6 @@ namespace Gones.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("proposal_id");
 
-                    b.Property<int?>("SortOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("sort_order");
-
                     b.Property<string>("State")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -531,14 +506,14 @@ namespace Gones.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_event_images");
 
-                    b.HasIndex("EventId", "SortOrder")
+                    b.HasIndex("EventId")
                         .IsUnique()
-                        .HasDatabaseName("ix_event_images_event_id_sort_order")
+                        .HasDatabaseName("ux_event_images_event_id")
                         .HasFilter("event_id IS NOT NULL");
 
-                    b.HasIndex("ProposalId", "SortOrder")
+                    b.HasIndex("ProposalId")
                         .IsUnique()
-                        .HasDatabaseName("ix_event_images_proposal_id_sort_order")
+                        .HasDatabaseName("ux_event_images_proposal_id")
                         .HasFilter("proposal_id IS NOT NULL");
 
                     b.HasIndex("State", "ExpiresAt")
@@ -549,11 +524,9 @@ namespace Gones.Infrastructure.Persistence.Migrations
 
                     b.ToTable("event_images", null, t =>
                         {
-                            t.HasCheckConstraint("ck_event_images_alt_text", "alt_text IS NULL OR length(alt_text) <= 300");
-
                             t.HasCheckConstraint("ck_event_images_dimensions", "width > 0 AND height > 0");
 
-                            t.HasCheckConstraint("ck_event_images_ownership", "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND sort_order IS NULL AND expires_at IS NOT NULL) OR (state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND sort_order IS NOT NULL AND expires_at IS NOT NULL) OR (state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND sort_order IS NOT NULL AND expires_at IS NULL)");
+                            t.HasCheckConstraint("ck_event_images_ownership", "(state='Temporary' AND event_id IS NULL AND proposal_id IS NULL AND expires_at IS NOT NULL) OR (state='ProposalOwned' AND event_id IS NULL AND proposal_id IS NOT NULL AND expires_at IS NOT NULL) OR (state='EventOwned' AND event_id IS NOT NULL AND proposal_id IS NULL AND expires_at IS NULL)");
 
                             t.HasCheckConstraint("ck_event_images_state", "state IN ('Temporary','ProposalOwned','EventOwned')");
                         });

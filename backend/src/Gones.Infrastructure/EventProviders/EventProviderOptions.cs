@@ -3,26 +3,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace Gones.Infrastructure.EventProviders;
 
-public sealed class GoogleMapsOptions
-{
-    public const string ApiKeyKey = GonesSecretFiles.GoogleMapsApiKey;
-    public const string ApiKeyFileKey = ApiKeyKey + GonesSecretFiles.FileSuffix;
-
-    private GoogleMapsOptions(string? apiKey) => ApiKey = apiKey;
-
-    public string? ApiKey { get; }
-    public bool IsConfigured => !string.IsNullOrWhiteSpace(ApiKey);
-
-    public static GoogleMapsOptions Load(IConfiguration configuration)
-    {
-        ArgumentNullException.ThrowIfNull(configuration);
-        var apiKey = configuration[ApiKeyKey];
-        return new GoogleMapsOptions(string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim());
-    }
-
-    public override string ToString() => $"GoogleMapsOptions {{ IsConfigured = {IsConfigured}, ApiKey = [redacted] }}";
-}
-
 public sealed class EventImageStorageOptions
 {
     public const string EndpointKey = "GONES_EVENT_IMAGES_S3_ENDPOINT";

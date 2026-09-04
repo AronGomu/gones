@@ -9,6 +9,8 @@
 
 Accepted. Not yet implemented.
 
+> Amended by [ADR-0056](0056-singular-event-image-contract.md): Event/Proposal ownership is zero-or-one; ordered `alt_text`/`sort_order` metadata retires while S3 state/cleanup remains.
+
 ## Context
 
 Event editor accepts zero to five JPEG, PNG or WebP files before an Event exists. Direct publication may attach them immediately; proposal submission must keep them private and reviewable for seven days before approval. API and Worker containers are read-only, so container filesystem is not durable storage. PostgreSQL remains metadata authority, but multi-megabyte image variants would bloat DB backups and query I/O.

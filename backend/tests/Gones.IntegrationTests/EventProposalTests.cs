@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Gones.Api.Errors;
 using Gones.Application.Events;
@@ -244,6 +245,61 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     /// the organization they propose for is one the anonymous public list offers them.
     /// </summary>
     [Fact]
+    public async Task Submit_stores_normalized_manual_location_and_timezone_in_envelope()
+    {
+        var eventJson = JsonNode.Parse(JsonSerializer.Serialize(Payload()))!.AsObject();
+        var location = eventJson["Location"]!.AsObject();
+        location["StreetAddress"] = "  12 Rue de la Paix  ";
+        location["PostalCode"] = "  75001  ";
+        location["City"] = "  Paris  ";
+        location["Country"] = "  France  ";
+        location["Region"] = "  Île-de-France  ";
+        location["TimeZoneId"] = "  Europe/Paris  ";
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/event-proposals",
+            seed.Submitter.Id,
+            GlobalRoles.User,
+            new { @event = eventJson, recipientUserIds = new[] { seed.Organizer.Id } });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        await using var database = CreateContext();
+        var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
+        using var document = JsonDocument.Parse(proposal.PayloadJson);
+        var stored = document.RootElement.GetProperty("location");
+        Assert.Equal("12 Rue de la Paix", stored.GetProperty("streetAddress").GetString());
+        Assert.Equal("75001", stored.GetProperty("postalCode").GetString());
+        Assert.Equal("Paris", stored.GetProperty("city").GetString());
+        Assert.Equal("France", stored.GetProperty("country").GetString());
+        Assert.Equal("Île-de-France", stored.GetProperty("region").GetString());
+        Assert.Equal("Europe/Paris", stored.GetProperty("timeZoneId").GetString());
+    }
+
+    [Fact]
+    public async Task Submit_rejects_unknown_IANA_timezone_with_nested_field_error()
+    {
+        var eventJson = JsonNode.Parse(JsonSerializer.Serialize(Payload()))!.AsObject();
+        var location = eventJson["Location"]!.AsObject();
+        location["TimeZoneId"] = "Europe/Nope";
+
+        using var response = await SendAsync(
+            HttpMethod.Post,
+            "/api/event-proposals",
+            seed.Submitter.Id,
+            GlobalRoles.User,
+            new { @event = eventJson, recipientUserIds = new[] { seed.Organizer.Id } });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty("event.location.timeZoneId", out _), body.ToString());
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.EventProposals.CountAsync());
+        Assert.Equal(0, await database.NotificationOutboxRecords.CountAsync());
+    }
+
+    [Fact]
     public async Task Non_member_can_submit_for_a_public_organization()
     {
         await using (var premise = CreateContext())
@@ -265,7 +321,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Submit_promotes_ordered_images_to_proposal_ownership_and_blocks_reuse()
+    public async Task Submit_promotes_one_image_to_proposal_ownership_and_blocks_reuse()
     {
         var first = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 960, 540, Now);
         var second = EventImage.CreateTemporary(Guid.NewGuid(), seed.Submitter.Id, 320, 180, Now);
@@ -276,7 +332,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         }
         var payload = Payload() with
         {
-            Images = [new(second.Id, " Second "), new(first.Id, null)]
+            ImageId = second.Id
         };
 
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Organizer.Id]);
@@ -287,17 +343,15 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             var proposal = await database.EventProposals.AsNoTracking().SingleAsync();
             var images = await database.EventImages.AsNoTracking()
                 .Where(image => image.ProposalId == proposal.Id)
-                .OrderBy(image => image.SortOrder)
                 .ToListAsync();
-            Assert.Equal(new[] { second.Id, first.Id }, images.Select(image => image.Id).ToArray());
+            Assert.Equal(new[] { second.Id }, images.Select(image => image.Id).ToArray());
             Assert.All(images, image => Assert.Equal(EventImageState.ProposalOwned, image.State));
             Assert.All(images, image => Assert.Equal(proposal.ExpiresAt, image.ExpiresAt));
-            Assert.Equal(new[] { "Second", null }, images.Select(image => image.AltText).ToArray());
         }
 
         using var delete = await SendAsync(
             HttpMethod.Delete,
-            $"/api/event-images/{first.Id:D}",
+            $"/api/event-images/{second.Id:D}",
             seed.Submitter.Id,
             GlobalRoles.User);
         Assert.Equal(HttpStatusCode.Conflict, delete.StatusCode);
@@ -319,7 +373,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             database.EventImages.Add(image);
             await database.SaveChangesAsync();
         }
-        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+        var payload = Payload() with { ImageId = image.Id };
 
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Bystander.Id]);
 
@@ -340,7 +394,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             database.EventImages.Add(image);
             await database.SaveChangesAsync();
         }
-        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+        var payload = Payload() with { ImageId = image.Id };
 
         await using var blocker = CreateContext();
         await using var transaction = await blocker.Database.BeginTransactionAsync();
@@ -390,7 +444,7 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
                 FOR EACH ROW EXECUTE FUNCTION fail_proposal_outbox_insert();
                 """);
         }
-        var payload = Payload() with { Images = [new(image.Id, "Poster")] };
+        var payload = Payload() with { ImageId = image.Id };
 
         using var response = await SubmitAsync(seed.Submitter.Id, GlobalRoles.User, payload, [seed.Organizer.Id]);
 
@@ -401,8 +455,6 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
         Assert.Equal(EventImageState.Temporary, stored.State);
         Assert.Null(stored.ProposalId);
-        Assert.Null(stored.SortOrder);
-        Assert.Null(stored.AltText);
         Assert.Equal(Now + EventImage.TemporaryLifetime, stored.ExpiresAt);
     }
 
@@ -634,8 +686,6 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(clock);
-                services.RemoveAll<IEventLocationTokenService>();
-                services.AddSingleton<IEventLocationTokenService, TestLocationTokenService>();
             });
         });
 
@@ -710,12 +760,12 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
             "Paris",
             "France",
             "Auvergne-Rhône-Alpes",
-            "valid-location-token"),
+            "Europe/Paris"),
         "weekly",
         "2035-03-04T10:00",
         64,
         [seed.Legacy.Id],
-        []);
+        null);
 
     private GonesDbContext CreateContext()
     {
@@ -752,9 +802,8 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
-        IReadOnlyList<TournamentImagePayload> Images);
+        Guid? ImageId);
 
-    private sealed record TournamentImagePayload(Guid ImageId, string? AltText);
 
     private sealed record TournamentLocationPayload(
         string StreetAddress,
@@ -762,24 +811,11 @@ public sealed class EventProposalTests(ITestOutputHelper output) : IAsyncLifetim
         string City,
         string Country,
         string Region,
-        string LocationToken);
+        string TimeZoneId);
 
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
-    }
-
-    private sealed class TestLocationTokenService : IEventLocationTokenService
-    {
-        public string Issue(Guid userId, ResolvedEventLocation location, Instant now) => "valid-location-token";
-
-        public ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now)
-        {
-            if (input.LocationToken != "valid-location-token") throw new LocationTokenInvalidException();
-            return new ValidatedEventLocation(
-                "google-place-id", input.StreetAddress, input.PostalCode, input.City, input.Country, input.Region,
-                45.764m, 4.8357m, "Europe/Paris", now + Duration.FromMinutes(30));
-        }
     }
 }

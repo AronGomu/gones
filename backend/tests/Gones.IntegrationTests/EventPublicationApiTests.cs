@@ -60,7 +60,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Direct_publish_attaches_ordered_temporary_images_and_replays_idempotently()
+    public async Task Direct_publish_attaches_one_temporary_image_and_replays_idempotently()
     {
         var first = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 960, 540, Now);
         var second = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 320, 180, Now);
@@ -71,7 +71,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         }
         var payload = Payload(seed.Alpha.Id) with
         {
-            Images = [new(second.Id, " Second "), new(first.Id, null)]
+            ImageId = second.Id
         };
 
         using var published = await PublishAsync(seed.Organizer.Id, "direct-images", payload);
@@ -88,49 +88,31 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
 
         await using var verify = CreateContext();
         var storedEvent = await verify.Events.AsNoTracking().SingleAsync(item => item.Id == eventId);
-        Assert.Equal("google-place-id", storedEvent.ProviderPlaceId);
-        Assert.Equal(45.764m, storedEvent.Latitude);
-        Assert.Equal(4.8357m, storedEvent.Longitude);
+        Assert.Equal("12 Rue de la Paix", storedEvent.StreetAddress);
         Assert.Equal("Europe/Paris", storedEvent.TimeZoneId);
         Assert.Equal(new LocalTime(23, 59, 59), storedEvent.VenueEndTime);
         var images = await verify.EventImages.AsNoTracking()
             .Where(image => image.EventId == eventId)
-            .OrderBy(image => image.SortOrder)
-            .ToListAsync();
-        Assert.Equal(new[] { second.Id, first.Id }, images.Select(image => image.Id).ToArray());
+                        .ToListAsync();
+        Assert.Equal(new[] { second.Id }, images.Select(image => image.Id).ToArray());
         Assert.All(images, image => Assert.Equal(EventImageState.EventOwned, image.State));
-        Assert.Equal(new[] { "Second", null }, images.Select(image => image.AltText).ToArray());
         Assert.All(images, image => Assert.Null(image.ExpiresAt));
         Assert.Equal(1, await verify.Events.CountAsync(item => item.Id == eventId));
         Assert.Equal(1, await verify.IdempotencyRecords.CountAsync(item => item.Key == "direct-images"));
     }
 
     [Fact]
-    public async Task Image_conflict_rolls_back_Event_and_leaves_temporary_ownership()
+    public async Task Direct_publish_accepts_null_image_without_owned_media()
     {
-        var image = EventImage.CreateTemporary(Guid.NewGuid(), seed.Organizer.Id, 960, 540, Now);
-        await using (var database = CreateContext())
-        {
-            database.EventImages.Add(image);
-            await database.SaveChangesAsync();
-        }
-        var payload = Payload(seed.Alpha.Id) with
-        {
-            Title = "Duplicate Image Cup",
-            Images = [new(image.Id, null), new(image.Id, "duplicate")]
-        };
+        var payload = Payload(seed.Alpha.Id) with { Title = "No Image Cup", ImageId = null };
 
-        using var response = await PublishAsync(seed.Organizer.Id, "duplicate-images", payload);
-        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-        Assert.Equal("image_state_conflict", await ProblemCode(response));
+        using var response = await PublishAsync(seed.Organizer.Id, "no-image", payload);
 
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var eventId = body.GetProperty("id").GetGuid();
         await using var verify = CreateContext();
-        Assert.Equal(0, await verify.Events.CountAsync(item => item.Title == payload.Title));
-        var stored = await verify.EventImages.AsNoTracking().SingleAsync(item => item.Id == image.Id);
-        Assert.Equal(EventImageState.Temporary, stored.State);
-        Assert.Null(stored.EventId);
-        Assert.NotNull(stored.ExpiresAt);
-        Assert.Equal(0, await verify.IdempotencyRecords.CountAsync(item => item.Key == "duplicate-images"));
+        Assert.False(await verify.EventImages.AnyAsync(item => item.EventId == eventId));
     }
 
     [Fact]
@@ -147,11 +129,11 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         using var foreignResponse = await PublishAsync(
             seed.Organizer.Id,
             "foreign-image",
-            Payload(seed.Alpha.Id) with { Title = "Foreign Image Cup", Images = [new(foreign.Id, null)] });
+            Payload(seed.Alpha.Id) with { Title = "Foreign Image Cup", ImageId = foreign.Id });
         using var expiredResponse = await PublishAsync(
             seed.Organizer.Id,
             "expired-image",
-            Payload(seed.Alpha.Id) with { Title = "Expired Image Cup", Images = [new(expired.Id, null)] });
+            Payload(seed.Alpha.Id) with { Title = "Expired Image Cup", ImageId = expired.Id });
 
         Assert.Equal(HttpStatusCode.Conflict, foreignResponse.StatusCode);
         Assert.Equal("image_state_conflict", await ProblemCode(foreignResponse));
@@ -168,7 +150,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var payload = Payload(seed.Alpha.Id) with
         {
             Title = "Missing Image Cup",
-            Images = [new(Guid.NewGuid(), null)]
+            ImageId = Guid.NewGuid()
         };
 
         using var response = await PublishAsync(seed.Organizer.Id, "missing-image", payload);
@@ -176,6 +158,67 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         await using var verify = CreateContext();
         Assert.Equal(0, await verify.Events.CountAsync(item => item.Title == payload.Title));
+    }
+
+    [Fact]
+    public async Task Manual_location_values_are_trimmed_and_valid_IANA_timezone_is_persisted()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
+        var location = json["location"]!.AsObject();
+        location["streetAddress"] = "  12 Rue de la Paix  ";
+        location["postalCode"] = "  75001  ";
+        location["city"] = "  Paris  ";
+        location["country"] = "  France  ";
+        location["region"] = "  Île-de-France  ";
+        location["timeZoneId"] = "  Europe/Paris  ";
+
+        using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "manual-location");
+        var raw = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.StatusCode == HttpStatusCode.Created, raw);
+        var eventId = JsonDocument.Parse(raw).RootElement.GetProperty("id").GetGuid();
+        await using var database = CreateContext();
+        var stored = await database.Events.AsNoTracking().SingleAsync(item => item.Id == eventId);
+        Assert.Equal("12 Rue de la Paix", stored.StreetAddress);
+        Assert.Equal("75001", stored.PostalCode);
+        Assert.Equal("Paris", stored.City);
+        Assert.Equal("France", stored.Country);
+        Assert.Equal("Île-de-France", stored.Region);
+        Assert.Equal("Europe/Paris", stored.TimeZoneId);
+    }
+
+    [Fact]
+    public async Task Unknown_IANA_timezone_returns_field_validation_and_rolls_back_Event()
+    {
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
+        var location = json["location"]!.AsObject();
+        location["timeZoneId"] = "Europe/Nope";
+
+        using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "invalid-timezone");
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", body.GetProperty("code").GetString());
+        Assert.True(body.GetProperty("errors").TryGetProperty("location.timeZoneId", out _), body.ToString());
+        await using var database = CreateContext();
+        Assert.Equal(0, await database.Events.CountAsync(item => item.Title == "Summer Cup"));
+        Assert.Equal(0, await database.IdempotencyRecords.CountAsync(item => item.Key == "invalid-timezone"));
+    }
+
+    [Fact]
+    public async Task Latest_migration_removes_provider_geodata_columns()
+    {
+        await using var database = CreateContext();
+        var columns = await database.Database.SqlQueryRaw<string>("""
+            SELECT column_name AS "Value"
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'events'
+            """).ToListAsync();
+
+        Assert.DoesNotContain("provider_place_id", columns);
+        Assert.DoesNotContain("latitude", columns);
+        Assert.DoesNotContain("longitude", columns);
+        Assert.Contains("time_zone_id", columns);
     }
 
     [Fact]
@@ -190,13 +233,13 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         var payload = Payload(seed.Alpha.Id) with
         {
             Title = "Invalid Location Cup",
-            Location = Location() with { LocationToken = "expired-location-token" },
-            Images = [new(image.Id, null)]
+            Location = Location() with { TimeZoneId = "Europe/Nope" },
+            ImageId = image.Id
         };
 
         using var response = await PublishAsync(seed.Organizer.Id, "invalid-location", payload);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("location_token_expired", await ProblemCode(response));
+        Assert.Equal("validation_failed", await ProblemCode(response));
 
         await using var verify = CreateContext();
         Assert.Equal(0, await verify.Events.CountAsync(item => item.Title == payload.Title));
@@ -223,18 +266,14 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Null_image_item_returns_nested_validation_error()
+    public async Task Explicit_null_image_is_optional()
     {
-        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id), WebJson))!.AsObject();
-        json["images"] = JsonNode.Parse("[null]");
+        var json = JsonNode.Parse(JsonSerializer.Serialize(Payload(seed.Alpha.Id) with { Title = "Explicit Null Image" }, WebJson))!.AsObject();
+        json["imageId"] = null;
 
         using var response = await SendAsync(HttpMethod.Post, "/api/events", seed.Organizer.Id, "Organizer", json, "null-image");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var errors = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("errors");
-        Assert.True(errors.TryGetProperty("images[0]", out _), errors.ToString());
-        await using var verify = CreateContext();
-        Assert.Equal(0, await verify.Events.CountAsync());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     [Fact]
@@ -335,8 +374,6 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
             {
                 services.RemoveAll<IClock>();
                 services.AddSingleton<IClock>(clock);
-                services.RemoveAll<IEventLocationTokenService>();
-                services.AddSingleton<IEventLocationTokenService, TestLocationTokenService>();
             });
         });
 
@@ -389,7 +426,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         "2035-03-04T10:00",
         64,
         [seed.Legacy.Id],
-        []);
+        null);
 
     private static LocationPayload Location() => new(
         "12 Rue de la Paix",
@@ -397,7 +434,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         "Paris",
         "France",
         "Auvergne-Rhône-Alpes",
-        "valid-location-token");
+        "Europe/Paris");
 
     private GonesDbContext CreateContext()
     {
@@ -431,7 +468,7 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string StartsAtLocal,
         int Capacity,
         IReadOnlyList<Guid> FormatIds,
-        IReadOnlyList<ImagePayload> Images);
+        Guid? ImageId);
 
     private sealed record LocationPayload(
         string StreetAddress,
@@ -439,35 +476,12 @@ public sealed class EventPublicationApiTests : IAsyncLifetime
         string City,
         string Country,
         string Region,
-        string LocationToken);
+        string TimeZoneId);
 
-    private sealed record ImagePayload(Guid ImageId, string? AltText);
 
     private sealed class MutableClock(Instant current) : IClock
     {
         public Instant GetCurrentInstant() => current;
         public void Advance(Duration duration) => current += duration;
-    }
-
-    private sealed class TestLocationTokenService : IEventLocationTokenService
-    {
-        public string Issue(Guid userId, ResolvedEventLocation location, Instant now) => "valid-location-token";
-
-        public ValidatedEventLocation Validate(Guid userId, EventLocationInput input, Instant now)
-        {
-            if (input.LocationToken == "expired-location-token") throw new LocationTokenExpiredException();
-            if (input.LocationToken != "valid-location-token") throw new LocationTokenInvalidException();
-            return new ValidatedEventLocation(
-                "google-place-id",
-                input.StreetAddress,
-                input.PostalCode,
-                input.City,
-                input.Country,
-                input.Region,
-                45.764m,
-                4.8357m,
-                "Europe/Paris",
-                now + Duration.FromMinutes(30));
-        }
     }
 }

@@ -12,13 +12,13 @@ const review = {
       city: 'Lyon',
       country: 'France',
       region: 'Auvergne-Rhône-Alpes',
-      locationToken: 'proposal-location-token'
+      timeZoneId: 'Europe/Paris'
     },
     eventType: 'weekly',
     startsAtLocal: '2035-08-01T10:00',
     capacity: 32,
     formatIds: ['fmt-1'],
-    images: []
+    imageId: imageId
   },
   bodyHtml: '<p>Plain description body</p>',
   timeZoneId: 'Europe/Paris',
@@ -29,19 +29,14 @@ const review = {
   expiresAt: '2035-08-08T00:00:00Z',
   organizationName: 'Gones',
   formatNames: ['Legacy'],
-  images: [
-    {
-      id: imageId,
-      altText: 'Modern Cup poster',
-      variants: [
-        {
-          width: 320,
-          height: 180,
-          url: '/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320'
-        }
-      ]
-    }
-  ]
+  image: {
+    id: imageId,
+    variants: [{
+      width: 320,
+      height: 180,
+      url: '/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320'
+    }]
+  }
 };
 
 const publishedEvent = {
@@ -53,11 +48,10 @@ const publishedEvent = {
   bodyHtml: review.bodyHtml,
   liveTournamentUrl: null,
   archiveTournamentUrl: null,
-  images: [{
+  image: {
     id: imageId,
-    altText: 'Modern Cup poster',
     variants: [{ width: 320, height: 180, url: `/api/event-images/${imageId}/variants/320` }]
-  }],
+  },
   venue: { ...review.event.location, timeZoneId: review.timeZoneId },
   timeZoneId: review.timeZoneId,
   venueStartDate: '2035-08-01',
@@ -106,7 +100,7 @@ function visitAnonymous(path) {
 describe('event request review page (signed out, intercept-based)', () => {
   beforeEach(() => cy.viewport(1280, 800));
 
-  it('renders the proposal with private images, then validates it and shows the published link', () => {
+  it('renders the proposal with private image, then validates it and shows the published link', () => {
     cy.intercept('GET', '**/api/event-proposals/by-token/*', review).as('byToken');
     cy.intercept('GET', '/api/event-requests/faketoken/images/11111111-1111-1111-1111-111111111111/variants/320', {
       statusCode: 200,
@@ -133,7 +127,7 @@ describe('event request review page (signed out, intercept-based)', () => {
       expect(response.statusCode).to.eq(200);
       expect(response.headers['cache-control']).to.eq('no-store');
     });
-    cy.get('[data-cy="event-request-image-11111111-1111-1111-1111-111111111111"]')
+    cy.get('[data-cy="event-request-image"]')
       .should($image => {
         expect($image).to.be.visible;
         expect($image).to.have.attr('loading', 'eager');
@@ -151,7 +145,7 @@ describe('event request review page (signed out, intercept-based)', () => {
     cy.wait(['@publishedDetail', '@publicImage']);
     cy.get('[data-cy="event-detail-media-hero-image"]')
       .should('have.attr', 'src').and('include', `/api/event-images/${imageId}/variants/320`);
-    cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', 'Modern Cup poster');
+    cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', 'Legacy — Modern Cup — Event image');
     cy.get('[data-cy="event-detail-body"]').should('contain.text', 'Plain description body');
   });
 

@@ -21,9 +21,10 @@ import { EventProposalService } from './event-proposal.service';
 import { AuthService } from '../../auth/auth.service';
 import { I18nService } from '../../i18n/i18n.service';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
+import { GeoService } from '../../shared/geo.service';
 import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { Client, UserProfileResponse } from '../../api/generated/gones-api';
-import { EventImageSelection } from './event-image-uploader.component';
+import { EventCreateDraftStore } from './event-create-draft';
 
 function paramMap(values: Record<string, string> = {}): ParamMap {
   return {
@@ -46,11 +47,13 @@ function setup(dialogAfterClosed: unknown) {
 
   const injector = Injector.create({ providers: [
     { provide: Client, useValue: {} },
+    { provide: GeoService, useValue: { countries: async () => [] } },
     { provide: ActivatedRoute, useValue: route },
     { provide: Router, useValue: {} },
     { provide: MatDialog, useValue: dialogStub },
     { provide: AuthService, useValue: auth },
     { provide: EventProposalService, useValue: proposalsStub },
+    { provide: EventCreateDraftStore, useValue: { read: vi.fn(() => null), write: vi.fn(), remove: vi.fn() } },
     { provide: PowerUserSettingsService, useValue: { enabled: signal(true), setEnabled: vi.fn(), requireEnabled: vi.fn() } },
     DeckArchetypeSettingsService,
     I18nService
@@ -73,16 +76,13 @@ function fillValidForm(component: OrganizerEventCreateComponent): void {
     city: 'Lyon',
     country: 'France',
     region: 'Auvergne-Rhône-Alpes',
-    locationToken: 'signed-location-token',
-    latitude: 45.764,
-    longitude: 4.8357,
     eventType: 'weekly',
     timeZoneId: 'Europe/Paris',
     startDate: '2027-08-01',
     startTime: '10:00',
     capacity: 32,
     formatId: 'fmt1',
-    images: []
+    imageId: null
   });
 }
 
@@ -136,38 +136,22 @@ describe('OrganizerEventCreateComponent.submitForApproval', () => {
     expect(proposalsStub.submit).not.toHaveBeenCalled();
   });
 
-  it('confirming posts the payload with ordered images and recipients', async () => {
+  it('confirming posts the payload with one image and recipients', async () => {
     const { component, proposalsStub } = setup(['id1']);
     fillValidForm(component);
-    const images = [
-      {
-        imageId: 'img-2',
-        altText: 'Second',
-        response: { id: 'img-2', variants: [] },
-        previewUrl: 'blob:second',
-        srcset: ''
-      },
-      {
-        imageId: 'img-1',
-        altText: null,
-        response: { id: 'img-1', variants: [] },
-        previewUrl: 'blob:first',
-        srcset: ''
-      }
-    ] as unknown as EventImageSelection[];
-    component.onImagesChange(images);
+    component.onImageChange({
+      imageId: 'img-1', response: { id: 'img-1', variants: [] }, previewUrl: 'blob:first', srcset: ''
+    });
 
     await component.submitForApproval();
 
     expect(proposalsStub.submit).toHaveBeenCalledTimes(1);
     expect(proposalsStub.submit).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'weekly',
-      formatIds: ['fmt1'],
-      images: [
-        { imageId: 'img-2', altText: 'Second' },
-        { imageId: 'img-1', altText: undefined }
-      ],
-      location: expect.objectContaining({ region: 'Auvergne-Rhône-Alpes', country: 'France', city: 'Lyon' })
+      eventType: 'weekly', formatIds: ['fmt1'], imageId: 'img-1',
+      location: {
+        streetAddress: '1 rue Test', postalCode: '69001', city: 'Lyon', country: 'France',
+        region: 'Auvergne-Rhône-Alpes', timeZoneId: 'Europe/Paris'
+      }
     }), ['id1']);
   });
 

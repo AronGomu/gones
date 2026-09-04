@@ -8,7 +8,7 @@ import { renderEventMarkdown } from './event-markdown';
 import { EventDetailView } from './event-detail-view.component';
 
 export type MajorEventField = 'start' | 'timeZone' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'capacity' | 'formats';
-export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'images' | 'status';
+export type ChangedEventField = 'title' | 'summary' | 'description' | 'liveTournamentUrl' | 'archiveTournamentUrl' | 'streetAddress' | 'postalCode' | 'city' | 'country' | 'region' | 'eventType' | 'timeZone' | 'start' | 'end' | 'capacity' | 'formats' | 'image' | 'status';
 
 const defaultMajorLabels: Record<MajorEventField, string> = {
   start: 'start date/time',
@@ -34,16 +34,13 @@ export function managementToDraft(event: EventManagementResponse): EventDraftVal
     city: event.location.city,
     country: event.location.country,
     region: event.location.region,
-    locationToken: event.location.locationToken,
-    latitude: null,
-    longitude: null,
     eventType: (event.eventType ?? '') as EventDraftValue['eventType'],
     timeZoneId: event.timeZoneId,
     startDate: event.startsAtLocal.slice(0, 10),
     startTime: event.startsAtLocal.slice(11, 16),
     capacity: event.capacity ?? null,
     formatId: event.formatIds[0] ?? '',
-    images: event.images.map(image => ({ imageId: image.id, altText: image.altText }))
+    imageId: event.image?.id ?? null
   };
 }
 
@@ -58,16 +55,13 @@ export function eventUpdatePayload(value: EventDraftValue): UpdateEventDetailsRe
       city: value.city.trim(),
       country: value.country.trim(),
       region: value.region.trim(),
-      locationToken: value.locationToken
+      timeZoneId: value.timeZoneId.trim()
     },
     eventType: eventTypeValue(value.eventType),
     startsAtLocal: `${value.startDate}T${value.startTime}`,
     capacity: value.capacity ?? 0,
     formatIds: [value.formatId],
-    images: value.images.map(image => ({
-      imageId: image.imageId,
-      altText: optional(image.altText ?? '')
-    }))
+    imageId: value.imageId ?? undefined
   };
 }
 
@@ -105,7 +99,7 @@ export function changedEventFields(
   changed.push(...locationFields
     .filter(([, key]) => original.location[key] !== latest.location[key])
     .map(([field]) => field));
-  if (!sameImages(original, latest)) changed.push('images');
+  if (!sameImage(original, latest)) changed.push('image');
   return changed.map(label);
 }
 
@@ -150,11 +144,10 @@ export function managementToDetail(
     eventType: event.eventType,
     organization: { id: event.organizationId, name: event.organizationName, description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
     formats: event.formatIds.map(id => byId.get(id) ?? { id, name: id, slug: id, sortOrder: 0 }),
-    images: event.images.map(image => ({
-      id: image.id,
-      altText: image.altText,
-      variants: image.variants.map(variant => ({ ...variant }))
-    }))
+    image: event.image ? {
+      id: event.image.id,
+      variants: event.image.variants.map(variant => ({ ...variant }))
+    } : undefined
   };
 }
 
@@ -163,9 +156,13 @@ function optional(value: string): string | undefined {
   return trimmed || undefined;
 }
 
-function sameImages(left: EventManagementResponse, right: EventManagementResponse): boolean {
-  return left.images.length === right.images.length
-    && left.images.every((image, index) => image.id === right.images[index]?.id && image.altText === right.images[index]?.altText);
+function sameImage(left: EventManagementResponse, right: EventManagementResponse): boolean {
+  if (!left.image || !right.image) return left.image === right.image;
+  return left.image.id === right.image.id
+    && left.image.variants.length === right.image.variants.length
+    && left.image.variants.every((variant, index) =>
+      variant.width === right.image!.variants[index]?.width
+      && variant.height === right.image!.variants[index]?.height);
 }
 
 function same(left: unknown, right: unknown): boolean {

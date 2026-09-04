@@ -5,36 +5,16 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Gones.Infrastructure.EventProviders;
 
-public sealed record EventProviderRegistrations(GoogleMapsOptions GoogleMaps, EventImageStorageOptions? ImageStorage);
+public sealed record EventProviderRegistrations(EventImageStorageOptions? ImageStorage);
 
 public static class EventProviderServiceCollectionExtensions
 {
-    private static readonly TimeSpan GoogleRequestTimeout = TimeSpan.FromSeconds(10);
-
     public static EventProviderRegistrations AddEventProviderFoundations(
         this IServiceCollection services,
-        IConfiguration configuration,
-        bool useFakeLocationProvider = false)
+        IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
-
-        var googleMaps = GoogleMapsOptions.Load(configuration);
-        services.AddSingleton(googleMaps);
-        if (googleMaps.IsConfigured)
-        {
-            services.AddTransient<GoogleTimeZoneApiKeyHandler>();
-            services.AddHttpClient<IEventLocationProvider, GoogleEventLocationProvider>(client => client.Timeout = GoogleRequestTimeout)
-                .AddHttpMessageHandler<GoogleTimeZoneApiKeyHandler>();
-        }
-        else if (useFakeLocationProvider)
-        {
-            services.AddSingleton<IEventLocationProvider, FakeEventLocationProvider>();
-        }
-        else
-        {
-            services.AddSingleton<IEventLocationProvider, UnavailableEventLocationProvider>();
-        }
 
         services.AddSingleton<IEventImageProcessor, ImageSharpEventImageProcessor>();
 
@@ -50,6 +30,6 @@ public static class EventProviderServiceCollectionExtensions
             services.AddSingleton<IEventImageObjectStore, S3EventImageObjectStore>();
         }
 
-        return new EventProviderRegistrations(googleMaps, imageStorage);
+        return new EventProviderRegistrations(imageStorage);
     }
 }

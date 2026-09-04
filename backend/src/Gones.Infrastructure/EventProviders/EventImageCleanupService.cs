@@ -46,7 +46,6 @@ public sealed class EventImageCleanupService(
 
         var images = await database.EventImages
             .Where(image => image.ProposalId == proposalId && image.State == EventImageState.ProposalOwned)
-            .OrderBy(image => image.SortOrder)
             .ToListAsync(cancellationToken);
         EnqueueAndRemove(images, now);
         if (images.Count > 0) await database.SaveChangesAsync(cancellationToken);
@@ -85,7 +84,7 @@ public sealed class EventImageCleanupService(
                     && proposalIds.Contains(image.ProposalId.Value)
                     && image.State == EventImageState.ProposalOwned)
                 .OrderBy(image => image.ProposalId)
-                .ThenBy(image => image.SortOrder)
+                .ThenBy(image => image.Id)
                 .Take(BatchSize)
                 .ToListAsync(cancellationToken);
         var remaining = BatchSize - expired.Count;

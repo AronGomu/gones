@@ -17,28 +17,23 @@ public static class GonesSecretFiles
 {
     public const string FileSuffix = "_FILE";
 
-    public const string GoogleMapsApiKey = "GONES_GOOGLE_MAPS_API_KEY";
     public const string EventImagesS3AccessConfigName = "GONES_EVENT_IMAGES_S3_ACCESS_KEY";
     public const string EventImagesS3PrivateConfigName = "GONES_EVENT_IMAGES_S3_SECRET_KEY";
 
     /// <summary>
     /// Secrets whose only reader is the generic loader. Keys with bespoke <c>_FILE</c> handling
     /// (OAuth client secrets, the Brevo API key, the Brevo webhook token) stay with their owner.
-    /// Google Maps deliberately differs from the older exclusive pairs: its file value wins over a
-    /// direct environment value so a mounted production secret cannot be shadowed by stale process config.
     /// </summary>
     public static readonly IReadOnlyList<string> SupportedKeys =
     [
         "GONES_DB_CONNECTION",
         "GONES_AUTH_SIGNING_KEY",
-        GoogleMapsApiKey,
         EventImagesS3AccessConfigName,
         EventImagesS3PrivateConfigName
     ];
 
     private static readonly IReadOnlySet<string> FilePrecedenceKeys = new HashSet<string>(StringComparer.Ordinal)
     {
-        GoogleMapsApiKey,
         EventImagesS3AccessConfigName,
         EventImagesS3PrivateConfigName
     };

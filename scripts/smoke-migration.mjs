@@ -230,6 +230,7 @@ writeFixture('mapping.json', JSON.stringify({
     city: 'Lyon',
     country: 'France',
     postalCode: '69002',
+    region: 'Auvergne-Rhône-Alpes',
     formatSlugs: ['legacy'],
     status: 'published',
     capacity: 32

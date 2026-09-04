@@ -35,11 +35,7 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
-var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(
-    builder.Configuration,
-    useFakeLocationProvider: builder.Environment.IsDevelopment()
-        || builder.Configuration.GetValue<bool>("GONES_EVENT_LOCATION_USE_FAKE"));
-builder.Services.AddSingleton<IEventLocationTokenService, EventLocationTokenService>();
+var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);
 if (forwardedProxies.Enabled) builder.Services.Configure<ForwardedHeadersOptions>(forwardedProxies.Apply);

@@ -1,12 +1,13 @@
-import { AfterViewInit, Component, DestroyRef, ElementRef, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, ElementRef, HostListener, OnInit, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { catchError, distinctUntilChanged, firstValueFrom, map, merge, of, Subject, switchMap, timer } from 'rxjs';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { Observable, firstValueFrom, map } from 'rxjs';
 import { ApiProblemError } from '../../api/api-boundary';
-import { Client, EventImageInput, EventLocationSuggestionResponse, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
+import { Client, EventImageUploadResponse, EventManagementResponse, PublicFormatResponse } from '../../api/generated/gones-api';
 import { I18nService } from '../../i18n/i18n.service';
 import { AuthService } from '../../auth/auth.service';
 import { ConfirmDialogComponent } from '../../shared/dialogs';
@@ -16,10 +17,13 @@ import { DirectPublicationState, eventPayload } from './organizer-event-create';
 import { EventProposalService, sortApprovers } from './event-proposal.service';
 import { changedEventFields, majorEventChanges, managementToDetail, managementToDraft, eventUpdatePayload } from './event-management';
 import { canManageArchive } from '../../data/archive-command-ux';
-import { canUsePowerMutation, PowerUserSettingsService } from '../../shared/power-user-settings.service';
+import { PowerUserSettingsService } from '../../shared/power-user-settings.service';
 import { BackButtonComponent } from '../../shared/back-button.component';
 import { EventImageSelection, EventImageUploaderComponent } from './event-image-uploader.component';
 import { renderEventMarkdown } from './event-markdown';
+import { GeoOption, GeoService } from '../../shared/geo.service';
+import { logBoundaryError } from '../../shared/app-logger';
+import { EVENT_CREATE_DRAFT_VERSION, EventCreateDraftStore, EventDirtyShape, EventDraftValueV1, RestoredEventCreateDraft, eventCreateDraftIsEmpty, eventDraftIsDirty, normalizeEventDraftValue } from './event-create-draft';
 
 type RecoveryAction = 'reload' | 'login' | 'review-calendar' | 'retry';
 interface RecoveryError { message: string; action: RecoveryAction; }
@@ -28,10 +32,8 @@ export interface EventOrganizationOption { id: string; name: string; }
 
 const PublicOrganizationPageSize = 100;
 const MaximumPublicOrganizationPages = 20;
-const MinimumLocationSearchLength = 3;
-const LocationAutocompleteDelayMilliseconds = 300;
-const MaximumLocationSuggestions = 5;
 const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
+const EventCreateDraftDebounceMs = 300;
 
 @Component({
   standalone: true,
@@ -40,6 +42,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
     RouterLink,
     MatButtonModule,
     MatDialogModule,
+    MatTooltipModule,
     EventDetailViewComponent,
     EventImageUploaderComponent,
     BackButtonComponent
@@ -52,8 +55,6 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
         <div data-cy="event-create-heading-group"><h1 id="organizer-event-title" data-cy="event-create-title">{{ editMode ? i18n.t('eventManage.editTitle') : i18n.t('eventCreate.title') }}</h1></div>
         @if (editMode) {
           <a mat-stroked-button routerLink="/organizer/events" data-cy="event-create-back-to-list">{{ i18n.t('eventManage.backToList') }}</a>
-        } @else {
-          <button mat-stroked-button type="button" data-cy="event-preview-collapse" aria-controls="event-live-preview" [attr.aria-expanded]="!previewCollapsed()" (click)="togglePreview()">{{ previewCollapsed() ? i18n.t('eventCreate.showPreview') : i18n.t('eventCreate.hidePreview') }}</button>
         }
       </header>
 
@@ -68,6 +69,8 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
           <p data-cy="event-proposal-sent-body">{{ i18n.t('proposal.sentBody', { count }) }}</p>
           <a mat-stroked-button routerLink="/events" data-cy="event-proposal-sent-back">{{ i18n.t('nav.returnToMenu') }}</a>
         </section>
+      } @else if (draftAccountMismatch()) {
+        <p class="error" role="alert" data-cy="event-draft-account-mismatch">{{ i18n.t('eventCreate.accountChanged') }}</p>
       } @else {
         <div class="event-editor-shell" data-cy="event-editor-shell" [class.event-editor-shell--collapsed]="previewCollapsed() || editMode">
           <form class="panel tournament-create-form" data-cy="event-create-form" [formGroup]="form" (ngSubmit)="editMode ? saveEdit() : publish()" novalidate [attr.aria-busy]="formPending()">
@@ -121,7 +124,10 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                 <div class="event-form-row event-form-row--location" data-cy="event-row-location">
                   <div class="tournament-create-field" data-cy="event-field-country">
                     <label for="event-country" data-cy="event-label-country">{{ i18n.t('eventCreate.country') }}</label>
-                    <input id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null" />
+                    <select id="event-country" data-cy="event-country" formControlName="country" autocomplete="country-name" [attr.aria-invalid]="fieldError('country') ? 'true' : null" [attr.aria-describedby]="fieldError('country') ? 'event-country-error' : null">
+                      <option value="" disabled data-cy="event-country-empty">{{ i18n.t('eventCreate.selectCountry') }}</option>
+                      @for (country of countries(); track country.name) { <option [value]="country.name" [attr.data-cy]="'event-country-option-' + (country.code || 'current')">{{ country.name }}</option> }
+                    </select>
                     @if (fieldError('country'); as message) { <p id="event-country-error" class="field-error" data-cy="event-country-error">{{ message }}</p> }
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-region">
@@ -129,26 +135,18 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                     <input id="event-region" data-cy="event-region" formControlName="region" autocomplete="address-level1" [attr.aria-invalid]="fieldError('region') ? 'true' : null" [attr.aria-describedby]="fieldError('region') ? 'event-region-error' : null" />
                     @if (fieldError('region'); as message) { <p id="event-region-error" class="field-error" data-cy="event-region-error">{{ message }}</p> }
                   </div>
+                  <div class="tournament-create-field" data-cy="event-field-time-zone">
+                    <label for="event-time-zone" data-cy="event-label-time-zone">{{ i18n.t('eventCreate.zone') }}</label>
+                    <select id="event-time-zone" data-cy="event-time-zone" formControlName="timeZoneId" [attr.aria-invalid]="fieldError('timeZoneId') ? 'true' : null" [attr.aria-describedby]="fieldError('timeZoneId') ? 'event-time-zone-error' : null">
+                      <option value="" disabled data-cy="event-time-zone-empty">{{ i18n.t('eventCreate.selectTimeZone') }}</option>
+                      @for (timeZone of timeZones(); track timeZone) { <option [value]="timeZone" [attr.data-cy]="'event-time-zone-option-' + $index">{{ timeZone }}</option> }
+                    </select>
+                    @if (fieldError('timeZoneId'); as message) { <p id="event-time-zone-error" class="field-error" data-cy="event-time-zone-error">{{ message }}</p> }
+                  </div>
                   <div class="tournament-create-field" data-cy="event-field-street">
                     <label for="event-street" data-cy="event-label-street">{{ i18n.t('eventCreate.street') }}</label>
-                    <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="event-location-suggestions" [attr.aria-expanded]="locationSuggestions().length ? 'true' : 'false'" [attr.aria-invalid]="fieldError('streetAddress') || fieldError('locationToken') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : fieldError('locationToken') ? 'event-location-token-error' : null" />
-                    <input type="hidden" data-cy="event-location-token" formControlName="locationToken" />
-                    <input type="hidden" data-cy="event-location-time-zone" formControlName="timeZoneId" />
-                    <input type="hidden" data-cy="event-location-latitude" formControlName="latitude" />
-                    <input type="hidden" data-cy="event-location-longitude" formControlName="longitude" />
-                    @if (locationLoading()) { <p role="status" data-cy="event-location-loading">{{ i18n.t('eventCreate.locationSearching') }}</p> }
-                    @if (locationSuggestions().length) {
-                      <ul id="event-location-suggestions" class="stack" role="listbox" data-cy="event-location-suggestions">
-                        @for (suggestion of locationSuggestions(); track suggestion.placeId) {
-                          <li role="none" [attr.data-cy]="'event-location-suggestion-item-' + $index"><button type="button" role="option" aria-selected="false" [attr.data-cy]="'event-location-suggestion-' + $index" [disabled]="locationResolving()" (click)="resolveLocation(suggestion)"><span [attr.data-cy]="'event-location-suggestion-primary-' + $index">{{ suggestion.primaryText }}</span><span [attr.data-cy]="'event-location-suggestion-secondary-' + $index">{{ suggestion.secondaryText }}</span></button></li>
-                        }
-                      </ul>
-                    }
-                    @if (locationSearchComplete() && !locationSuggestions().length) { <p role="status" data-cy="event-location-empty">{{ i18n.t('eventCreate.locationEmpty') }}</p> }
-                    @if (locationResolving()) { <p role="status" data-cy="event-location-resolving">{{ i18n.t('eventCreate.locationResolving') }}</p> }
-                    @if (locationError()) { <div class="error" role="alert" data-cy="event-location-error"><span data-cy="event-location-error-message">{{ locationError() }}</span>@if (canRetryLocation()) { <button mat-stroked-button type="button" data-cy="event-location-retry" (click)="retryLocationResolution()">{{ i18n.t('common.retry') }}</button> }</div> }
+                    <input #streetInput id="event-street" data-cy="event-street" formControlName="streetAddress" autocomplete="street-address" [attr.aria-invalid]="fieldError('streetAddress') ? 'true' : null" [attr.aria-describedby]="fieldError('streetAddress') ? 'event-street-error' : null" />
                     @if (fieldError('streetAddress'); as message) { <p id="event-street-error" class="field-error" data-cy="event-street-error">{{ message }}</p> }
-                    @if (fieldError('locationToken'); as message) { <p id="event-location-token-error" class="field-error" data-cy="event-location-token-error">{{ message }}</p> }
                   </div>
                   <div class="tournament-create-field" data-cy="event-field-postal-code">
                     <label for="event-postal-code" data-cy="event-label-postal-code">{{ i18n.t('eventCreate.postalCode') }}</label>
@@ -184,7 +182,7 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
                   </div>
                 </div>
 
-                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImages]="initialEditorImages()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('images') ? 'event-images-error' : null" (imagesChange)="onImagesChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('images'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
+                <div class="event-form-row event-form-row--full" data-cy="event-row-images"><gones-event-image-uploader data-cy="event-image-editor" [initialImage]="initialEditorImage()" [blockedMessageKey]="canPublishDirectly() ? 'eventImages.publishBlocked' : 'eventImages.proposalBlocked'" [attr.aria-describedby]="fieldError('imageId') ? 'event-images-error' : null" (imageChange)="onImageChange($event)" (imageInteractionChange)="onImageInteractionChange($event)" (temporaryImageChange)="onTemporaryImageChange($event)" (publishBlockedChange)="imagePublishBlocked.set($event)" />@if (fieldError('imageId'); as message) { <p id="event-images-error" class="field-error" data-cy="event-images-error">{{ message }}</p> }</div>
               </div>
             </fieldset>
 
@@ -196,12 +194,15 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
             @if (submitError(); as error) {
               <div class="error tournament-create-recovery" role="alert" data-cy="event-submit-error"><span data-cy="event-submit-error-message">{{ error.message }}</span>@if (error.action === 'reload') { <button mat-stroked-button type="button" data-cy="reload-organizations" (click)="loadReferences()">{{ i18n.t('eventCreate.reloadOrganizations') }}</button> }@if (error.action === 'login') { <a mat-stroked-button [routerLink]="['/login']" [queryParams]="{ returnUrl: '/events/new' }" target="_blank" rel="noopener noreferrer" data-cy="event-submit-error-login">{{ i18n.t('eventCreate.signInAgain') }}</a> }@if (error.action === 'review-calendar') { <a mat-stroked-button routerLink="/events" data-cy="event-review-calendar">{{ i18n.t('eventCreate.reviewCalendar') }}</a> }@if (error.action === 'retry') { <button mat-stroked-button type="submit" data-cy="event-submit-error-retry">{{ i18n.t('common.retry') }}</button> }</div>
             }
-            <div class="actions" data-cy="event-create-actions">
+            <div class="actions event-create-actions" data-cy="event-create-actions">
               @if (canPublishDirectly()) {
                 @if (editMode) {
-                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || locationExpired() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
+                  <button #saveButton mat-flat-button class="home-primary-action" type="submit" data-cy="event-save" [disabled]="formPending() || imagePublishBlocked()">{{ saving() ? i18n.t('eventManage.saving') : i18n.t('common.save') }}</button>
                 } @else {
-                  <button mat-flat-button class="home-primary-action" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
+                  <span class="event-publish-tooltip" data-cy="event-publish-tooltip" [matTooltip]="publishTooltip()" [matTooltipDisabled]="!publishDisabled()" matTooltipClass="event-publish-tooltip-panel" [attr.tabindex]="publishDisabled() ? 0 : null" [attr.aria-describedby]="publishReasons().length ? 'event-publish-errors' : null">
+                    <button mat-flat-button class="home-primary-action create-action-button event-publish-button" type="submit" data-cy="event-publish" [disabled]="publishDisabled()">{{ publishing() ? i18n.t('eventCreate.publishing') : i18n.t('eventCreate.publish') }}</button>
+                  </span>
+                  @if (publishReasons().length) { <p id="event-publish-errors" class="sr-only event-publish-errors" data-cy="event-publish-errors">{{ publishTooltip() }}</p> }
                 }
               } @else {
                 <p class="warning" role="status" data-cy="event-approval-notice">{{ i18n.t('eventCreate.approvalNotice') }}</p>
@@ -212,7 +213,13 @@ const PreviewCollapsedKey = 'gones.event-editor.preview-collapsed';
           </form>
 
           @if (!editMode) {
-            <aside id="event-live-preview" class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview" [hidden]="previewCollapsed()"><h2 id="event-live-preview-title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></aside>
+            <aside class="event-live-preview" aria-labelledby="event-live-preview-title" data-cy="event-live-preview">
+              <header class="event-live-preview__header" data-cy="event-live-preview-header">
+                <h2 id="event-live-preview-title" class="event-live-preview__title" data-cy="event-live-preview-title">{{ i18n.t('eventCreate.livePreview') }}</h2>
+                <button mat-stroked-button type="button" data-cy="event-preview-collapse" aria-controls="event-live-preview" [attr.aria-expanded]="!previewCollapsed()" (click)="togglePreview()">{{ previewCollapsed() ? i18n.t('eventCreate.showPreview') : i18n.t('eventCreate.hidePreview') }}</button>
+              </header>
+              <div id="event-live-preview" class="event-live-preview__scroll" data-cy="event-live-preview-scroll" [hidden]="previewCollapsed()"><gones-event-detail-view [event]="draftPreview()" [draftPlaceholderMode]="true" [showIcsAction]="false" data-cy="event-live-preview-detail" /></div>
+            </aside>
           }
         </div>
 
@@ -235,15 +242,20 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private readonly auth = inject(AuthService);
   private readonly power = inject(PowerUserSettingsService);
   private readonly proposals = inject(EventProposalService);
+  private readonly geo = inject(GeoService);
+  private readonly draftStore = inject(EventCreateDraftStore);
   private readonly state = new DirectPublicationState();
   private readonly eventId = this.route.snapshot.paramMap.get('id');
   readonly editMode = Boolean(this.eventId);
   @ViewChild('titleInput') private titleInput?: ElementRef<HTMLInputElement>;
   @ViewChild('streetInput') private streetInput?: ElementRef<HTMLInputElement>;
   @ViewChild('saveButton', { read: ElementRef }) private saveButton?: ElementRef<HTMLButtonElement>;
+  @ViewChild(EventImageUploaderComponent) private imageUploader?: EventImageUploaderComponent;
 
   readonly organizations = signal<EventOrganizationOption[]>([]);
   readonly formats = signal<PublicFormatResponse[]>([]);
+  readonly countries = signal<GeoOption[]>([]);
+  readonly timeZones = signal<string[]>([]);
   readonly loadingReferences = signal(true);
   readonly referenceError = signal('');
   readonly publishing = signal(false);
@@ -254,38 +266,50 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   readonly staleEvent = signal<EventManagementResponse | null>(null);
   readonly staleChanges = signal<string[]>([]);
   readonly currentRender = signal<EventDetailView | null>(null);
-  readonly initialEditorImages = computed(() => this.baseEvent()?.images ?? []);
+  readonly initialEditorImage = computed(() => this.baseEvent()?.image);
   readonly success = signal('');
-  readonly canMutateEvent = computed(() => canUsePowerMutation(
-    this.power.enabled(),
-    canManageArchive(this.auth.profile()?.globalRole) && this.auth.profile()?.emailVerified === true
-  ));
+  readonly canMutateEvent = computed(() => {
+    const profile = this.auth.profile();
+    return profile?.emailVerified === true
+      && canManageArchive(profile.globalRole)
+      && ((!this.editMode && profile.globalRole === 'Admin') || this.power.enabled());
+  });
   readonly canPublishDirectly = this.canMutateEvent;
   private readonly isAdmin = computed(() => this.auth.profile()?.globalRole === 'Admin');
   readonly proposalPending = signal(false);
   readonly proposalSentCount = signal<number | null>(null);
   readonly proposalError = signal('');
-  readonly locationSuggestions = signal<EventLocationSuggestionResponse[]>([]);
-  readonly locationLoading = signal(false);
-  readonly locationSearchComplete = signal(false);
-  readonly locationResolving = signal(false);
-  readonly locationError = signal('');
-  readonly locationExpired = signal(false);
-  private readonly locationExpiresAt = signal('');
-  private readonly retryLocation = signal<EventLocationSuggestionResponse | null>(null);
-  private readonly retryLocationSearch = signal<string | null>(null);
-  private readonly locationSearchRetries = new Subject<string>();
-  private locationRevision = 0;
-  readonly canRetryLocation = computed(() => Boolean(this.locationError() && (this.retryLocation() || this.retryLocationSearch())) && !this.locationResolving());
-  private readonly locationSessionToken = globalThis.crypto.randomUUID();
   readonly selectedOrganizationId = signal('');
   readonly imagePublishBlocked = signal(false);
-  readonly selectedImages = signal<readonly EventImageSelection[]>([]);
+  readonly selectedImage = signal<EventImageSelection | null>(null);
+  private readonly imageInteraction = signal<string | null>(null);
+  private readonly draftImage = signal<EventImageUploadResponse | null>(null);
+  private readonly baseline = signal<EventDirtyShape | null>(null);
   private readonly previewRevision = signal(0);
+  private draftWriteTimer?: ReturnType<typeof setTimeout>;
+  private defaultOrganizationId = '';
+  private readonly draftUserId = signal('');
+  private readonly draftContextInitialized = signal(false);
+  private editorInitialized = false;
+  private createReferencesInitialized = false;
+  private createCompleted = false;
+  private viewReady = false;
+  private pendingRestoredDraft?: RestoredEventCreateDraft;
+  private pendingRestoredImage?: EventImageUploadResponse;
   readonly previewCollapsed = signal(readPreviewCollapsed());
   readonly formPending = computed(() => this.publishing() || this.saving());
   readonly organizationSelected = computed(() =>
     this.organizations().some(option => option.id === this.selectedOrganizationId()));
+  readonly draftAccountMismatch = computed(() => {
+    const draftUserId = this.draftUserId();
+    return !this.editMode && this.draftContextInitialized() && this.auth.profile()?.id !== draftUserId;
+  });
+  readonly dirty = computed(() => {
+    this.previewRevision();
+    if (this.draftAccountMismatch()) return false;
+    const baseline = this.baseline();
+    return baseline ? eventDraftIsDirty(baseline, this.dirtyShape()) : false;
+  });
 
   readonly form = new FormGroup({
     organizationId: new FormControl('', { nonNullable: true, validators: Validators.required }),
@@ -300,27 +324,68 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     city: new FormControl('', { nonNullable: true, validators: Validators.required }),
     country: new FormControl('', { nonNullable: true, validators: Validators.required }),
     region: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    locationToken: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    latitude: new FormControl<number | null>(null),
-    longitude: new FormControl<number | null>(null),
     eventType: new FormControl<'' | 'weekly' | 'monthly' | 'major'>('weekly', { nonNullable: true, validators: Validators.required }),
     timeZoneId: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startDate: new FormControl('', { nonNullable: true, validators: Validators.required }),
     startTime: new FormControl('', { nonNullable: true, validators: Validators.required }),
     capacity: new FormControl<number | null>(null, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]),
     formatId: new FormControl('', { nonNullable: true, validators: Validators.required }),
-    images: new FormControl<EventImageInput[]>([], { nonNullable: true })
+    imageId: new FormControl<string | null>(null)
   });
+
+  readonly publishErrors = computed<readonly string[]>(() => {
+    this.previewRevision();
+    const fields: readonly [keyof typeof this.form.controls, string][] = [
+      ['organizationId', this.i18n.t('eventCreate.organization')],
+      ['title', this.i18n.t('eventCreate.name')],
+      ['summary', this.i18n.t('eventCreate.publishErrorSummary')],
+      ['bodyMarkdown', this.i18n.t('eventCreate.publishErrorDescription')],
+      ['formatId', this.i18n.t('eventCreate.format')],
+      ['eventType', this.i18n.t('event.eventType')],
+      ['capacity', this.i18n.t('event.capacity')],
+      ['country', this.i18n.t('eventCreate.country')],
+      ['region', this.i18n.t('profile.locationRegion')],
+      ['streetAddress', this.i18n.t('eventCreate.street')],
+      ['postalCode', this.i18n.t('eventCreate.postalCode')],
+      ['city', this.i18n.t('event.city')],
+      ['startDate', this.i18n.t('eventCreate.startDate')],
+      ['startTime', this.i18n.t('eventCreate.startTime')]
+    ];
+    const errors: string[] = [];
+    const seenErrors = new Set<string>();
+    const addError = (label: string, message: string) => {
+      const labelled = `${label}: ${message}`;
+      if (!message || seenErrors.has(labelled)) return;
+      seenErrors.add(labelled);
+      errors.push(labelled);
+    };
+    for (const [name, label] of fields) addError(label, this.controlError(name, false));
+    addError(
+      this.i18n.t('eventCreate.zone'),
+      this.controlError('timeZoneId', false));
+    addError(
+      this.i18n.t('eventCreate.publishErrorImage'),
+      this.controlError('imageId', false)
+        || (this.imagePublishBlocked() ? this.i18n.t('eventImages.publishBlocked') : ''));
+    addError(this.i18n.t('eventCreate.publishErrorGeneral'), this.fieldErrors()['general'] || '');
+    return errors;
+  });
+  readonly publishReasons = computed<readonly string[]>(() => {
+    const reasons = [...this.publishErrors()];
+    const general = this.i18n.t('eventCreate.publishErrorGeneral');
+    if (this.formPending()) reasons.push(`${general}: ${this.i18n.t('eventCreate.publishing')}`);
+    if (this.loadingReferences()) reasons.push(`${general}: ${this.i18n.t('eventCreate.loadingReferences')}`);
+    if (!this.loadingReferences() && !this.organizations().length) reasons.push(`${general}: ${this.i18n.t('eventCreate.noOrganizations')}`);
+    return [...new Set(reasons)];
+  });
+  readonly publishTooltip = computed(() => this.publishReasons().join('\n'));
 
   readonly publishDisabled = computed(() => {
     this.previewRevision();
-    return this.form.invalid
+    return this.publishErrors().length > 0
       || this.formPending()
       || this.loadingReferences()
-      || !this.organizations().length
-      || this.locationResolving()
-      || this.locationExpired()
-      || this.imagePublishBlocked();
+      || !this.organizations().length;
   });
 
   readonly draftPreview = computed<EventDetailView>(() => {
@@ -334,7 +399,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     return {
       id: '',
       title,
-      displayTitle: title && format ? `${format.name} — ${title}` : '',
+      displayTitle: title && format ? `${format.name} — ${title}` : title,
       slug: '',
       summary: value.summary.trim() || undefined,
       bodyHtml: renderEventMarkdown(value.bodyMarkdown),
@@ -359,15 +424,15 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       eventType: (value.eventType || undefined) as EventDetailView['eventType'],
       organization: { id: value.organizationId, name: organization?.name ?? '', description: undefined, website: undefined, contactEmail: undefined, organizers: [] },
       formats: format ? [format] : [],
-      images: this.selectedImages().map(image => ({
-        id: image.imageId,
-        altText: image.altText ?? undefined,
-        variants: image.response.variants.map(variant => ({ ...variant, url: image.previewUrl }))
-      }))
+      image: this.selectedImage() ? {
+        id: this.selectedImage()!.imageId,
+        variants: this.selectedImage()!.response.variants.map(variant => ({ ...variant, url: this.selectedImage()!.previewUrl }))
+      } : undefined
     };
   });
 
   ngOnInit(): void {
+    this.initializeCreateDraftContext();
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncSelectedOrganization();
       this.fieldErrors.set({});
@@ -375,85 +440,82 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       this.success.set('');
       this.state.reset();
       this.previewRevision.update(value => value + 1);
+      this.queueDraftWrite();
     });
-    merge(
-      this.form.controls.streetAddress.valueChanges,
-      this.form.controls.postalCode.valueChanges,
-      this.form.controls.city.valueChanges,
-      this.form.controls.country.valueChanges,
-      this.form.controls.region.valueChanges
-    ).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.invalidateResolvedLocation());
-    merge(
-      this.form.controls.streetAddress.valueChanges.pipe(
-        map(value => {
-          this.locationSearchComplete.set(false);
-          return value.trim();
-        }),
-        distinctUntilChanged(),
-        switchMap(value => value.length < MinimumLocationSearchLength
-          ? of(value)
-          : timer(LocationAutocompleteDelayMilliseconds).pipe(map(() => value)))
-      ),
-      this.locationSearchRetries
-    ).pipe(
-      switchMap(value => {
-        if (value.length < MinimumLocationSearchLength) {
-          this.locationSuggestions.set([]);
-          this.locationLoading.set(false);
-          this.locationError.set('');
-          this.retryLocationSearch.set(null);
-          return of([] as EventLocationSuggestionResponse[]);
-        }
-        this.locationLoading.set(true);
-        this.locationSearchComplete.set(false);
-        this.locationError.set('');
-        this.retryLocationSearch.set(null);
-        return this.client.autocompleteEventLocations(value, this.locationSessionToken, this.i18n.language()).pipe(
-          map(response => {
-            this.locationSearchComplete.set(true);
-            return response.suggestions.slice(0, MaximumLocationSuggestions);
-          }),
-          catchError(error => {
-            this.locationLoading.set(false);
-            this.locationSearchComplete.set(false);
-            this.locationSuggestions.set([]);
-            this.locationError.set(this.locationErrorMessage(error));
-            this.retryLocationSearch.set(value);
-            return of([] as EventLocationSuggestionResponse[]);
-          })
-        );
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(suggestions => {
-      this.locationSuggestions.set(suggestions);
-      this.locationLoading.set(false);
+    this.destroyRef.onDestroy(() => {
+      if (!this.editMode && !this.createCompleted) this.flushDraft();
+      if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
     });
     void this.loadReferences();
   }
 
-  ngAfterViewInit(): void { queueMicrotask(() => this.titleInput?.nativeElement.focus()); }
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this.hydrateRestoredImage();
+    queueMicrotask(() => this.titleInput?.nativeElement.focus());
+  }
+
+  @HostListener('window:beforeunload', ['$event']) beforeUnload(event: BeforeUnloadEvent): void {
+    if (!this.editMode && !this.createCompleted) this.flushDraft();
+    if (!this.dirty()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  }
+
+  confirmLeave(): boolean | Observable<boolean> {
+    if (!this.dirty()) return true;
+    return this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        title: this.i18n.t('eventCreate.leaveTitle'),
+        message: this.i18n.t('eventCreate.leaveBody'),
+        confirmLabel: this.i18n.t('eventCreate.leave')
+      }
+    }).afterClosed().pipe(map(result => result === true));
+  }
 
   togglePreview(): void {
     this.previewCollapsed.update(value => !value);
     sessionStorage.setItem(PreviewCollapsedKey, String(this.previewCollapsed()));
   }
 
-  onImagesChange(images: readonly EventImageSelection[]): void {
-    this.selectedImages.set(images);
-    const next = images.map(image => ({ imageId: image.imageId, altText: image.altText ?? undefined }));
-    const current = this.form.controls.images.value;
-    if (current.length === next.length && current.every((image, index) =>
-      image.imageId === next[index]?.imageId && (image.altText ?? null) === (next[index]?.altText ?? null))) return;
-    this.form.controls.images.setValue(next);
+  onImageChange(image: EventImageSelection | null): void {
+    if (this.draftAccountMismatch()) return;
+    this.selectedImage.set(image);
+    const next = image?.imageId ?? null;
+    if (this.form.controls.imageId.value === next) {
+      this.queueDraftWrite();
+      return;
+    }
+    this.form.controls.imageId.setValue(next);
+  }
+
+  onImageInteractionChange(interaction: string | null): void {
+    if (this.draftAccountMismatch()) return;
+    this.imageInteraction.set(interaction);
+    this.previewRevision.update(value => value + 1);
+    this.queueDraftWrite();
+  }
+
+  onTemporaryImageChange(image: EventImageUploadResponse | null): void {
+    if (this.draftAccountMismatch()) return;
+    if (!this.editMode) this.draftImage.set(image);
+    this.queueDraftWrite();
   }
 
   async loadReferences(): Promise<void> {
+    this.initializeCreateDraftContext();
     this.loadingReferences.set(true);
     this.referenceError.set('');
     this.submitError.set(null);
     try {
-      const formats = await firstValueFrom(this.client.formatsAll());
+      const [formats, countries, timeZoneCatalog] = await Promise.all([
+        firstValueFrom(this.client.formatsAll()),
+        this.geo.countries(),
+        firstValueFrom(this.client.listEventTimeZones())
+      ]);
       this.formats.set(formats);
+      this.countries.set(countries);
+      this.timeZones.set(timeZoneCatalog.ids);
       if (this.editMode) {
         const event = await this.findEvent(this.eventId!);
         this.organizations.set([{ id: event.organizationId, name: event.organizationName }]);
@@ -462,18 +524,19 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       } else {
         const organizations = await this.loadOrganizationOptions();
         this.organizations.set(organizations);
-        if (!organizations.some(item => item.id === this.form.controls.organizationId.value)) {
-          this.form.controls.organizationId.setValue(organizations[0]?.id ?? '');
-        }
         if (!organizations.length) this.referenceError.set(this.i18n.t('eventCreate.noOrganizations'));
+        this.initializeCreateState();
       }
       this.syncSelectedOrganization();
       this.previewRevision.update(value => value + 1);
-    } catch {
+    } catch (error) {
+      logBoundaryError('event-editor.load-references', error, { editMode: this.editMode });
       this.organizations.set([]);
       this.formats.set([]);
+      this.countries.set([]);
+      this.timeZones.set([]);
       this.syncSelectedOrganization();
-      this.referenceError.set(this.editMode ? this.i18n.t('eventManage.loadFailed') : this.i18n.t('eventCreate.referencesFailed'));
+      this.referenceError.set(this.i18n.t('eventCreate.referencesFailed'));
     } finally {
       this.loadingReferences.set(false);
     }
@@ -481,80 +544,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   private syncSelectedOrganization(): void {
     this.selectedOrganizationId.set(this.form.getRawValue().organizationId);
-  }
-
-  async resolveLocation(suggestion: EventLocationSuggestionResponse): Promise<void> {
-    if (this.locationResolving()) return;
-    const revision = this.locationRevision;
-    this.retryLocation.set(suggestion);
-    this.locationSearchComplete.set(false);
-    this.locationResolving.set(true);
-    this.locationError.set('');
-    try {
-      const resolved = await firstValueFrom(this.client.resolveEventLocation({
-        placeId: suggestion.placeId,
-        sessionToken: this.locationSessionToken,
-        language: this.i18n.language()
-      }).pipe(takeUntilDestroyed(this.destroyRef)));
-      if (revision !== this.locationRevision) return;
-      this.form.patchValue({
-        streetAddress: resolved.streetAddress,
-        postalCode: resolved.postalCode,
-        city: resolved.city,
-        country: resolved.country,
-        region: resolved.region,
-        locationToken: resolved.locationToken,
-        latitude: resolved.latitude,
-        longitude: resolved.longitude,
-        timeZoneId: resolved.timeZoneId
-      }, { emitEvent: false });
-      this.trackLocationExpiry(resolved.expiresAt);
-      this.locationSuggestions.set([]);
-      this.locationError.set('');
-      this.retryLocation.set(null);
-      this.previewRevision.update(value => value + 1);
-    } catch (error) {
-      if (!this.destroyRef.destroyed && revision === this.locationRevision) this.locationError.set(this.locationErrorMessage(error));
-    } finally {
-      if (!this.destroyRef.destroyed) this.locationResolving.set(false);
-    }
-  }
-
-  async retryLocationResolution(): Promise<void> {
-    const suggestion = this.retryLocation();
-    if (suggestion) {
-      await this.resolveLocation(suggestion);
-      return;
-    }
-    const search = this.retryLocationSearch();
-    if (search) this.locationSearchRetries.next(search);
-  }
-
-  private invalidateResolvedLocation(): void {
-    this.locationRevision += 1;
-    this.retryLocation.set(null);
-    if (!this.form.controls.locationToken.value
-      && !this.form.controls.timeZoneId.value
-      && this.form.controls.latitude.value === null
-      && this.form.controls.longitude.value === null)
-    {
-      return;
-    }
-    this.form.patchValue({
-      locationToken: '',
-      timeZoneId: '',
-      latitude: null,
-      longitude: null
-    }, { emitEvent: false });
-    this.locationExpiresAt.set('');
-    this.locationExpired.set(false);
-  }
-
-  private locationErrorMessage(error: unknown): string {
-    if (error instanceof ApiProblemError && error.problem.code === 'location_provider_unavailable') {
-      return this.i18n.t('eventCreate.locationProviderUnavailable');
-    }
-    return this.i18n.t('eventCreate.locationResolveFailed');
   }
 
   private async loadOrganizationOptions(): Promise<EventOrganizationOption[]> {
@@ -597,6 +586,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async submitForApproval(): Promise<void> {
+    if (this.draftAccountMismatch()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     if (this.form.invalid || this.proposalPending() || this.imagePublishBlocked()) return;
@@ -621,6 +611,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     try {
       const draft = this.form.getRawValue();
       const response = await this.proposals.submit(eventPayload(draft), recipientUserIds);
+      this.completeCreate();
       this.proposalSentCount.set(response.recipientCount);
     } catch (error) {
       this.applyFieldErrors(error);
@@ -631,7 +622,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   async publish(): Promise<void> {
-    if (!this.canMutateEvent()) return;
+    if (!this.canMutateEvent() || this.draftAccountMismatch()) return;
     this.form.markAllAsTouched();
     this.fieldErrors.set({});
     this.submitError.set(null);
@@ -640,15 +631,10 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const key = this.state.idempotencyKey(() => globalThis.crypto.randomUUID());
     try {
       const response = await firstValueFrom(this.client.eventsPOST(key, eventPayload(this.form.getRawValue())));
+      this.completeCreate();
       await this.router.navigate(['/events', response.slug]);
     } catch (error) {
       this.applyFieldErrors(error);
-      if (error instanceof ApiProblemError
-        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
-      {
-        this.locationExpired.set(true);
-        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventCreate.locationRequired') }));
-      }
       this.submitError.set(this.recovery(error));
     } finally {
       this.publishing.set(false);
@@ -663,10 +649,6 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.success.set('');
     const base = this.baseEvent();
     if (!this.eventId || !base || this.form.invalid || this.saving() || this.imagePublishBlocked()) return;
-    if (this.locationExpired()) {
-      this.fieldErrors.set({ locationToken: this.i18n.t('eventManage.locationExpired') });
-      return;
-    }
     const draft = this.form.getRawValue();
     const major = majorEventChanges(base, draft, field => this.i18n.t(`eventManage.major.${field}`));
     if (major.length) {
@@ -695,18 +677,13 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     } catch (error) {
       this.applyFieldErrors(error);
       if (error instanceof ApiProblemError && error.problem.code === 'image_state_conflict') {
-        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageConflict') }));
+        this.fieldErrors.update(errors => ({ ...errors, imageId: this.i18n.t('eventManage.imageConflict') }));
       }
       if (error instanceof ApiProblemError && error.status === 404 && error.problem.code === 'image_not_found') {
-        this.fieldErrors.update(errors => ({ ...errors, images: this.i18n.t('eventManage.imageMissing') }));
+        this.fieldErrors.update(errors => ({ ...errors, imageId: this.i18n.t('eventManage.imageMissing') }));
         await this.loadStaleEvent(base);
       } else if (error instanceof ApiProblemError && error.status === 412) {
         await this.loadStaleEvent(base);
-      } else if (error instanceof ApiProblemError
-        && (error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired'))
-      {
-        this.locationExpired.set(true);
-        this.fieldErrors.update(errors => ({ ...errors, locationToken: this.i18n.t('eventManage.locationExpired') }));
       } else {
         this.submitError.set({ message: this.managementError(error), action: 'retry' });
       }
@@ -722,9 +699,9 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     this.staleEvent.set(null);
     this.staleChanges.set([]);
     this.fieldErrors.update(errors => {
-      if (!errors['images']) return errors;
+      if (!errors['imageId']) return errors;
       const current = { ...errors };
-      delete current['images'];
+      delete current['imageId'];
       return current;
     });
     this.submitError.set(null);
@@ -733,13 +710,16 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   }
 
   fieldError(name: keyof typeof this.form.controls): string {
-    if (name === 'locationToken' && this.locationExpired()) return this.i18n.t('eventManage.locationExpired');
+    return this.controlError(name, true);
+  }
+
+  private controlError(name: keyof typeof this.form.controls, touchedOnly: boolean): string {
     const serverError = this.fieldErrors()[name];
     if (serverError) return serverError;
     const control = this.form.controls[name];
-    if (!control.touched || !control.errors) return '';
+    if ((touchedOnly && !control.touched) || !control.errors) return '';
     if (control.errors['required'] || (name === 'title' && control.errors['pattern'])) {
-      return this.i18n.t(name === 'locationToken' ? 'eventCreate.locationRequired' : 'eventCreate.required');
+      return this.i18n.t('eventCreate.required');
     }
     if (control.errors['maxlength']) {
       if (name === 'title') return this.i18n.t('eventCreate.titleTooLong');
@@ -764,18 +744,147 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
   private applyCanonical(event: EventManagementResponse): void {
     this.baseEvent.set(event);
     this.form.patchValue(managementToDraft(event), { emitEvent: false });
-    this.trackLocationExpiry(event.locationTokenExpiresAt);
+    if (!this.countries().some(country => country.name === event.location.country)) {
+      this.countries.update(countries => [...countries, { code: '', name: event.location.country }]);
+    }
+    if (!this.timeZones().includes(event.timeZoneId)) {
+      this.timeZones.update(timeZones => [...timeZones, event.timeZoneId]);
+    }
     this.currentRender.set(managementToDetail(event, this.formats()));
+    this.imageInteraction.set(event.image?.id ?? null);
+    this.previewRevision.update(value => value + 1);
+    this.baseline.set(this.dirtyShape());
   }
 
-  private trackLocationExpiry(expiresAt: string): void {
-    this.locationExpiresAt.set(expiresAt);
-    const expiry = Date.parse(expiresAt);
-    this.locationExpired.set(!Number.isFinite(expiry) || Date.now() >= expiry);
-    if (!Number.isFinite(expiry) || Date.now() >= expiry) return;
-    const delay = Math.min(2_147_483_647, expiry - Date.now());
-    timer(delay).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      if (this.locationExpiresAt() === expiresAt) this.locationExpired.set(Date.now() >= expiry);
+  private initializeCreateDraftContext(): void {
+    if (this.editMode || this.editorInitialized) return;
+    const userId = this.auth.profile()?.id;
+    if (!userId) return;
+    this.draftUserId.set(userId);
+    this.draftContextInitialized.set(true);
+    this.pendingRestoredDraft = this.draftStore.read(userId) ?? undefined;
+    this.editorInitialized = true;
+    this.baseline.set(this.dirtyShape());
+  }
+
+  private initializeCreateState(): void {
+    if (this.editMode || !this.editorInitialized || this.createReferencesInitialized || this.draftAccountMismatch()) return;
+    this.createReferencesInitialized = true;
+    this.defaultOrganizationId = this.organizations()[0]?.id ?? '';
+    const initial = this.baseline() ?? this.dirtyShape();
+    const current = this.dirtyShape();
+    const restored = this.pendingRestoredDraft;
+    this.pendingRestoredDraft = undefined;
+    const cleanValue = restored?.value ?? { ...initial.value, organizationId: this.defaultOrganizationId };
+    const mergedValue = restored
+      ? this.mergeDraftValue(restored.value, initial.value, current.value)
+      : this.mergeDraftValue(cleanValue, initial.value, current.value);
+    const currentImageChanged = current.imageId !== initial.imageId
+      || current.imageInteraction !== initial.imageInteraction
+      || this.imagePublishBlocked()
+      || this.draftImage() !== null;
+    const cleanImageId = restored?.image?.id ?? null;
+    const mergedImageId = currentImageChanged ? current.imageId : cleanImageId;
+    this.form.patchValue({ ...mergedValue, imageId: mergedImageId }, { emitEvent: false });
+    if (restored?.value.country && !this.countries().some(country => country.name === restored.value.country)) {
+      this.countries.update(countries => [...countries, { code: '', name: restored.value.country }]);
+    }
+    if (restored?.value.timeZoneId && !this.timeZones().includes(restored.value.timeZoneId)) {
+      this.timeZones.update(timeZones => [...timeZones, restored.value.timeZoneId]);
+    }
+    if (!currentImageChanged) {
+      this.draftImage.set(restored?.image ?? null);
+      this.imageInteraction.set(cleanImageId);
+      this.pendingRestoredImage = restored?.image;
+    }
+    this.syncSelectedOrganization();
+    this.previewRevision.update(value => value + 1);
+    this.baseline.set({ value: normalizeEventDraftValue(cleanValue), imageId: cleanImageId, imageInteraction: cleanImageId });
+    this.hydrateRestoredImage();
+  }
+
+  private mergeDraftValue(base: EventDraftValueV1, initial: EventDraftValueV1, current: EventDraftValueV1): EventDraftValueV1 {
+    const merged = { ...base };
+    for (const key of Object.keys(initial) as (keyof EventDraftValueV1)[]) {
+      if (current[key] !== initial[key]) Object.assign(merged, { [key]: current[key] });
+    }
+    return normalizeEventDraftValue(merged);
+  }
+
+  private hydrateRestoredImage(): void {
+    if (!this.viewReady || !this.pendingRestoredImage || !this.imageUploader) return;
+    const image = this.pendingRestoredImage;
+    this.pendingRestoredImage = undefined;
+    this.imageUploader.restoreTemporaryImage(image);
+  }
+
+  private queueDraftWrite(): void {
+    if (this.editMode || !this.editorInitialized || this.createCompleted || this.draftAccountMismatch()) return;
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = setTimeout(() => this.flushDraft(), EventCreateDraftDebounceMs);
+  }
+
+  private flushDraft(): void {
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = undefined;
+    if (this.editMode || !this.editorInitialized || this.createCompleted || this.draftAccountMismatch()) return;
+    const userId = this.draftUserId();
+    if (!userId) return;
+    const current = this.draftValue();
+    const initial = this.baseline()?.value;
+    const value = this.pendingRestoredDraft && initial
+      ? this.mergeDraftValue(this.pendingRestoredDraft.value, initial, current)
+      : current;
+    const image = this.draftImage() ?? this.pendingRestoredDraft?.image;
+    if (eventCreateDraftIsEmpty(value, this.defaultOrganizationId) && !image) {
+      this.draftStore.remove(userId);
+      return;
+    }
+    this.draftStore.write({
+      version: EVENT_CREATE_DRAFT_VERSION,
+      userId,
+      savedAt: new Date().toISOString(),
+      value,
+      ...(image ? { image } : {})
+    });
+  }
+
+  private completeCreate(): void {
+    if (this.editMode) return;
+    if (this.draftWriteTimer) clearTimeout(this.draftWriteTimer);
+    this.draftWriteTimer = undefined;
+    const userId = this.draftUserId();
+    if (userId && !this.draftAccountMismatch()) this.draftStore.remove(userId);
+    this.createCompleted = true;
+    this.baseline.set(this.dirtyShape());
+  }
+
+  private dirtyShape(): EventDirtyShape {
+    return {
+      value: this.draftValue(),
+      imageId: this.form.controls.imageId.value,
+      imageInteraction: this.imageInteraction()
+    };
+  }
+
+  private draftValue(): EventDraftValueV1 {
+    const value = this.form.getRawValue();
+    return normalizeEventDraftValue({
+      organizationId: value.organizationId,
+      title: value.title,
+      summary: value.summary,
+      bodyMarkdown: value.bodyMarkdown,
+      streetAddress: value.streetAddress,
+      postalCode: value.postalCode,
+      city: value.city,
+      country: value.country,
+      region: value.region,
+      timeZoneId: value.timeZoneId,
+      eventType: value.eventType,
+      startDate: value.startDate,
+      startTime: value.startTime,
+      capacity: value.capacity,
+      formatId: value.formatId
     });
   }
 
@@ -805,8 +914,8 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
     const names: Record<string, keyof typeof this.form.controls> = {
       organizationid: 'organizationId', title: 'title', summary: 'summary', bodymarkdown: 'bodyMarkdown',
       locationstreetaddress: 'streetAddress', locationpostalcode: 'postalCode', locationcity: 'city', locationcountry: 'country',
-      locationregion: 'region', locationlocationtoken: 'locationToken', eventtype: 'eventType', startsatlocal: 'startDate',
-      capacity: 'capacity', formatids: 'formatId', images: 'images'
+      locationregion: 'region', locationtimezoneid: 'timeZoneId', eventtype: 'eventType', startsatlocal: 'startDate',
+      capacity: 'capacity', formatids: 'formatId', imageid: 'imageId'
     };
     for (const [field, messages] of Object.entries(error.problem.errors)) {
       const normalized = field.replace(/[^a-z]/gi, '').toLowerCase();
@@ -822,7 +931,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
         mapped['general'] = message;
         continue;
       }
-      const name = normalized.startsWith('images') ? 'images' : names[normalized];
+      const name = normalized === 'imageid' ? 'imageId' : names[normalized];
       if (name) mapped[name] = message;
     }
     this.fieldErrors.set(mapped);
@@ -833,9 +942,7 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
       if (error.status === 401) return { message: this.i18n.t('eventCreate.unauthorized'), action: 'login' };
       if (error.status === 403 || error.status === 404) return { message: this.i18n.t('eventCreate.forbidden'), action: 'reload' };
       if (error.status === 409) return { message: this.i18n.t('eventCreate.conflict'), action: 'review-calendar' };
-      if (error.problem.errors || error.problem.code === 'location_token_invalid' || error.problem.code === 'location_token_expired') {
-        return { message: this.i18n.t('eventCreate.validationFailed'), action: 'retry' };
-      }
+      if (error.problem.errors) return { message: this.i18n.t('eventCreate.validationFailed'), action: 'retry' };
     }
     return { message: this.i18n.t('eventCreate.publishNetwork'), action: 'retry' };
   }

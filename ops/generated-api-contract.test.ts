@@ -48,9 +48,12 @@ describe('generated OpenAPI semantics', () => {
     for (const reference of instantReferences) expect(resolveLocalReference(reference)).toEqual(instantSchema);
   });
 
-  it('models management location-token expiry as date-time', () => {
-    const properties = schema('EventManagementResponse')['properties'] as Record<string, unknown>;
+  it('models manual Event location timezone without provider tokens', () => {
+    const locationProperties = schema('EventLocationInput')['properties'] as Record<string, unknown>;
+    const managementProperties = schema('EventManagementResponse')['properties'] as Record<string, unknown>;
 
-    expect(properties['locationTokenExpiresAt']).toEqual({ type: 'string', format: 'date-time' });
+    expect(locationProperties['timeZoneId']).toEqual({ maxLength: 100, type: 'string' });
+    expect(locationProperties).not.toHaveProperty('locationToken');
+    expect(managementProperties).not.toHaveProperty('locationTokenExpiresAt');
   });
 });
