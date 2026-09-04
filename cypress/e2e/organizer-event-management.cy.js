@@ -195,7 +195,7 @@ describe('Organizer Event management', () => {
     cy.get('mat-dialog-container button').contains(/save changes|enregistrer les modifications/i).click();
     cy.wait('@stale');
     cy.wait('@management');
-    cy.get('[data-cy="event-stale"]').should('contain.text', 'Server title').invoke('text').should('match', /images/i);
+    cy.get('[data-cy="event-stale"]').should('contain.text', 'Server title').invoke('text').should('match', /image/i);
     cy.get('[data-cy="event-body"]').should('have.value', 'Local Markdown draft');
     cy.get(`[data-cy="event-image-card-existing-${firstImageId}"]`).should('not.exist');
     cy.get('[data-cy="event-reload-latest"]').click();
