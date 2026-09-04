@@ -1,5 +1,7 @@
 # Back Button Below The Breadcrumb Root
 
+> Amended by [ADR-0058](0058-about-route-chrome.md): `/about` keeps bottom back navigation but drops top back navigation.
+
 ## Status
 
 Accepted. Planned by T2 in artifacts/PLAN_2026_08_20_feedback-app-wide-round-6.md.

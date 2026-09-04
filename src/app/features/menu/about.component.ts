@@ -34,7 +34,6 @@ export interface AboutTournamentBand {
   readonly whereKey: MessageKey;
   readonly fieldKey: MessageKey;
   readonly bodyKey: MessageKey;
-  readonly actionKey: MessageKey;
   readonly image: string;
   readonly imageAltKey: MessageKey;
   readonly imageWidth: number;
@@ -59,11 +58,16 @@ export const aboutContributors: readonly AboutContributor[] = [
   { id: 'contributor-3', nameKey: 'about.contributors.pendingName', descriptionKey: 'about.contributors.pendingDescription' }
 ];
 
+export const nextUpVariants = [
+  { id: 'borderless', bordered: false },
+  { id: 'bordered', bordered: true }
+] as const;
+
 export const aboutTournamentBands: readonly AboutTournamentBand[] = [
-  { id: 'weekly', titleKey: 'about.tournament.weekly.title', whenKey: 'about.tournament.weekly.when', whereKey: 'about.tournament.weekly.where', fieldKey: 'about.tournament.weekly.field', bodyKey: 'about.tournament.weekly.body', actionKey: 'about.tournament.weekly.action', image: 'assets/images/2024-01-gones-legacy-brindas-01.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
-  { id: 'monthly', titleKey: 'about.tournament.monthly.title', whenKey: 'about.tournament.monthly.when', whereKey: 'about.tournament.monthly.where', fieldKey: 'about.tournament.monthly.field', bodyKey: 'about.tournament.monthly.body', actionKey: 'about.tournament.monthly.action', image: 'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
-  { id: 'salty', titleKey: 'about.tournament.salty.title', whenKey: 'about.tournament.salty.when', whereKey: 'about.tournament.salty.where', fieldKey: 'about.tournament.salty.field', bodyKey: 'about.tournament.salty.body', actionKey: 'about.tournament.salty.action', image: 'assets/images/2023-05-gones-legacy-fact-top-8.jpeg', imageAltKey: 'about.tournament.salty.imageAlt', imageWidth: 2048, imageHeight: 1536 },
-  { id: 'leagues', titleKey: 'about.tournament.leagues.title', whenKey: 'about.tournament.leagues.when', whereKey: 'about.tournament.leagues.where', fieldKey: 'about.tournament.leagues.field', bodyKey: 'about.tournament.leagues.body', actionKey: 'about.tournament.leagues.action', image: 'assets/images/2025-01-mtgones-10-years-top-2.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1152 }
+  { id: 'weekly', titleKey: 'about.tournament.weekly.title', whenKey: 'about.tournament.weekly.when', whereKey: 'about.tournament.weekly.where', fieldKey: 'about.tournament.weekly.field', bodyKey: 'about.tournament.weekly.body', image: 'assets/images/in-use/2017-gones-legacy-trollune.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
+  { id: 'monthly', titleKey: 'about.tournament.monthly.title', whenKey: 'about.tournament.monthly.when', whereKey: 'about.tournament.monthly.where', fieldKey: 'about.tournament.monthly.field', bodyKey: 'about.tournament.monthly.body', image: 'assets/images/in-use/2025-07-last-trollune.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
+  { id: 'salty', titleKey: 'about.tournament.salty.title', whenKey: 'about.tournament.salty.when', whereKey: 'about.tournament.salty.where', fieldKey: 'about.tournament.salty.field', bodyKey: 'about.tournament.salty.body', image: 'assets/images/2023-05-gones-legacy-fact-top-8.jpeg', imageAltKey: 'about.tournament.salty.imageAlt', imageWidth: 2048, imageHeight: 1536 },
+  { id: 'leagues', titleKey: 'about.tournament.leagues.title', whenKey: 'about.tournament.leagues.when', whereKey: 'about.tournament.leagues.where', fieldKey: 'about.tournament.leagues.field', bodyKey: 'about.tournament.leagues.body', image: 'assets/images/in-use/2023-08-elm-qualifier-trollune.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1152 }
 ];
 
 @Component({
@@ -82,81 +86,51 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
     }
   `],
   template: `
-    <gones-back-button data-cy="about-back-top" [link]="['/']" [label]="i18n.t('about.back')" position="top" />
-    <nav class="about-internal-nav" data-cy="about-internal-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
-      <a href="#association" data-cy="about-nav-association">{{ i18n.t('about.nav.association') }}</a>
-      <a href="#tournaments" data-cy="about-nav-tournaments">{{ i18n.t('about.nav.tournaments') }}</a>
-      <a href="#staff" data-cy="about-nav-staff">{{ i18n.t('about.nav.staff') }}</a>
-      <a routerLink="/events" data-cy="about-nav-calendar">{{ i18n.t('about.nav.calendar') }}</a>
-    </nav>
     <div class="about-page" data-cy="about-page">
       <section class="about-hero" data-cy="about-hero" aria-labelledby="about-title">
-        <img class="about-hero__image" src="assets/images/2025-01-ice-mtgones-10-years.jpeg" alt="MTGones players gathered at the 10-year anniversary Ice tournament" width="2048" height="1152" data-cy="about-hero-image">
+        <img class="about-hero__image" src="assets/images/in-use/2025-01-ice-mtgones-10-years.jpeg" alt="MTGones players gathered at the 10-year anniversary Ice tournament" width="2048" height="1152" data-cy="about-hero-image">
         <div class="about-hero__copy" data-cy="about-hero-copy">
-          <p class="kicker" data-cy="about-hero-kicker" data-reveal>{{ i18n.t('about.hero.kicker') }}</p>
           <h1 id="about-title" data-cy="about-hero-title" data-reveal style="--reveal-delay: 70ms">{{ i18n.t('about.hero.title') }}</h1>
-          <p class="about-hero__lede" data-cy="about-hero-lede" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.hero.lede') }}</p>
-          <div class="info-actions" data-cy="about-hero-actions" data-reveal style="--reveal-delay: 210ms">
-            <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-hero-calendar-link">{{ i18n.t('about.hero.calendar') }}</a>
-            <a mat-stroked-button class="secondary-action" href="#tournaments" data-cy="about-hero-team-link">{{ i18n.t('about.hero.team') }}</a>
-          </div>
+          <p class="about-hero__lede" data-cy="about-hero-lede-1" data-reveal style="--reveal-delay: 140ms">{{ i18n.t('about.hero.lede1') }}</p>
+          <p class="about-hero__lede" data-cy="about-hero-lede-2" data-reveal style="--reveal-delay: 210ms">{{ i18n.t('about.hero.lede2') }}</p>
         </div>
       </section>
 
-      <section class="about-next-up" data-cy="about-next-up" aria-labelledby="about-next-up-title">
-        <header class="about-section-heading" data-cy="about-next-up-heading" data-reveal>
-          <p class="kicker" data-cy="about-next-up-kicker">{{ i18n.t('about.nextUp.kicker') }}</p>
-          <h2 id="about-next-up-title" data-cy="about-next-up-title">{{ i18n.t('about.nextUp.title') }}</h2>
-          <gones-sync-bar cyPrefix="about-next-up" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" data-cy="about-next-up-sync-bar" />
-        </header>
-        @if (loading()) {
-          <div class="about-next-up__loading" aria-busy="true" aria-live="polite" data-cy="about-next-up-loading">
-            <span class="sr-only" data-cy="about-next-up-loading-label">{{ i18n.t('common.loading') }}</span>
-            @for (_ of upcomingSkeletons; track $index) { <div class="about-next-up__skeleton" [attr.data-cy]="'about-next-up-skeleton-' + $index"></div> }
-          </div>
-        } @else if (error()) {
-          <div class="panel about-next-up__state" role="alert" data-cy="about-next-up-error">
-            <p data-cy="about-next-up-error-body">{{ i18n.t('about.nextUp.loadFailed') }}</p>
-            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-error-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
-            <button mat-stroked-button type="button" data-cy="about-next-up-retry" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button>
-          </div>
-        } @else if (upcomingEvents().length) {
-          <div class="about-next-up__list" data-cy="about-next-up-list">
-            @for (event of upcomingEvents(); track event.id) {
-              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-event-' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'">
-                <span class="about-next-up__row-copy" [attr.data-cy]="'about-next-up-event-copy-' + event.slug">
-                  <strong [attr.data-cy]="'about-next-up-event-title-' + event.slug">{{ event.displayTitle }}</strong>
-                  <time [attr.datetime]="event.startsAtUtc" [attr.data-cy]="'about-next-up-event-date-' + event.slug">{{ upcomingDate(event).primary }}</time>
-                  @if (upcomingDate(event).secondary; as secondary) { <span class="viewer-date" [attr.data-cy]="'about-next-up-event-viewer-date-' + event.slug">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</span> }
-                </span>
-                <span class="about-next-up__venue" [attr.data-cy]="'about-next-up-event-venue-' + event.slug">{{ event.venue.city }}, {{ event.venue.country }}</span>
-              </a>
-            }
-          </div>
-        } @else {
-          <div class="panel about-next-up__state" data-cy="about-next-up-empty">
-            <p data-cy="about-next-up-empty-title">{{ i18n.t('about.nextUp.emptyTitle') }}</p>
-            <p data-cy="about-next-up-empty-body">{{ i18n.t('about.nextUp.emptyBody') }}</p>
-            <a mat-stroked-button class="secondary-action" routerLink="/events" data-cy="about-next-up-empty-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a>
-          </div>
-        }
-      </section>
+      @for (variant of nextUpVariants; track variant.id) {
+        <section class="about-next-up" [class.about-next-up--bordered]="variant.bordered" [attr.data-cy]="'about-next-up-' + variant.id" [attr.aria-labelledby]="'about-next-up-' + variant.id + '-title'">
+          <header class="about-section-heading about-next-up__heading" [attr.data-cy]="'about-next-up-' + variant.id + '-heading'" data-reveal>
+            <h2 [id]="'about-next-up-' + variant.id + '-title'" [attr.data-cy]="'about-next-up-' + variant.id + '-title'">{{ i18n.t('about.nextUp.title') }}</h2>
+            <gones-sync-bar [cyPrefix]="'about-next-up-' + variant.id" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" [attr.data-cy]="'about-next-up-' + variant.id + '-sync-bar'" />
+          </header>
+          <img class="about-next-up__image" src="assets/images/in-use/2025-01-damnation-fest-pisa-mtgones-bougnat-01.jpeg" alt="MTGones players at an upcoming event" width="2048" height="1366" loading="lazy" decoding="async" [attr.data-cy]="'about-next-up-' + variant.id + '-image'">
+          @if (loading()) {
+            <div class="about-next-up__loading" aria-busy="true" [attr.data-cy]="'about-next-up-' + variant.id + '-loading'"><span class="sr-only" [attr.data-cy]="'about-next-up-' + variant.id + '-loading-label'">{{ i18n.t('common.loading') }}</span>@for (_ of upcomingSkeletons; track $index) { <div class="about-next-up__skeleton" [attr.data-cy]="'about-next-up-' + variant.id + '-skeleton-' + $index"></div> }</div>
+          } @else if (error()) {
+            <div class="panel about-next-up__state" role="alert" [attr.data-cy]="'about-next-up-' + variant.id + '-error'"><p [attr.data-cy]="'about-next-up-' + variant.id + '-error-body'">{{ i18n.t('about.nextUp.loadFailed') }}</p><a mat-stroked-button routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-error-calendar-link'">{{ i18n.t('about.nextUp.calendar') }}</a><button mat-stroked-button type="button" [attr.data-cy]="'about-next-up-' + variant.id + '-retry'" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button></div>
+          } @else if (upcomingEvents().length) {
+            <div class="about-next-up__list" [attr.data-cy]="'about-next-up-' + variant.id + '-list'">@for (event of upcomingEvents(); track event.id) {
+              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-' + variant.id + '-event-' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'"><span class="about-next-up__row-copy" [attr.data-cy]="'about-next-up-' + variant.id + '-event-copy-' + event.slug"><strong [attr.data-cy]="'about-next-up-' + variant.id + '-event-title-' + event.slug">{{ event.displayTitle }}</strong><time [attr.datetime]="event.startsAtUtc" [attr.data-cy]="'about-next-up-' + variant.id + '-event-date-' + event.slug">{{ upcomingDate(event).primary }}</time></span><span class="about-next-up__venue" [attr.data-cy]="'about-next-up-' + variant.id + '-event-venue-' + event.slug">{{ event.venue.city }}, {{ event.venue.country }}</span></a>
+            }</div>
+            <a mat-flat-button class="home-primary-action" routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-find-all-events'">{{ i18n.t('about.nextUp.findAllEvents') }}</a>
+          } @else {
+            <div class="panel about-next-up__state" [attr.data-cy]="'about-next-up-' + variant.id + '-empty'"><p [attr.data-cy]="'about-next-up-' + variant.id + '-empty-title'">{{ i18n.t('about.nextUp.emptyTitle') }}</p><p [attr.data-cy]="'about-next-up-' + variant.id + '-empty-body'">{{ i18n.t('about.nextUp.emptyBody') }}</p><a mat-stroked-button routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-empty-calendar-link'">{{ i18n.t('about.nextUp.calendar') }}</a></div>
+          }
+        </section>
+      }
 
       <section id="association" class="about-intro" data-cy="about-association" aria-labelledby="association-title">
         <div class="about-intro__heading" data-cy="about-association-heading" data-reveal="left">
-          <p class="kicker" data-cy="about-association-kicker">{{ i18n.t('about.intro.kicker') }}</p>
           <h2 id="association-title" data-cy="about-association-title">{{ i18n.t('about.intro.title') }}</h2>
         </div>
         <div class="about-intro__copy" data-cy="about-association-copy" data-reveal="right" style="--reveal-delay: 70ms">
           <p data-cy="about-association-paragraph-1">{{ i18n.t('about.intro.paragraph1') }}</p>
           <p data-cy="about-association-paragraph-2">{{ i18n.t('about.intro.paragraph2') }}</p>
         </div>
-        <img class="about-content-image about-intro__image" src="assets/images/2019-10-mtglyon-mtgones-gathering.jpeg" alt="MTGones and MTGLyon players gathered together" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-association-image" data-reveal="scale" style="--reveal-delay: 140ms">
+        <img class="about-content-image about-intro__image" src="assets/images/in-use/2025-07-last-trollune.jpeg" alt="MTGones and MTGLyon players gathered together" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-association-image" data-reveal="scale" style="--reveal-delay: 140ms">
       </section>
 
       <section id="tournaments" class="about-tournaments" data-cy="about-tournaments" aria-labelledby="tournaments-title">
         <header class="about-section-heading" data-cy="about-tournaments-heading" data-reveal>
-          <p class="kicker" data-cy="about-tournaments-kicker">{{ i18n.t('about.tournaments.kicker') }}</p>
           <h2 id="tournaments-title" data-cy="about-tournaments-title">{{ i18n.t('about.tournaments.title') }}</h2>
           <p data-cy="about-tournaments-body">{{ i18n.t('about.tournaments.body') }}</p>
         </header>
@@ -170,7 +144,6 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
                 <div [attr.data-cy]="'about-' + band.id + '-field'"><dt [attr.data-cy]="'about-' + band.id + '-field-label'">{{ i18n.t('about.tournament.field') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-field-value'">{{ i18n.t(band.fieldKey) }}</dd></div>
               </dl>
               <p [attr.data-cy]="'about-' + band.id + '-body'">{{ i18n.t(band.bodyKey) }}</p>
-              <a mat-stroked-button class="secondary-action" routerLink="/events" [attr.data-cy]="'about-' + band.id + '-calendar-link'">{{ i18n.t(band.actionKey) }}</a>
             </div>
             <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'" [attr.data-reveal]="$index % 2 === 0 ? 'right' : 'left'" style="--reveal-delay: 70ms">
           </article>
@@ -188,8 +161,8 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <div data-cy="about-fire-ice-edition-ice"><strong class="about-fire-ice__ice" data-cy="about-fire-ice-edition-ice-title">{{ i18n.t('about.fireIce.iceEdition') }}</strong><span data-cy="about-fire-ice-edition-ice-body">{{ i18n.t('about.fireIce.iceEditionBody') }}</span></div>
             </div>
             <div class="about-fire-ice__photos" data-cy="about-fire-ice-photos">
-              <img src="assets/images/2025-06-fire-team-orga.jpeg" alt="The Fire 2025 organizing team behind the prize table" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image" data-reveal="scale">
-              <img src="assets/images/2026-01-ice-01.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms">
+              <img src="assets/images/in-use/2024-07-cdf-legacy-vaugneray-original.jpeg" alt="The Fire 2025 organizing team behind the prize table" width="2048" height="1152" loading="lazy" decoding="async" data-cy="about-fire-ice-fire-image" data-reveal="scale">
+              <img src="assets/images/in-use/2026-01-ice-01.jpeg" alt="Packed tournament hall during the Ice 2026" width="2048" height="1536" loading="lazy" decoding="async" data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms">
             </div>
           </div>
         </article>
@@ -203,7 +176,6 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
                 <div [attr.data-cy]="'about-' + band.id + '-field'"><dt [attr.data-cy]="'about-' + band.id + '-field-label'">{{ i18n.t('about.tournament.field') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-field-value'">{{ i18n.t(band.fieldKey) }}</dd></div>
               </dl>
               <p [attr.data-cy]="'about-' + band.id + '-body'">{{ i18n.t(band.bodyKey) }}</p>
-              <a mat-stroked-button class="secondary-action" routerLink="/events" [attr.data-cy]="'about-' + band.id + '-calendar-link'">{{ i18n.t(band.actionKey) }}</a>
             </div>
             <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'" data-reveal="left" style="--reveal-delay: 70ms">
           </article>
@@ -212,7 +184,6 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
 
       <section id="staff" class="about-team" data-cy="about-staff" aria-labelledby="team-title" tabindex="-1">
         <header class="about-section-heading" data-cy="about-staff-heading" data-reveal>
-          <p class="kicker" data-cy="about-staff-kicker">{{ i18n.t('about.team.kicker') }}</p>
           <h2 id="team-title" data-cy="about-staff-title">{{ i18n.t('about.team.title') }}</h2>
           <p data-cy="about-staff-body">{{ i18n.t('about.team.body') }}</p>
         </header>
@@ -308,6 +279,7 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly stale = signal(false);
   readonly syncedAt = signal<string | undefined>(undefined);
   readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2];
+  readonly nextUpVariants = nextUpVariants;
   readonly tournamentBands = aboutTournamentBands;
   readonly founders = aboutStaff.slice(0, 3);
   readonly members = aboutStaff.slice(3);

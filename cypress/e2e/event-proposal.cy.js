@@ -109,7 +109,7 @@ describe('event request review page (signed out, intercept-based)', () => {
     }).as('proposalImage');
     cy.intercept('POST', '**/api/event-proposals/by-token/*/approve', { proposalId: 'proposal-1', status: 'Approved', slug: 'x' }).as('approve');
     cy.intercept('GET', '**/api/events/x', publishedEvent).as('publishedDetail');
-    cy.intercept('GET', `/api/event-images/${imageId}/variants/320`, {
+    cy.intercept('GET', `**/api/event-images/${imageId}/variants/320`, {
       statusCode: 200,
       headers: { 'content-type': 'image/webp', 'cache-control': 'public, max-age=31536000, immutable' },
       fixture: 'event-proposal-private.webp,null'
@@ -142,9 +142,16 @@ describe('event request review page (signed out, intercept-based)', () => {
     cy.get('[data-cy="event-request-approved-link"]').should('have.attr', 'href').and('include', '/events/x');
     cy.get('[data-cy="event-request-approved-link"]').click();
     cy.location('pathname').should('eq', '/events/x');
-    cy.wait(['@publishedDetail', '@publicImage']);
+    cy.wait('@publishedDetail');
+    cy.wait('@publicImage').then(({ request, response }) => {
+      expect(new URL(request.url).origin).to.eq('http://127.0.0.1:5080');
+      expect(response.statusCode).to.eq(200);
+    });
     cy.get('[data-cy="event-detail-media-hero-image"]')
       .should('have.attr', 'src').and('include', `/api/event-images/${imageId}/variants/320`);
+    cy.get('[data-cy="event-detail-media-hero-image"]').should($image => {
+      expect($image[0].naturalWidth).to.be.greaterThan(0);
+    });
     cy.get('[data-cy="event-detail-media-hero-image"]').should('have.attr', 'alt', 'Legacy — Modern Cup — Event image');
     cy.get('[data-cy="event-detail-body"]').should('contain.text', 'Plain description body');
   });

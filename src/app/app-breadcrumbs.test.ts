@@ -214,7 +214,7 @@ describe('event breadcrumbs', () => {
  * was retired with the legacy archive surface; the negative half lives here and only here.
  */
 describe('header import visibility', () => {
-  async function showHeaderImportAt(url: string): Promise<boolean> {
+  async function appAt(url: string): Promise<AppComponent> {
     const injector = Injector.create({ providers: [
       { provide: Router, useValue: { url: '/', events: new Subject<never>(), navigate: vi.fn(async () => true) } },
       { provide: AuthService, useValue: { enabled: false, profile: signal(null) } },
@@ -229,6 +229,11 @@ describe('header import visibility', () => {
 
     const component = runInInjectionContext(injector, () => new AppComponent());
     await (component as unknown as { updateRouteState(url: string): Promise<void> }).updateRouteState(url);
+    return component;
+  }
+
+  async function showHeaderImportAt(url: string): Promise<boolean> {
+    const component = await appAt(url);
     return component.showHeaderImport();
   }
 
@@ -241,6 +246,13 @@ describe('header import visibility', () => {
     for (const url of ['/', '/leagues', '/leagues/abc', '/leagues-archive', '/leagues-archive/abc', '/archive/tournaments', '/archive/league-seasons/abc', '/settings', '/calendar']) {
       expect(await showHeaderImportAt(url), url).toBe(false);
     }
+  });
+
+  it('detects About exactly while ignoring query and hash', async () => {
+    expect((await appAt('/about')).isAboutPage()).toBe(true);
+    expect((await appAt('/about?from=home#staff')).isAboutPage()).toBe(true);
+    expect((await appAt('/about-us')).isAboutPage()).toBe(false);
+    expect((await appAt('/events')).isAboutPage()).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@ const repoRoot = join(__dirname, '..', '..', '..');
 const routesSource = readFileSync(join(repoRoot, 'src', 'app', 'app.routes.ts'), 'utf-8');
 
 const AUTH_COMPONENT = 'auth/auth-entry.component';
+const ABOUT_COMPONENT = 'features/menu/about.component';
 
 /**
  * Pages that *start* their breadcrumb — `buildBreadcrumbs` returns a single item — carry no back
@@ -46,8 +47,8 @@ describe('back-button-coverage', () => {
     }
   });
 
-  it('every routed page has a top back button', () => {
-    const nonRootPaths = routedPaths.filter((p) => !BREADCRUMB_ROOT_COMPONENTS.includes(p));
+  it('every routed page except About has a top back button', () => {
+    const nonRootPaths = routedPaths.filter((p) => !BREADCRUMB_ROOT_COMPONENTS.includes(p) && p !== ABOUT_COMPONENT);
     const missing: string[] = [];
     for (const path of nonRootPaths) {
       const source = readComponentSource(path);
@@ -58,7 +59,7 @@ describe('back-button-coverage', () => {
     expect(missing, `Missing position="top": ${missing.join(', ')}`).toEqual([]);
   });
 
-  it('every routed page (except auth) has a bottom back button', () => {
+  it('every routed page (except auth and breadcrumb roots) has a bottom back button', () => {
     const nonAuthNonRootPaths = routedPaths.filter((p) => p !== AUTH_COMPONENT && !BREADCRUMB_ROOT_COMPONENTS.includes(p));
     const missing: string[] = [];
     for (const path of nonAuthNonRootPaths) {
@@ -68,6 +69,12 @@ describe('back-button-coverage', () => {
       }
     }
     expect(missing, `Missing position="bottom": ${missing.join(', ')}`).toEqual([]);
+  });
+
+  it('About keeps bottom back navigation only', () => {
+    const source = readComponentSource(ABOUT_COMPONENT);
+    expect(source).not.toContain('position="top"');
+    expect(source).toContain('position="bottom"');
   });
 
   it('auth pages stay top only', () => {
