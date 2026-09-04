@@ -12,14 +12,32 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, '..', 'src', 'assets', 'geo');
 
 const countryRegionData = require('country-region-data/data.json');
+const timeZones = require('@vvo/tzdb/raw-time-zones.json');
 const departements = require('@etalab/decoupage-administratif/data/departements.json');
 const communes = require('@etalab/decoupage-administratif/data/communes.json');
 
 function buildCountries() {
+  const fallbackTimeZones = {
+    BV: ['Etc/UTC'],
+    HM: ['Indian/Kerguelen'],
+    XK: ['Europe/Belgrade']
+  };
+  const timeZonesByCountry = new Map();
+  for (const timeZone of timeZones) {
+    const countryTimeZones = timeZonesByCountry.get(timeZone.countryCode) ?? [];
+    countryTimeZones.push(timeZone.name);
+    timeZonesByCountry.set(timeZone.countryCode, countryTimeZones);
+  }
   const byCode = new Map();
   for (const entry of countryRegionData) {
     if (!byCode.has(entry.countryShortCode)) {
-      byCode.set(entry.countryShortCode, { code: entry.countryShortCode, name: entry.countryName });
+      const timeZoneIds = timeZonesByCountry.get(entry.countryShortCode) ?? fallbackTimeZones[entry.countryShortCode];
+      if (!timeZoneIds?.length) throw new Error(`No timezone found for ${entry.countryShortCode}.`);
+      byCode.set(entry.countryShortCode, {
+        code: entry.countryShortCode,
+        name: entry.countryName,
+        timeZoneIds
+      });
     }
   }
   return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name));

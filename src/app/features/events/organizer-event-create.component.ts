@@ -433,6 +433,16 @@ export class OrganizerEventCreateComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.initializeCreateDraftContext();
+    this.form.controls.country.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(country => {
+      const option = this.countries().find(item => item.name === country);
+      const candidates = option?.timeZoneIds ?? [];
+      const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const validCandidates = candidates.filter(candidate => this.timeZones().includes(candidate));
+      const timeZoneId = validCandidates.includes(browserTimeZone)
+        ? browserTimeZone
+        : validCandidates.length === 1 ? validCandidates[0] : undefined;
+      this.form.controls.timeZoneId.setValue(timeZoneId ?? '');
+    });
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       this.syncSelectedOrganization();
       this.fieldErrors.set({});
