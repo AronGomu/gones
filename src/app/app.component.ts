@@ -4,6 +4,7 @@ import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatToolbarModule } from '@angular/material/toolbar';
+import { MatMenuModule } from '@angular/material/menu';
 import { ARCHIVE_UPDATED_EVENT, ArchiveRepository } from './data/archive-repository.service';
 import { LiveTournamentRepository } from './data/live-tournament-repository.service';
 import { archiveBundleFilename, attachArchiveChecksum } from './domain/archive-export-schemas';
@@ -30,11 +31,26 @@ interface HeaderTournament {
 @Component({
   selector: 'gones-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, MatButtonModule, MatToolbarModule],
+  imports: [RouterOutlet, RouterLink, MatButtonModule, MatToolbarModule, MatMenuModule],
   template: `
     @if (!isResultPage()) {
       <mat-toolbar class="app-toolbar" data-cy="app-toolbar">
         <a class="brand" routerLink="/" [attr.aria-label]="i18n.t('nav.homeAria')" data-cy="app-brand-link"><img src="assets/gones_logo.png" alt="Gones" data-cy="app-brand-logo"></a>
+        @if (isAboutPage()) {
+          <nav class="about-toolbar-nav" data-cy="about-toolbar-nav" [attr.aria-label]="i18n.t('about.nav.aria')">
+            <a href="#association" data-cy="about-toolbar-association">{{ i18n.t('about.nav.association') }}</a>
+            <a href="#tournaments" data-cy="about-toolbar-tournaments">{{ i18n.t('about.nav.tournaments') }}</a>
+            <a href="#staff" data-cy="about-toolbar-staff">{{ i18n.t('about.nav.staff') }}</a>
+            <a routerLink="/events" data-cy="about-toolbar-calendar">{{ i18n.t('about.nav.calendar') }}</a>
+          </nav>
+          <button mat-button type="button" class="about-toolbar-sections-button" [matMenuTriggerFor]="aboutSectionsMenu" data-cy="about-toolbar-sections-button">{{ i18n.t('about.nav.sections') }}</button>
+          <mat-menu #aboutSectionsMenu="matMenu" class="about-toolbar-sections-menu" data-cy="about-toolbar-sections-menu">
+            <a mat-menu-item href="#association" data-cy="about-toolbar-association-menu">{{ i18n.t('about.nav.association') }}</a>
+            <a mat-menu-item href="#tournaments" data-cy="about-toolbar-tournaments-menu">{{ i18n.t('about.nav.tournaments') }}</a>
+            <a mat-menu-item href="#staff" data-cy="about-toolbar-staff-menu">{{ i18n.t('about.nav.staff') }}</a>
+            <a mat-menu-item routerLink="/events" data-cy="about-toolbar-calendar-menu">{{ i18n.t('about.nav.calendar') }}</a>
+          </mat-menu>
+        }
         <span class="spacer" data-cy="app-header-spacer"></span>
         @if (showLiveTournamentActions() && power.enabled()) {
           <div class="header-actions live-tournament-header-actions" data-cy="app-live-tournament-header-actions">
@@ -72,6 +88,7 @@ interface HeaderTournament {
           </div>
         }
       </mat-toolbar>
+      @if (!isAboutPage()) {
       <nav class="breadcrumb-shell breadcrumb-shell--header" data-cy="app-breadcrumb-nav" [attr.aria-label]="i18n.t('nav.breadcrumb')">
         <ol class="breadcrumbs" data-cy="breadcrumbs">
           @for (item of breadcrumbs(); track item.label + $index) {
@@ -82,6 +99,7 @@ interface HeaderTournament {
           }
         </ol>
       </nav>
+      }
     }
     @if (auth.enabled && auth.profile() && !auth.profile()!.emailVerified) {
       <aside class="warning app-banner verification-banner" role="status" aria-live="polite" data-cy="unverified-banner">
@@ -111,6 +129,7 @@ export class AppComponent {
   private readonly dialog = inject(MatDialog);
   readonly currentUrl = signal(this.router.url);
   readonly isResultPage = computed(() => this.pathOnly(this.currentUrl()).split('/').includes('result'));
+  readonly isAboutPage = computed(() => this.pathOnly(this.currentUrl()) === '/about');
   readonly showSignInLink = computed(() => !AUTH_PATHS.includes(this.pathOnly(this.currentUrl())));
   readonly importing = signal(false);
   readonly settingsImporting = signal(false);

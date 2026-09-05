@@ -187,16 +187,22 @@ function fillValidForm(referenceAlias = '@myOrganizations', omittedSelector = ''
   cy.get('[data-cy="event-street"]').type(manualLocation.streetAddress);
   cy.get('[data-cy="event-postal-code"]').type(manualLocation.postalCode);
   cy.get('[data-cy="event-city"]').type(manualLocation.city);
-  if (omittedSelector !== '[data-cy="event-country"]') cy.get('[data-cy="event-country"]').select(manualLocation.country);
+  if (omittedSelector !== '[data-cy="event-country"]') {
+    cy.get('[data-cy="event-country"]').select(manualLocation.country);
+    cy.get('[data-cy="event-time-zone"]').should('have.value', manualLocation.timeZoneId);
+  }
   cy.get('[data-cy="event-region"]').type(manualLocation.region);
-  if (omittedSelector !== '[data-cy="event-time-zone"]') cy.get('[data-cy="event-time-zone"]').select(manualLocation.timeZoneId);
+  if (omittedSelector === '[data-cy="event-time-zone"]') {
+    setEditorValue('[data-cy="event-time-zone"]', '');
+    cy.get('[data-cy="event-time-zone"]').should('have.class', 'ng-invalid');
+  }
 }
 
 function setEditorValue(selector, value) {
   cy.get(selector).then($control => {
     const control = $control[0];
     control.value = value;
-    control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
+    control.dispatchEvent(new Event(control.tagName === 'SELECT' ? 'change' : 'input', { bubbles: true }));
   });
 }
 
@@ -415,7 +421,9 @@ describe('Organizer Event direct create editor', () => {
       }, { once: true }));
       cy.reload();
       fillValidForm('@myOrganizations', selector);
-      cy.get('[data-cy="event-publish"]').should('be.disabled');
+      cy.get('[data-cy="event-publish"]').should($publish => {
+        expect($publish.prop('disabled'), label).to.eq(true);
+      });
       cy.get('[data-cy="event-publish-errors"]').should('contain.text', `${label}:`);
       cy.get(selector).select(validValue);
       cy.get('[data-cy="event-publish"]').should('be.enabled');

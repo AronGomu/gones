@@ -5,6 +5,7 @@ import { firstValueFrom } from 'rxjs';
 export interface GeoOption {
   code: string;
   name: string;
+  timeZoneIds?: string[];
 }
 
 /** Only France has structured Region/City data; every other country falls back to free text. */

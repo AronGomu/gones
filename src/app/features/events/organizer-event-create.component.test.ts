@@ -292,7 +292,57 @@ describe('OrganizerEventCreateComponent live direct editor', () => {
     destroy();
   });
 
-  it('requires a manual timezone and blocks direct publish for failed/pending upload', () => {
+  it('suggests the selected country timezone while keeping manual override available', async () => {
+    const { component, destroy } = setupHarness(
+      'Organizer', locationClient({ listEventTimeZones: () => of({ ids: ['Europe/London', 'Europe/Paris'] }) }), {}, true,
+      async () => [{ code: 'FR', name: 'France', timeZoneIds: ['Europe/Paris'] }]
+    );
+
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    component.form.controls.country.setValue('France');
+
+    expect(component.form.controls.timeZoneId.value).toBe('Europe/Paris');
+    component.form.controls.timeZoneId.setValue('Europe/London');
+    expect(component.form.controls.timeZoneId.value).toBe('Europe/London');
+    destroy();
+  });
+
+  it('prefers the browser timezone for a matching multi-timezone country', async () => {
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeZoneIds = ['Europe/Paris', browserTimeZone];
+    const { component, destroy } = setupHarness(
+      'Organizer', locationClient({ listEventTimeZones: () => of({ ids: timeZoneIds }) }), {}, true,
+      async () => [{ code: 'XX', name: 'Matching country', timeZoneIds }]
+    );
+
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    component.form.controls.country.setValue('Matching country');
+
+    expect(component.form.controls.timeZoneId.value).toBe(browserTimeZone);
+    destroy();
+  });
+
+  it('does not guess for a multi-timezone country when the browser zone does not match', async () => {
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const timeZoneIds = ['America/New_York', 'America/Los_Angeles', 'Europe/London']
+      .filter(timeZoneId => timeZoneId !== browserTimeZone);
+    const { component, destroy } = setupHarness(
+      'Organizer', locationClient({ listEventTimeZones: () => of({ ids: timeZoneIds }) }), {}, true,
+      async () => [{ code: 'US', name: 'United States', timeZoneIds }]
+    );
+
+    component.ngOnInit();
+    await vi.waitFor(() => expect(component.loadingReferences()).toBe(false));
+    component.form.controls.country.setValue('United States');
+
+    expect(component.form.controls.timeZoneId.value).toBe('');
+    expect(component.form.controls.timeZoneId.invalid).toBe(true);
+    destroy();
+  });
+
+  it('requires timezone and blocks direct publish for failed/pending upload', () => {
     const component = setup('Organizer');
     component.form.patchValue({
       organizationId: 'org', title: 'Cup', streetAddress: 'Street', postalCode: '69001', city: 'Lyon', country: 'France',

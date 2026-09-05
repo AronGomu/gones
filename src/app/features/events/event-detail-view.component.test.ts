@@ -16,7 +16,7 @@ import { PublicCalendarEventType, PublicEventDetailResponse } from '../../api/ge
 import { I18nService } from '../../i18n/i18n.service';
 import { translate } from '../../i18n/messages';
 import { DeckArchetypeSettingsService } from '../../shared/deck-archetype-settings.service';
-import { EventDetailViewComponent, trapDialogFocus } from './event-detail-view.component';
+import { EventDetailViewComponent, resolveApiAssetUrl, trapDialogFocus } from './event-detail-view.component';
 
 // The required input is swapped for a plain signal; rendered text and geometry are asserted in
 // cypress/e2e/public-calendar.cy.js, which reads the real browser DOM.
@@ -102,7 +102,6 @@ describe('EventDetailViewComponent hero', () => {
 
   it('when-where row holds date and location', () => {
     const component = build();
-    expect(component.date().primary).toContain('2026');
     expect(component.venue()).toBe('1 Rue Test, 69001, Lyon, France');
     expect(whenRow).toContain('data-cy="event-detail-when"');
     expect(whenRow).toContain('naturalDate()');
@@ -278,22 +277,29 @@ describe('EventDetailViewComponent hero', () => {
     expect(build().venue()).toBe('1 Rue Test, 69001, Lyon, France');
   });
 
-  it('viewer time still renders when zones differ', () => {
-    const whenRowIdx = source.indexOf('data-cy="event-detail-when-row"');
-    const viewerIdx = source.indexOf('data-cy="event-detail-fact-date-viewer"');
-    expect(viewerIdx).toBeGreaterThan(whenRowIdx);
-    expect(source).toContain('event-detail-fact-date-viewer');
+  it('omits viewer time when zones differ', () => {
+    expect(source).not.toContain('data-cy="event-detail-fact-date-viewer"');
+    expect(source).not.toContain("i18n.t('event.viewerTime')");
   });
 
   it('no when-where hook survives', () => {
     expect(source).not.toContain('event-detail-when-where');
   });
 
+  it('resolves API media URLs while preserving browser and preview URLs', () => {
+    const base = 'http://127.0.0.1:5080';
+    expect(resolveApiAssetUrl('/api/event-images/i/variants/320', base)).toBe(`${base}/api/event-images/i/variants/320`);
+    expect(resolveApiAssetUrl('/api/event-images/i/variants/320', `${base}/`)).toBe(`${base}/api/event-images/i/variants/320`);
+    for (const url of ['', 'blob:https://app.test/id', 'data:image/webp;base64,x', 'http://cdn.test/i.webp', 'https://cdn.test/i.webp']) {
+      expect(resolveApiAssetUrl(url, base)).toBe(url);
+    }
+  });
+
   it('renders one responsive hero with generated title alt and no gallery navigation', () => {
     const component = build();
     expect(component.imageAlt()).toBe(`Modern — AURA Open — ${translate('fr', 'event.image')}`);
-    expect(component.imageSource(event.image!)).toBe('/api/event-images/image-1/variants/960');
-    expect(component.imageSourceSet(event.image!)).toBe('/api/event-images/image-1/variants/320 320w, /api/event-images/image-1/variants/960 960w');
+    expect(component.imageSource(event.image!)).toBe('http://127.0.0.1:5080/api/event-images/image-1/variants/960');
+    expect(component.imageSourceSet(event.image!)).toBe('http://127.0.0.1:5080/api/event-images/image-1/variants/320 320w, http://127.0.0.1:5080/api/event-images/image-1/variants/960 960w');
     expect(source).toContain('data-cy="event-detail-media-hero"');
     expect(source).not.toContain('event-detail-media-gallery');
     expect(source).not.toContain('event-detail-lightbox-previous');
@@ -379,7 +385,8 @@ describe('EventDetailViewComponent hero', () => {
   it('is the last hero child', () => {
     const heroSection = source.slice(source.indexOf('<section class="event-hero panel"'), source.indexOf('</section>'));
     const organizersIdx = heroSection.indexOf('event-detail-organizers');
-    const viewerIdx = heroSection.indexOf('event-detail-fact-date-viewer');
-    expect(organizersIdx).toBeGreaterThan(viewerIdx);
+    const whereIdx = heroSection.indexOf('event-detail-where-row');
+    expect(organizersIdx).toBeGreaterThan(whereIdx);
+    expect(heroSection).not.toContain('event-detail-fact-date-viewer');
   });
 });

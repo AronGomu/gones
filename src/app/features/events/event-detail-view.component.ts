@@ -1,9 +1,11 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { PublicEventDetailResponse } from '../../api/generated/gones-api';
+import { joinApiUrl } from '../../api/api-boundary';
+import { dataAuthority } from '../../config/data-authority';
 import { I18nService } from '../../i18n/i18n.service';
 import type { MessageKey } from '../../i18n/messages';
-import { eventDatePresentation, venueMapsUrl } from './public-event-list';
+import { venueMapsUrl } from './public-event-list';
 import { ServerSanitizedHtmlComponent } from './server-sanitized-html.component';
 
 export interface EventDetailView {
@@ -44,7 +46,6 @@ export type EventDetailImage = NonNullable<EventDetailView['image']>;
         @if (showIcsAction() && icsUrl(); as url) { <a mat-stroked-button class="event-hero-ics" [href]="url" type="text/calendar" data-cy="event-ics">{{ i18n.t('event.addToCalendar') }}</a> }
         @if (event().summary) { <p class="event-description-fallback" data-cy="event-detail-summary">{{ event().summary }}</p> }
         <p class="event-when" data-cy="event-detail-when-row" [class.muted]="showDatePlaceholder()"><span data-cy="event-detail-when">{{ naturalDate() }}</span><span data-cy="event-detail-when-separator">-</span><span class="event-starting-hour" data-cy="event-detail-starting-hour">{{ i18n.t('event.startingHour') }} : {{ startTime() }}</span></p>
-        @if (date().secondary; as secondary) { <p class="viewer-date" data-cy="event-detail-fact-date-viewer">{{ i18n.t('event.viewerTime') }}: {{ secondary }}</p> }
         <p class="event-where" data-cy="event-detail-where-row">@if (mapsUrl(); as url) { <a data-cy="event-detail-where-link" [href]="url" target="_blank" rel="noopener noreferrer" [attr.aria-label]="i18n.t('event.openInMaps', { address: venue() })"><svg class="maps-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1 1 14 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>{{ venueDisplay() }}</a> } @else { <span data-cy="event-detail-where" [class.muted]="showVenuePlaceholder()">{{ venueDisplay() }}</span> }</p>
         @if (organizers().length) { <p class="event-hero-organizers" data-cy="event-detail-organizers">{{ organizers().join(', ') }}</p> }
       </section>
@@ -80,9 +81,6 @@ export class EventDetailViewComponent {
   readonly lightboxOpen = signal(false);
   private lightboxTrigger: HTMLElement | null = null;
 
-  readonly date = computed(() => this.draftPlaceholderMode()
-    ? { primary: '' }
-    : eventDatePresentation(this.event(), this.i18n.locale()));
   readonly eventTypeLabel = computed(() => {
     const eventType = this.event().eventType;
     return eventType
@@ -140,11 +138,14 @@ export class EventDetailViewComponent {
   }
 
   imageSource(image: EventDetailImage): string {
-    return this.largestVariant(image)?.url ?? '';
+    const url = this.largestVariant(image)?.url ?? '';
+    return resolveApiAssetUrl(url, dataAuthority().apiBaseUrl);
   }
 
   imageSourceSet(image: EventDetailImage): string {
-    return image.variants.map(variant => `${variant.url} ${variant.width}w`).join(', ');
+    return image.variants
+      .map(variant => `${resolveApiAssetUrl(variant.url, dataAuthority().apiBaseUrl)} ${variant.width}w`)
+      .join(', ');
   }
 
   openLightbox(trigger: EventTarget | null): void {
@@ -177,6 +178,10 @@ export class EventDetailViewComponent {
     const dialog = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
     if (dialog) trapDialogFocus(event, dialog);
   }
+}
+
+export function resolveApiAssetUrl(url: string, apiBaseUrl: string): string {
+  return url.startsWith('/api/') ? joinApiUrl(apiBaseUrl, url) : url;
 }
 
 export function trapDialogFocus(event: KeyboardEvent, dialog: HTMLElement): void {

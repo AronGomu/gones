@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lock remaining UI and image contracts</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    code { color:var(--accent); }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 2 · Integration contracts</span>
+    <h1>Lock remaining UI and image contracts</h1>
+    <p class="lede">Round 1 fixed intent. Four downstream choices now define duplicate Next Up behavior, deferred org identity, mobile menu shape, and Event image URL repair.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress"><span class="node"><b>Feedback</b></span><span class="arrow">→</span><span class="node">Round 1 choices</span><span class="arrow">→</span><span class="node active">Clone contract</span><span class="node active">Org dependency</span><span class="node active">Menu contract</span><span class="node active">Image URL</span><span class="arrow">→</span><span class="node">Tickets</span></nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Event image failure path</b>API emits root-relative image paths; browser resolves them against SPA origin instead of configured API origin.</figcaption>
+      <svg viewBox="0 0 400 220" role="img" aria-labelledby="image-title image-desc">
+        <title id="image-title">Event image origin mismatch</title><desc id="image-desc">Event detail JSON loads from API port 5080, but root-relative image URL resolves at SPA port 4200 and misses image API.</desc>
+        <defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path class="svg-arrow" d="M0 0L8 4L0 8Z"/></marker></defs>
+        <rect class="svg-node" x="12" y="70" width="82" height="64" rx="10"/><text class="svg-label" x="53" y="95" text-anchor="middle">Browser</text><text class="svg-note" x="53" y="112" text-anchor="middle">:4200</text>
+        <rect class="svg-node" x="160" y="20" width="100" height="62" rx="10"/><text class="svg-label" x="210" y="45" text-anchor="middle">Detail JSON</text><text class="svg-note" x="210" y="62" text-anchor="middle">API :5080</text>
+        <rect class="svg-node active" x="160" y="138" width="100" height="62" rx="10"/><text class="svg-label" x="210" y="163" text-anchor="middle">img request</text><text class="svg-note" x="210" y="180" text-anchor="middle">wrong :4200</text>
+        <rect class="svg-node" x="318" y="138" width="72" height="62" rx="10"/><text class="svg-label" x="354" y="163" text-anchor="middle">Image API</text><text class="svg-note" x="354" y="180" text-anchor="middle">:5080</text>
+        <path class="svg-line" marker-end="url(#arrowhead)" d="M94 88L153 59M94 118L153 157"/><path class="svg-line" stroke-dasharray="6 5" d="M260 169H311"/>
+        <text class="svg-note" x="285" y="158" text-anchor="middle">not reached</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Responsive About shell</b>Desktop links move into toolbar; narrow layout needs one exact trigger and breakpoint.</figcaption>
+      <svg viewBox="0 0 400 220" role="img" aria-labelledby="menu-title menu-desc">
+        <title id="menu-title">Desktop and mobile About toolbar layouts</title><desc id="menu-desc">Desktop toolbar centers four direct links between brand and auth actions. Mobile toolbar replaces links with one menu trigger.</desc>
+        <rect class="svg-node" x="12" y="28" width="376" height="58" rx="10"/><rect class="svg-node" x="24" y="39" width="58" height="36" rx="8"/><text class="svg-note" x="53" y="61" text-anchor="middle">brand</text><rect class="svg-node active" x="116" y="39" width="180" height="36" rx="8"/><text class="svg-note" x="206" y="61" text-anchor="middle">4 centered links</text><rect class="svg-node" x="322" y="39" width="54" height="36" rx="8"/><text class="svg-note" x="349" y="61" text-anchor="middle">auth</text>
+        <rect class="svg-node" x="12" y="132" width="376" height="58" rx="10"/><rect class="svg-node" x="24" y="143" width="58" height="36" rx="8"/><text class="svg-note" x="53" y="165" text-anchor="middle">brand</text><rect class="svg-node active" x="154" y="143" width="92" height="36" rx="8"/><text class="svg-note" x="200" y="165" text-anchor="middle">menu btn</text><rect class="svg-node" x="322" y="143" width="54" height="36" rx="8"/><text class="svg-note" x="349" y="165" text-anchor="middle">auth</text>
+        <text class="svg-label" x="12" y="18">Desktop</text><text class="svg-label" x="12" y="122">Narrow</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="How interactive should the temporary borderless Next Up clone be?">
+      <legend>1. How interactive should temporary borderless Next Up clone be?</legend>
+      <p class="why">Two complete copies can duplicate sync controls, heading IDs, announcements, and CTA.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Full live clone with unique IDs and controls"><span><b>Full live clone with unique IDs and controls</b><span class="rank">Recommended</span><span class="detail">Both variants show title, sync bar, promo image, states, top 3 rows, and CTA; both share one data signal but use unique <code>data-cy</code>/heading IDs.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Borderless visual clone without sync control"><span><b>Borderless visual clone without sync control</b><span class="rank">Second</span><span class="detail">Clone shows same content and CTA; bordered original alone owns sync/retry controls.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Static screenshot-like clone"><span><b>Static screenshot-like clone</b><span class="rank">Third</span><span class="detail">Useful only for visual comparison; dynamic Event req applies to original.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact controls/content included in each variant…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How should the plan handle the MTGones Organization ID arriving later?">
+      <legend>2. How should plan handle MTGones Organization ID arriving later?</legend>
+      <p class="why">Exact-ID filter cannot pass tests or ship until literal ID exists.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Create blocked frontload ticket for exact ID"><span><b>Create blocked frontload ticket for exact ID</b><span class="rank">Recommended</span><span class="detail">T1 records literal ID and fixture/test value; dependent dynamic-list ticket stays blocked until supplied.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Add runtime config key for ID"><span><b>Add runtime config key for ID</b><span class="rank">Second</span><span class="detail">Define exact config shape now; operator supplies value later.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Temporarily match display name MTGones"><span><b>Temporarily match display name <code>MTGones</code></b><span class="rank">Third</span><span class="detail">Plan remains executable but violates selected stable-ID contract.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact ID if now available, or config key/source…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What exact narrow About toolbar menu should ship?">
+      <legend>3. What exact narrow About toolbar menu should ship?</legend>
+      <p class="why">Collapsed-menu choice still needs trigger label, breakpoint, and menu-item contract.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Sections text button at 760px"><span><b><code>Sections</code> text btn at <code>760px</code></b><span class="rank">Recommended</span><span class="detail">At <code>max-width: 760px</code>, hide direct links; show Material menu with Association, Tournaments, Staff, Calendar in same order.</span></span></label>
+        <label class="choice"><input type="checkbox" value="About text button at 760px"><span><b><code>About</code> text btn at <code>760px</code></b><span class="rank">Second</span><span class="detail">Same menu items; trigger names current page instead of action.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Three-dot icon button at 760px"><span><b>Three-dot icon btn at <code>760px</code></b><span class="rank">Third</span><span class="detail">Compact; needs translated <code>aria-label="About page sections"</code>.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Trigger text/icon, breakpoint, menu order…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Which Event image URL repair contract should the plan use?">
+      <legend>4. Which Event image URL repair contract should plan use?</legend>
+      <p class="why">Source shows root-relative image URLs resolve against SPA origin while API uses configured separate origin in dev.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Resolve API-relative image paths in frontend"><span><b>Resolve API-relative image paths in frontend</b><span class="rank">Recommended</span><span class="detail">Add <code>resolveApiAssetUrl(url, apiBaseUrl)</code>: join <code>/api/**</code> to <code>dataAuthority().apiBaseUrl</code>; preserve <code>blob:</code>, <code>data:</code>, absolute HTTP(S), and empty values. Apply to <code>src</code> and every <code>srcset</code> URL.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Make backend emit absolute image URLs"><span><b>Make backend emit absolute image URLs</b><span class="rank">Second</span><span class="detail">Changes wire contract and backend tests; host/proxy correctness becomes backend concern.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Proxy API through SPA origin"><span><b>Proxy API through SPA origin</b><span class="rank">Third</span><span class="detail">Keeps relative URLs and CSP simple; changes dev/runtime routing beyond image bug.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Observed failed Request URL/status, or alternate URL contract…"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 2 · Integration contracts — Lock remaining UI and image contracts\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>
