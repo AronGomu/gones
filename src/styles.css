@@ -228,7 +228,6 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .about-section-heading { display: grid; gap: .85rem; }
 .about-route .about-section-heading > p:last-child { max-width: 68ch; margin: 0; color: var(--dim-ash); font-size: 1.05rem; line-height: 1.7; }
 .about-route .about-next-up { display: grid; gap: 1.25rem; padding: clamp(1.25rem, 4vw, 2rem); background: var(--black-metal); }
-.about-route .about-next-up--bordered { border: 1px solid var(--soot); }
 .about-route .about-next-up__heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .about-route .about-next-up__heading h2 { margin: 0; }
 .about-route .about-next-up__image { display: block; width: 100%; aspect-ratio: 3 / 2; max-height: 22rem; object-fit: cover; border: 1px solid var(--soot); border-radius: 4px; }
@@ -253,23 +252,23 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .about-tournament-band__slots dd { margin: .25rem 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .about-route .about-tournament-band__copy > p { margin: 0; color: var(--dim-ash); line-height: 1.7; }
 .about-route .about-tournament-band__image { margin: 0; }
-.about-route .about-fire-ice { --fire-ember: #ff7a45; --ice-glacier: #7ab8ff; position: relative; isolation: isolate; overflow: hidden; border-block: 1px solid var(--soot); }
+.about-route .about-fire-ice { --fire-ember: #ff7a45; --ice-glacier: #7ab8ff; position: relative; isolation: isolate; width: 100vw; margin-left: calc(50% - 50vw); overflow: hidden; border-block: 1px solid var(--soot); }
 .about-route .about-fire-ice__art { position: absolute; inset: 0; z-index: -2; display: grid; grid-template-columns: 1fr 1fr; }
-.about-route .about-fire-ice__art-half { background-image: url('/assets/card-art/fire-ice.jpg'); background-size: 200% 100%; filter: brightness(.32) saturate(1.1); }
+.about-route .about-fire-ice__art-half { background-image: url('/assets/card-art/fire-ice.jpg'); background-size: cover; filter: brightness(.32) saturate(1.1); }
 .about-route .about-fire-ice__art-half--fire { background-position: left center; }
 .about-route .about-fire-ice__art-half--ice { background-position: right center; }
 .about-route .about-fire-ice::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, color-mix(in oklch, var(--forge) 18%, transparent), color-mix(in oklch, var(--forge) 82%, transparent)); }
-.about-route .about-fire-ice__content { display: grid; gap: 1rem; padding: clamp(1.5rem, 6vw, 4rem); }
+.about-route .about-fire-ice__content { display: grid; width: 100%; max-width: 1100px; gap: 1rem; margin: 0 auto; padding: clamp(1.5rem, 6vw, 4rem); }
 .about-route .about-fire-ice h2 { width: 100%; }
 .about-route .about-fire-ice__fire { color: var(--fire-ember); }
 .about-route .about-fire-ice__ice { color: var(--ice-glacier); }
-.about-route .about-fire-ice__content > p { max-width: 65ch; margin: 0; color: var(--ash); line-height: 1.7; }
+.about-route .about-fire-ice__content > p { width: 100%; max-width: none; margin: 0; color: var(--ash); line-height: 1.7; }
 .about-route .about-fire-ice__editions, .about-route .about-fire-ice__photos { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .about-route .about-fire-ice__editions > div { display: grid; gap: .35rem; padding: 1rem; border: 1px solid var(--soot); border-radius: 4px; background: color-mix(in oklch, var(--forge) 86%, transparent); }
 .about-route .about-fire-ice__editions strong { font-size: 1.25rem; }
 .about-route .about-fire-ice__editions span { color: var(--ash); }
 .about-route .about-fire-ice__photos { margin-top: .25rem; }
-.about-route .about-fire-ice__photos img { margin: 0; }
+.about-route .about-fire-ice__photos img { height: auto; aspect-ratio: 5 / 3; align-self: start; margin: 0; }
 .about-route .about-team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 .about-route .about-team-grid > h3 { grid-column: 1 / -1; padding-bottom: .75rem; border-bottom: 1px solid var(--soot); color: var(--dim-ash); }
 .about-route .about-person { display: grid; grid-template-columns: minmax(7rem, .7fr) minmax(0, 1.3fr); min-width: 0; border: 1px solid var(--soot); background: var(--black-metal); }

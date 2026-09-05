@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lock About page behavior and copy</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0b0a08; --panel:#17130d; --panel-2:#1f190f; --text:#fff7ed; --muted:#c9b99f; --line:#4a3b25; --accent:#fbbf24; --accent-2:#fb923c; --focus:#facc15; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(960px,calc(100% - 32px)); margin:0 auto; padding:48px 0 96px; }
+    header { display:grid; gap:12px; margin-bottom:32px; }
+    .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+    h1,h2,p { margin:0; } h1 { font-size:clamp(2rem,5vw,3.5rem); line-height:1.08; letter-spacing:-.035em; }
+    .lede { max-width:70ch; color:var(--muted); }
+    .tree { display:flex; align-items:center; gap:8px; overflow:auto; padding:16px; margin:24px 0 32px; border:1px solid var(--line); border-radius:12px; background:var(--panel); color:var(--muted); white-space:nowrap; }
+    .tree b { color:var(--text); } .node { padding:6px 10px; border:1px solid var(--line); border-radius:999px; } .node.active { border-color:var(--accent); color:var(--accent); } .arrow { color:var(--line); }
+    .visuals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:0 0 32px; }
+    figure { min-width:0; margin:0; padding:18px; border:1px solid var(--line); border-radius:14px; background:var(--panel); }
+    figcaption { margin-bottom:14px; color:var(--muted); font-size:.85rem; } figcaption b { display:block; color:var(--text); font-size:1rem; }
+    svg { display:block; width:100%; height:auto; } svg text { font-family:ui-sans-serif,system-ui,sans-serif; }
+    .svg-node { fill:var(--panel-2); stroke:var(--line); stroke-width:2; } .svg-node.active { stroke:var(--accent); } .svg-line { fill:none; stroke:var(--line); stroke-width:2; } .svg-arrow { fill:var(--line); } .svg-label { fill:var(--text); font-size:12px; } .svg-note { fill:var(--muted); font-size:10px; } .svg-accent { fill:var(--accent); }
+    form { display:grid; gap:20px; }
+    fieldset { min-width:0; margin:0; padding:24px; border:1px solid var(--line); border-radius:16px; background:var(--panel); }
+    legend { max-width:100%; padding:0 8px; font-size:1.15rem; font-weight:750; }
+    .why { margin:0 0 18px; color:var(--muted); font-size:.925rem; }
+    .choices { display:grid; gap:10px; }
+    .choice { display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:start; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--panel-2); cursor:pointer; }
+    .choice:has(input:checked) { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+    input { width:18px; height:18px; margin-top:3px; accent-color:var(--accent); }
+    .rank { display:inline-block; margin-left:7px; color:var(--accent-2); font-size:.72rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+    .detail { display:block; margin-top:3px; color:var(--muted); font-size:.875rem; }
+    label.precision { display:block; margin-top:18px; font-size:.85rem; font-weight:700; color:var(--muted); }
+    textarea { width:100%; min-height:90px; margin-top:7px; padding:12px; resize:vertical; border:1px solid var(--line); border-radius:10px; background:#100d08; color:var(--text); font:inherit; }
+    input:focus-visible,textarea:focus-visible,button:focus-visible { outline:3px solid var(--focus); outline-offset:2px; }
+    .actions { position:sticky; bottom:16px; display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px; border:1px solid var(--line); border-radius:14px; background:rgba(19,23,28,.96); box-shadow:0 16px 40px #0008; backdrop-filter:blur(10px); }
+    button { padding:11px 16px; border:0; border-radius:9px; background:var(--accent); color:#211500; font:inherit; font-weight:800; cursor:pointer; }
+    #status { color:var(--muted); font-size:.875rem; }
+    @media (max-width:700px) { .visuals { grid-template-columns:1fr; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,960px); padding-top:28px; } fieldset { padding:18px 14px; } .actions { align-items:flex-start; flex-direction:column; } button { width:100%; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Grill me · Round 1 · About page contracts</span>
+    <h1>Lock About page behavior and copy</h1>
+    <p class="lede">Nine independent product decisions block lvl-5 tickets. Pick recommended choices where correct; use precision fields for exact IDs or copy.</p>
+  </header>
+
+  <nav class="tree" aria-label="Design tree progress"><span class="node"><b>About feedback</b></span><span class="arrow">→</span><span class="node active">Scope</span><span class="node active">Layout</span><span class="node active">Events</span><span class="node active">Copy</span><span class="node active">i18n</span><span class="arrow">→</span><span class="node">Exact ticket contracts</span></nav>
+
+  <section class="visuals" aria-label="Technical context">
+    <figure>
+      <figcaption><b>Decision frontier</b>Current repo facts settle mechanics; highlighted product choices remain open.</figcaption>
+      <svg viewBox="0 0 400 220" role="img" aria-labelledby="tree-title tree-desc">
+        <title id="tree-title">About page decision graph</title><desc id="tree-desc">Feedback branches into active scope, shell, Next Up, copy, and localization choices before ticket contracts.</desc>
+        <path class="svg-line" d="M82 110H120M120 110V30H150M120 110V70H150M120 110H150M120 110V150H150M120 110V190H150M250 30H280V110M250 70H280M250 110H315M250 150H280M250 190H280V110"/>
+        <circle class="svg-node" cx="52" cy="110" r="30"/><text class="svg-label" x="52" y="114" text-anchor="middle">Goal</text>
+        <rect class="svg-node active" x="150" y="10" width="100" height="40" rx="10"/><text class="svg-label" x="200" y="34" text-anchor="middle">Scope</text>
+        <rect class="svg-node active" x="150" y="55" width="100" height="40" rx="10"/><text class="svg-label" x="200" y="79" text-anchor="middle">Shell</text>
+        <rect class="svg-node active" x="150" y="100" width="100" height="40" rx="10"/><text class="svg-label" x="200" y="124" text-anchor="middle">Next Up</text>
+        <rect class="svg-node active" x="150" y="145" width="100" height="40" rx="10"/><text class="svg-label" x="200" y="169" text-anchor="middle">Copy</text>
+        <rect class="svg-node active" x="150" y="190" width="100" height="40" rx="10"/><text class="svg-label" x="200" y="214" text-anchor="middle">i18n</text>
+        <rect class="svg-node" x="315" y="82" width="78" height="56" rx="10"/><text class="svg-label" x="354" y="105" text-anchor="middle">Tickets</text><text class="svg-note" x="354" y="121" text-anchor="middle">blocked</text>
+      </svg>
+    </figure>
+    <figure>
+      <figcaption><b>Current data path</b>About already loads cached public catalog; org filter needs stable identity.</figcaption>
+      <svg viewBox="0 0 400 220" role="img" aria-labelledby="flow-title flow-desc">
+        <title id="flow-title">Upcoming Event data flow</title><desc id="flow-desc">Public event API feeds catalog cache, then About selector filters, sorts, caps, and renders rows plus calendar call to action.</desc>
+        <defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path class="svg-arrow" d="M0 0L8 4L0 8Z"/></marker></defs>
+        <rect class="svg-node" x="10" y="82" width="78" height="54" rx="10"/><text class="svg-label" x="49" y="104" text-anchor="middle">API</text><text class="svg-note" x="49" y="120" text-anchor="middle">/api/events</text>
+        <rect class="svg-node" x="112" y="82" width="86" height="54" rx="10"/><text class="svg-label" x="155" y="104" text-anchor="middle">Cache</text><text class="svg-note" x="155" y="120" text-anchor="middle">24h + sync</text>
+        <rect class="svg-node active" x="222" y="70" width="92" height="78" rx="10"/><text class="svg-label" x="268" y="96" text-anchor="middle">Selector</text><text class="svg-note" x="268" y="114" text-anchor="middle">org + future</text><text class="svg-note" x="268" y="130" text-anchor="middle">sort + top 3</text>
+        <rect class="svg-node" x="338" y="82" width="54" height="54" rx="10"/><text class="svg-label" x="365" y="105" text-anchor="middle">UI</text><text class="svg-note" x="365" y="121" text-anchor="middle">rows</text>
+        <path class="svg-line" marker-end="url(#arrowhead)" d="M88 109H105M198 109H215M314 109H331"/>
+        <text class="svg-note" x="268" y="180" text-anchor="middle">Stable MTGones org ID is missing input</text>
+      </svg>
+    </figure>
+  </section>
+
+  <form id="questions">
+    <fieldset data-question="Does this feedback change only the About page?">
+      <legend>1. Does this feedback change only the About page?</legend>
+      <p class="why">File begins with “Create/Edit Event Page” but every numbered req targets About.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="About page only"><span><b>About page only</b><span class="rank">Recommended</span><span class="detail">Treat first heading as stale; no Event create/edit work.</span></span></label>
+        <label class="choice"><input type="checkbox" value="About page plus Create/Edit Event page"><span><b>About page plus Create/Edit Event page</b><span class="rank">Second</span><span class="detail">Requires missing Create/Edit Event reqs in later round.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact surfaces in scope…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What does temporary borderless about-next-up version mean?">
+      <legend>2. What does temporary borderless <code>about-next-up</code> version mean?</legend>
+      <p class="why">Item 7 requires another version but does not define duplicate placement or behavior.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Render borderless clone immediately above bordered original"><span><b>Render borderless clone immediately above bordered original</b><span class="rank">Recommended</span><span class="detail">Both show same live state; unique IDs/data-cy avoid invalid DOM.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Render bordered original then borderless clone below"><span><b>Render bordered original then borderless clone below</b><span class="rank">Second</span><span class="detail">Same comparison, opposite order.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Keep one section with temporary border toggle"><span><b>Keep one section with temporary border toggle</b><span class="rank">Third</span><span class="detail">No duplicate content; needs toggle UI not requested.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Order, whether both are interactive, exact border to remove…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How should revised hero lede split across lines?">
+      <legend>3. How should revised hero lede split across lines?</legend>
+      <p class="why">Items 19-20 specify two thoughts but not semantic markup or final punctuation.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Two paragraphs with supplied English copy"><span><b>Two paragraphs with supplied English copy</b><span class="rank">Recommended</span><span class="detail">Line 1: “MTGones brings Magic enthusiasts together around welcoming but challenging and memorable tournaments.” Line 2: “Play at weekly Thursday meetups to major Fire & Ice weekends.”</span></span></label>
+        <label class="choice"><input type="checkbox" value="One paragraph with forced line break"><span><b>One paragraph with forced line break</b><span class="rank">Second</span><span class="detail">Visual split only; one semantic statement.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Two paragraphs with edited second sentence"><span><b>Two paragraphs with edited second sentence</b><span class="rank">Third</span><span class="detail">Use “Play from weekly Thursday meetups to major Fire & Ice weekends.”</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Paste exact line 1 + line 2 text…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Where should Find all Events appear with dynamic rows?">
+      <legend>4. Where should “Find all Events” appear with dynamic rows?</legend>
+      <p class="why">Named slug may not belong to next 3 Events, so conditional placement can make CTA disappear.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="After entire dynamic list"><span><b>After entire dynamic list</b><span class="rank">Recommended</span><span class="detail">CTA always follows rendered top 3; routes to <code>/events</code>.</span></span></label>
+        <label class="choice"><input type="checkbox" value="After named slug only when present"><span><b>After named slug only when present</b><span class="rank">Second</span><span class="detail">Literal item 22; CTA absent when Event falls outside top 3.</span></span></label>
+        <label class="choice"><input type="checkbox" value="After named slug, otherwise after list"><span><b>After named slug, otherwise after list</b><span class="rank">Third</span><span class="detail">Stable CTA but variable ordering.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact placement/state rules…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="Which stable organization identity defines MTGones Events?">
+      <legend>5. Which stable Organization identity defines MTGones Events?</legend>
+      <p class="why">Current selector shows all orgs; repo inspection found no configured MTGones ID.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Filter by exact Organization ID supplied below"><span><b>Filter by exact Organization ID supplied below</b><span class="rank">Recommended</span><span class="detail">Stable across renames; paste ID in precision field.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Filter by exact display name MTGones"><span><b>Filter by exact display name <code>MTGones</code></b><span class="rank">Second</span><span class="detail">No config needed; rename breaks About results.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Add app config value then provide ID during deployment"><span><b>Add app config value then provide ID during deployment</b><span class="rank">Third</span><span class="detail">Flexible but adds config surface beyond one known org.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact Organization ID, or binding lookup rule…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="What exact Fire and Ice body should ship?">
+      <legend>6. What exact Fire &amp; Ice body should ship?</legend>
+      <p class="why">Item 31 mixes quoted replacement with unquoted sentence plus ambiguous grammar.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Use polished copy"><span><b>Use polished copy</b><span class="rank">Recommended</span><span class="detail">“One major each season: Fire in summer and Ice in winter. Play a full weekend of Magic tournaments and events in Eternal formats. Legacy is the main event, but you can also enjoy Pauper, Premodern, and even Vintage. We start Friday afternoon and finish Sunday!”</span></span></label>
+        <label class="choice"><input type="checkbox" value="Use feedback text verbatim including final sentence"><span><b>Use feedback text verbatim, including final sentence</b><span class="rank">Second</span><span class="detail">Preserves “main menu”, “Winter”, “sunday”, punctuation exactly.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Use only quoted replacement and omit final sentence"><span><b>Use only quoted replacement; omit final sentence</b><span class="rank">Third</span><span class="detail">Treat text after closing quote as note, not body.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Paste exact final paragraph…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How should new copy be localized into French?">
+      <legend>7. How should new copy be localized into French?</legend>
+      <p class="why">Frontend contract requires every i18n key in both English and French maps.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Assistant proposes natural French, user confirms next round"><span><b>Assistant proposes natural French; confirm next round</b><span class="rank">Recommended</span><span class="detail">Keeps bilingual app with explicit final strings.</span></span></label>
+        <label class="choice"><input type="checkbox" value="User supplies exact French in precision field"><span><b>User supplies exact French now</b><span class="rank">Second</span><span class="detail">Strongest editorial control.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Use English copy in both locale maps"><span><b>Use English copy in both locale maps</b><span class="rank">Third</span><span class="detail">Contract passes; French UX remains English.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="French strings or translation constraints…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How should About toolbar navigation behave on narrow screens?">
+      <legend>8. How should About toolbar nav behave on narrow screens?</legend>
+      <p class="why">Four moved links plus brand/auth cannot remain centered in fixed toolbar without overflow rule.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Single-row horizontal scroll"><span><b>Single-row horizontal scroll</b><span class="rank">Recommended</span><span class="detail">Keeps all links visible/reachable; preserves toolbar height.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Wrap links to second toolbar row"><span><b>Wrap links to second toolbar row</b><span class="rank">Second</span><span class="detail">All links visible; toolbar height and scroll offsets change.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Collapse links into menu button"><span><b>Collapse links into menu button</b><span class="rank">Third</span><span class="detail">Clean narrow layout; adds interaction not requested.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Breakpoint, wrapping, visibility rules…"></textarea></label>
+    </fieldset>
+
+    <fieldset data-question="How full-width should about-hero-image become?">
+      <legend>9. How full-width should <code>about-hero-image</code> become?</legend>
+      <p class="why">Current hero fills 1100px content box but 20px page gutters prevent toolbar-edge contact.</p>
+      <div class="choices">
+        <label class="choice"><input type="checkbox" value="Viewport-wide directly under toolbar"><span><b>Viewport-wide directly under toolbar</b><span class="rank">Recommended</span><span class="detail">No breadcrumb/nav/back gap, no border, no side gutters; image uses <code>object-fit: cover</code>.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Content-column width with gutters removed only around hero"><span><b>Content-column width; remove hero gutters only</b><span class="rank">Second</span><span class="detail">Hero remains capped at 1100px.</span></span></label>
+        <label class="choice"><input type="checkbox" value="Image full-width inside current bordered section"><span><b>Image full-width inside current section</b><span class="rank">Third</span><span class="detail">Minimal change but conflicts requested border removal.</span></span></label>
+      </div>
+      <label class="precision">Precision or custom answer<textarea placeholder="Exact width/gap behavior…"></textarea></label>
+    </fieldset>
+
+    <div class="actions">
+      <span id="status" role="status">Selections stay in this page until copied.</span>
+      <button type="button" id="copy-summary">Copy answer summary</button>
+    </div>
+  </form>
+</main>
+<script>
+  const button = document.querySelector('#copy-summary');
+  const status = document.querySelector('#status');
+
+  function buildSummary() {
+    const sections = [...document.querySelectorAll('fieldset[data-question]')].map((field, index) => {
+      const question = field.dataset.question;
+      const selected = [...field.querySelectorAll('input[type="checkbox"]:checked')].map(input => `- ${input.value}`);
+      const precision = field.querySelector('textarea').value.trim();
+      const answers = selected.length ? selected.join('\n') : '- No recommended answer selected';
+      return `${index + 1}. ${question}\n${answers}${precision ? `\nPrecision: ${precision}` : ''}`;
+    });
+    return `Round 1 · About page contracts — Lock About page behavior and copy\n\n${sections.join('\n\n')}`;
+  }
+
+  button.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(buildSummary());
+      status.textContent = 'Summary copied to clipboard.';
+    } catch (_) {
+      const fallback = document.createElement('textarea');
+      fallback.value = buildSummary();
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand('copy');
+      fallback.remove();
+      status.textContent = 'Summary copied to clipboard.';
+    }
+  });
+</script>
+</body>
+</html>

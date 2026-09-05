@@ -58,14 +58,9 @@ export const aboutContributors: readonly AboutContributor[] = [
   { id: 'contributor-3', nameKey: 'about.contributors.pendingName', descriptionKey: 'about.contributors.pendingDescription' }
 ];
 
-export const nextUpVariants = [
-  { id: 'borderless', bordered: false },
-  { id: 'bordered', bordered: true }
-] as const;
-
 export const aboutTournamentBands: readonly AboutTournamentBand[] = [
   { id: 'weekly', titleKey: 'about.tournament.weekly.title', whenKey: 'about.tournament.weekly.when', whereKey: 'about.tournament.weekly.where', fieldKey: 'about.tournament.weekly.field', bodyKey: 'about.tournament.weekly.body', image: 'assets/images/in-use/2017-gones-legacy-trollune.jpeg', imageAltKey: 'about.tournament.weekly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
-  { id: 'monthly', titleKey: 'about.tournament.monthly.title', whenKey: 'about.tournament.monthly.when', whereKey: 'about.tournament.monthly.where', fieldKey: 'about.tournament.monthly.field', bodyKey: 'about.tournament.monthly.body', image: 'assets/images/in-use/2025-07-last-trollune.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
+  { id: 'monthly', titleKey: 'about.tournament.monthly.title', whenKey: 'about.tournament.monthly.when', whereKey: 'about.tournament.monthly.where', fieldKey: 'about.tournament.monthly.field', bodyKey: 'about.tournament.monthly.body', image: 'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg', imageAltKey: 'about.tournament.monthly.imageAlt', imageWidth: 2048, imageHeight: 1536 },
   { id: 'salty', titleKey: 'about.tournament.salty.title', whenKey: 'about.tournament.salty.when', whereKey: 'about.tournament.salty.where', fieldKey: 'about.tournament.salty.field', bodyKey: 'about.tournament.salty.body', image: 'assets/images/2023-05-gones-legacy-fact-top-8.jpeg', imageAltKey: 'about.tournament.salty.imageAlt', imageWidth: 2048, imageHeight: 1536 },
   { id: 'leagues', titleKey: 'about.tournament.leagues.title', whenKey: 'about.tournament.leagues.when', whereKey: 'about.tournament.leagues.where', fieldKey: 'about.tournament.leagues.field', bodyKey: 'about.tournament.leagues.body', image: 'assets/images/in-use/2023-08-elm-qualifier-trollune.jpeg', imageAltKey: 'about.tournament.leagues.imageAlt', imageWidth: 2048, imageHeight: 1152 }
 ];
@@ -96,27 +91,25 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
         </div>
       </section>
 
-      @for (variant of nextUpVariants; track variant.id) {
-        <section class="about-next-up" [class.about-next-up--bordered]="variant.bordered" [attr.data-cy]="'about-next-up-' + variant.id" [attr.aria-labelledby]="'about-next-up-' + variant.id + '-title'">
-          <header class="about-section-heading about-next-up__heading" [attr.data-cy]="'about-next-up-' + variant.id + '-heading'" data-reveal>
-            <h2 [id]="'about-next-up-' + variant.id + '-title'" [attr.data-cy]="'about-next-up-' + variant.id + '-title'">{{ i18n.t('about.nextUp.title') }}</h2>
-            <gones-sync-bar [cyPrefix]="'about-next-up-' + variant.id" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" [attr.data-cy]="'about-next-up-' + variant.id + '-sync-bar'" />
-          </header>
-          <img class="about-next-up__image" src="assets/images/in-use/2025-01-damnation-fest-pisa-mtgones-bougnat-01.jpeg" alt="MTGones players at an upcoming event" width="2048" height="1366" loading="lazy" decoding="async" [attr.data-cy]="'about-next-up-' + variant.id + '-image'">
-          @if (loading()) {
-            <div class="about-next-up__loading" aria-busy="true" [attr.data-cy]="'about-next-up-' + variant.id + '-loading'"><span class="sr-only" [attr.data-cy]="'about-next-up-' + variant.id + '-loading-label'">{{ i18n.t('common.loading') }}</span>@for (_ of upcomingSkeletons; track $index) { <div class="about-next-up__skeleton" [attr.data-cy]="'about-next-up-' + variant.id + '-skeleton-' + $index"></div> }</div>
-          } @else if (error()) {
-            <div class="panel about-next-up__state" role="alert" [attr.data-cy]="'about-next-up-' + variant.id + '-error'"><p [attr.data-cy]="'about-next-up-' + variant.id + '-error-body'">{{ i18n.t('about.nextUp.loadFailed') }}</p><a mat-stroked-button routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-error-calendar-link'">{{ i18n.t('about.nextUp.calendar') }}</a><button mat-stroked-button type="button" [attr.data-cy]="'about-next-up-' + variant.id + '-retry'" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button></div>
-          } @else if (upcomingEvents().length) {
-            <div class="about-next-up__list" [attr.data-cy]="'about-next-up-' + variant.id + '-list'">@for (event of upcomingEvents(); track event.id) {
-              <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-' + variant.id + '-event-' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'"><span class="about-next-up__row-copy" [attr.data-cy]="'about-next-up-' + variant.id + '-event-copy-' + event.slug"><strong [attr.data-cy]="'about-next-up-' + variant.id + '-event-title-' + event.slug">{{ event.displayTitle }}</strong><time [attr.datetime]="event.startsAtUtc" [attr.data-cy]="'about-next-up-' + variant.id + '-event-date-' + event.slug">{{ upcomingDate(event).primary }}</time></span><span class="about-next-up__venue" [attr.data-cy]="'about-next-up-' + variant.id + '-event-venue-' + event.slug">{{ event.venue.city }}, {{ event.venue.country }}</span></a>
-            }</div>
-            <a mat-flat-button class="home-primary-action" routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-find-all-events'">{{ i18n.t('about.nextUp.findAllEvents') }}</a>
-          } @else {
-            <div class="panel about-next-up__state" [attr.data-cy]="'about-next-up-' + variant.id + '-empty'"><p [attr.data-cy]="'about-next-up-' + variant.id + '-empty-title'">{{ i18n.t('about.nextUp.emptyTitle') }}</p><p [attr.data-cy]="'about-next-up-' + variant.id + '-empty-body'">{{ i18n.t('about.nextUp.emptyBody') }}</p><a mat-stroked-button routerLink="/events" [attr.data-cy]="'about-next-up-' + variant.id + '-empty-calendar-link'">{{ i18n.t('about.nextUp.calendar') }}</a></div>
-          }
-        </section>
-      }
+      <section class="about-next-up" data-cy="about-next-up-borderless" aria-labelledby="about-next-up-borderless-title">
+        <header class="about-section-heading about-next-up__heading" data-cy="about-next-up-borderless-heading" data-reveal>
+          <h2 id="about-next-up-borderless-title" data-cy="about-next-up-borderless-title">{{ i18n.t('about.nextUp.title') }}</h2>
+          <gones-sync-bar cyPrefix="about-next-up-borderless" [syncedAt]="syncedAt()" [loading]="loading()" [stale]="stale()" (sync)="syncUpcomingEvents()" data-cy="about-next-up-borderless-sync-bar" />
+        </header>
+        <img class="about-next-up__image" src="assets/images/in-use/2025-01-damnation-fest-pisa-mtgones-bougnat-01.jpeg" alt="MTGones players at an upcoming event" width="2048" height="1366" loading="lazy" decoding="async" data-cy="about-next-up-borderless-image">
+        @if (loading()) {
+          <div class="about-next-up__loading" aria-busy="true" data-cy="about-next-up-borderless-loading"><span class="sr-only" data-cy="about-next-up-borderless-loading-label">{{ i18n.t('common.loading') }}</span>@for (_ of upcomingSkeletons; track $index) { <div class="about-next-up__skeleton" [attr.data-cy]="'about-next-up-borderless-skeleton-' + $index"></div> }</div>
+        } @else if (error()) {
+          <div class="panel about-next-up__state" role="alert" data-cy="about-next-up-borderless-error"><p data-cy="about-next-up-borderless-error-body">{{ i18n.t('about.nextUp.loadFailed') }}</p><a mat-stroked-button routerLink="/events" data-cy="about-next-up-borderless-error-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a><button mat-stroked-button type="button" data-cy="about-next-up-borderless-retry" [disabled]="loading()" (click)="retryUpcomingEvents()">{{ i18n.t('common.retry') }}</button></div>
+        } @else if (upcomingEvents().length) {
+          <div class="about-next-up__list" data-cy="about-next-up-borderless-list">@for (event of upcomingEvents(); track event.id) {
+            <a class="panel about-next-up__row" [routerLink]="['/events', event.slug]" [attr.data-cy]="'about-next-up-borderless-event-' + event.slug" data-reveal [style.--reveal-delay]="$index * 70 + 'ms'"><span class="about-next-up__row-copy" [attr.data-cy]="'about-next-up-borderless-event-copy-' + event.slug"><strong [attr.data-cy]="'about-next-up-borderless-event-title-' + event.slug">{{ event.displayTitle }}</strong><time [attr.datetime]="event.startsAtUtc" [attr.data-cy]="'about-next-up-borderless-event-date-' + event.slug">{{ upcomingDate(event).primary }}</time></span><span class="about-next-up__venue" [attr.data-cy]="'about-next-up-borderless-event-venue-' + event.slug">{{ event.venue.city }}, {{ event.venue.country }}</span></a>
+          }</div>
+          <a mat-flat-button class="home-primary-action" routerLink="/events" data-cy="about-next-up-borderless-find-all-events">{{ i18n.t('about.nextUp.findAllEvents') }}</a>
+        } @else {
+          <div class="panel about-next-up__state" data-cy="about-next-up-borderless-empty"><p data-cy="about-next-up-borderless-empty-title">{{ i18n.t('about.nextUp.emptyTitle') }}</p><p data-cy="about-next-up-borderless-empty-body">{{ i18n.t('about.nextUp.emptyBody') }}</p><a mat-stroked-button routerLink="/events" data-cy="about-next-up-borderless-empty-calendar-link">{{ i18n.t('about.nextUp.calendar') }}</a></div>
+        }
+      </section>
 
       <section id="association" class="about-intro" data-cy="about-association" aria-labelledby="association-title">
         <div class="about-intro__heading" data-cy="about-association-heading" data-reveal="left">
@@ -134,7 +127,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
           <h2 id="tournaments-title" data-cy="about-tournaments-title">{{ i18n.t('about.tournaments.title') }}</h2>
           <p data-cy="about-tournaments-body">{{ i18n.t('about.tournaments.body') }}</p>
         </header>
-        @for (band of tournamentBands.slice(0, 3); track band.id) {
+        @for (band of tournamentBands; track band.id) {
           <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id">
             <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'" [attr.data-reveal]="$index % 2 === 0 ? 'left' : 'right'">
               <h3 [attr.data-cy]="'about-' + band.id + '-title'">{{ i18n.t(band.titleKey) }}</h3>
@@ -166,20 +159,6 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
             </div>
           </div>
         </article>
-        @for (band of tournamentBands.slice(3); track band.id) {
-          <article class="about-tournament-band" [attr.id]="'about-' + band.id" [attr.data-cy]="'about-' + band.id">
-            <div class="about-tournament-band__copy" [attr.data-cy]="'about-' + band.id + '-copy'" data-reveal="right">
-              <h3 [attr.data-cy]="'about-' + band.id + '-title'">{{ i18n.t(band.titleKey) }}</h3>
-              <dl class="about-tournament-band__slots" [attr.data-cy]="'about-' + band.id + '-metadata'">
-                <div [attr.data-cy]="'about-' + band.id + '-when'"><dt [attr.data-cy]="'about-' + band.id + '-when-label'">{{ i18n.t('about.tournament.when') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-when-value'">{{ i18n.t(band.whenKey) }}</dd></div>
-                <div [attr.data-cy]="'about-' + band.id + '-where'"><dt [attr.data-cy]="'about-' + band.id + '-where-label'">{{ i18n.t('about.tournament.where') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-where-value'">{{ i18n.t(band.whereKey) }}</dd></div>
-                <div [attr.data-cy]="'about-' + band.id + '-field'"><dt [attr.data-cy]="'about-' + band.id + '-field-label'">{{ i18n.t('about.tournament.field') }}</dt><dd [attr.data-cy]="'about-' + band.id + '-field-value'">{{ i18n.t(band.fieldKey) }}</dd></div>
-              </dl>
-              <p [attr.data-cy]="'about-' + band.id + '-body'">{{ i18n.t(band.bodyKey) }}</p>
-            </div>
-            <img class="about-content-image about-tournament-band__image" [src]="band.image" [alt]="i18n.t(band.imageAltKey)" [attr.width]="band.imageWidth" [attr.height]="band.imageHeight" loading="lazy" decoding="async" [attr.data-cy]="'about-' + band.id + '-image'" data-reveal="left" style="--reveal-delay: 70ms">
-          </article>
-        }
       </section>
 
       <section id="staff" class="about-team" data-cy="about-staff" aria-labelledby="team-title" tabindex="-1">
@@ -225,7 +204,6 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
 
       <section class="about-contributors" data-cy="about-contributors" aria-labelledby="contributors-title">
         <header class="about-section-heading" data-cy="about-contributors-heading" data-reveal>
-          <p class="kicker" data-cy="about-contributors-kicker">{{ i18n.t('about.contributors.kicker') }}</p>
           <h2 id="contributors-title" data-cy="about-contributors-title">{{ i18n.t('about.contributors.title') }}</h2>
           <p data-cy="about-contributors-body">{{ i18n.t('about.contributors.body') }}</p>
         </header>
@@ -255,7 +233,7 @@ export const aboutTournamentBands: readonly AboutTournamentBand[] = [
               <a class="about-social-link" href="https://discord.gg/znGRG36Kz" target="_blank" rel="noopener noreferrer" data-cy="about-social-discord" [attr.aria-label]="i18n.t('about.contact.discordAria')"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-discord-icon"><path d="M8.1 7.2a14 14 0 0 1 7.8 0l.8 1.1a8.4 8.4 0 0 1 2.1 6.1 10.6 10.6 0 0 1-3.3 1.7l-.8-1.1a5.7 5.7 0 0 0 1.2-.6 6.8 6.8 0 0 1-7.8 0c.4.3.8.5 1.2.6l-.8 1.1a10.6 10.6 0 0 1-3.3-1.7 8.4 8.4 0 0 1 2.1-6.1l.8-1.1Zm1.5 4.7c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4Zm3.6 0c0 .8.5 1.4 1.1 1.4s1.1-.6 1.1-1.4-.5-1.4-1.1-1.4-1.1.6-1.1 1.4-1.1 1.4-1.1 1.4Z" data-cy="about-social-discord-path" /></svg><b data-cy="about-social-discord-label">Discord</b></a>
               <a class="about-social-link" href="https://www.facebook.com/mtgones/" target="_blank" rel="noopener noreferrer" data-cy="about-social-facebook" [attr.aria-label]="i18n.t('about.contact.facebookAria')"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-facebook-icon"><path d="M13.7 21v-8h2.7l.4-3h-3.1V8.1c0-.9.3-1.5 1.6-1.5H17V4a22 22 0 0 0-2.4-.1c-2.4 0-4 1.5-4 4.2V10H8v3h2.6v8h3.1Z" data-cy="about-social-facebook-path" /></svg><b data-cy="about-social-facebook-label">Facebook</b></a>
               <a class="about-social-link" href="https://x.com/MtgOnes" target="_blank" rel="noopener noreferrer" data-cy="about-social-x" [attr.aria-label]="i18n.t('about.contact.xAria')"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" data-cy="about-social-x-icon"><path d="M18.3 3h3.4l-7.4 8.5L23 21h-6.8l-5.3-6.9L4.8 21H1.4l7.9-9.1L1 3h7l4.8 6.3L18.3 3Zm-1.2 16.3H19L6.9 4.6h-2l12.2 14.7Z" data-cy="about-social-x-path" /></svg><b data-cy="about-social-x-label">X</b></a>
-              <span class="about-social-link about-social-link--disabled" data-cy="about-social-instagram" aria-disabled="true" tabindex="-1">Instagram — {{ i18n.t('about.contact.comingSoon') }}</span>
+              <a class="about-social-link" href="https://www.instagram.com/mtgones/" target="_blank" rel="noopener noreferrer" data-cy="about-social-instagram" aria-label="Instagram"><b data-cy="about-social-instagram-label">Instagram</b></a>
             </div>
           </div>
         </address>
@@ -279,7 +257,6 @@ export class AboutComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly stale = signal(false);
   readonly syncedAt = signal<string | undefined>(undefined);
   readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2];
-  readonly nextUpVariants = nextUpVariants;
   readonly tournamentBands = aboutTournamentBands;
   readonly founders = aboutStaff.slice(0, 3);
   readonly members = aboutStaff.slice(3);

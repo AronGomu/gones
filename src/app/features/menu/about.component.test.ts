@@ -220,7 +220,8 @@ describe('AboutComponent live Next Up behavior', () => {
 
     expect(load).toHaveBeenCalledWith();
     expect(component.loading()).toBe(true);
-    expect(fixture.nativeElement.querySelectorAll('.about-next-up__skeleton').length).toBe(6);
+    expect(fixture.nativeElement.querySelectorAll('.about-next-up__skeleton').length).toBe(3);
+    expect(fixture.nativeElement.querySelector('[data-cy="about-next-up-bordered"]')).toBeNull();
 
     first.resolve(result([event('one'), event('two'), event('three'), event('four')]));
     await settle(fixture);
@@ -229,7 +230,7 @@ describe('AboutComponent live Next Up behavior', () => {
     expect(component.error()).toBe(false);
     expect(component.stale()).toBe(false);
     expect(component.syncedAt()).toBe('2026-08-30T12:00:00.000Z');
-    expect(fixture.nativeElement.querySelectorAll('.about-next-up__row').length).toBe(6);
+    expect(fixture.nativeElement.querySelectorAll('.about-next-up__row').length).toBe(3);
   });
 
   it('keeps stale cache rows usable without showing error', async () => {
@@ -352,7 +353,7 @@ describe('AboutComponent route and interaction contract', () => {
     expect(source).toContain('EventCatalogCacheService');
     expect(source).toContain('implements OnInit, AfterViewInit, OnDestroy');
     expect(source).toContain('readonly upcomingSkeletons: readonly [0, 1, 2] = [0, 1, 2]');
-    expect(source).toContain('<gones-sync-bar [cyPrefix]="\'about-next-up-\' + variant.id"');
+    expect(source).toContain('<gones-sync-bar cyPrefix="about-next-up-borderless"');
     expect(source).toContain('(sync)="syncUpcomingEvents()"');
     expect(source).toContain('aria-busy="true"');
     expect(source).toContain("i18n.t('common.loading')");
@@ -368,11 +369,12 @@ describe('AboutComponent route and interaction contract', () => {
     expect(source).toContain('loadUpcomingEvents(true)');
   });
 
-  it('keeps verified socials active and unknown contacts disabled without placeholder hrefs', () => {
+  it('keeps verified socials active and unknown email disabled without a placeholder href', () => {
     for (const url of [
       'https://discord.gg/znGRG36Kz',
       'https://www.facebook.com/mtgones/',
-      'https://x.com/MtgOnes'
+      'https://x.com/MtgOnes',
+      'https://www.instagram.com/mtgones/'
     ]) {
       const urlIndex = source.indexOf(url);
       const link = source.slice(source.lastIndexOf('<a', urlIndex), source.indexOf('</a>', urlIndex));
@@ -384,9 +386,7 @@ describe('AboutComponent route and interaction contract', () => {
     expect(source).toContain('aria-disabled="true"');
     expect(source).toContain('tabindex="-1"');
     const emailBlock = source.slice(source.indexOf('data-cy="about-contact-email"'), source.indexOf('</p>', source.indexOf('data-cy="about-contact-email"')));
-    const instagramBlock = source.slice(source.indexOf('data-cy="about-contact-instagram"'), source.indexOf('</span>', source.indexOf('data-cy="about-contact-instagram"')));
     expect(emailBlock).not.toContain('href');
-    expect(instagramBlock).not.toContain('href');
   });
 });
 
@@ -434,7 +434,7 @@ describe('AboutComponent roster and asset contract', () => {
 describe('AboutComponent approved layout contract', () => {
   it('keeps approved landing order and semantic hierarchy', () => {
     const anchors = ['about-hero', 'about-next-up-borderless', 'association', 'tournaments', 'staff', 'about-contact'];
-    const positions = anchors.map(anchor => anchor === 'about-next-up-borderless' ? source.indexOf("'about-next-up-' + variant.id") : source.indexOf(anchor === 'association' || anchor === 'tournaments' || anchor === 'staff' ? `id="${anchor}"` : `data-cy="${anchor}"`));
+    const positions = anchors.map(anchor => source.indexOf(anchor === 'association' || anchor === 'tournaments' || anchor === 'staff' ? `id="${anchor}"` : `data-cy="${anchor}"`));
     expect(positions.every(position => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect((source.match(/<h1\b/g) ?? []).length).toBe(1);
@@ -442,6 +442,7 @@ describe('AboutComponent approved layout contract', () => {
     expect(source).toContain('id="association"');
     expect(source).toContain('id="tournaments"');
     expect(source).toContain('id="staff"');
+    expect(source).not.toContain('data-cy="about-contributors-kicker"');
   });
 
   it('renders five ordered tournament articles with one combined Fire/Ice section', () => {
@@ -454,8 +455,8 @@ describe('AboutComponent approved layout contract', () => {
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
     expect(source).toContain('[attr.data-cy]="\'about-\' + band.id"');
     const template = source.slice(source.indexOf('template: `'));
-    expect(template.indexOf('tournamentBands.slice(0, 3)')).toBeLessThan(template.indexOf('data-cy="about-fire-ice"'));
-    expect(template.indexOf('data-cy="about-fire-ice"')).toBeLessThan(template.indexOf('tournamentBands.slice(3)'));
+    expect(template.indexOf('@for (band of tournamentBands; track band.id)')).toBeLessThan(template.indexOf('data-cy="about-fire-ice"'));
+    expect(template).not.toContain('tournamentBands.slice');
     expect((source.match(/about-fire-ice/g) ?? []).length).toBeGreaterThanOrEqual(1);
     expect(source).toContain('assets/card-art/fire-ice.jpg');
     expect(stylesSource).toContain('--fire-ember');
@@ -467,7 +468,7 @@ describe('AboutComponent approved layout contract', () => {
       'assets/images/in-use/2025-01-ice-mtgones-10-years.jpeg',
       'assets/images/in-use/2025-07-last-trollune.jpeg',
       'assets/images/in-use/2017-gones-legacy-trollune.jpeg',
-      'assets/images/in-use/2025-07-last-trollune.jpeg',
+      'assets/images/2021-12-gones-legacy-top-8-cartajeu.jpeg',
       'assets/images/2023-05-gones-legacy-fact-top-8.jpeg',
       'assets/images/in-use/2024-07-cdf-legacy-vaugneray-original.jpeg',
       'assets/images/in-use/2026-01-ice-01.jpeg',
@@ -579,11 +580,13 @@ describe('AboutComponent motion and responsive contract', () => {
 
   it('maps approved reveals and 70ms group staggers to final DOM', () => {
     expect(source).toContain('about-next-up__heading');
-    expect(source).toContain("[attr.data-cy]=\"'about-next-up-' + variant.id + '-event-' + event.slug\" data-reveal");
+    expect(source).toContain("[attr.data-cy]=\"'about-next-up-borderless-event-' + event.slug\" data-reveal");
     expect(source).toContain('class="about-tournament-band__copy" [attr.data-cy]="\'about-\' + band.id + \'-copy\'" [attr.data-reveal]="$index % 2 === 0 ? \'left\' : \'right\'"');
     expect(source).toContain('class="about-content-image about-tournament-band__image" [src]="band.image"');
     expect(source).toContain('[attr.data-reveal]="$index % 2 === 0 ? \'right\' : \'left\'"');
+    expect(source).not.toContain('about-fire-ice__photo--fire');
     expect(source).toContain('data-cy="about-fire-ice-fire-image" data-reveal="scale"');
+    expect(stylesSource).toMatch(/\.about-route \.about-fire-ice__photos img\s*\{[^}]*height:\s*auto[^}]*aspect-ratio:\s*5 \/ 3[^}]*align-self:\s*start/s);
     expect(source).toContain('data-cy="about-fire-ice-ice-image" data-reveal="scale" style="--reveal-delay: 70ms"');
     expect(source.match(/\[style\.--reveal-delay\]="\$index \* 70 \+ 'ms'"/g)?.length).toBeGreaterThanOrEqual(4);
     expect(source).not.toContain('($index + 3) * 70');
@@ -624,7 +627,7 @@ describe('AboutComponent motion and responsive contract', () => {
     expect(stylesSource).not.toMatch(/transition:\s*all\b/);
   });
 
-  it('offsets every About fragment below toolbar and caps content images', () => {
+  it('offsets every About fragment below toolbar and keeps image sections cropped', () => {
     expect(stylesSource).toMatch(/\.about-route \[id\]\s*\{\s*scroll-margin-top:\s*var\(--about-scroll-offset\)/);
     expect(stylesSource).toContain('--about-scroll-offset: calc(var(--app-toolbar-height) + 1rem)');
     expect(stylesSource).not.toContain('--about-breadcrumb-height');
@@ -632,6 +635,10 @@ describe('AboutComponent motion and responsive contract', () => {
     expect(stylesSource).toContain('.app-main:has(.about-route)');
     expect(stylesSource).toMatch(/\.about-route \.about-hero\s*\{[^}]*width:\s*100vw[^}]*margin-left:\s*calc\(50% - 50vw\)[^}]*border:\s*0/s);
     expect(stylesSource).toMatch(/\.about-route \.about-hero__image\s*\{[^}]*object-fit:\s*cover/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-fire-ice\s*\{[^}]*width:\s*100vw[^}]*margin-left:\s*calc\(50% - 50vw\)/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-fire-ice__art-half\s*\{[^}]*background-size:\s*cover/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-fire-ice__content\s*\{[^}]*width:\s*100%[^}]*max-width:\s*1100px[^}]*margin:\s*0 auto/s);
+    expect(stylesSource).toMatch(/\.about-route \.about-fire-ice__content > p\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none/s);
     expect(stylesSource).toMatch(/\.about-route \.about-content-image,[^{]+\.about-route \.about-fire-ice__photos img\s*\{[^}]*max-height:\s*380px/s);
     expect(stylesSource).toContain('aspect-ratio: 3 / 2');
     expect(stylesSource).toContain('overflow-x: clip');

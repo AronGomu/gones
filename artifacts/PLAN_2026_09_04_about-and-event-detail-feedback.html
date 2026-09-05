@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About + Event Detail Feedback Plan</title>
+<style>
+:root{color-scheme:dark;--bg:#090b0f;--panel:#141821;--panel2:#1b2230;--text:#f4f1ea;--muted:#aeb7c6;--line:#344054;--red:#e34b4b;--orange:#f59e0b;--green:#48c78e;--blue:#69a7ff}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 85% 0,#341313 0,transparent 28rem),var(--bg);color:var(--text);font:15px/1.55 system-ui,sans-serif}main{width:min(1100px,calc(100% - 28px));margin:auto;padding:42px 0 80px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(2.3rem,6vw,4.8rem);line-height:.98;letter-spacing:-.05em;max-width:12ch}h2{margin-top:2.5rem}.lede{max-width:70ch;color:var(--muted);font-size:1.08rem}.status{display:inline-flex;gap:.5rem;align-items:center;padding:.4rem .7rem;border:1px solid color-mix(in srgb,var(--orange) 55%,var(--line));border-radius:999px;color:var(--orange);font-weight:800}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card,.flow{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--panel) 94%,transparent);padding:20px}.card h3{margin-bottom:.3rem}.card p{color:var(--muted)}.meta{display:flex;flex-wrap:wrap;gap:.45rem;margin:.8rem 0}.tag{padding:.25rem .5rem;border-radius:6px;background:var(--panel2);color:var(--muted);font-size:.8rem}.blocked{border-color:color-mix(in srgb,var(--orange) 65%,var(--line))}.ready{border-color:color-mix(in srgb,var(--green) 32%,var(--line))}a{color:var(--blue)}svg{width:100%;height:auto}.node{fill:var(--panel2);stroke:var(--line);stroke-width:2}.node.block{stroke:var(--orange)}.node.go{stroke:var(--green)}.edge{stroke:var(--muted);stroke-width:2;fill:none}.label{fill:var(--text);font:700 12px system-ui}.note{fill:var(--muted);font:10px system-ui}.legend{display:flex;gap:1rem;flex-wrap:wrap;color:var(--muted);margin-top:1rem}.dot{display:inline-block;width:.7rem;height:.7rem;border-radius:50%;margin-right:.35rem}.risks{border-left:4px solid var(--orange)}code{background:#0b1018;padding:.12rem .3rem;border-radius:4px}footer{margin-top:3rem;color:var(--muted);border-top:1px solid var(--line);padding-top:1rem}@media(max-width:720px){.grid{grid-template-columns:1fr}main{width:min(100% - 18px,1100px);padding-top:24px}}
+</style>
+</head>
+<body><main>
+<span class="status">1 deferred follow-up · 4 current tickets</span>
+<h1>About + Event Detail</h1>
+<p class="lede">Five-ticket TDD plan. About work serializes shared component/style edits. Event detail fix runs independently. Exact MTGones filtering is deferred and no longer blocks current work.</p>
+
+<section class="flow" aria-labelledby="flow-heading"><h2 id="flow-heading">Implementation flow</h2>
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="svg-title svg-desc"><title id="svg-title">Ticket dependency graph</title><desc id="svg-desc">About chrome precedes Next Up, which precedes content and media. Event image fix is independent. Organization filtering follows Next Up later as a deferred ticket.</desc>
+<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path fill="#aeb7c6" d="M0 0L8 4L0 8Z"/></marker></defs>
+<path class="edge" marker-end="url(#arrow)" d="M350 70H227M220 220H285Q320 220 320 185V135Q320 100 350 100M520 85H650"/>
+<rect class="node block" x="20" y="35" width="200" height="70" rx="12"/><text class="label" x="120" y="63" text-anchor="middle">T1 · Org filter later</text><text class="note" x="120" y="82" text-anchor="middle">DEFERRED · not blocking</text>
+<rect class="node go" x="20" y="185" width="200" height="70" rx="12"/><text class="label" x="120" y="213" text-anchor="middle">T3 · About chrome</text><text class="note" x="120" y="232" text-anchor="middle">shell + hero + ADR</text>
+<rect class="node go" x="350" y="50" width="170" height="70" rx="12"/><text class="label" x="435" y="78" text-anchor="middle">T4 · Next Up</text><text class="note" x="435" y="97" text-anchor="middle">dual · current all-org</text>
+<rect class="node go" x="650" y="50" width="220" height="70" rx="12"/><text class="label" x="760" y="78" text-anchor="middle">T5 · Content + media</text><text class="note" x="760" y="97" text-anchor="middle">copy · fixed assets</text>
+<rect class="node go" x="350" y="195" width="220" height="70" rx="12"/><text class="label" x="460" y="223" text-anchor="middle">T2 · Event detail fix</text><text class="note" x="460" y="242" text-anchor="middle">independent</text>
+</svg><div class="legend"><span><i class="dot" style="background:var(--orange)"></i>blocked user input</span><span><i class="dot" style="background:var(--green)"></i>implementation-ready</span></div></section>
+
+<h2>Tickets</h2><section class="grid">
+<article class="card blocked"><h3>T1 · Add MTGones filter later</h3><p>Deferred follow-up after T4. Obtain exact stable ID, verify authoritative API response, then add selector filter without display-name fallback.</p><div class="meta"><span class="tag">DEFERRED</span><span class="tag">not blocking</span><span class="tag">identity</span></div><a href="PLAN_2026_09_04_about-and-event-detail-feedback/T1_capture-mtgones-organization-id.md">Open ticket</a></article>
+<article class="card ready"><h3>T2 · Fix Event detail media</h3><p>Resolve <code>/api/**</code> image URLs against configured API origin. Preserve blob/data/absolute URLs. Remove viewer-time row.</p><div class="meta"><span class="tag">independent</span><span class="tag">unit + Cypress</span></div><a href="PLAN_2026_09_04_about-and-event-detail-feedback/T2_fix-event-detail-image-and-viewer-time.md">Open ticket</a></article>
+<article class="card ready"><h3>T3 · Move About chrome + hero</h3><p>Toolbar-owned nav, narrow Sections menu, no breadcrumb/top back, viewport-wide hero. Implements ADR-0058.</p><div class="meta"><span class="tag">shell</span><span class="tag">responsive</span><span class="tag">ADR</span></div><a href="PLAN_2026_09_04_about-and-event-detail-feedback/T3_move-about-chrome-and-hero.md">Open ticket</a></article>
+<article class="card ready"><h3>T4 · Rebuild dynamic Next Up</h3><p>Two live variants, current all-Organization top 3, shared cache/sync state, promo image, stable Calendar CTA.</p><div class="meta"><span class="tag">depends T3</span><span class="tag">cache contract</span></div><a href="PLAN_2026_09_04_about-and-event-detail-feedback/T4_rebuild-dynamic-next-up.md">Open ticket</a></article>
+<article class="card ready"><h3>T5 · Lock About content + media</h3><p>Move seven approved images, update exact copy/metadata, remove kickers/buttons, preserve crop ratio.</p><div class="meta"><span class="tag">depends T4</span><span class="tag">assets + i18n</span></div><a href="PLAN_2026_09_04_about-and-event-detail-feedback/T5_lock-about-content-and-media.md">Open ticket</a></article>
+</section>
+
+<h2>Decisions + gates</h2><section class="grid">
+<article class="card"><h3>Locked</h3><p>English copied into both locale maps. Narrow menu breakpoint <code>760px</code>. Frontend URL resolver. Dual Next Up clone stays temporary but fully interactive.</p></article>
+<article class="card risks"><h3>Deferred</h3><p>Exact MTGones filtering moves to T1 later. Current T3 → T4 → T5 path proceeds with existing all-Organization selection.</p></article>
+<article class="card"><h3>Core gates</h3><p><code>npm run test</code><br><code>npm run typecheck</code><br><code>npm run lint</code><br><code>npm run build</code><br><code>npm run cy:run</code></p></article>
+<article class="card"><h3>ADR</h3><p><a href="../docs/adr/0058-about-route-chrome.md">ADR-0058</a> records About shell exception. ADR-0044 carries amendment back-pointer.</p></article>
+</section>
+<footer>Index: <a href="PLAN_2026_09_04_about-and-event-detail-feedback.md">PLAN_2026_09_04_about-and-event-detail-feedback.md</a></footer>
+</main></body></html>
