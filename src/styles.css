@@ -254,7 +254,7 @@ mat-expansion-panel .mat-expansion-panel-body { padding-top: 1rem; }
 .about-route .about-tournament-band__image { margin: 0; }
 .about-route .about-fire-ice { --fire-ember: #ff7a45; --ice-glacier: #7ab8ff; position: relative; isolation: isolate; width: 100vw; margin-left: calc(50% - 50vw); overflow: hidden; border-block: 1px solid var(--soot); }
 .about-route .about-fire-ice__art { position: absolute; inset: 0; z-index: -2; display: grid; grid-template-columns: 1fr 1fr; }
-.about-route .about-fire-ice__art-half { background-image: url('/assets/card-art/fire-ice.jpg'); background-size: cover; filter: brightness(.32) saturate(1.1); }
+.about-route .about-fire-ice__art-half { background-image: url('assets/card-art/fire-ice.jpg'); background-size: cover; filter: brightness(.32) saturate(1.1); }
 .about-route .about-fire-ice__art-half--fire { background-position: left center; }
 .about-route .about-fire-ice__art-half--ice { background-position: right center; }
 .about-route .about-fire-ice::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, color-mix(in oklch, var(--forge) 18%, transparent), color-mix(in oklch, var(--forge) 82%, transparent)); }

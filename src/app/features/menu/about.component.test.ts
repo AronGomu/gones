@@ -19,6 +19,7 @@ const stylesSource = readFileSync(join(__dirname, '../../../styles.css'), 'utf8'
 const routesSource = readFileSync(join(__dirname, '../../app.routes.ts'), 'utf8');
 const guardSource = readFileSync(join(__dirname, '../../shared/first-visit.guard.ts'), 'utf8');
 const homeMenuSource = readFileSync(join(__dirname, 'home-menu.component.ts'), 'utf8');
+const appSource = readFileSync(join(__dirname, '../../app.component.ts'), 'utf8');
 
 TestBed.initTestEnvironment(BrowserTestingModule, platformBrowserTesting());
 
@@ -332,8 +333,11 @@ describe('AboutComponent route and interaction contract', () => {
     expect(homeMenuSource).toContain("routerLink=\"/about\"");
   });
 
-  it('leaves section navigation and top return action to shell', () => {
+  it('keeps section navigation out of About and shell', () => {
     expect(source).not.toContain('about-internal-nav');
+    expect(appSource).not.toContain('about-toolbar-nav');
+    expect(appSource).not.toContain('about-toolbar-sections-button');
+    expect(appSource).not.toContain('about-toolbar-sections-menu');
     expect(source).not.toContain('about-back-top');
     expect(source).not.toContain('about-hero-kicker');
     expect(source).not.toContain('about-hero-actions');
@@ -459,6 +463,8 @@ describe('AboutComponent approved layout contract', () => {
     expect(template).not.toContain('tournamentBands.slice');
     expect((source.match(/about-fire-ice/g) ?? []).length).toBeGreaterThanOrEqual(1);
     expect(source).toContain('assets/card-art/fire-ice.jpg');
+    expect(stylesSource).toContain("background-image: url('assets/card-art/fire-ice.jpg')");
+    expect(stylesSource).not.toContain("url('/assets/card-art/fire-ice.jpg')");
     expect(stylesSource).toContain('--fire-ember');
     expect(stylesSource).toContain('--ice-glacier');
   });
@@ -679,11 +685,15 @@ describe('AboutComponent i18n contract', () => {
     }
 
     expect(catalogs.en['about.hero.title']).toBe('Legacy is played in Lyon');
-    expect(catalogs.fr['about.hero.title']).toBe('Legacy is played in Lyon');
+    expect(catalogs.fr['about.hero.title']).toBe('Le Legacy se joue à Lyon');
     expect(catalogs.en['about.hero.lede1']).toBe('MTGones brings Magic enthusiasts together around welcoming but challenging and memorable tournaments.');
     expect(catalogs.en['about.hero.lede2']).toBe('Play at weekly Thursday meetups to major Fire & Ice weekends.');
-    expect(catalogs.fr['about.hero.lede1']).toBe(catalogs.en['about.hero.lede1']);
-    expect(catalogs.fr['about.hero.lede2']).toBe(catalogs.en['about.hero.lede2']);
+    expect(catalogs.fr['about.hero.lede1']).toBe('MTGones rassemble les passionnés de Magic autour de tournois accueillants, exigeants et mémorables.');
+    expect(catalogs.fr['about.hero.lede2']).toBe('Jouez lors des rendez-vous hebdomadaires du jeudi comme pendant les grands week-ends Fire & Ice.');
+    expect(catalogs.fr['about.nextUp.findAllEvents']).toBe('Voir tous les événements');
+    expect(catalogs.fr['about.tournament.monthly.when']).toBe('Premier dimanche du mois');
+    expect(catalogs.fr['about.tournament.leagues.body']).toContain('points de ligue');
+    expect(catalogs.fr['about.fireIce.body']).toContain('tournois et d’événements Magic');
     const gregoryBio = "Joueur depuis 2000, débuts avec Invasion et le bloc IPA. Beaucoup d'ancien jeu organisé (CR, QT, GP) en Standard & Étendu, puis le Legacy en 2007, où il rencontre Alex. Après avoir aidé MtgLyon, il fonde MTGones en 2015 avec notre regretté Toon pour organiser la CDF Legacy d'octobre 2015, puis Ganesh et la team d'aujourd'hui. Plus belle perf : 57e sur 1200 au GP Birmingham Legacy (11W–4L). Jeu préféré : Storm ⛈️.";
     expect(catalogs.en['about.team.bioGregory']).toBe(gregoryBio);
     expect(catalogs.fr['about.team.bioGregory']).toBe(gregoryBio);
