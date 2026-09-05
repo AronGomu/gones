@@ -51,7 +51,7 @@ api.stderr.on('data', chunk => output += chunk);
 
 try {
   let document;
-  for (let attempt = 0; attempt < 120; attempt++) {
+  for (let attempt = 0; attempt < 360; attempt++) {
     try {
       const boundUrl = output.match(/Now listening on:\s+(http:\/\/127\.0\.0\.1:\d+)/)?.[1];
       if (!boundUrl) throw new Error('API still starting.');
