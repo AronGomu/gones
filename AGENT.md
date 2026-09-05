@@ -63,7 +63,7 @@ next shape of the app: **0054** Event publication is direct with live local prev
 account-scoped unsent Event-create draft may persist in `localStorage`; **0056** Event media is one
 nullable owned image without author alt/order metadata; **0057** manual worldwide Event locations use
 required address text plus backend-validated IANA timezone, without geocoding/provider APIs; **0058**
-`/about` owns toolbar section nav, hides its breadcrumb/top back row, and keeps bottom back navigation.
+`/about` omits toolbar section nav and its breadcrumb/top back row, and keeps bottom back navigation.
 Still binding for today's code:
 **0047** the Archive rebuild has no migration path; **0048** archive catalogs use IndexedDB year
 partitions; **0049** ratings are per-scope Glicko-2; **0050** legacy Archive surface retires without
@@ -105,7 +105,7 @@ Gates: `npm run e2e:ci`, `npm run acceptance:matrix`, `npm run release:rehearsal
   `position="top"` and `position="bottom"`), except the two kinds of page that have nothing to go
   back to: the pages that _start_ a breadcrumb (`/` and `/admin`, which render none) and the auth exception
   pages (which keep the top one only). `/about` is the editorial-shell exception: bottom only, with
-  toolbar section nav and no breadcrumb (ADR 0058). Enforced by
+  no toolbar section nav and no breadcrumb (ADR 0058). Enforced by
   `src/app/shared/back-button-coverage.test.ts` (ADR 0044, amended by ADR 0058).
 - **Logging out returns to sign-in, and signing in returns the user where they were.** Logout
   navigates to `/login?returnUrl=<page where logout was clicked>`; a successful sign-in navigates

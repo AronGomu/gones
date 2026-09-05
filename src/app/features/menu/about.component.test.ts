@@ -105,12 +105,6 @@ async function settle<T>(fixture: { whenStable: () => Promise<T>; detectChanges:
 
 const aboutKeys = [
   'about.back',
-  'about.nav.aria',
-  'about.nav.sections',
-  'about.nav.association',
-  'about.nav.tournaments',
-  'about.nav.staff',
-  'about.nav.calendar',
   'about.nextUp.kicker',
   'about.nextUp.title',
   'about.nextUp.emptyTitle',

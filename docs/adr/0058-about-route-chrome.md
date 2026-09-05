@@ -1,14 +1,21 @@
 # ADR-0058: About route owns dedicated shell chrome
 
-> Status: accepted; implemented
+> Status: accepted; implemented; amended
 > Decided: 2026-09-04
+> Amended: 2026-09-05
 > Owners: app shell, About page
 > Relates: ADR-0038 (canonical Event route), ADR-0044 (back-button coverage)
 > Amends: ADR-0044 (the About route keeps bottom back navigation but drops top back navigation)
 
 ## Status
 
-Accepted and implemented. Evidence: `src/app/app.component.ts`, `src/app/features/menu/about.component.ts`, `src/styles.css`, plus focused shell/About/back-button tests.
+Accepted, implemented, and amended. Evidence: `src/app/app.component.ts`, `src/app/features/menu/about.component.ts`, `src/styles.css`, plus focused shell/About/back-button tests.
+
+## 2026-09-05 amendment
+
+AM1. `/about` no longer renders section navigation in `.app-toolbar`; wide direct links, narrow `Sections` button, attached Material menu, dedicated toolbar CSS, and nav-only i18n copy are removed.
+
+AM2. Original Decision 1–2, Consequence 1–2 and 5, and Alternative 4–5 below remain historical context but are superseded by AM1. Decision 3–7 remain binding: `/about` still omits breadcrumb and top back navigation, keeps bottom back navigation, starts hero under toolbar, and leaves non-About behavior unchanged.
 
 ## Context
 

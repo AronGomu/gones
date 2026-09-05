@@ -220,12 +220,6 @@ const en = {
 
   // About
   'about.back': 'Return to menu',
-  'about.nav.aria': 'About page sections',
-  'about.nav.sections': 'Sections',
-  'about.nav.association': 'The association',
-  'about.nav.tournaments': 'Tournaments',
-  'about.nav.staff': 'Staff',
-  'about.nav.calendar': 'Calendar',
   'about.nextUp.kicker': 'Next Up',
   'about.nextUp.title': 'Upcoming Events',
   'about.nextUp.emptyTitle': 'No upcoming events yet.',
@@ -1534,12 +1528,6 @@ const fr: Record<MessageKey, string> = {
   'home.aboutDesc': 'Découvrez l’association lyonnaise, ses tournois Legacy, l’équipe et les grands rendez-vous Fire & Ice.',
 
   'about.back': 'Retour au menu',
-  'about.nav.aria': 'Sections de la page À propos',
-  'about.nav.sections': 'Sections',
-  'about.nav.association': 'L’association',
-  'about.nav.tournaments': 'Tournois',
-  'about.nav.staff': 'Équipe',
-  'about.nav.calendar': 'Calendrier',
   'about.nextUp.kicker': 'À venir',
   'about.nextUp.title': 'Événements à venir',
   'about.nextUp.emptyTitle': 'Aucun événement à venir pour le moment.',
