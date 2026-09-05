@@ -45,7 +45,7 @@ const ALLOWED_LICENSES = new Set([
  * Anything new appearing here is a supply-chain change that must be reviewed before it is pinned.
  */
 const ACKNOWLEDGED_INSTALL_SCRIPTS = new Set([
-  'cypress', 'esbuild', 'lmdb', 'msgpackr-extract', 'nice-napi', 'unrs-resolver', '@parcel/watcher'
+  'cypress', 'esbuild', 'lmdb', 'msgpackr-extract', 'nice-napi', 'puppeteer', 'unrs-resolver', '@parcel/watcher'
 ]);
 
 const SECRET_PATTERNS = [
