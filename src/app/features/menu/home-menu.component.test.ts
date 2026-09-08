@@ -34,16 +34,17 @@ describe('HomeMenuComponent template', () => {
     expect(source).toContain("role !== 'User' && role !== 'Organizer'");
   });
 
-  it('assigns the requested Scryfall art crop to every home card', () => {
+  it('keeps every home card image under the deployed app base path', () => {
     for (const artPath of [
-      '/assets/card-art/snapcaster-mage.jpg',
-      '/assets/card-art/scroll-rack.jpg',
-      '/assets/card-art/force-of-will.jpg',
-      '/assets/card-art/library-of-alexandria.jpg',
-      '/assets/card-art/lightning-bolt.jpg',
-      '/assets/card-art/fire-ice.jpg',
-      '/assets/card-art/grim-monolith.jpg',
-    ]) expect(source).toContain(artPath);
+      'assets/card-art/snapcaster-mage.jpg',
+      'assets/card-art/scroll-rack.jpg',
+      'assets/card-art/force-of-will.jpg',
+      'assets/card-art/library-of-alexandria.jpg',
+      'assets/card-art/lightning-bolt.jpg',
+      'assets/card-art/fire-ice.jpg',
+      'assets/card-art/grim-monolith.jpg',
+    ]) expect(source).toContain(`src="${artPath}"`);
+    expect(source).not.toContain('src="/assets/card-art/');
     expect(source).toContain('loading="lazy"');
     expect(source).toContain('home-destination__art--fire-left');
     expect(source).toContain('home-destination__art--fire-right');
