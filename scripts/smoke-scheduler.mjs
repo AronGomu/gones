@@ -1,5 +1,5 @@
 /**
- * C27 scheduler runtime smoke.
+ * C27 polling-mode scheduler runtime smoke; idle equivalent: WorkerDueRuntimeTests.
  *
  * Simulates the reminder clock against a running stack: a reminder that comes due is delivered once
  * and recorded once, a reminder missed while the Worker was down is marked missed instead of sent
@@ -12,6 +12,8 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 
 const composeArgs = process.env.GONES_COMPOSE_FILE ? ['compose', '-f', process.env.GONES_COMPOSE_FILE] : ['compose'];
+const polling = spawnSync('docker', [...composeArgs, 'exec', '-T', 'worker', 'sh', '-ec', 'test "${GONES_WORKER_IDLE_MODE:-false}" != true'], { encoding: 'utf8' });
+if (polling.status !== 0) throw new Error('Scheduler SQL smoke requires polling mode; use WorkerDueRuntimeTests for idle dispatch.');
 
 function psql(sql, tuplesOnly = false) {
   const args = [...composeArgs, 'exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-v', 'ON_ERROR_STOP=1'];

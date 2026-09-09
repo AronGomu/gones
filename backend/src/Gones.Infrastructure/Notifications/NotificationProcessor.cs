@@ -16,10 +16,10 @@ public sealed class NotificationProcessor(
     IClock clock,
     ILogger<NotificationProcessor> logger)
 {
-    public async Task<int> ProcessBatchAsync(CancellationToken cancellationToken)
+    public async Task<int> ProcessBatchAsync(CancellationToken cancellationToken, int? batchLimit = null)
     {
         using var pollActivity = GonesTelemetry.Activities.StartActivity("notification.poll", ActivityKind.Internal);
-        var records = await store.ClaimAsync(options.BatchSize, options.LeaseDuration, cancellationToken);
+        var records = await store.ClaimAsync(batchLimit ?? options.BatchSize, options.LeaseDuration, cancellationToken);
         if (records.Count == 0) return 0;
         metrics.RecordClaimed(records.Count);
 

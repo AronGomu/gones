@@ -48,8 +48,9 @@
 | outbox | Durable notification rows awaiting send or retry | `backend/src/Gones.Domain/Notifications/NotificationOutboxRecord.cs` |
 | processor | Drains the outbox, applies the retry ladder | `backend/src/Gones.Infrastructure/Notifications/NotificationProcessor.cs` |
 | transport | Email provider adapter: Brevo, or local file sink | `backend/src/Gones.Infrastructure/Notifications/BrevoEmailTransport.cs` |
-| worker | Background service: heartbeat, scheduling, notifications, cleanup | `backend/src/Gones.Worker/Worker.cs` |
-| wake | Private post-commit hint interrupting Worker polling wait | `backend/src/Gones.Infrastructure/Workers/WorkerWakeSignal.cs` |
+| worker | Background service: polling default, opt-in durable due dispatch | `backend/src/Gones.Worker/Worker.cs` |
+| wake | Private post-commit hint interrupting Worker wait | `backend/src/Gones.Infrastructure/Workers/WorkerWakeSignal.cs` |
+| dispatcher | Due work orchestration with idle-safe private health | `backend/src/Gones.Infrastructure/Workers/WorkerDueDispatcher.cs` |
 | reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
 | event | Calendar record for one single-format tournament concept; may link to Live/Archive Tournaments (ADRs 0035–0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | scheduled tournament | **Retired term** for an event (ADR 0035). Left only in identifiers the rename kept on purpose | `docs/adr/0035-calendar-event-vocabulary.md` |

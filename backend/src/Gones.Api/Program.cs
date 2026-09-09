@@ -118,6 +118,14 @@ builder.Services.AddGonesAuthRateLimiting(RateLimitSettings.Load(
     builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing")));
 var brevoWebhookOptions = BrevoWebhookOptions.TryLoad(builder.Configuration);
 
+var idleWorker = WorkerIdleOptions.TryLoad(builder.Configuration);
+if (idleWorker is not null)
+{
+    if (!OperatingSystem.IsLinux()) throw new InvalidOperationException("Worker idle health requires Linux.");
+    builder.Services.AddSingleton(idleWorker);
+    builder.Services.AddSingleton<WorkerRuntimeFile>();
+    builder.Services.AddSingleton<WorkerRuntimeHealthCheck>();
+}
 var healthChecks = builder.Services.AddHealthChecks();
 if (eventProviderRegistrations.ImageStorage is not null)
 {
@@ -188,7 +196,8 @@ else
     builder.Services.AddSingleton(notificationHealthOptions);
     builder.Services.AddSingleton(workerHealthOptions);
     healthChecks.AddDbContextCheck<GonesDbContext>("database");
-    healthChecks.AddCheck<WorkerHeartbeatHealthCheck>("workerHeartbeat");
+    if (idleWorker is null) healthChecks.AddCheck<WorkerHeartbeatHealthCheck>("workerHeartbeat");
+    else healthChecks.AddCheck<WorkerRuntimeHealthCheck>("workerRuntime");
     healthChecks.AddCheck<NotificationOutboxHealthCheck>("notificationOutbox");
     healthChecks.AddCheck<NotificationDeliveryHealthCheck>("notificationDelivery");
 }
@@ -256,6 +265,22 @@ app.Use(async (context, next) =>
     }
 });
 app.UseMiddleware<ApiRequestSizeMiddleware>();
+// This exact status-only probe must not invoke bearer security-stamp DB validation.
+if (idleWorker is not null)
+{
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Method == "GET" && context.Request.Path.Value == "/health/worker")
+        {
+            var result = await context.RequestServices.GetRequiredService<WorkerRuntimeHealthCheck>()
+                .CheckHealthAsync(new HealthCheckContext(), context.RequestAborted);
+            context.Response.StatusCode = result.Status == HealthStatus.Healthy ? 200 : 503;
+            await context.Response.WriteAsJsonAsync(new { status = result.Status.ToString() }, context.RequestAborted);
+            return;
+        }
+        await next(context);
+    });
+}
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();

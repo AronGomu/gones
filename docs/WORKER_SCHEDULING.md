@@ -1,6 +1,6 @@
 # Worker scheduling contract
 
-State: W9 approved. Parent-approved bounded W10a implementation: post-commit private wake interrupts existing polling wait. W10b due dispatcher/maintenance, W11 local health remain pending dependency milestones. Existing polling/DB heartbeat stay enabled; no idle-cost or W10-complete claim. Source baseline: `384ef4901d8268cf66e9b8f12c546038c8c5f250`. Source refs use baseline line numbers. No live rollout approved.
+State: W9 approved. W10a post-commit private wake retained. W10b due dispatcher/maintenance, W11 local health implemented behind explicit local opt-in; see [Worker idle runtime](WORKER_IDLE.md). Default polling/DB heartbeat stay enabled; no provider-suspension, idle-cost, production-rollout, or W12-complete claim. Source baseline: `384ef4901d8268cf66e9b8f12c546038c8c5f250`. Source refs use baseline line numbers. No live rollout approved.
 
 ## Invariants
 
@@ -60,7 +60,7 @@ N2. API startup migrations/read-model repair, explicit DB/outbox/S3 readiness, b
 
 N3. `AddGonesPersistence` has no explicit pool/keepalive tuning (`Gones.Infrastructure/Persistence/PersistenceServiceCollectionExtensions.cs:11-18`). Effective Npgsql defaults/config + Neon idle tail require local/live audit. No idle-held session locks permitted.
 
-## Full milestone design / review gate (W10b/W11 pending)
+## W9 baseline milestone design / rollout gate
 
 D0. Parent narrowed this pass to W10a after pre-impl reviews. Full switch requires separate coherent due-dispatcher/maintenance/health impl, migration designer/snapshot, loop-owned freshness, checked-out connection/transaction/lock audit, smoke-scheduler SQL fixture + heartbeat/image consumers. Drain ready outbox before full planner; yield planner pages. Failure `retryNotBefore` cannot be bypassed by hints/overdue rows. Existing first-loop reconciliation/double advancement/60s suppression remain unchanged here.
 
@@ -74,9 +74,9 @@ D0. Parent narrowed this pass to W10a after pre-impl reviews. Full switch requir
 | C4 | Receiver eight concurrent clients, accept backlog 16; one-second whole frame+ACK deadline. Sender one pending hint; one-second pacing; max two attempts within two-second total budget, 100ms retry gap. Producer callback only enqueues RAM hint, independent of request cancellation; process crash can lose hint, existing polling still recovers W10a. |
 | C5 | Host/bootstrap creates dedicated directory owned `1654:1654`, mode `0700`; Worker socket mode `0600`; Worker mounts directory RW, API mounts same volume RO. Separate directory/volume/token per environment. Public edge receives neither socket volume nor token. No TCP listener/route. Ancestors must be real trusted root/current-UID directories, not group/other-writable; reject symlinks. |
 | C6 | Persistent private regular lock file beside socket, mode `0600`, exclusive process ownership. Reject concurrent live owner. Linux `statx` verifies file type, UID, inode before stale-socket cleanup; never unlink symlink/regular file/replaced socket. Trusted directory plus API RO mount prevents client replacement. Lock held throughout listener lifetime; stale socket after crash recoverable by next exclusive owner. |
-| C7 | Worker consumes hints only while waiting; one pending hint across scan/wait race. Existing poll interval/deadlines/maintenance/heartbeat unchanged. Existing outer-loop failures retain poll delay regardless of hint; authenticated floods cannot remove failure backoff. |
+| C7 | Default polling branch consumes hints only while waiting; opt-in due branch also takes buffered hints at busy pass boundaries. One pending hint across scan/wait race. Existing poll interval/deadlines/maintenance/heartbeat unchanged. Existing outer-loop failures retain poll delay regardless of hint; authenticated floods cannot remove failure backoff. |
 
-## Implementation actions
+## Original implementation actions (current opt-in evidence: WORKER_IDLE.md)
 
 - [ ] D1. Transaction-safe producer hint foundation. Verify: real PostgreSQL tests for sync/async implicit saves, explicit multi-save commit, rollback/dispose, failed save, failed signal, request cancellation after commit. Prefer EF save + transaction interceptors scoped per context; use transaction identity, not singleton mutable state.
 - [ ] D2. Authenticated private IPC + bounded coalescing. Verify: wrong env/token, malformed/oversize req, duplicate flood, timeout; no payload, no public edge route. Candidate seam: Unix-domain socket shared only by API/Worker in environment; secret via existing `_FILE` loader; protocol/version bounded; no TCP listener. Parent freezes exact config/protocol before integration.
@@ -95,4 +95,4 @@ A3. No staging/prod Compose, host assets, workflows, invitation/bootstrap behavi
 
 A4. Parent explicitly preserves pre-existing account hard-delete queued-outbox survival (`LocalIdentityEndpoints.cs:462-473`) and immediate lifecycle mail `EmailConfirmed` mismatch (`EventRegistrationEndpoints.cs:654-664`) as residual policy/privacy risks; no silent auth changes.
 
-A5. W11 live suspension, provider pool behavior, next real visitor wake, W12 72h correctness/cost proof pending. No locally green claim authorizes rollout.
+A5. W11 local health implemented opt-in; live suspension, provider pool behavior, next real visitor wake, W12 72h correctness/cost proof pending. No locally green claim authorizes rollout.

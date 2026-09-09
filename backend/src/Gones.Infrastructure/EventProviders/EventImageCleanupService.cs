@@ -57,10 +57,10 @@ public sealed class EventImageCleanupService(
     public async Task<int> ProcessImageObjectDeletionsAsync(Guid imageId, CancellationToken cancellationToken) =>
         await ProcessAsync(await ClaimDueAsync(imageId, cancellationToken), cancellationToken);
 
-    public async Task<int> ProcessDueObjectDeletionsAsync(CancellationToken cancellationToken) =>
-        await ProcessAsync(await ClaimDueAsync(null, cancellationToken), cancellationToken);
+    public async Task<int> ProcessDueObjectDeletionsAsync(CancellationToken cancellationToken, int batchLimit = BatchSize) =>
+        await ProcessAsync(await ClaimDueAsync(null, cancellationToken, batchLimit), cancellationToken);
 
-    public async Task<int> SweepExpiredAsync(CancellationToken cancellationToken)
+    public async Task<int> SweepExpiredAsync(CancellationToken cancellationToken, bool processDeletions = true)
     {
         database.ChangeTracker.Clear();
         var now = clock.GetCurrentInstant();
@@ -101,7 +101,7 @@ public sealed class EventImageCleanupService(
         EnqueueAndRemove(expired, now);
         if (expired.Count > 0) await database.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        await ProcessDueObjectDeletionsAsync(cancellationToken);
+        if (processDeletions) await ProcessDueObjectDeletionsAsync(cancellationToken);
         return expired.Count;
     }
 
@@ -120,7 +120,7 @@ public sealed class EventImageCleanupService(
         database.EventImages.RemoveRange(images);
     }
 
-    private async Task<IReadOnlyList<EventImageObjectDeletion>> ClaimDueAsync(Guid? imageId, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<EventImageObjectDeletion>> ClaimDueAsync(Guid? imageId, CancellationToken cancellationToken, int batchLimit = BatchSize)
     {
         var now = clock.GetCurrentInstant();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
@@ -140,7 +140,7 @@ public sealed class EventImageCleanupService(
                 SELECT * FROM event_image_object_deletions
                 WHERE next_attempt_at <= {{now}}
                 ORDER BY next_attempt_at, object_key
-                LIMIT {{BatchSize}}
+                LIMIT {{batchLimit}}
                 FOR UPDATE SKIP LOCKED
                 """);
         }

@@ -7,12 +7,22 @@ using Gones.Worker;
 
 if (args.Contains("--help", StringComparer.Ordinal))
 {
-    Console.WriteLine("Gones.Worker\n\nUsage: dotnet Gones.Worker.dll [--help|--wake]");
+    Console.WriteLine("Gones.Worker\n\nUsage: dotnet Gones.Worker.dll [--help|--wake|--health]");
     return;
 }
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
+if (args.SequenceEqual(["--health"]))
+{
+    var idle = WorkerIdleOptions.TryLoad(builder.Configuration)
+        ?? throw new InvalidOperationException("Worker idle health is not configured.");
+    if (!OperatingSystem.IsLinux()) throw new InvalidOperationException("Worker idle health requires Linux.");
+    var status = new WorkerRuntimeFile(idle).Check(NodaTime.SystemClock.Instance.GetCurrentInstant());
+    Console.WriteLine(status);
+    Environment.ExitCode = status == WorkerRuntimeHealth.Healthy ? 0 : 1;
+    return;
+}
 if (args.SequenceEqual(["--wake"]))
 {
     var wakeOptions = WorkerWakeOptions.TryLoad(builder.Configuration)
