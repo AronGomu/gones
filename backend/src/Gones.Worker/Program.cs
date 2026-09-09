@@ -22,6 +22,7 @@ if (args.SequenceEqual(["--wake"]))
     Environment.ExitCode = await client.SendAsync(CancellationToken.None) ? 0 : 1;
     return;
 }
+builder.Services.AddSingleton(StagingAccessPolicy.Load(builder.Configuration, builder.Environment.EnvironmentName));
 builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);

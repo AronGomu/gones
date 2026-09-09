@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Gones.Application.Notifications;
 using Gones.Domain.Identity;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.WebUtilities;
@@ -32,7 +33,8 @@ internal sealed class AccountLifecycleService(
     GonesDbContext database,
     INotificationOutbox outbox,
     AccountLifecycleOptions options,
-    IClock clock)
+    IClock clock,
+    StagingAccessPolicy policy)
 {
     public async Task IssueAsync(
         ApplicationUser user,
@@ -43,6 +45,7 @@ internal sealed class AccountLifecycleService(
         string? returnUrl,
         CancellationToken cancellationToken)
     {
+        if (!policy.IsEligible(user.Email) || targetEmail is not null && !policy.IsEligible(targetEmail)) return;
         var now = clock.GetCurrentInstant();
         var securityStamp = RequiredSecurityStamp(user);
         var active = await database.AccountActionTokens
@@ -103,7 +106,9 @@ internal sealed class AccountLifecycleService(
             .SingleOrDefaultAsync(cancellationToken);
         if (token is null) return null;
         var user = await database.Users.SingleOrDefaultAsync(item => item.Id == token.UserId, cancellationToken);
-        return user is not null && token.CanConsume(clock.GetCurrentInstant(), RequiredSecurityStamp(user)) ? token : null;
+        return user is not null && policy.IsEligible(user.Email) && policy.IsCurrent(token.CreatedAt)
+            && (token.TargetEmail is null || policy.IsEligible(token.TargetEmail))
+            && token.CanConsume(clock.GetCurrentInstant(), RequiredSecurityStamp(user)) ? token : null;
     }
 
     public Task LockUserAsync(Guid userId, CancellationToken cancellationToken) =>

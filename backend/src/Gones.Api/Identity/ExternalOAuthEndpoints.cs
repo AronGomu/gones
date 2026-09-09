@@ -251,7 +251,8 @@ internal sealed class ExternalOAuthService(
     INotificationOutbox outbox,
     AccountLifecycleOptions lifecycleOptions,
     RefreshSessionService sessions,
-    IClock clock)
+    IClock clock,
+    StagingAccessPolicy policy)
 {
     public async Task<OAuthStartResult> StartAsync(
         string provider,
@@ -260,6 +261,12 @@ internal sealed class ExternalOAuthService(
         FakeOAuthScenario? scenario,
         CancellationToken cancellationToken)
     {
+        if (purpose == OAuthAttemptPurpose.Link)
+        {
+            var user = await database.Users.SingleOrDefaultAsync(item => item.Id == userId, cancellationToken)
+                ?? throw new AuthenticationFailedException();
+            EnsureEligible(user.Email);
+        }
         var state = RandomToken();
         var correlation = RandomToken();
         var now = clock.GetCurrentInstant();
@@ -292,7 +299,7 @@ internal sealed class ExternalOAuthService(
                 .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE state_hash = {stateHash} FOR UPDATE")
                 .SingleOrDefaultAsync(cancellationToken);
             var claimTime = clock.GetCurrentInstant();
-            if (claimedAttempt is null || claimedAttempt.Provider != provider || !claimedAttempt.CanAcceptCallback(Hash(correlation), claimTime))
+            if (claimedAttempt is null || !policy.IsCurrent(claimedAttempt.CreatedAt) || claimedAttempt.Provider != provider || !claimedAttempt.CanAcceptCallback(Hash(correlation), claimTime))
             {
                 throw new InvalidOAuthStateException();
             }
@@ -317,6 +324,7 @@ internal sealed class ExternalOAuthService(
             if (existingIdentity is not null) throw new ResourceConflictException();
             var userId = attempt.UserId!.Value;
             var user = await database.Users.SingleAsync(item => item.Id == userId, cancellationToken);
+            EnsureEligible(user.Email);
             if (await database.ExternalIdentities.AnyAsync(item => item.UserId == userId && item.Provider == provider, cancellationToken)) throw new ResourceConflictException();
             database.ExternalIdentities.Add(ExternalIdentity.Create(userId, provider, profile.Subject, profile.Email, profile.EmailVerified, now));
             database.OAuthAttempts.Remove(attempt);
@@ -331,6 +339,7 @@ internal sealed class ExternalOAuthService(
         if (existingIdentity is not null)
         {
             var user = await database.Users.SingleAsync(item => item.Id == existingIdentity.UserId, cancellationToken);
+            EnsureEligible(user.Email);
             existingIdentity.UpdateProviderEmail(profile.Email, profile.EmailVerified, now);
             database.OAuthAttempts.Remove(attempt);
             database.AuditRecords.Add(NewAudit(user.Id, "auth.external_identity.login", user.Id, provider, now));
@@ -339,6 +348,7 @@ internal sealed class ExternalOAuthService(
             return OAuthCallbackResult.Authenticated(user);
         }
 
+        if (profile.Email is not null) EnsureEligible(profile.Email);
         if (profile.Email is not null && await EmailExistsAsync(profile.Email, cancellationToken))
         {
             database.OAuthAttempts.Remove(attempt);
@@ -373,8 +383,9 @@ internal sealed class ExternalOAuthService(
             .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE completion_hash = {hash} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
         var now = clock.GetCurrentInstant();
-        if (attempt is null || !attempt.CanComplete(hash, now) || attempt.Purpose != OAuthAttemptPurpose.Register) throw new InvalidOAuthTicketException();
+        if (attempt is null || !policy.IsCurrent(attempt.CreatedAt) || !attempt.CanComplete(hash, now) || attempt.Purpose != OAuthAttemptPurpose.Register) throw new InvalidOAuthTicketException();
         ValidateEmail(request.Email);
+        EnsureEligible(request.Email);
         if (await EmailExistsAsync(request.Email, cancellationToken)) throw new ExistingEmailRequiresLinkException();
 
         var providerEmailMatches = attempt.ProviderEmailVerified
@@ -411,7 +422,7 @@ internal sealed class ExternalOAuthService(
             .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE email_verification_hash = {hash} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
         var now = clock.GetCurrentInstant();
-        if (attempt is null || !attempt.CanVerifyEmail(hash, now)) throw new InvalidOAuthTicketException();
+        if (attempt is null || !policy.IsCurrent(attempt.CreatedAt) || !attempt.CanVerifyEmail(hash, now)) throw new InvalidOAuthTicketException();
         if (await EmailExistsAsync(attempt.ProposedEmail!, cancellationToken)) throw new ExistingEmailRequiresLinkException();
         var user = await CreateUserAsync(
             attempt,
@@ -456,6 +467,7 @@ internal sealed class ExternalOAuthService(
         Instant now,
         CancellationToken cancellationToken)
     {
+        EnsureEligible(email);
         UserProfile profile;
         try { profile = UserProfile.Create(Guid.NewGuid(), username, firstName, lastName, now); }
         catch (ArgumentException exception) { throw Validation(exception.ParamName ?? "request", exception.Message); }
@@ -485,6 +497,11 @@ internal sealed class ExternalOAuthService(
         try { await database.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException) { throw new ResourceConflictException(); }
         return user;
+    }
+
+    private void EnsureEligible(string? email)
+    {
+        if (!policy.IsEligible(email)) throw new InvalidOAuthTicketException();
     }
 
     private Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken)

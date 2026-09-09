@@ -106,7 +106,8 @@ public sealed class BrevoDeliveryTests
             new HttpClient(handler) { BaseAddress = new Uri("https://api.brevo.test/") },
             new BrevoOptions("test-api-key", new Uri("https://api.brevo.test/v3/"), "sender@example.test", "Gones", maxConcurrency, Duration.FromSeconds(30), 3, Duration.FromSeconds(30), Duration.FromHours(24)),
             SystemClock.Instance,
-            NullLogger<BrevoEmailTransport>.Instance);
+            NullLogger<BrevoEmailTransport>.Instance,
+            Gones.Infrastructure.Configuration.StagingAccessPolicy.Unrestricted);
 
     private static OutgoingEmail Email() => new(
         Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),

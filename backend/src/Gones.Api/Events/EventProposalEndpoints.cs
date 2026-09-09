@@ -14,6 +14,7 @@ using Gones.Application.Notifications;
 using Gones.Domain.Calendar;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.EventProviders;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.WebUtilities;
@@ -158,9 +159,10 @@ internal static class EventProposalEndpoints
         GonesDbContext database,
         IEventMarkdownRenderer markdown,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
-        var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, policy, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
         var envelope = Envelope(proposal);
         var payload = envelope.Event;
@@ -196,9 +198,10 @@ internal static class EventProposalEndpoints
         GonesDbContext database,
         IEventImageObjectStore objects,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
-        var (proposal, _) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        var (proposal, _) = await ResolveTokenAsync(token, database, clock, policy, cancellationToken);
         if (!proposal.IsPending) throw new ResourceNotFoundException();
         var image = await database.EventImages.AsNoTracking()
             .SingleOrDefaultAsync(item =>
@@ -259,9 +262,10 @@ internal static class EventProposalEndpoints
         GonesDbContext database,
         EventPublicationService publication,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
-        var (proposal, _) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        var (proposal, _) = await ResolveTokenAsync(token, database, clock, policy, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
         var proposalId = proposal.Id;
 
@@ -285,6 +289,7 @@ internal static class EventProposalEndpoints
             database,
             proposalId,
             payload.OrganizationId,
+            policy,
             cancellationToken);
         var approverUserId = recipient.UserId;
         var submitterUserId = claimed.SubmittedByUserId;
@@ -337,9 +342,10 @@ internal static class EventProposalEndpoints
         INotificationOutbox outbox,
         IConfiguration configuration,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
-        var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, cancellationToken);
+        var (proposal, recipient) = await ResolveTokenAsync(token, database, clock, policy, cancellationToken);
         if (!proposal.IsPending) throw new ResourceConflictException();
         var proposalId = proposal.Id;
         var submitterUserId = proposal.SubmittedByUserId;
@@ -378,6 +384,7 @@ internal static class EventProposalEndpoints
             database,
             proposalId,
             lockedPayload.OrganizationId,
+            policy,
             cancellationToken);
         var approverUserId = lockedRecipient.UserId;
         locked.Reject(approverUserId, request.Reason, now);
@@ -440,6 +447,7 @@ internal static class EventProposalEndpoints
         string token,
         GonesDbContext database,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > MaximumTokenLength) throw new ResourceNotFoundException();
@@ -454,6 +462,12 @@ internal static class EventProposalEndpoints
             .SingleOrDefaultAsync(item => item.Id == recipient.ProposalId, cancellationToken)
             ?? throw new ResourceNotFoundException();
         if (proposal.ExpiresAt <= clock.GetCurrentInstant()) throw new ResourceNotFoundException();
+
+        if (policy.IsStaging)
+        {
+            var email = await database.Users.Where(user => user.Id == recipient.UserId).Select(user => user.Email).SingleOrDefaultAsync(cancellationToken);
+            if (!policy.IsEligible(email) || !policy.IsCurrent(recipient.SentAt)) throw new ResourceNotFoundException();
+        }
 
         var organizationId = Payload(proposal).OrganizationId;
         if (!await ApproverUserIds(database, organizationId)
@@ -476,6 +490,7 @@ internal static class EventProposalEndpoints
         GonesDbContext database,
         Guid proposalId,
         Guid organizationId,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
         var tokenHash = AccountLifecycleService.Hash(token);
@@ -505,6 +520,8 @@ internal static class EventProposalEndpoints
             .FromSqlInterpolated($"SELECT * FROM user_profiles WHERE user_id = {recipient.UserId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
         if (user is null
+            || !policy.IsEligible(user.Email)
+            || !policy.IsCurrent(recipient.SentAt)
             || profile is null
             || profile.ClosedAt is not null
             || (user.GlobalRole != GlobalRoles.Admin

@@ -2,17 +2,19 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Gones.Application.Notifications;
+using Gones.Infrastructure.Configuration;
 using NodaTime;
 
 namespace Gones.Infrastructure.Notifications;
 
-public sealed class FileEmailTransport(string sinkPath, IClock clock, bool includeActionLinks = false) : IEmailTransport
+public sealed class FileEmailTransport(string sinkPath, IClock clock, StagingAccessPolicy policy, bool includeActionLinks = false) : IEmailTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true };
 
     public async Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(email);
+        email = policy.PrepareEmail(email);
         Directory.CreateDirectory(sinkPath);
         var fileName = $"{Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(email.DedupeKey)))}.json";
         var destination = Path.Combine(sinkPath, fileName);

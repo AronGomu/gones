@@ -6,6 +6,7 @@ using Gones.Api.Security;
 using Gones.Api.Validation;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -93,9 +94,10 @@ internal static class AccountLifecycleEndpoints
         GonesDbContext database,
         AccountLifecycleService lifecycle,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
-        await TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+        await TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, policy, cancellationToken);
         return Results.Accepted(value: GenericResponse);
     }
 
@@ -111,15 +113,17 @@ internal static class AccountLifecycleEndpoints
         GonesDbContext database,
         AccountLifecycleService lifecycle,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(email);
-        if (user is not null && !user.EmailConfirmed)
+        if (user is not null && policy.IsEligible(user.Email) && !user.EmailConfirmed)
         {
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
             await lifecycle.LockUserAsync(user.Id, cancellationToken);
             var changePending = await database.AccountActionTokens.AnyAsync(token => token.UserId == user.Id
                 && token.Purpose == AccountActionPurpose.ChangeEmail
+                && (!policy.IsStaging || token.CreatedAt >= policy.ValidAfter)
                 && token.ConsumedAt == null
                 && token.SupersededAt == null
                 && token.ExpiresAt > clock.GetCurrentInstant(), cancellationToken);
@@ -140,10 +144,11 @@ internal static class AccountLifecycleEndpoints
         GonesDbContext database,
         AccountLifecycleService lifecycle,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is not null)
+        if (user is not null && policy.IsEligible(user.Email))
         {
             await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
             await lifecycle.LockUserAsync(user.Id, cancellationToken);
@@ -190,8 +195,10 @@ internal static class AccountLifecycleEndpoints
         GonesDbContext database,
         AccountLifecycleService lifecycle,
         IClock clock,
+        StagingAccessPolicy policy,
         CancellationToken cancellationToken)
     {
+        if (!policy.IsEligible(request.NewEmail)) throw Validation(nameof(request.NewEmail), "Email is not eligible.");
         var userId = CurrentUserId(principal);
         var user = await userManager.FindByIdAsync(userId.ToString("D")) ?? throw new AuthenticationFailedException();
         if (!await userManager.CheckPasswordAsync(user, request.CurrentPassword))

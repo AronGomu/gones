@@ -3,6 +3,9 @@ using Gones.Application.Notifications;
 using Gones.Domain.Notifications;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Notifications;
+using Gones.Infrastructure.Configuration;
+using Microsoft.Extensions.Configuration;
+using System.Text.Json;
 using Gones.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -24,6 +27,64 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
     }
 
     public Task DisposeAsync() => postgres.DisposeAsync().AsTask();
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Staging_historical_blocked_mail_never_calls_provider_or_reports_Sent(bool uncertainRecovery)
+    {
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), ".tmp", $"staging-outbox-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "policy.json");
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new
+        {
+            revision = "revoked", validAfterUtc = "2026-08-01T00:00:00Z",
+            invitedEmails = new[] { "owner@example.test" }, recipientEmails = new[] { "owner@example.test" }
+        }));
+        try
+        {
+            Guid id;
+            await using (var seed = CreateContext())
+            {
+                await using var transaction = await seed.Database.BeginTransactionAsync();
+                seed.SchemaVersions.Add(new SchemaVersion { Name = "staging-business-write", AppliedAt = clock.GetCurrentInstant() });
+                id = new NotificationOutbox(seed, clock).Enqueue(Request("historical-blocked"));
+                await seed.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            if (uncertainRecovery)
+            {
+                await using var crashed = CreateContext();
+                Assert.Single(await new NotificationOutboxStore(crashed, clock).ClaimAsync(1, Duration.FromMinutes(2), CancellationToken.None));
+                clock.Advance(Duration.FromHours(25));
+            }
+            var config = new ConfigurationManager();
+            config[StagingAccessPolicy.FileKey] = path;
+            config["GONES_BOOTSTRAP_ADMIN_EMAIL"] = "owner@example.test";
+            var policy = StagingAccessPolicy.Load(config, "Staging");
+            using var handler = new NoHttpHandler();
+            using var transport = new BrevoEmailTransport(new HttpClient(handler),
+                new BrevoOptions("fixture-key", new Uri("https://mail.example.test/v3/"), "sender@example.test", "Fixture", 1, Duration.FromSeconds(10), 3, Duration.FromSeconds(30), Duration.FromHours(24)),
+                clock, NullLogger<BrevoEmailTransport>.Instance, policy);
+            await ProcessOnceAsync(transport);
+            await ProcessOnceAsync(transport);
+            Assert.Equal(0, handler.Calls);
+            await using var db = CreateContext();
+            var row = await db.NotificationOutboxRecords.SingleAsync(record => record.Id == id);
+            Assert.Equal(uncertainRecovery ? NotificationOutboxStatus.Reconciliation : NotificationOutboxStatus.DeadLetter, row.Status);
+            Assert.Null(row.SentAt);
+            Assert.False(await db.NotificationHistory.AnyAsync(record => record.OutboxId == id));
+            Assert.True(await db.SchemaVersions.AnyAsync(record => record.Name == "staging-business-write"));
+            if (!uncertainRecovery)
+            {
+                Assert.Equal("staging_recipient_blocked", row.LastErrorCode);
+                Assert.Equal(1, row.AttemptCount);
+                Assert.Null(row.Recipient);
+                Assert.Null(row.TemplateModelJson);
+            }
+        }
+        finally { File.Delete(path); Directory.Delete(directory); }
+    }
 
     [Fact]
     public async Task App_write_and_notification_roll_back_together()
@@ -285,7 +346,7 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
         var directory = Path.Combine(Path.GetTempPath(), $"gones-email-{Guid.NewGuid():N}");
         try
         {
-            var transport = new FileEmailTransport(directory, clock);
+            var transport = new FileEmailTransport(directory, clock, Gones.Infrastructure.Configuration.StagingAccessPolicy.Unrestricted);
             var rendered = new NotificationTemplateRenderer().Render("en", new VerifyEmailTemplateModel("Alice", new Uri("https://app.example/verify?token=secret-value")));
             var email = new OutgoingEmail(Guid.NewGuid(), "file-dedupe", NotificationTemplateKeys.VerifyEmail, "alice@example.test", rendered);
 
@@ -310,7 +371,7 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
         var id = await EnqueueAsync($"crash-after-send-{Guid.NewGuid():N}");
         try
         {
-            var transport = new FileEmailTransport(directory, clock);
+            var transport = new FileEmailTransport(directory, clock, Gones.Infrastructure.Configuration.StagingAccessPolicy.Unrestricted);
             await using (var crashedDb = CreateContext())
             {
                 var claimed = Assert.Single(await new NotificationOutboxStore(crashedDb, clock).ClaimAsync(1, Duration.FromMinutes(2), CancellationToken.None));
@@ -419,6 +480,16 @@ public sealed class NotificationOutboxTests : IAsyncLifetime
             SendCount++;
             accepted.Add(email.DedupeKey);
             return Task.FromResult(new EmailTransportResult("provider-id"));
+        }
+    }
+
+    private sealed class NoHttpHandler : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Calls++;
+            throw new InvalidOperationException("Unexpected fixture provider call.");
         }
     }
 

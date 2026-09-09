@@ -36,6 +36,7 @@ using OpenTelemetry.Trace;
 var builder = WebApplication.CreateBuilder(args);
 // Mounted-file secrets are layered in first so every later reader sees one uniform configuration.
 builder.Configuration.AddGonesSecretFiles();
+builder.Services.AddSingleton(StagingAccessPolicy.Load(builder.Configuration, builder.Environment.EnvironmentName));
 var eventProviderRegistrations = builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 var forwardedProxies = ForwardedProxySettings.Load(builder.Configuration);

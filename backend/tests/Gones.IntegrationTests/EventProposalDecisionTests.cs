@@ -60,6 +60,46 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         await postgres.DisposeAsync();
     }
 
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    public async Task Staging_proposal_credentials_require_current_email_and_original_SentAt(bool invited, int cutoffSeconds)
+    {
+        var issuedAt = Instant.FromUnixTimeSeconds(SystemClock.Instance.GetCurrentInstant().ToUnixTimeSeconds() - 60);
+        clock.Advance(issuedAt - clock.GetCurrentInstant());
+        var imageId = Guid.NewGuid();
+        var proposal = await SeedProposalAsync(images: [new ImageInput(imageId)]);
+        objects.Seed(EventImageObjectKeys.Variant(imageId, 320), [1, 2]);
+        var directory = Path.Combine(Directory.GetCurrentDirectory(), ".tmp", $"staging-proposal-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "policy.json");
+        var emails = invited ? new[] { seed.Admin.Email!, seed.Organizer.Email! } : [seed.Admin.Email!];
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new
+        {
+            revision = "proposal-test", validAfterUtc = (issuedAt + Duration.FromSeconds(cutoffSeconds)).ToString(),
+            invitedEmails = emails, recipientEmails = emails
+        }));
+        try
+        {
+            await using var staging = CreateFactory(path);
+            using var anonymous = staging.CreateClient();
+            using var read = await anonymous.GetAsync(ReviewUrl(proposal.OrganizerToken));
+            using var image = await anonymous.GetAsync(ReviewUrl(proposal.OrganizerToken) + $"/images/{imageId:D}/variants/320");
+            using var approve = await anonymous.PostAsync(ReviewUrl(proposal.OrganizerToken) + "/approve", null);
+            using var reject = await anonymous.PostAsJsonAsync(ReviewUrl(proposal.OrganizerToken) + "/reject", new { reason = Reason });
+            Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, image.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, approve.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, reject.StatusCode);
+            Assert.Equal(0, objects.Reads);
+            await using var db = CreateContext();
+            Assert.Empty(await db.Events.ToListAsync());
+            Assert.Empty(await db.NotificationOutboxRecords.ToListAsync());
+            Assert.Equal(TournamentProposalStatus.Pending, (await db.EventProposals.SingleAsync()).Status);
+        }
+        finally { File.Delete(path); Directory.Delete(directory); }
+    }
+
     [Fact]
     public async Task Get_by_token_returns_the_payload()
     {
@@ -1001,10 +1041,16 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
     private static string Sha256Hex(string plaintext) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(plaintext)));
 
-    private WebApplicationFactory<Program> CreateFactory() =>
+    private WebApplicationFactory<Program> CreateFactory(string? policyPath = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
+            if (policyPath is not null)
+            {
+                builder.UseSetting("GONES_DEPLOYMENT_ENVIRONMENT", "staging");
+                builder.UseSetting("GONES_STAGING_POLICY_FILE", policyPath);
+                builder.UseSetting("GONES_BOOTSTRAP_ADMIN_EMAIL", seed.Admin.Email);
+            }
             builder.UseSetting("GONES_DB_CONNECTION", postgres.GetConnectionString());
             builder.UseSetting("GONES_ALLOWED_ORIGINS", "https://app.example");
             builder.UseSetting("GONES_AUTH_SIGNING_KEY", "t17-proposal-decision-signing-key-with-more-than-32-characters");
@@ -1132,17 +1178,21 @@ public sealed class EventProposalDecisionTests(ITestOutputHelper output) : IAsyn
         private readonly ConcurrentDictionary<string, byte[]> objects = new(StringComparer.Ordinal);
         public bool FailDeletes { get; set; }
         public bool FailReads { get; set; }
+        public int Reads { get; private set; }
         public IReadOnlyCollection<string> Keys => objects.Keys.ToArray();
 
         public Task PutAsync(string key, Stream content, string contentType, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken) =>
-            FailReads
+        public Task<Stream> OpenReadAsync(string key, CancellationToken cancellationToken)
+        {
+            Reads++;
+            return FailReads
                 ? Task.FromException<Stream>(new EventImageStorageUnavailableException())
                 : objects.TryGetValue(key, out var value)
                     ? Task.FromResult<Stream>(new MemoryStream(value, writable: false))
                     : Task.FromException<Stream>(new KeyNotFoundException());
+        }
 
         public Task DeleteAsync(string key, CancellationToken cancellationToken)
         {

@@ -6,6 +6,7 @@ using Gones.Api.Security;
 using Gones.Api.Validation;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
@@ -72,9 +73,11 @@ internal static class LocalIdentityEndpoints
         GonesDbContext database,
         AccountLifecycleService lifecycle,
         IClock clock,
+        StagingAccessPolicy policy,
         OperationalMetrics metrics,
         CancellationToken cancellationToken)
     {
+        if (!policy.IsEligible(request.Email)) return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -112,7 +115,7 @@ internal static class LocalIdentityEndpoints
                 // sent the caller to Verify Email to wait for a link nobody had queued. A taken email
                 // still wins the tie: naming the username there would confirm the address has an account.
                 if (!duplicateEmail) throw UsernameTaken();
-                await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+                await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, policy, cancellationToken);
                 return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
             }
 
@@ -131,7 +134,7 @@ internal static class LocalIdentityEndpoints
             database.ChangeTracker.Clear();
             await WriteAuditAsync(database, null, "auth.register.failed", "registration", "{\"outcome\":\"conflict\"}", clock, cancellationToken);
             metrics.RecordAuthRejection("register");
-            await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, cancellationToken);
+            await AccountLifecycleEndpoints.TryResendVerificationAsync(request.Email.Trim(), request.ReturnUrl, userManager, database, lifecycle, clock, policy, cancellationToken);
             return Results.Accepted(value: AccountLifecycleEndpoints.GenericResponse);
         }
     }
@@ -145,11 +148,12 @@ internal static class LocalIdentityEndpoints
         RefreshCookie cookie,
         AccessTokenIssuer tokenIssuer,
         IClock clock,
+        StagingAccessPolicy policy,
         OperationalMetrics metrics,
         CancellationToken cancellationToken)
     {
         var user = await userManager.FindByEmailAsync(request.Email.Trim());
-        if (user is null)
+        if (user is null || !policy.IsEligible(user.Email))
         {
             _ = userManager.PasswordHasher.VerifyHashedPassword(new ApplicationUser(), DummyPasswordHash.Value, request.Password);
             await RejectLoginAsync(database, null, "rejected", clock, metrics, cancellationToken);

@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Text;
+using Gones.Api.Errors;
 using Gones.Domain.Identity;
+using Gones.Infrastructure.Configuration;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Observability;
@@ -14,6 +16,7 @@ namespace Gones.Api.Identity;
 internal sealed class RefreshSessionService(
     GonesDbContext database,
     IClock clock,
+    StagingAccessPolicy policy,
     OperationalMetrics metrics,
     ILogger<RefreshSessionService> logger)
 {
@@ -22,6 +25,7 @@ internal sealed class RefreshSessionService(
     public async Task<IssuedRefreshSession> CreateAsync(ApplicationUser user, string deviceLabel, CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
+        if (!policy.IsEligible(user.Email) || !policy.IsCurrent(now)) throw new AuthenticationFailedException();
         var session = RefreshSession.Create(user.Id, RequiredSecurityStamp(user), deviceLabel, now);
         var issuedToken = CreateToken(session.Id, now);
 
@@ -65,6 +69,13 @@ internal sealed class RefreshSessionService(
             await transaction.CommitAsync(cancellationToken);
             metrics.RecordAuthAbuse("refresh_replay");
             logger.LogWarning(ReplayEvent, "Refresh token replay revoked session family {SessionId}", session.Id);
+            return RefreshAttempt.Rejected;
+        }
+
+        if (!policy.IsEligible(user.Email) || !policy.IsCurrent(session.CreatedAt))
+        {
+            metrics.RecordAuthRejection("refresh");
+            await transaction.CommitAsync(cancellationToken);
             return RefreshAttempt.Rejected;
         }
 

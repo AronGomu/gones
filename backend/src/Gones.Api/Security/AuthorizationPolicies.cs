@@ -1,4 +1,8 @@
 using System.Security.Claims;
+using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
+using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -107,10 +111,43 @@ public static class AuthorizationPolicies
             return;
         }
 
+        var staging = context.HttpContext.RequestServices.GetRequiredService<StagingAccessPolicy>();
+        if (!staging.IsEligible(user.Email) || !staging.IsCurrentJwt(principal)
+            || staging.IsStaging && !HasCanonicalIssuedAt(context.SecurityToken))
+        {
+            context.Fail("staging_access_denied");
+            return;
+        }
+
         if (!FixedTimeEquals(user.SecurityStamp, stampClaim)
             || !string.Equals(user.GlobalRole, roleClaim, StringComparison.Ordinal))
         {
             context.Fail("stale_security_version");
+        }
+    }
+
+    // IdentityModel normalizes fractional/duplicate iat values into claims. Inspect the signed
+    // payload as well, after signature validation, so normalization cannot soften the cutoff.
+    private static bool HasCanonicalIssuedAt(SecurityToken token)
+    {
+        var payload = token switch
+        {
+            JsonWebToken json => json.EncodedPayload,
+            JwtSecurityToken jwt => jwt.EncodedPayload,
+            _ => null
+        };
+        if (payload is null) return false;
+        try
+        {
+            using var document = JsonDocument.Parse(Base64UrlEncoder.DecodeBytes(payload));
+            var issuedAt = document.RootElement.EnumerateObject().Where(property => property.Name == "iat").ToArray();
+            return issuedAt.Length == 1 && issuedAt[0].Value.ValueKind == JsonValueKind.Number
+                && issuedAt[0].Value.TryGetInt64(out var seconds)
+                && issuedAt[0].Value.GetRawText() == seconds.ToString(CultureInfo.InvariantCulture);
+        }
+        catch (Exception exception) when (exception is JsonException or FormatException)
+        {
+            return false;
         }
     }
 

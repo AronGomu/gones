@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Gones.Application.Notifications;
+using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.Observability;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -82,6 +83,7 @@ public sealed record BrevoOptions(
 public sealed class BrevoEmailTransport : IEmailTransport, IDisposable
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private readonly StagingAccessPolicy policy;
     private readonly HttpClient client;
     private readonly BrevoOptions options;
     private readonly IClock clock;
@@ -91,8 +93,9 @@ public sealed class BrevoEmailTransport : IEmailTransport, IDisposable
     private int consecutiveFailures;
     private Instant? circuitOpenUntil;
 
-    public BrevoEmailTransport(HttpClient client, BrevoOptions options, IClock clock, ILogger<BrevoEmailTransport> logger)
+    public BrevoEmailTransport(HttpClient client, BrevoOptions options, IClock clock, ILogger<BrevoEmailTransport> logger, StagingAccessPolicy policy)
     {
+        this.policy = policy;
         this.client = client;
         this.options = BrevoOptions.Validate(options);
         this.clock = clock;
@@ -105,10 +108,12 @@ public sealed class BrevoEmailTransport : IEmailTransport, IDisposable
     public async Task<EmailTransportResult> SendAsync(OutgoingEmail email, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(email);
+        email = policy.PrepareEmail(email);
         ThrowIfCircuitOpen();
         await concurrency.WaitAsync(cancellationToken);
         try
         {
+            email = policy.PrepareEmail(email);
             ThrowIfCircuitOpen();
             using var request = new HttpRequestMessage(HttpMethod.Post, "smtp/email");
             request.Headers.Add("api-key", options.ApiKey);

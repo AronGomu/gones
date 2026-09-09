@@ -30,7 +30,8 @@ public static class GonesSecretFiles
         "GONES_AUTH_SIGNING_KEY",
         EventImagesS3AccessConfigName,
         EventImagesS3PrivateConfigName,
-        "GONES_WORKER_WAKE_TOKEN"
+        "GONES_WORKER_WAKE_TOKEN",
+        "GONES_BOOTSTRAP_ADMIN_EMAIL"
     ];
 
     private static readonly IReadOnlySet<string> FilePrecedenceKeys = new HashSet<string>(StringComparer.Ordinal)
@@ -53,6 +54,14 @@ public static class GonesSecretFiles
         {
             var fileKey = key + FileSuffix;
             var path = configuration[fileKey];
+            if (key == "GONES_BOOTSTRAP_ADMIN_EMAIL" && path is not null)
+            {
+                if (configuration[key] is not null) throw new InvalidOperationException("staging_policy_invalid");
+                var bytes = StagingAccessPolicy.ReadPrivateFile(path, 1024);
+                try { resolved[key] = new System.Text.UTF8Encoding(false, true).GetString(bytes).TrimEnd('\r', '\n'); }
+                catch (System.Text.DecoderFallbackException) { throw new InvalidOperationException("staging_policy_invalid"); }
+                continue;
+            }
             if (string.IsNullOrWhiteSpace(path)) continue;
             path = path.Trim();
             if (AbsolutePathKeys.Contains(key) && !Path.IsPathRooted(path))

@@ -1,4 +1,5 @@
 using Gones.Application.Notifications;
+using Gones.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
@@ -15,6 +16,8 @@ public static class NotificationServiceCollectionExtensions
 
     public static IServiceCollection AddNotificationWorker(this IServiceCollection services, IConfiguration configuration)
     {
+        if (!services.Any(service => service.ServiceType == typeof(StagingAccessPolicy)))
+            services.AddSingleton(StagingAccessPolicy.Load(configuration, configuration["DOTNET_ENVIRONMENT"] ?? "Production"));
         var options = NotificationWorkerOptions.Load(configuration);
         services.AddNotificationOutbox();
         services.AddSingleton<NotificationTemplateRenderer>();
@@ -32,7 +35,7 @@ public static class NotificationServiceCollectionExtensions
         else
         {
             var includeActionLinks = configuration.GetValue<bool>("GONES_EMAIL_SINK_INCLUDE_ACTION_LINKS");
-            services.AddSingleton<IEmailTransport>(provider => new FileEmailTransport(options.SinkPath, provider.GetRequiredService<IClock>(), includeActionLinks));
+            services.AddSingleton<IEmailTransport>(provider => new FileEmailTransport(options.SinkPath, provider.GetRequiredService<IClock>(), provider.GetRequiredService<StagingAccessPolicy>(), includeActionLinks));
         }
         services.AddSingleton(options);
         services.AddScoped<NotificationOutboxStore>();
