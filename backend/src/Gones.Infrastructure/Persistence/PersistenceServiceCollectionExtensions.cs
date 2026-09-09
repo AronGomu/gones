@@ -1,3 +1,4 @@
+using Gones.Infrastructure.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
@@ -13,7 +14,11 @@ public static class PersistenceServiceCollectionExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
 
         services.AddSingleton<IClock>(SystemClock.Instance);
-        services.AddDbContext<GonesDbContext>(options => options.ConfigureGones(connectionString));
+        services.AddDbContext<GonesDbContext>((provider, options) =>
+        {
+            options.ConfigureGones(connectionString);
+            if (provider.GetService<WorkerWakeInterceptor>() is { } wake) options.AddInterceptors(wake);
+        });
 
         return services;
     }

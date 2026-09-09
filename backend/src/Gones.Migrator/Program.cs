@@ -10,10 +10,12 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.MigrationImport;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using NodaTime;
 
 if (args.Contains("--help", StringComparer.Ordinal))
@@ -90,6 +92,7 @@ if (databaseCommand is null && notificationCommand is null && bootstrapEmail is 
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
+var workerWakeOptions = notificationCommand is not null ? WorkerWakeOptions.TryLoad(builder.Configuration) : null;
 if (notificationCommand is not null && !builder.Configuration.GetValue<bool>("GONES_ALLOW_TEST_NOTIFICATION"))
 {
     throw new InvalidOperationException("GONES_ALLOW_TEST_NOTIFICATION=true is required for the test notification command.");
@@ -192,6 +195,11 @@ else if (notificationCommand == "enqueue-test")
             new VerifyEmailTemplateModel("Local Tester", new Uri("https://app.example/verify?token=local-test-token"))));
         await database.SaveChangesAsync();
         Console.WriteLine($"Notification test message enqueued: {id:D}");
+        if (workerWakeOptions is { } wakeOptions)
+        {
+            var client = new WorkerWakeClient(wakeOptions, host.Services.GetRequiredService<ILogger<WorkerWakeClient>>());
+            await client.SendAsync(CancellationToken.None);
+        }
     }
     else
     {

@@ -29,7 +29,8 @@ public static class GonesSecretFiles
         "GONES_DB_CONNECTION",
         "GONES_AUTH_SIGNING_KEY",
         EventImagesS3AccessConfigName,
-        EventImagesS3PrivateConfigName
+        EventImagesS3PrivateConfigName,
+        "GONES_WORKER_WAKE_TOKEN"
     ];
 
     private static readonly IReadOnlySet<string> FilePrecedenceKeys = new HashSet<string>(StringComparer.Ordinal)
@@ -38,7 +39,10 @@ public static class GonesSecretFiles
         EventImagesS3PrivateConfigName
     };
 
-    private static readonly IReadOnlySet<string> AbsolutePathKeys = new HashSet<string>(FilePrecedenceKeys, StringComparer.Ordinal);
+    private static readonly IReadOnlySet<string> AbsolutePathKeys = new HashSet<string>(FilePrecedenceKeys, StringComparer.Ordinal)
+    {
+        "GONES_WORKER_WAKE_TOKEN"
+    };
 
     /// <summary>Reads every configured secret file. Throws before startup completes on any ambiguity.</summary>
     public static Dictionary<string, string?> Resolve(IConfiguration configuration)
@@ -67,6 +71,7 @@ public static class GonesSecretFiles
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
             {
+                if (key == "GONES_WORKER_WAKE_TOKEN") throw new InvalidOperationException($"{fileKey} could not be read.");
                 throw new InvalidOperationException($"{fileKey} could not be read.", exception);
             }
 

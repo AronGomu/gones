@@ -43,6 +43,14 @@ if [ ! -f "$secrets/event-images-s3-access-key" ]; then
     random_hex 20 > "$secrets/event-images-s3-secret-key"
 fi
 
+if [ ! -f "$secrets/worker-wake-token" ]; then
+    random_hex 32 > "$secrets/worker-wake-token"
+fi
+if [ -d /worker-wake ]; then
+    chown 1654:1654 /worker-wake
+    chmod 0700 /worker-wake
+fi
+
 # Non-root service accounts read these; nothing writes them again.
 chmod 0555 "$certs" "$secrets"
 chmod 0444 "$certs"/*.pem "$secrets"/*

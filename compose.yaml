@@ -63,6 +63,26 @@ services:
       migrator: { condition: service_completed_successfully }
     restart: "no"
 
+  worker-wake-init:
+    image: alpine:3.22
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        test -s /secrets/token || head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /secrets/token
+        chmod 0444 /secrets/token
+        chown 1654:1654 /wake
+        chmod 0700 /wake
+    volumes:
+      - worker-wake:/wake
+      - worker-wake-secrets:/secrets
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER, DAC_OVERRIDE]
+    restart: "no"
+
   event-image-secret-init:
     image: alpine:3.22
     command:
@@ -129,6 +149,8 @@ services:
       dockerfile: backend/src/Gones.Api/Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      GONES_WORKER_WAKE_SOCKET: /run/gones-worker/wake.sock
+      GONES_WORKER_WAKE_TOKEN_FILE: /run/secrets/worker-wake/token
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only;Gss Encryption Mode=Disable
       GONES_ALLOWED_ORIGINS: http://localhost:4200,http://127.0.0.1:4200,http://localhost:8081,http://127.0.0.1:8081
       GONES_ALLOW_TEST_NOTIFICATION: "true"
@@ -161,7 +183,10 @@ services:
     ports: ["127.0.0.1:5080:8080"]
     volumes:
       - event-image-secrets:/run/secrets/event-images:ro
+      - worker-wake:/run/gones-worker:ro
+      - worker-wake-secrets:/run/secrets/worker-wake:ro
     depends_on:
+      worker-wake-init: { condition: service_completed_successfully }
       permissions: { condition: service_completed_successfully }
       event-image-bucket-bootstrap: { condition: service_completed_successfully }
 
@@ -172,6 +197,8 @@ services:
       dockerfile: backend/src/Gones.Worker/Dockerfile
     environment:
       DOTNET_ENVIRONMENT: Production
+      GONES_WORKER_WAKE_SOCKET: /run/gones-worker/wake.sock
+      GONES_WORKER_WAKE_TOKEN_FILE: /run/secrets/worker-wake/token
       GONES_DB_CONNECTION: Host=postgres;Port=5432;Database=gones;Username=gones_app;Password=local-app-only;Gss Encryption Mode=Disable
       GONES_EMAIL_TRANSPORT: File
       GONES_EMAIL_SINK_PATH: /tmp/gones-email-sink
@@ -187,7 +214,10 @@ services:
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - event-image-secrets:/run/secrets/event-images:ro
+      - worker-wake:/run/gones-worker
+      - worker-wake-secrets:/run/secrets/worker-wake:ro
     depends_on:
+      worker-wake-init: { condition: service_completed_successfully }
       permissions: { condition: service_completed_successfully }
       event-image-bucket-bootstrap: { condition: service_completed_successfully }
 
@@ -256,6 +286,8 @@ services:
       api: { condition: service_healthy }
 
 volumes:
+  worker-wake:
+  worker-wake-secrets:
   event-image-data:
   event-image-secrets:
   postgres-data:

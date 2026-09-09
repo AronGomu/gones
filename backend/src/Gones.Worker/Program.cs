@@ -1,20 +1,27 @@
-using Gones.Infrastructure.Calendar;
 using Gones.Infrastructure.Configuration;
 using Gones.Infrastructure.EventProviders;
-using Gones.Infrastructure.Identity;
-using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Workers;
 using Gones.Worker;
 
 if (args.Contains("--help", StringComparer.Ordinal))
 {
-    Console.WriteLine("Gones.Worker\n\nUsage: dotnet Gones.Worker.dll [--help]");
+    Console.WriteLine("Gones.Worker\n\nUsage: dotnet Gones.Worker.dll [--help|--wake]");
     return;
 }
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
+if (args.SequenceEqual(["--wake"]))
+{
+    var wakeOptions = WorkerWakeOptions.TryLoad(builder.Configuration)
+        ?? throw new InvalidOperationException("Worker wake is not configured.");
+    using var loggerFactory = LoggerFactory.Create(logging => logging.AddSimpleConsole());
+    var client = new WorkerWakeClient(wakeOptions, loggerFactory.CreateLogger<WorkerWakeClient>());
+    Environment.ExitCode = await client.SendAsync(CancellationToken.None) ? 0 : 1;
+    return;
+}
 builder.Services.AddEventProviderFoundations(builder.Configuration);
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = GonesHostRuntime.LoadShutdownTimeout(builder.Configuration));
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
@@ -34,13 +41,7 @@ builder.Services.AddGonesObservability(builder.Logging, builder.Configuration, "
 var connectionString = builder.Configuration[PersistenceServiceCollectionExtensions.ConnectionStringKey];
 if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationException("GONES_DB_CONNECTION is required.");
 builder.Services.AddGonesPersistence(connectionString);
-builder.Services.AddNotificationWorker(builder.Configuration);
-builder.Services.AddTournamentScheduler(builder.Configuration);
-builder.Services.AddScoped<WorkerHeartbeatStore>();
-builder.Services.AddScoped<EventImageCleanupService>();
-builder.Services.AddScoped<UserEmailHistoryRedactor>();
-builder.Services.AddScoped<IdempotencyRecordSweeper>();
-builder.Services.AddHostedService<Worker>();
+Worker.AddRuntimeServices(builder.Services, builder.Configuration);
 
 var host = builder.Build();
 await host.RunAsync();
