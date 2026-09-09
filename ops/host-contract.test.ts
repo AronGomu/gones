@@ -221,6 +221,54 @@ describe('release candidate notes', () => {
   });
 });
 
+describe('deployment documentation boundaries', () => {
+  it('does not claim retired backend-free verification', () => {
+    const deployment = read('DEPLOYMENT.md');
+    const verification = deployment.slice(deployment.indexOf('## 2. Verify the deployment'), deployment.indexOf('## 3. If a static host needs a route fallback'));
+
+    expect(verification).toContain('/events` loads from the API');
+    expect(verification).toContain('server Archive records');
+    expect(verification).toContain('sanctioned local Archive adapter');
+    expect(verification).toContain('`gones-archive-local`');
+    expect(verification).toMatch(/`leagues`, `league-seasons`,\s+`tournaments`/);
+    expect(verification).toContain('sanctioned offline Live adapter');
+    expect(verification).toContain('`gones-live` / `tournaments`');
+    expect(verification).toContain('`local-` id');
+    expect(verification).toMatch(/no new\s+browser migration bundle is produced/);
+    expect(verification).not.toMatch(/browser storage[^.\n]*contains only/i);
+    expect(verification).not.toMatch(/without signing in|no `\/api\/` request/i);
+  });
+
+  it('distinguishes Pages publication from full-stack release', () => {
+    const deployment = read('DEPLOYMENT.md');
+    const workflowBoundary = deployment.slice(deployment.indexOf('## Current workflow boundaries'), deployment.indexOf('## 1. Serve it from the release image'));
+    const pagesVerification = deployment.slice(deployment.indexOf('A Pages deployment can verify'), deployment.indexOf('## 3. If a static host needs a route fallback'));
+    const pagesWorkflow = read('.github/workflows/deploy-pages.yml');
+    const ciWorkflow = read('.github/workflows/static.yml');
+    const releaseWorkflow = read('.github/workflows/release-images.yml');
+
+    expect(workflowBoundary).toContain('GitHub Pages is **static publication only**');
+    expect(workflowBoundary).toContain('does not prove a production release');
+    expect(workflowBoundary).toContain('cannot be used as evidence');
+    expect(pagesVerification).toContain('cannot verify API');
+    expect(pagesVerification).toContain('full-stack production readiness');
+
+    const promotion = workflowBoundary.slice(workflowBoundary.indexOf('### Planned promotion, not implemented'));
+    expect(promotion).toContain('dev → staging → main');
+    expect(promotion).toContain('tested digest manifest');
+    expect(promotion).toContain('without a rebuild');
+    expect(promotion).toContain('planned documentation only');
+    expect(promotion).toContain('Current workflows do not implement promotion');
+    expect(promotion).toContain('No production deployment is claimed here');
+
+    expect(pagesWorkflow).toContain('actions/upload-pages-artifact');
+    expect(pagesWorkflow).toContain('actions/deploy-pages');
+    expect(ciWorkflow).toContain('npm run e2e:ci');
+    expect(releaseWorkflow).toContain('npm run images:verify');
+    expect(releaseWorkflow).toContain('Nothing is pushed');
+  });
+});
+
 describe('registry-neutral release build', () => {
   it('exposes the ops commands from package.json', () => {
     const manifest = JSON.parse(read('package.json')) as { scripts: Record<string, string> };

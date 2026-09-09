@@ -46,7 +46,30 @@ served on any origin without rebuilding it.
 
 Static-file hosts (Cloudflare Pages, GitHub Pages and friends) can still serve the bundle, but they
 cannot inject a runtime declaration, so such a deployment is pinned to whatever origin it was built
-with and needs the API reachable from the browser. The supported path is the release container.
+with and needs the API reachable from the browser. The supported full-stack path is the release
+container.
+
+## Current workflow boundaries
+
+GitHub Pages is **static publication only**, not a full-stack production release gate. The existing
+`.github/workflows/deploy-pages.yml` workflow runs on `main` pushes or manual dispatch, builds the
+Angular bundle, copies `index.html` to `404.html`, and deploys that static artifact. It starts no API,
+PostgreSQL or Worker, injects no runtime config, and does not prove a production release. The Pages
+artifact therefore cannot be used as evidence that the server-mode application is deployed.
+
+`.github/workflows/static.yml` runs CI checks on pull requests and `main`, including backend tests,
+frontend tests, build, audit and `npm run e2e:ci`. `.github/workflows/release-images.yml` builds,
+verifies and scans registry-neutral image artifacts; it does not publish them or deploy production.
+`npm run release:candidate` and `npm run release:rehearsal` are local full-stack rehearsals, not live
+production gates.
+
+### Planned promotion, not implemented
+
+The approved promotion shape is **dev → staging → main**: freeze candidate source, build once,
+test and scan, publish immutable image digests, deploy staging, run its full-stack gate, then promote
+the unchanged source and tested digest manifest to `main` and production **without a rebuild**. This
+is planned documentation only. Current workflows do not implement promotion, digest publication or
+immutable-promotion enforcement; these remain pending. No production deployment is claimed here.
 
 ## 1. Serve it from the release image
 
@@ -64,26 +87,28 @@ serves the app against it.
 
 Open the deployed URL and check:
 
-1. `/leagues` loads without console errors.
-2. Users can view League data and download exports.
-3. Users can create, restore, edit, and delete League data in browser storage without signing in.
-4. No login, account menu, or role-management buttons are shown, and `/login`, `/registrations`,
-   `/organizer/tournaments` and `/admin` all render the Not Found page.
-5. Refreshing a nested route still loads the Angular app.
-6. Settings still offers the private migration-bundle export, and the browser issues no `/api/`
-   request at any point.
+1. `/events` loads from the API without console errors; sign-in and role-protected routes use the
+   API session and expected role guards.
+2. Event, server Archive records and server-backed Live changes persist through the API. The merged
+   Archive list also includes local records from `gones-archive-local` (`leagues`, `league-seasons`,
+   `tournaments`), the sanctioned local Archive adapter (ADR 0028), routed by `local-` id; local
+   records never sync with the API.
+3. Anonymous visitors and plain `User` sessions use the sanctioned offline Live adapter (ADR 0021),
+   backed by `gones-live` / `tournaments`; `Organizer` and `Admin` sessions use the server adapter.
+   Live local records never sync with the API. Neither adapter becomes shared data authority.
+4. Existing bundles exported before ADR 0020 still import through the offline Migrator CLI; no new
+   browser migration bundle is produced.
+5. Refreshing a nested route still loads the Angular app. For GitHub Pages, this is supplied by the
+   workflow's copied `404.html`; other static hosts need their own documented fallback.
 
-## 3. If direct route refreshes 404
+A Pages deployment can verify static asset publication and route fallback only. It cannot verify API,
+PostgreSQL, Worker, auth, migrations, backups or full-stack production readiness.
 
-Angular routes such as `/leagues` and `/players/Alice` need a static-host fallback to `index.html`.
+## 3. If a static host needs a route fallback
 
-If a static host does not handle this automatically, add a `_redirects` file to the built site with this content:
-
-```text
-/* /index.html 200
-```
-
-For this Angular project, that means adding `src/_redirects` and including it in the `assets` array in `angular.json` so it is copied to `dist/gones/browser/_redirects`.
+Fallback configuration is host-specific. The current GitHub Pages workflow copies `index.html` to
+`404.html`; no generic `_redirects` command is part of this deployment contract. The supported
+full-stack deployment uses the release container and its nginx SPA fallback.
 
 ## 4. Local production build check
 
@@ -115,9 +140,13 @@ dist/gones/browser
    **One artifact, any domain or CDN: moving origins never needs a rebuild.**
 4. Point the API at its PostgreSQL database and follow [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md).
 
-The database is the single authority: there is no whole-document League/Live save and no browser
-CalendarEvent store, and the browser keeps only language, view preference, filters and the anonymous
-public read cache.
+The API database is the authority for Events, server Archive records, auth, organizations, admin
+and server-backed Live. Sanctioned browser-only exceptions remain: the offline Live adapter (ADR 0021),
+backed by `gones-live` / `tournaments`, and merged local Archive adapter (ADR 0028), backed by
+`gones-archive-local` with `leagues`, `league-seasons` and `tournaments` stores. Their records never
+sync with the API; local Archive reads and writes route by the `local-` id prefix. There is no
+whole-document server save and no browser CalendarEvent store. Browser preferences, public read cache
+and the approved account-scoped unsent Event draft remain non-canonical.
 
 ## 6. Deferred: domain, CDN and providers
 
