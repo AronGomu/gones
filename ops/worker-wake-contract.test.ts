@@ -42,9 +42,10 @@ describe('private Worker wake runtime contract', () => {
     expect(release).toContain('chmod 0700 /worker-wake');
   });
 
-  it('bounded W10a retains polling heartbeat; no idle-safe rollout claim', () => {
+  it('default polling retains heartbeat; idle runtime never implies rollout approval', () => {
     expect(read('backend/src/Gones.Worker/Worker.cs')).toContain('GetRequiredService<WorkerHeartbeatStore>()');
     expect(read('backend/src/Gones.Worker/Worker.cs')).toContain('options.PollInterval');
-    expect(read('docs/WORKER_SCHEDULING.md')).toContain('W10b due dispatcher/maintenance, W11 local health remain pending');
+    expect(read('docs/WORKER_SCHEDULING.md')).toContain('Default polling/DB heartbeat stay enabled');
+    expect(read('docs/WORKER_IDLE.md')).toContain('Production activation forbidden until external gate accepted');
   });
 });

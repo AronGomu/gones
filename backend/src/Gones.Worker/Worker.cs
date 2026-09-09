@@ -16,6 +16,7 @@ public sealed class Worker(
     IClock clock,
     OperationalMetrics metrics,
     WorkerWakeSignal wake,
+    IServiceProvider services,
     ILogger<Worker> logger) : BackgroundService
 {
     public static void AddRuntimeServices(IServiceCollection services, IConfiguration configuration)
@@ -27,12 +28,25 @@ public sealed class Worker(
         services.AddScoped<UserEmailHistoryRedactor>();
         services.AddScoped<IdempotencyRecordSweeper>();
         services.AddWorkerWakeReceiver(configuration);
+        if (WorkerIdleOptions.TryLoad(configuration) is { } idle)
+        {
+            if (!OperatingSystem.IsLinux()) throw new InvalidOperationException("Worker idle health requires Linux.");
+            services.AddSingleton(idle);
+            services.AddSingleton<WorkerRuntimeFile>();
+            services.AddScoped<WorkerDueQuery>();
+            services.AddSingleton<WorkerDueDispatcher>();
+        }
         services.AddHostedService<Worker>();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(WorkerLogEvents.Started, "Event={Event}", "worker.started");
+        if (services.GetService<WorkerDueDispatcher>() is { } dispatcher)
+        {
+            await dispatcher.RunAsync(stoppingToken);
+            return;
+        }
         var nextHeartbeat = Instant.MinValue;
         var nextEmailHistoryRedaction = Instant.MinValue;
         var nextDeliveryMetadataCleanup = Instant.MinValue;

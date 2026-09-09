@@ -114,7 +114,7 @@ public sealed class TournamentScheduleReconciler(
         return true;
     }
 
-    private async Task<(bool Acquired, int Count, Guid LastTournamentId)> RefreshDailyPageAsync(Guid? cursor, CancellationToken cancellationToken)
+    public async Task<(bool Acquired, int Count, Guid LastTournamentId)> RefreshDailyPageAsync(Guid? cursor, CancellationToken cancellationToken)
     {
         var now = clock.GetCurrentInstant();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);

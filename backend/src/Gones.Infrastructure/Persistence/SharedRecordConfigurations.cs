@@ -75,3 +75,12 @@ internal sealed class WorkerHeartbeatRecordConfiguration : IEntityTypeConfigurat
         builder.Property(entity => entity.WorkerId).HasMaxLength(100);
     }
 }
+
+internal sealed class WorkerMaintenanceStateConfiguration : IEntityTypeConfiguration<WorkerMaintenanceState>
+{
+    public void Configure(EntityTypeBuilder<WorkerMaintenanceState> builder)
+    {
+        builder.HasKey(entity => entity.Key);
+        builder.Property(entity => entity.Key).HasMaxLength(40);
+    }
+}
