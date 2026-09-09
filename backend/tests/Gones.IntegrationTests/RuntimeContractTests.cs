@@ -84,7 +84,8 @@ public sealed class RuntimeContractTests
             "GONES_DB_CONNECTION",
             "GONES_AUTH_SIGNING_KEY",
             "GONES_EVENT_IMAGES_S3_ACCESS_KEY",
-            "GONES_EVENT_IMAGES_S3_SECRET_KEY"
+            "GONES_EVENT_IMAGES_S3_SECRET_KEY",
+            "GONES_WORKER_WAKE_TOKEN"
         ],
         GonesSecretFiles.SupportedKeys);
     }

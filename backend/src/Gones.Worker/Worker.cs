@@ -4,6 +4,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Workers;
 using NodaTime;
 
 namespace Gones.Worker;
@@ -14,8 +15,21 @@ public sealed class Worker(
     TournamentSchedulerOptions schedulerOptions,
     IClock clock,
     OperationalMetrics metrics,
+    WorkerWakeSignal wake,
     ILogger<Worker> logger) : BackgroundService
 {
+    public static void AddRuntimeServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddNotificationWorker(configuration);
+        services.AddTournamentScheduler(configuration);
+        services.AddScoped<WorkerHeartbeatStore>();
+        services.AddScoped<EventImageCleanupService>();
+        services.AddScoped<UserEmailHistoryRedactor>();
+        services.AddScoped<IdempotencyRecordSweeper>();
+        services.AddWorkerWakeReceiver(configuration);
+        services.AddHostedService<Worker>();
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(WorkerLogEvents.Started, "Event={Event}", "worker.started");
@@ -30,6 +44,7 @@ public sealed class Worker(
             var now = clock.GetCurrentInstant();
             var heartbeatDue = now >= nextHeartbeat;
             var processed = 0;
+            var failed = false;
             try
             {
                 using var scope = scopeFactory.CreateScope();
@@ -62,6 +77,7 @@ public sealed class Worker(
                 }
                 catch (Exception exception)
                 {
+                    failed = true;
                     logger.LogError(WorkerLogEvents.SchedulerFailed, "Event={Event} ExceptionType={ExceptionType}", "scheduler.poll.failed", exception.GetType().Name);
                 }
 
@@ -145,13 +161,15 @@ public sealed class Worker(
             }
             catch (Exception exception)
             {
+                failed = true;
                 logger.LogError(WorkerLogEvents.PollFailed, "Event={Event} ExceptionType={ExceptionType}", "worker.poll.failed", exception.GetType().Name);
             }
 
-            if (processed >= options.BatchSize) continue;
+            if (!failed && processed >= options.BatchSize) continue;
             try
             {
-                await Task.Delay(options.PollInterval.ToTimeSpan(), stoppingToken);
+                if (failed) await Task.Delay(options.PollInterval.ToTimeSpan(), stoppingToken);
+                else await wake.WaitAsync(options.PollInterval.ToTimeSpan(), stoppingToken, TimeSpan.FromSeconds(1));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

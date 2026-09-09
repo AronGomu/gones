@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Gones.Api\Gones.Api.csproj" />
+    <ProjectReference Include="..\..\src\Gones.Worker\Gones.Worker.csproj" Aliases="WorkerHost" />
   </ItemGroup>
 
 </Project>

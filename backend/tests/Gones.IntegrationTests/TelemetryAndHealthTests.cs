@@ -8,9 +8,11 @@ using Gones.Application.Notifications;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Workers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using NodaTime;
@@ -81,6 +83,56 @@ public sealed class TelemetryAndHealthTests : IAsyncLifetime
             && activity.TraceId == producerContext.TraceId
             && activity.ParentSpanId == producerContext.SpanId
             && activity.GetTagItem("gones.correlation_id")?.ToString() == correlationId);
+    }
+
+    [Fact]
+    public async Task Api_committed_outbox_wakes_private_worker_wait_and_public_edge_has_no_wake_route()
+    {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
+        var root = new DirectoryInfo(Directory.GetCurrentDirectory());
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "AGENT.md"))) root = root.Parent;
+        var directory = Path.Combine(root!.FullName, ".tmp", $"wk-{Guid.NewGuid():N}"[..11]);
+        Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var socketPath = Path.Combine(directory, "w.sock");
+        var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [WorkerWakeOptions.SocketKey] = socketPath,
+            [WorkerWakeOptions.TokenKey] = token
+        }).Build();
+        var signal = new WorkerWakeSignal();
+        using var stopping = new CancellationTokenSource();
+        using var listener = new WorkerWakeListener(WorkerWakeOptions.TryLoad(configuration)!);
+        var receiving = listener.RunAsync(signal, stopping.Token);
+        try
+        {
+            using var app = factory.WithWebHostBuilder(builder =>
+            {
+                builder.UseEnvironment("Testing");
+                builder.UseSetting(PersistenceServiceCollectionExtensions.ConnectionStringKey, postgres.GetConnectionString());
+                builder.UseSetting("GONES_OTEL_CONSOLE_EXPORTER", "false");
+                builder.UseSetting("GONES_ALLOW_TEST_NOTIFICATION", "true");
+                builder.UseSetting(WorkerWakeOptions.SocketKey, socketPath);
+                builder.UseSetting(WorkerWakeOptions.TokenKey, token);
+            });
+            using var client = app.CreateClient();
+            using var response = await client.PostAsJsonAsync("/ops/probes/notification", new { });
+            Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+            Assert.True(await signal.WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None));
+            await using var database = CreateContext();
+            Assert.Single(await database.NotificationOutboxRecords.ToListAsync());
+            Assert.Equal(1, await CreateProcessor(database).ProcessBatchAsync(CancellationToken.None));
+            Assert.Single(await database.NotificationHistory.ToListAsync());
+            using var publicWake = await client.PostAsJsonAsync("/worker/wake", new { });
+            Assert.Equal(HttpStatusCode.NotFound, publicWake.StatusCode);
+        }
+        finally
+        {
+            stopping.Cancel();
+            await receiving;
+            listener.Dispose();
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [Fact]

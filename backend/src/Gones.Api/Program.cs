@@ -20,6 +20,7 @@ using Gones.Infrastructure.Identity;
 using Gones.Infrastructure.Notifications;
 using Gones.Infrastructure.Observability;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Workers;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
@@ -130,6 +131,7 @@ if (string.IsNullOrWhiteSpace(connectionString))
 else
 {
     builder.Services.AddGonesPersistence(connectionString);
+    builder.Services.AddWorkerWakeProducer(builder.Configuration);
     builder.Services.AddNotificationOutbox();
     builder.Services.AddSingleton<NotificationMetrics>();
     if (brevoWebhookOptions is not null)

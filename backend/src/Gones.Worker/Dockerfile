@@ -3,6 +3,8 @@
 # Singleton by contract: exactly one replica, leadership arbitrated by PostgreSQL advisory locks and
 # outbox leases, never by a vendor scheduler primitive. Liveness is observed through the API's
 # workerHeartbeat readiness check, so the image itself exposes no HTTP port.
+# Optional authenticated wake uses an environment-private Unix socket mounted at runtime; --wake
+# sends one hint for trusted local diagnostics. Polling/DB heartbeat remain until W10b/W11.
 ARG DOTNET_SDK_IMAGE=mcr.microsoft.com/dotnet/sdk:10.0@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0
 ARG DOTNET_RUNTIME_IMAGE=mcr.microsoft.com/dotnet/runtime:10.0@sha256:68d35011fe04a39cca38208d392ed48f2df15653633dca16dbc4582d07342b9f
 
