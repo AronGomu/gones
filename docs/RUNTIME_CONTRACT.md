@@ -9,8 +9,8 @@ Verified continuously by `ops/image-contract.test.ts`, `ops/host-contract.test.t
 `npm run images:verify`, `npm run release:rehearsal` and `npm run backup:rehearsal`.
 
 What an operator *does* with that host — deploy ordering, rollback principles, secret rotation, the
-provider webhook, backup and restore, schema migrations, the legacy-import CLI, Admin bootstrap and
-observability — is [`OPERATIONS.md`](OPERATIONS.md).
+provider webhook, backup and restore, on-demand staging windows, schema migrations, the legacy-import CLI, Admin bootstrap and
+observability — is [`OPERATIONS.md`](OPERATIONS.md). Staging lifecycle and per-environment recovery details are [`STAGING_OPERATIONS.md`](STAGING_OPERATIONS.md).
 
 ## Artifacts
 
@@ -210,7 +210,7 @@ so no token, password, email body or raw rich HTML reaches the host's log store.
 ## What is deliberately not here
 
 Hosting vendor, DNS, CDN, managed PostgreSQL, managed secret store, container registry, remote backup
-storage and IaC are all deferred (see the implementation plan, §1). Nothing in this contract assumes
+storage and IaC are all deferred (see the implementation plan, §1). Staging DB suspension, edge maintenance, and budget savings remain unproved until live acceptance. Nothing in this contract assumes
 any of them, and nothing in the repository names one. The CI pipeline in
 `.github/workflows/release-images.yml` builds, verifies and scans the artifacts but never publishes
 them; the cosign step is an inert hook until a registry with OIDC trust is chosen.

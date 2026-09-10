@@ -35,6 +35,8 @@
     "release:candidate": "node scripts/release-candidate.mjs",
     "release:rehearsal": "node scripts/release-rehearsal.mjs",
     "backup:rehearsal": "node scripts/backup-restore-rehearsal.mjs",
+    "staging:ops": "node scripts/staging-operations.mjs",
+    "staging:budget": "node scripts/staging-operations.mjs budget",
     "db:reset": "node scripts/reset-local-stack.mjs",
     "db:seed": "node scripts/seed-local.mjs",
     "geo:generate": "node scripts/generate-geo.mjs",

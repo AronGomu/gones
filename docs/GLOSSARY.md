@@ -51,6 +51,8 @@
 | worker | Background service: polling default, opt-in durable due dispatch | `backend/src/Gones.Worker/Worker.cs` |
 | wake | Private post-commit hint interrupting Worker wait | `backend/src/Gones.Infrastructure/Workers/WorkerWakeSignal.cs` |
 | dispatcher | Due work orchestration with idle-safe private health | `backend/src/Gones.Infrastructure/Workers/WorkerDueDispatcher.cs` |
+| staging window | Explicit bounded interval during which staging services run; expiry drains services without deleting persistent stores | `scripts/staging-operations.mjs`, `docs/STAGING_OPERATIONS.md` |
+| budget gate | Combined monthly cost and staging compute-reserve check required before extending staging uptime | `scripts/staging-operations.mjs` |
 | reconciler | Replans event reminders on date or roster change | `backend/src/Gones.Infrastructure/Calendar/EventScheduler.cs` |
 | event | Calendar record for one single-format tournament concept; may link to Live/Archive Tournaments (ADRs 0035–0036) | `backend/src/Gones.Domain/Calendar/Event.cs` |
 | scheduled tournament | **Retired term** for an event (ADR 0035). Left only in identifiers the rename kept on purpose | `docs/adr/0035-calendar-event-vocabulary.md` |

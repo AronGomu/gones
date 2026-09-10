@@ -18,6 +18,8 @@ bucket — the step is marked **deferred** and is *not* claimed to work.
 | Image provenance | `npm run images:build`, `npm run images:verify`, `npm run images:scan` |
 | Acceptance coverage | `npm run acceptance:matrix` |
 | Release candidate assembly | `npm run release:preflight`, `npm run release:candidate` |
+| On-demand staging window, budget, drain | `npm run staging:ops`, `npm run staging:budget` |
+| Per-environment backup / isolated restore | [`STAGING_OPERATIONS.md`](STAGING_OPERATIONS.md), `npm run staging:ops` |
 
 The candidate this runbook operates — the artifact set, the residuals and the deferred live
 infrastructure — is described in [`RELEASE_NOTES_V1.md`](RELEASE_NOTES_V1.md). The approved shared-host
@@ -93,7 +95,7 @@ Rolling back application code is cheap. Rolling back a schema is not. The rules:
    for at least one release. Add columns nullable, backfill separately, drop only after the version
    that stopped writing them has been running for a full release cycle. Rename by adding, dual-writing
    and removing — never by `ALTER ... RENAME` in one step.
-4. **If a rollback needs the old schema, it is a restore, not a rollback.** Go to §7, accept the data
+4. **If a rollback needs the old schema, it is a restore, not a rollback.** Go to §8, accept the data
    loss window between the dump and now, and treat it as an incident.
 5. **Roll the Worker back with the API.** They share the outbox and the scheduler tables; a version
    skew across a schema change is the one combination that has no test coverage.
@@ -160,7 +162,16 @@ local and CI run uses the fake provider by design.
 The retry ladder is 1 min → 5 min → 30 min → 2 h → 12 h, then dead letter. A circuit breaker opens
 after repeated transport failures so one broken provider cannot burn the whole queue.
 
-## 7. Backup and restore
+## 7. On-demand staging
+
+Staging lifecycle, bounded test windows, maintenance-before-stop drain, combined budget projection,
+and staging/production backup-target isolation are documented in
+[`STAGING_OPERATIONS.md`](STAGING_OPERATIONS.md). Use its commands exactly: staging lifecycle is
+fixed to Compose project `gones-staging`, production remains `gones-prod`, and no lifecycle command
+removes volumes. A passing local budget calculation is not provider billing evidence; managed-DB
+suspension, edge maintenance, host isolation, 72-hour soak, and cost savings remain external gates.
+
+## 8. Backup and restore
 
 ```bash
 # inside the release-test stack, or on the host with the same image and mounts
@@ -185,7 +196,7 @@ gones-restore.sh <archive> # verifies the checksum and the key before touching t
 **Deferred:** offsite storage, retention sweeps, point-in-time recovery, a backup scheduler, and any
 RPO/RTO commitment. Those need real hardware and a real hosting decision.
 
-## 8. Running a schema migration
+## 9. Running a schema migration
 
 Migrations run as their own job, never from the API process.
 
@@ -193,7 +204,7 @@ Migrations run as their own job, never from the API process.
 docker compose -f compose.release-test.yaml run --rm migrator database update
 ```
 
-1. Take a backup first (§7). Always.
+1. Take a backup first (§8). Always.
 2. Run the migration job and require exit `0`.
 3. Re-running it must apply nothing new — idempotency is asserted by the release rehearsal against
    `__EFMigrationsHistory`.
@@ -214,7 +225,7 @@ The two invariants it healed are enforced on every runtime write path, so no rep
 an organization with no members is a Draft, and the global `Organizer` role is derived from live
 membership.
 
-## 9. Importing legacy browser data (the cutover CLI)
+## 10. Importing legacy browser data (the cutover CLI)
 
 Legacy `localStorage` is origin- and device-scoped, so the cutover is a per-origin operation.
 
@@ -242,7 +253,7 @@ docker compose run --rm migrator import ... --accept-report-hash sha256:<hash fr
 **Deferred:** the live cutover itself. It needs an inventory of every legacy origin and browser, an
 export from each, and a soak period before the legacy static build is retired (ADR 0019).
 
-## 10. Admin bootstrap
+## 11. Admin bootstrap
 
 There is no seeded administrator or generated password. Follow [Owner setup](OWNER_SETUP.md):
 private `owner setup` queues a link; owner submits their own password and required profile fields;
@@ -256,7 +267,7 @@ re-promote a deleted/demoted established owner. Legacy `admin bootstrap --email`
 an explicit private compatibility operation for unbound enrollment; it cannot bypass pending setup.
 See the linked runbook for resend cooldown, configuration binding, staging policy, and recovery.
 
-## 11. Observability
+## 12. Observability
 
 - Logs are structured JSON on stdout. The host collects them; the application does not write files.
 - Traces and metrics go to `OTEL_EXPORTER_OTLP_ENDPOINT`. The rehearsal asserts that a single
@@ -267,7 +278,7 @@ See the linked runbook for resend cooldown, configuration binding, staging polic
 
 **Deferred:** the collector backend, dashboards, alert routing and log retention windows.
 
-## 12. What is explicitly not proved here
+## 13. What is explicitly not proved here
 
 Repeating it once, plainly, because a runbook is exactly where an unearned claim would do damage:
 

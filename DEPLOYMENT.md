@@ -8,7 +8,8 @@
 >
 > **Running it day to day** — deploy ordering, rollback principles, secret rotation, the provider
 > webhook, backup/restore, schema migrations, the bundle-import CLI and Admin bootstrap all live in
-> [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+> [`docs/OPERATIONS.md`](docs/OPERATIONS.md). On-demand staging windows, safe drain, budget checks,
+> and per-environment backup/restore are in [`docs/STAGING_OPERATIONS.md`](docs/STAGING_OPERATIONS.md).
 >
 > **The V1 release candidate** — what the artifact set is, how to reproduce it, what is still
 > deferred: [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md).
