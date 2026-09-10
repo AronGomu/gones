@@ -135,6 +135,9 @@ The public domain, DNS, CDN, hosting vendor, container registry and live email/O
   restore, schema migrations, the bundle-import CLI, Admin bootstrap and observability. Every
   procedure names the committed script that rehearses it locally, and every step that would need real
   infrastructure is marked deferred.
+- [`docs/STAGING_FOUNDATION.md`](docs/STAGING_FOUNDATION.md) — approved shared-host staging shape,
+  on-demand lifecycle, recovery/cost gates and immutable promotion contract. No live infrastructure
+  or provider purchase is claimed.
 - [`docs/RUNTIME_CONTRACT.md`](docs/RUNTIME_CONTRACT.md) — what a generic Linux host must provide.
 - [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md) — the V1 release candidate: the immutable
   artifact set, how to reproduce it with `npm run release:candidate`, the known residuals, and the

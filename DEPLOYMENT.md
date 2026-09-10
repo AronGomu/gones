@@ -12,6 +12,9 @@
 >
 > **The V1 release candidate** — what the artifact set is, how to reproduce it, what is still
 > deferred: [`docs/RELEASE_NOTES_V1.md`](docs/RELEASE_NOTES_V1.md).
+>
+> **The approved staging foundation** — shared-host topology, on-demand lifecycle, cost/recovery
+> gates and immutable promotion rules: [`docs/STAGING_FOUNDATION.md`](docs/STAGING_FOUNDATION.md).
 
 ## Data authority: declared, and there is only one
 

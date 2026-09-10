@@ -20,7 +20,10 @@ bucket — the step is marked **deferred** and is *not* claimed to work.
 | Release candidate assembly | `npm run release:preflight`, `npm run release:candidate` |
 
 The candidate this runbook operates — the artifact set, the residuals and the deferred live
-infrastructure — is described in [`RELEASE_NOTES_V1.md`](RELEASE_NOTES_V1.md).
+infrastructure — is described in [`RELEASE_NOTES_V1.md`](RELEASE_NOTES_V1.md). The approved shared-host
+staging shape, on-demand lifecycle, cost/recovery gates and immutable promotion contract are in
+[`STAGING_FOUNDATION.md`](STAGING_FOUNDATION.md). Neither document claims live infrastructure or a
+provider purchase.
 
 ---
 
