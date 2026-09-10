@@ -1,14 +1,11 @@
 name: Release images
 
-# Registry-neutral artifact build (C41).
-#
-# Produces the linux/amd64 release images, their immutable digests, SBOMs, checksums and security
-# scan reports as workflow artifacts. Nothing is pushed: choosing a registry is deferred with the
-# rest of the hosting decision, so this pipeline deliberately stops at "verified local artifact".
+# Build once on candidate branches, publish immutable GHCR digests, attest/sign them, then expose
+# provenance/checksums from trivy + gitleaks (Trivy/Gitleaks) for the staging workflow. Pull requests stay registry-free and cannot receive packages.
 
 on:
   push:
-    branches: [main]
+    branches: [dev, staging]
   pull_request:
     paths:
       - 'Dockerfile'
@@ -16,75 +13,184 @@ on:
       - 'deploy/**'
       - 'compose*.yaml'
       - 'scripts/*release*'
+      - 'scripts/publish-release-images.mjs'
+      - 'scripts/verify-published-images.mjs'
+      - 'scripts/promotion-check.mjs'
       - 'scripts/scan-images.mjs'
       - 'scripts/verify-image-contract.mjs'
       - 'ops/**'
-      - '.github/workflows/release-images.yml'
+      - '.github/workflows/**'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish immutable candidate to GHCR
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
 
+concurrency:
+  group: gones-staging-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
-  images:
+  quality:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # Reserved for future keyless signing against an OIDC-enabled registry.
-      id-token: write
     steps:
       - uses: actions/checkout@v5
-
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
           cache: npm
-
-      - uses: docker/setup-buildx-action@v3
-
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
       - run: npm ci
+      - run: npm run api:check
+      - run: dotnet test backend/Gones.sln --configuration Release
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run acceptance:matrix
 
-      # Static contract over the build files, before anything is built.
+  publish:
+    if: (github.event_name == 'push' && (github.ref_name == 'dev' || github.ref_name == 'staging')) || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    needs: quality
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm ci
       - name: Verify image and host contract
         run: npx vitest run ops
-
-      - name: Build release images
+      - name: Build release images once
         env:
           GONES_IMAGE_PLATFORM: linux/amd64
+          GONES_IMAGE_REFERENCE: ${{ github.sha }}
         run: npm run images:build
-
-      - name: Verify built image contract
+      - name: Verify and scan release images
         env:
           GONES_IMAGE_PLATFORM: linux/amd64
-        run: npm run images:verify
-
-      # trivy for image vulnerabilities, gitleaks for secrets. Both run as digest-pinned containers,
-      # so the local command and the CI command are the same command.
-      - name: Scan images and working tree
-        run: npm run images:scan
-
-      # Artifacts: image digests, sbom (SPDX), checksums, trivy and gitleaks reports.
-      - name: Upload digests, sbom, checksums and scan reports
-        if: always()
-        uses: actions/upload-artifact@v5
-        with:
-          name: release-image-provenance
-          path: reports/images/
-          if-no-files-found: warn
-
-      # Signing hook. Disabled until a registry with OIDC trust exists; it never runs with a private
-      # key, and no registry host is configured anywhere in this repository.
-      - name: Install cosign
-        if: ${{ vars.GONES_SIGN_IMAGES == 'true' }}
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign published digests (keyless, OIDC)
-        if: ${{ vars.GONES_SIGN_IMAGES == 'true' }}
-        env:
-          COSIGN_EXPERIMENTAL: '1'
+          GONES_IMAGE_REFERENCE: ${{ github.sha }}
         run: |
-          # Placeholder for the future publish step: once images are pushed to a registry chosen by
-          # the deferred hosting decision, sign each pushed digest keylessly with the workflow's OIDC
-          # identity. Until then there is nothing to sign, so the step is a documented no-op.
-          echo "cosign is installed; signing runs once a registry target exists."
-          cosign version
+          npm run images:verify
+          npm run images:scan
+      - name: Publish immutable release images
+        env:
+          GONES_IMAGE_REFERENCE: ${{ github.sha }}
+          GONES_IMAGE_REGISTRY: ghcr.io
+          GONES_IMAGE_NAMESPACE: ${{ github.repository }}
+          GONES_CONFIG_REVISION: ${{ vars.GONES_STAGING_CONFIG_REVISION || github.sha }}
+        run: npm run release:publish
+      - uses: actions/upload-artifact@v5
+        with:
+          name: release-image-provenance-${{ github.sha }}
+          path: reports/images/
+          if-no-files-found: error
+
+  attest:
+    if: needs.publish.result == 'success'
+    needs: publish
+    strategy:
+      matrix:
+        image: [api, worker, migrator, backup, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-image-provenance-${{ github.sha }}
+          path: reports/images
+      - id: subject
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: |
+          echo "name=$(jq -r --arg image "$IMAGE" '.registry.images[] | select(.name == $image) | .ref' reports/images/manifest.json)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(jq -r --arg image "$IMAGE" '.registry.images[] | select(.name == $image) | .digest' reports/images/manifest.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.subject.outputs.name }}
+          subject-digest: ${{ steps.subject.outputs.digest }}
+          push-to-registry: true
+
+  sign-and-verify:
+    if: needs.attest.result == 'success'
+    needs: attest
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-image-provenance-${{ github.sha }}
+          path: reports/images
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign and verify exact registry digests
+        env:
+          GONES_COSIGN_IDENTITY_REGEXP: '^https://github.com/${{ github.repository }}/.github/workflows/release-images.yml@refs/heads/(dev|staging)$'
+          GONES_COSIGN_OIDC_ISSUER: https://token.actions.githubusercontent.com
+        run: |
+          jq -c '.registry.images[]' reports/images/manifest.json | while read -r image; do
+            ref=$(jq -r '.ref' <<< "$image")
+            digest=$(jq -r '.digest' <<< "$image")
+            cosign sign --yes "$ref@$digest"
+          done
+          npm run release:verify-published
+      - uses: actions/upload-artifact@v5
+        with:
+          name: release-image-provenance-verified-${{ github.sha }}
+          path: reports/images/
+          if-no-files-found: error
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref_name == 'staging' && needs.sign-and-verify.result == 'success'
+    needs: sign-and-verify
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v5
+        with:
+          name: release-image-provenance-verified-${{ github.sha }}
+          path: reports/images
+      - name: Invoke fixed staging deployment operation
+        env:
+          GONES_STAGING_DEPLOY_URL: ${{ secrets.GONES_STAGING_DEPLOY_URL }}
+          GONES_STAGING_DEPLOY_TOKEN: ${{ secrets.GONES_STAGING_DEPLOY_TOKEN }}
+        run: npm run release:deploy-staging -- --evidence=reports/staging/evidence.json
+      - name: Require unchanged source, config and tested digests
+        run: npm run release:promotion-check -- --evidence=reports/staging/evidence.json
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: staging-promotion-evidence-${{ github.sha }}
+          path: reports/staging/evidence.json
+          if-no-files-found: error

@@ -1,9 +1,8 @@
 # Gones Calendar runtime contract
 
-What a host has to provide to run Gones Calendar V1, and nothing more. No hosting vendor, registry,
-managed database, secret manager or IaC tool is chosen yet, so this document is the whole interface.
-If a platform can run Linux OCI images, mount a volume, inject a file and terminate TLS, it can run
-Gones Calendar.
+What a host has to provide to run Gones Calendar V1, and nothing more. Host, managed database,
+secret manager and IaC tool remain undecided; GHCR is candidate registry. If a platform can run Linux
+OCI images, mount a volume, inject a file and terminate TLS, it can run Gones Calendar.
 
 Verified continuously by `ops/image-contract.test.ts`, `ops/host-contract.test.ts`,
 `npm run images:verify`, `npm run release:rehearsal` and `npm run backup:rehearsal`.

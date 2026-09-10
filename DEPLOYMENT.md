@@ -63,17 +63,22 @@ artifact therefore cannot be used as evidence that the server-mode application i
 
 `.github/workflows/static.yml` runs CI checks on pull requests and `main`, including backend tests,
 frontend tests, build, audit and `npm run e2e:ci`. `.github/workflows/release-images.yml` builds,
-verifies and scans registry-neutral image artifacts; it does not publish them or deploy production.
+verifies, scans and publishes source-SHA-tagged GHCR image artifacts on candidate branches.
 `npm run release:candidate` and `npm run release:rehearsal` are local full-stack rehearsals, not live
 production gates.
 
-### Planned promotion, not implemented
+### Immutable promotion workflow
 
-The approved promotion shape is **dev → staging → main**: freeze candidate source, build once,
-test and scan, publish immutable image digests, deploy staging, run its full-stack gate, then promote
-the unchanged source and tested digest manifest to `main` and production **without a rebuild**. This
-is planned documentation only. Current workflows do not implement promotion, digest publication or
-immutable-promotion enforcement; these remain pending. No production deployment is claimed here.
+The approved promotion shape is **dev → staging → main**. The release workflow builds candidate
+images once, scans them, publishes immutable GHCR images, attaches GitHub build provenance, signs each
+digest through workflow OIDC, then records the verified manifest. A staging push invokes only the fixed
+HTTPS deployment operation (`npm run release:deploy-staging`) under serialized `gones-staging-*`
+concurrency. Migration exit, source tree, config revision, staging gate and exact digest manifest are
+checked by `npm run release:promotion-check`; failure blocks rollout.
+
+Promotion evidence rejects changed source/config, mutable tags, missing signatures/attestations, failed
+migration and concurrent deployment. A future `main` handoff must reuse tested manifest/digests
+without rebuilding. No production deployment is claimed here.
 
 ## 1. Serve it from the release image
 

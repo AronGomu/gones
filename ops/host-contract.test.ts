@@ -200,7 +200,7 @@ describe('release candidate notes', () => {
       '24-hour reconcile',
       'nginx-alpine base',
       '`linux/amd64` only',
-      'Cosign signing hook is inert',
+      'Registry publication is GHCR-only',
       'point-in-time recovery are absent',
       'edge or global rate limiter',
       'fonts.googleapis.com',
@@ -211,14 +211,15 @@ describe('release candidate notes', () => {
     }
   });
 
-  it('keeps every live-infrastructure item deferred and unchecked', () => {
+  it('keeps every unproved live-infrastructure item deferred and unchecked', () => {
     const deferred = notes().slice(notes().indexOf('## Deferred live infrastructure'), notes().indexOf('## Evidence index'));
-    const boxes = [...deferred.matchAll(/^- \[( |x)\]/gm)].map((match) => match[1]);
+    const lines = deferred.split('\n').filter((line) => !line.includes('Publish candidate images to GHCR'));
+    const boxes = lines.flatMap((line) => [...line.matchAll(/^- \[( |x)\]/gm)].map((match) => match[1]));
 
     expect(boxes.length).toBeGreaterThan(8);
     // A ticked box here would be a live claim nothing in this repository can support.
     expect(boxes.every((box) => box === ' ')).toBe(true);
-    for (const item of ['registry', 'public domain', 'oauth', 'deliverability', 'recovery objectives', 'cutover']) {
+    for (const item of ['host and orchestrator', 'public domain', 'oauth', 'deliverability', 'recovery objectives', 'cutover']) {
       expect(deferred.toLowerCase()).toContain(item);
     }
   });
@@ -260,6 +261,7 @@ describe('deployment documentation boundaries', () => {
     const pagesWorkflow = read('.github/workflows/deploy-pages.yml');
     const ciWorkflow = read('.github/workflows/static.yml');
     const releaseWorkflow = read('.github/workflows/release-images.yml');
+    const promotionWorkflow = read('.github/workflows/promote-main.yml');
 
     expect(workflowBoundary).toContain('GitHub Pages is **static publication only**');
     expect(workflowBoundary).toContain('does not prove a production release');
@@ -267,51 +269,66 @@ describe('deployment documentation boundaries', () => {
     expect(pagesVerification).toContain('cannot verify API');
     expect(pagesVerification).toContain('full-stack production readiness');
 
-    const promotion = workflowBoundary.slice(workflowBoundary.indexOf('### Planned promotion, not implemented'));
+    const promotion = workflowBoundary.slice(workflowBoundary.indexOf('### Immutable promotion workflow'));
     expect(promotion).toContain('dev → staging → main');
-    expect(promotion).toContain('tested digest manifest');
-    expect(promotion).toContain('without a rebuild');
-    expect(promotion).toContain('planned documentation only');
-    expect(promotion).toContain('Current workflows do not implement promotion');
+    expect(promotion).toContain('immutable GHCR images');
+    expect(promotion).toContain('without rebuilding');
+    expect(promotion).toContain('release:promotion-check');
     expect(promotion).toContain('No production deployment is claimed here');
 
     expect(pagesWorkflow).toContain('actions/upload-pages-artifact');
     expect(pagesWorkflow).toContain('actions/deploy-pages');
     expect(ciWorkflow).toContain('npm run e2e:ci');
     expect(releaseWorkflow).toContain('npm run images:verify');
-    expect(releaseWorkflow).toContain('Nothing is pushed');
+    expect(releaseWorkflow).toContain('release:publish');
+    expect(releaseWorkflow).toContain('actions/attest-build-provenance');
+    expect(promotionWorkflow).toContain('release:promotion-check');
+    expect(promotionWorkflow).toContain('ref: main');
+    expect(promotionWorkflow).not.toContain('git push');
   });
 });
 
-describe('registry-neutral release build', () => {
+describe('immutable registry release build', () => {
   it('exposes the ops commands from package.json', () => {
     const manifest = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
 
-    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:preflight', 'release:candidate', 'release:rehearsal', 'backup:rehearsal', 'acceptance:matrix']) {
+    for (const script of ['images:build', 'images:verify', 'images:scan', 'release:preflight', 'release:publish', 'release:verify-published', 'release:deploy-staging', 'release:promotion-check', 'release:candidate', 'release:rehearsal', 'backup:rehearsal', 'acceptance:matrix']) {
       expect(manifest.scripts[script]).toBeTruthy();
     }
   });
 
-  it('builds amd64 images with digests, SBOM, checksums, scans and a signing hook', () => {
+  it('builds once, publishes immutable digests, attests and signs them', () => {
     const workflow = read('.github/workflows/release-images.yml');
 
     expect(workflow).toContain('linux/amd64');
     expect(workflow).toContain('images:build');
-    expect(workflow).toContain('images:scan');
-    expect(workflow).toContain('sbom');
+    expect(workflow).toContain('release:publish');
+    expect(workflow).toContain('release:verify-published');
+    expect(workflow).toContain('actions/attest-build-provenance');
     expect(workflow).toContain('checksums');
     expect(workflow).toContain('trivy');
     expect(workflow).toContain('gitleaks');
-    expect(workflow).toContain('cosign');
-    // Signing stays a hook until a registry with OIDC exists; it must never run by default.
-    expect(workflow).toMatch(/if:\s*\$\{\{\s*vars\.GONES_SIGN_IMAGES\s*==\s*'true'/);
+    expect(workflow).toContain('cosign sign --yes');
+    expect(workflow).toContain('GONES_IMAGE_REGISTRY: ghcr.io');
+    expect(workflow).toContain('GONES_IMAGE_REFERENCE: ${{ github.sha }}');
   });
 
-  it('never hard-codes a registry or a signing key', () => {
+  it('uses no private signing key and never tags latest', () => {
     const workflow = read('.github/workflows/release-images.yml');
 
-    expect(workflow).not.toMatch(/\.(amazonaws|azurecr|gcr|pkg\.dev)\b/);
     expect(workflow).not.toContain('cosign.key');
     expect(workflow).not.toContain('COSIGN_PRIVATE_KEY');
+    expect(workflow).not.toContain(':latest');
+  });
+
+  it('serializes staging deploy and invokes only fixed operation', () => {
+    const workflow = read('.github/workflows/release-images.yml');
+
+    expect(workflow).toContain('cancel-in-progress: false');
+    expect(workflow).toContain('environment: staging');
+    expect(workflow).toContain('release:deploy-staging');
+    expect(workflow).toContain('release:promotion-check');
+    expect(workflow).not.toContain('docker compose up');
+    expect(workflow).not.toContain('ssh ');
   });
 });

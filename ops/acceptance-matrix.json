@@ -738,7 +738,7 @@
             "doc": "01-architecture.md",
             "capability": "Public hosting: domain, DNS, CDN, managed PostgreSQL, container registry and image signing trust.",
             "status": "deferred",
-            "deferredReason": "No hosting vendor, domain or registry is chosen. Every artifact is registry-neutral and every rehearsal runs on one machine, so nothing here can be proved locally and nothing claims it is.",
+            "deferredReason": "GHCR candidate publication, immutable digests, SBOMs, attestations and OIDC signatures are implemented. Host, domain, managed PostgreSQL and live-provider deployment remain deferred.",
             "acceptance": [],
             "evidence": []
         },

@@ -178,8 +178,8 @@ These are known, accepted and **not** fixed in this candidate.
 3. **10 HIGH CVEs in the nginx-alpine base of the frontend image** (ADR 0018). The scan gate blocks
    on CRITICAL only. Base images are digest-pinned, so a base CVE fix needs an explicit commit.
 4. `linux/amd64` only. No arm64 artifact is produced or tested.
-5. The Cosign signing hook is inert: it stays gated on `vars.GONES_SIGN_IMAGES` until a registry with
-   OIDC exists.
+5. Registry publication is GHCR-only for candidate branches. Cosign signing and GitHub build
+   provenance require repository OIDC/attestation permissions; missing permissions fail publication.
 6. Remote/offsite backup storage, retention sweeps and point-in-time recovery are absent.
 7. No edge or global rate limiter; the application-level limiter is the only one (ADR 0017).
 8. Material Icons are still loaded from `fonts.googleapis.com` / `fonts.gstatic.com`, so a fully
@@ -193,8 +193,9 @@ None of the following is done, and nothing in this repository implies it is. Thi
 future hosting ticket has to work through — it is not a release blocker for the candidate, it is the
 boundary of what the candidate claims.
 
-- [ ] Choose a host, an orchestrator and a container registry; publish the digests to it.
-- [ ] Establish an image signing trust root and turn the Cosign hook on (`vars.GONES_SIGN_IMAGES`).
+- [x] Publish candidate images to GHCR with source-SHA tags, immutable manifest digests, SBOMs,
+      GitHub build provenance and OIDC signatures (`npm run release:publish`).
+- [ ] Choose a host and orchestrator; configure protected staging deployment endpoint.
 - [ ] Public domain, DNS, TLS certificate issuance and renewal, and CDN/edge configuration.
 - [ ] Managed or self-hosted PostgreSQL with real backups, retention, offsite copies and PITR.
 - [ ] Measure real recovery objectives. The local restore rehearsal prints a wall-clock number on one
@@ -221,6 +222,8 @@ boundary of what the candidate claims.
 | Artifacts honour the runtime contract | `npm run images:verify` |
 | No CRITICAL vulnerability, no detected secret | `npm run images:scan` |
 | The candidate is releasable | `npm run release:preflight` |
+| Published digests and provenance verify | `npm run release:verify-published` |
+| Staging/main promotion evidence matches | `npm run release:promotion-check` |
 | The candidate runs from those exact artifacts | `npm run release:candidate` |
 | The platform-agnostic stack runs end to end | `npm run release:rehearsal` |
 | Encrypted dump → volume loss → restore | `npm run backup:rehearsal` |
