@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gones:w12:v1",
+  "$ref": "#/$defs/evidence",
+  "$defs": {
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "timestamp": { "type": "string", "format": "date-time", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" },
+    "number": { "type": "number", "minimum": 0 },
+    "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sourceSha", "tree", "configRevision", "manifestDigest", "environment", "workloadDigest"],
+      "properties": {
+        "sourceSha": { "$ref": "#/$defs/sha" },
+        "tree": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "configRevision": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
+        "manifestDigest": { "$ref": "#/$defs/digest" },
+        "environment": { "const": "staging" },
+        "workloadDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "input": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "version", "identity", "durationHours"],
+      "properties": {
+        "kind": { "const": "gones.w12-input" }, "version": { "const": 1 },
+        "identity": { "$ref": "#/$defs/identity" }, "durationHours": { "const": 72 }
+      }
+    },
+    "jobs": {
+      "type": "object", "additionalProperties": false,
+      "required": ["expected", "completed", "lost", "duplicates", "deadlineMisses", "failures", "maxImmediateLatencyMs", "maxDbColdStartMs", "maxRecoveryLatencyMs"],
+      "properties": {
+        "expected": { "$ref": "#/$defs/count" }, "completed": { "$ref": "#/$defs/count" },
+        "lost": { "$ref": "#/$defs/count" }, "duplicates": { "$ref": "#/$defs/count" },
+        "deadlineMisses": { "$ref": "#/$defs/count" }, "failures": { "$ref": "#/$defs/count" },
+        "maxImmediateLatencyMs": { "$ref": "#/$defs/number" }, "maxDbColdStartMs": { "$ref": "#/$defs/number" },
+        "maxRecoveryLatencyMs": { "$ref": "#/$defs/number" }
+      }
+    },
+    "segment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "startedAt", "endedAt", "origin", "evidenceDigest", "workloadClasses", "jobClasses", "jobs", "providerEffects", "db"],
+      "properties": {
+        "identity": { "$ref": "#/$defs/identity" },
+        "startedAt": { "$ref": "#/$defs/timestamp" }, "endedAt": { "$ref": "#/$defs/timestamp" },
+        "origin": { "const": "live-provider" }, "evidenceDigest": { "$ref": "#/$defs/digest" },
+        "workloadClasses": { "type": "array", "maxItems": 7, "uniqueItems": true, "items": { "enum": ["clustered", "sparse", "delayed", "restart", "provider-uncertainty", "duplicate-protection", "missed-wake"] } },
+        "jobClasses": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "enum": ["notification", "reminder", "lifecycle", "image-expiry", "image-delete", "maintenance"] } },
+        "jobs": { "$ref": "#/$defs/jobs" },
+        "providerEffects": {
+          "type": "object", "additionalProperties": false, "required": ["expected", "observed", "duplicates", "unresolved"],
+          "properties": { "expected": { "$ref": "#/$defs/count" }, "observed": { "$ref": "#/$defs/count" }, "duplicates": { "$ref": "#/$defs/count" }, "unresolved": { "$ref": "#/$defs/count" } }
+        },
+        "db": {
+          "type": "object", "additionalProperties": false, "required": ["activeHours", "cuHours", "suspensions"],
+          "properties": { "activeHours": { "$ref": "#/$defs/number" }, "cuHours": { "$ref": "#/$defs/number" }, "suspensions": { "$ref": "#/$defs/count" } }
+        }
+      }
+    },
+    "monthlyCosts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sharedHostEur", "ipv4Eur", "taxEur", "dbEur", "dbStorageEur", "dbHistoryEur", "networkEur", "objectEur", "telemetryEur", "emailEur", "registryCiEur", "otherEnvironmentEur"],
+      "properties": {
+        "sharedHostEur": { "$ref": "#/$defs/number" }, "ipv4Eur": { "$ref": "#/$defs/number" },
+        "taxEur": { "$ref": "#/$defs/number" }, "dbEur": { "$ref": "#/$defs/number" },
+        "dbStorageEur": { "$ref": "#/$defs/number" }, "dbHistoryEur": { "$ref": "#/$defs/number" },
+        "networkEur": { "$ref": "#/$defs/number" }, "objectEur": { "$ref": "#/$defs/number" },
+        "telemetryEur": { "$ref": "#/$defs/number" }, "emailEur": { "$ref": "#/$defs/number" },
+        "registryCiEur": { "$ref": "#/$defs/number" }, "otherEnvironmentEur": { "$ref": "#/$defs/number" }
+      }
+    },
+    "baseline": {
+      "type": "object", "additionalProperties": false,
+      "required": ["origin", "evidenceDigest", "workloadDigest", "durationHours", "activeHours", "computeUnits", "cuHours", "monthlyCosts"],
+      "properties": {
+        "origin": { "const": "live-provider" }, "evidenceDigest": { "$ref": "#/$defs/digest" }, "workloadDigest": { "$ref": "#/$defs/digest" },
+        "durationHours": { "const": 72 }, "activeHours": { "const": 72 },
+        "computeUnits": { "type": "number", "exclusiveMinimum": 0 }, "cuHours": { "$ref": "#/$defs/number" },
+        "monthlyCosts": { "$ref": "#/$defs/monthlyCosts" }
+      }
+    },
+    "cost": {
+      "type": "object", "additionalProperties": false,
+      "required": ["identity", "startedAt", "endedAt", "origin", "evidenceDigest", "computeUnits", "monthlyOtherCuHours", "paidAutoUpgrade", "monthlyCosts", "baseline"],
+      "properties": {
+        "identity": { "$ref": "#/$defs/identity" }, "startedAt": { "$ref": "#/$defs/timestamp" }, "endedAt": { "$ref": "#/$defs/timestamp" },
+        "origin": { "const": "live-provider" }, "evidenceDigest": { "$ref": "#/$defs/digest" },
+        "computeUnits": { "type": "number", "exclusiveMinimum": 0 }, "monthlyOtherCuHours": { "$ref": "#/$defs/number" },
+        "paidAutoUpgrade": { "const": false }, "monthlyCosts": { "$ref": "#/$defs/monthlyCosts" }, "baseline": { "$ref": "#/$defs/baseline" }
+      }
+    },
+    "state": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "version", "identity", "startedAt", "endsAt", "segments"],
+      "properties": {
+        "kind": { "const": "gones.w12-capture" }, "version": { "const": 1 }, "identity": { "$ref": "#/$defs/identity" },
+        "startedAt": { "$ref": "#/$defs/timestamp" }, "endsAt": { "$ref": "#/$defs/timestamp" },
+        "segments": { "type": "array", "maxItems": 4320, "items": { "$ref": "#/$defs/segment" } }
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "version", "identity", "startedAt", "endedAt", "segments", "cost"],
+      "properties": {
+        "kind": { "const": "gones.w12-evidence" }, "version": { "const": 1 }, "identity": { "$ref": "#/$defs/identity" },
+        "startedAt": { "$ref": "#/$defs/timestamp" }, "endedAt": { "$ref": "#/$defs/timestamp" },
+        "segments": { "type": "array", "minItems": 1, "maxItems": 4320, "items": { "$ref": "#/$defs/segment" } },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    }
+  }
+}

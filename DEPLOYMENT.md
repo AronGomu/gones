@@ -80,6 +80,13 @@ Promotion evidence rejects changed source/config, mutable tags, missing signatur
 migration and concurrent deployment. A future `main` handoff must reuse tested manifest/digests
 without rebuilding. No production deployment is claimed here.
 
+Promotion also requires [W12 live soak evidence](docs/W12_LIVE_SOAK.md): continuous 72-hour,
+identity-bound operator/provider measurements, correct jobs and lower measured combined cost.
+Immediate deployment evidence lacks W12 and intentionally cannot pass promotion. Collect with
+`npm run release:w12`, then supply `--w12=<report>` to `release:promotion-check` or include top-level
+`w12` in the manual workflow context. Reports expire 24 hours after capture end. Local tests,
+fake-provider preflight and synthetic evidence do not prove the external live gate.
+
 ## 1. Serve it from the release image
 
 ```bash

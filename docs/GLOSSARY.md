@@ -81,6 +81,7 @@
 | compose | Release-mode stack definition for candidate and test | `compose.release-candidate.yaml` |
 | candidate | Builds and assembles the release candidate artifacts | `scripts/release-candidate.mjs` |
 | preflight | Nine mismatch gates deciding if a candidate ships | `scripts/release-preflight.mjs` |
+| W12 soak | Opt-in continuous 72-hour staging evidence contract; live operator measurements gate immutable promotion, local tests are not live proof | `scripts/w12-live-soak.mjs`, `docs/W12_LIVE_SOAK.md` |
 | rehearsal | Full stack dress run with fake providers, TLS | `scripts/release-rehearsal.mjs` |
 | smoke | Short post-deploy checks per subsystem | `scripts/smoke-full-stack.mjs` |
 | cypress | Browser end-to-end journeys, one file per flow | `cypress/e2e/` |

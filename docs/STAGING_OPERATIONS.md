@@ -133,6 +133,13 @@ Restore is destructive to isolated target. Operator must confirm target emptines
 before running it. Never use `down --volumes`, volume deletion, `docker system prune`, or production
 DSN in staging cleanup.
 
+## W12 live evidence
+
+W12 repo-side capture and promotion validation is documented in [W12 live soak](W12_LIVE_SOAK.md).
+`npm run release:w12` is explicit opt-in, file-only start/resume/finalize; it never wakes staging or
+calls providers. Promotion requires a fresh continuous 72-hour live-operator report bound to the
+same source/config/registry manifest. Missing W12 blocks promotion; local tests are not live proof.
+
 ## Evidence and open gates
 
 Focused contract coverage:

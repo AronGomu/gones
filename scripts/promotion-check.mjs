@@ -6,6 +6,7 @@
  * It never reads credentials, talks to a registry or trusts a mutable "latest" result.
  */
 import { existsSync, readFileSync } from 'node:fs';
+import { evaluateW12, readW12Json } from './w12-live-soak.mjs';
 
 export const PROMOTION_ARTIFACTS = Object.freeze(['api', 'worker', 'migrator', 'backup', 'frontend']);
 const SHA = /^[0-9a-f]{40}$/;
@@ -21,7 +22,7 @@ const required = (value, label, fail) => {
  * @param {object} context
  * @returns {{ok: boolean, findings: {check: string, message: string}[]}}
  */
-export function evaluatePromotion(context) {
+export function evaluatePromotion(context, now = Date.now()) {
   const findings = [];
   const fail = (check, message) => findings.push({ check, message });
   const candidate = context?.candidate ?? {};
@@ -78,6 +79,12 @@ export function evaluatePromotion(context) {
     if (current.configRevision !== configRevision) fail('config', `main config revision ${current.configRevision ?? 'missing'} differs from staged config ${configRevision}`);
   }
 
+  const w12 = evaluateW12(context?.w12, {
+    sourceSha, tree: sourceTree, configRevision,
+    manifestDigest: manifest.manifestDigest, environment: 'staging'
+  }, now);
+  findings.push(...w12.findings);
+
   return { ok: findings.length === 0, findings };
 }
 
@@ -91,13 +98,15 @@ if (import.meta.filename === process.argv[1]) {
   let context;
   try {
     context = JSON.parse(readFileSync(path, 'utf8'));
+    const w12Path = argument('w12');
+    if (w12Path) context.w12 = readW12Json(w12Path);
   } catch (error) {
     console.error(`Could not read promotion evidence: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(2);
   }
   const result = evaluatePromotion(context);
   if (result.ok) {
-    console.log('Promotion checks passed: source, config, signatures, migration, staging gate and immutable digests match.');
+    console.log('Promotion checks passed: source, config, signatures, migration, staging gate, live W12 evidence and immutable digests match.');
     process.exit(0);
   }
   for (const finding of result.findings) console.error(`FAIL ${finding.check}: ${finding.message}`);

@@ -36,6 +36,7 @@
     "release:verify-published": "node scripts/verify-published-images.mjs",
     "release:deploy-staging": "node scripts/deploy-staging.mjs",
     "release:promotion-check": "node scripts/promotion-check.mjs",
+    "release:w12": "node scripts/w12-live-soak.mjs",
     "release:candidate": "node scripts/release-candidate.mjs",
     "release:rehearsal": "node scripts/release-rehearsal.mjs",
     "backup:rehearsal": "node scripts/backup-restore-rehearsal.mjs",
