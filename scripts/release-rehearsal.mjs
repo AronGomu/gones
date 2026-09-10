@@ -32,9 +32,18 @@ import {
   resetReleaseTestStack
 } from './release-rehearsal-guard.mjs';
 import { run } from './release-images.mjs';
+import { readRehearsalArtifactEnvironment } from './rehearsal-artifacts.mjs';
 
 const root = process.cwd();
 const composeFile = 'compose.release-test.yaml';
+const reuseArtifacts = process.argv.includes('--reuse-artifacts');
+const composeFiles = reuseArtifacts ? [composeFile, 'compose.release-candidate.yaml'] : [composeFile];
+const composeEnvironment = reuseArtifacts
+  ? { ...process.env, ...readRehearsalArtifactEnvironment(root), COMPOSE_PROJECT_NAME: 'gones-release-test' }
+  : process.env;
+// The candidate overlay names another project; keep the rehearsal lock and volume ownership intact.
+const composeArgs = ['compose', ...composeFiles.flatMap((file) => ['-f', file]),
+  ...(reuseArtifacts ? ['--project-name', 'gones-release-test'] : [])];
 const exportDirectory = join(root, '.release-test-export');
 const base = 'https://127.0.0.1:8443';
 const failures = [];
@@ -49,9 +58,9 @@ const check = (condition, message) => {
   return false;
 };
 
-const compose = (args, options = {}) => run('docker', ['compose', '-f', composeFile, ...args], { stdio: 'inherit', ...options });
+const compose = (args, options = {}) => run('docker', [...composeArgs, ...args], { stdio: 'inherit', ...options, env: composeEnvironment });
 // Container logs can be tens of megabytes; the default 1 MiB spawn buffer would abort the run.
-const composeOut = (args) => run('docker', ['compose', '-f', composeFile, ...args], { maxBuffer: 64 * 1024 * 1024 });
+const composeOut = (args) => run('docker', [...composeArgs, ...args], { env: composeEnvironment, maxBuffer: 64 * 1024 * 1024 });
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const psql = (statement) => composeOut(['exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-Atc', statement]).stdout.trim();
 
@@ -158,8 +167,9 @@ try {
   console.log('\n=== building and starting the release-mode stack ===');
   // `up --build` never builds a profiled service, and `run` reuses whatever image already exists —
   // which would silently rehearse yesterday's journey runner. Build everything up front instead.
-  if (compose(['--profile', 'tools', 'build']).status !== 0) throw new Error('release-test images failed to build');
-  if (compose(['up', '--build', '--detach']).status !== 0) throw new Error('release-test stack failed to start');
+  const buildServices = reuseArtifacts ? ['bootstrap', 'fake-identity', 'fake-brevo', 'tls-proxy', 'journeys', 'egress-probe'] : [];
+  if (compose(['--profile', 'tools', 'build', ...buildServices]).status !== 0) throw new Error('release-test images failed to build');
+  if (compose(['up', reuseArtifacts ? '--no-build' : '--build', '--detach']).status !== 0) throw new Error('release-test stack failed to start');
   const freshStateVolumes = assertFreshStateVolumes(listReleaseProjectVolumes(run));
   console.log(`  ok   fresh PostgreSQL and MinIO volumes created (${freshStateVolumes.join(', ')})`);
 
@@ -231,8 +241,15 @@ try {
   console.log('\n=== server-mode single-page application behind the TLS edge ===');
   const spa = await secureFetch('/');
   check(spa.status === 200 && spa.body.includes('<gones-root'), `the SPA is served from the published origin (${spa.status})`);
-  const bakedOrigin = composeOut(['exec', '-T', 'frontend', 'sh', '-c', "grep -rl 'https://localhost:8443' /usr/share/nginx/html | head -1"]).stdout.trim();
-  check(bakedOrigin !== '', `the built SPA bundle names the API origin it is allowed to call (${bakedOrigin || 'not found'})`);
+  if (reuseArtifacts) {
+    const runtimeConfig = await secureFetch('/runtime-config.json');
+    const declaration = runtimeConfig.ok ? JSON.parse(runtimeConfig.body) : null;
+    check(declaration?.dataMode === 'server' && declaration?.apiBaseUrl === 'https://localhost:8443',
+      'the candidate SPA serves the injected rehearsal origin');
+  } else {
+    const bakedOrigin = composeOut(['exec', '-T', 'frontend', 'sh', '-c', "grep -rl 'https://localhost:8443' /usr/share/nginx/html | head -1"]).stdout.trim();
+    check(bakedOrigin !== '', `the built SPA bundle names the API origin it is allowed to call (${bakedOrigin || 'not found'})`);
+  }
   check((spa.header('content-security-policy') ?? '').includes("connect-src 'self' https://localhost:8443"),
     'the SPA content-security-policy pins that same origin');
 
@@ -263,7 +280,7 @@ try {
   console.log('\n=== private migration bundle set: dry run, approved import, verification ===');
   const migrationSmoke = run(process.execPath, ['scripts/smoke-migration.mjs'], {
     stdio: 'inherit',
-    env: { ...process.env, GONES_COMPOSE_FILE: composeFile }
+    env: { ...composeEnvironment, GONES_COMPOSE_FILE: composeFiles.join(',') }
   });
   check(migrationSmoke.status === 0, 'a multi-origin private bundle set imports atomically with C#/TypeScript canonical-hash parity');
 

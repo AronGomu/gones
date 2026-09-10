@@ -212,6 +212,15 @@ which hides what actually broke.
 | `npm run images:scan` | vulnerability scan |
 | `npm run audit:supply-chain` | dependency and supply-chain audit |
 
+Both dedicated rehearsals accept `-- --reuse-artifacts`, for example
+`npm run release:rehearsal -- --reuse-artifacts` or
+`npm run backup:rehearsal -- --reuse-artifacts`. This requires all five immutable local
+`sha256` image IDs in `reports/images/manifest.json`. Missing or malformed inputs fail before
+Compose changes; missing local images fail without a release-image build or pull fallback.
+Only fixture services may build. The candidate overlay keeps the dedicated rehearsal's
+`gones-release-test` project and volume cleanup; run these rehearsals sequentially.
+Omit the flag to retain the source-build behavior.
+
 ### Generators
 
 | Command | What it writes |

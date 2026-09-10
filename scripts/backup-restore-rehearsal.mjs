@@ -17,8 +17,16 @@
  * Remote storage, retention sweeps and PITR stay deferred with the hosting decision too.
  */
 import { run } from './release-images.mjs';
+import { readRehearsalArtifactEnvironment } from './rehearsal-artifacts.mjs';
 
 const composeFile = 'compose.release-test.yaml';
+const reuseArtifacts = process.argv.includes('--reuse-artifacts');
+const composeEnvironment = reuseArtifacts
+  ? { ...process.env, ...readRehearsalArtifactEnvironment(), COMPOSE_PROJECT_NAME: 'gones-release-test' }
+  : process.env;
+// Preserve the existing disaster-restore volume name despite the candidate overlay's project name.
+const composeArgs = ['compose', '-f', composeFile,
+  ...(reuseArtifacts ? ['-f', 'compose.release-candidate.yaml', '--project-name', 'gones-release-test'] : [])];
 const failures = [];
 const check = (condition, message) => {
   if (condition) {
@@ -30,8 +38,8 @@ const check = (condition, message) => {
   return false;
 };
 
-const compose = (args, options = {}) => run('docker', ['compose', '-f', composeFile, ...args], { stdio: 'inherit', ...options });
-const composeOut = (args) => run('docker', ['compose', '-f', composeFile, ...args]);
+const compose = (args, options = {}) => run('docker', [...composeArgs, ...args], { stdio: 'inherit', ...options, env: composeEnvironment });
+const composeOut = (args) => run('docker', [...composeArgs, ...args], { env: composeEnvironment });
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const psql = (statement) => composeOut(['exec', '-T', 'postgres', 'psql', '-U', 'gones_migration', '-d', 'gones', '-Atc', statement]);
 const tool = (args, environment = []) => composeOut(['--profile', 'tools', 'run', '--rm', ...environment.flatMap((entry) => ['-e', entry]), ...args]);
@@ -39,7 +47,8 @@ const tool = (args, environment = []) => composeOut(['--profile', 'tools', 'run'
 try {
   console.log('=== starting a minimal database stack ===');
   compose(['down', '--volumes', '--remove-orphans'], { stdio: 'ignore' });
-  if (compose(['up', '--build', '--detach', 'postgres', 'bootstrap']).status !== 0) throw new Error('database stack failed to start');
+  if (reuseArtifacts && compose(['build', 'bootstrap']).status !== 0) throw new Error('the database fixture failed to build');
+  if (compose(['up', reuseArtifacts ? '--no-build' : '--build', '--detach', 'postgres', 'bootstrap']).status !== 0) throw new Error('database stack failed to start');
   if (compose(['run', '--rm', 'migrator', 'database', 'update']).status !== 0) throw new Error('migration job failed');
 
   // A row that exists in the dump and is destroyed afterwards, so a successful restore is provable.
@@ -51,7 +60,7 @@ try {
 
   // `run` reuses whatever image is already tagged, so a stale one would let an edited backup script
   // pass unread. Build the tools image explicitly before anything asserts on its behaviour.
-  if (compose(['--profile', 'tools', 'build', 'backup']).status !== 0) throw new Error('the backup image failed to build');
+  if (!reuseArtifacts && compose(['--profile', 'tools', 'build', 'backup']).status !== 0) throw new Error('the backup image failed to build');
 
   console.log('\n=== taking an encrypted backup ===');
   const backup = tool(['backup'], ['GONES_BACKUP_NAME=rehearsal']);
