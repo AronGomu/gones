@@ -1,0 +1,257 @@
+# Static foundation only. DEPLOYMENT BLOCKED pending docs/SHARED_HOST.md gates.
+# Shared edge belongs to the host operator, never this Compose project.
+name: gones-staging
+
+x-runtime: &runtime
+  platform: linux/amd64
+  pull_policy: never
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  pids_limit: 128
+  cpus: 0.5
+  mem_limit: 384m
+  memswap_limit: 384m
+  logging:
+    driver: json-file
+    options: { max-size: "5m", max-file: "2" }
+  networks: [core]
+  stop_grace_period: 40s
+  restart: "no"
+
+x-app-env: &app-env
+  GONES_DEPLOYMENT_ENVIRONMENT: staging
+  GONES_STAGING_POLICY_FILE: /run/secrets/gones-staging/staging-policy
+  GONES_BOOTSTRAP_ADMIN_EMAIL_FILE: /run/secrets/gones-staging/bootstrap-admin-email
+  GONES_WORKER_IDLE_MODE: "false"
+  GONES_WORKER_WAKE_SOCKET: /run/gones-worker-staging/wake.sock
+  GONES_WORKER_WAKE_TOKEN_FILE: /run/secrets/gones-staging/worker-wake-token
+  GONES_DB_CONNECTION_FILE: /run/secrets/gones-staging/db-app
+  GONES_AUTH_SIGNING_KEY_FILE: /run/secrets/gones-staging/auth-signing
+  GONES_ALLOWED_ORIGINS: ${GONES_STAGING_ORIGIN:?required exact HTTPS origin}
+  GONES_PUBLIC_APP_ORIGIN: ${GONES_STAGING_ORIGIN:?required exact HTTPS origin}
+  GONES_SHUTDOWN_TIMEOUT_SECONDS: "25"
+  GONES_FEATURES__API_BACKEND: "true"
+  GONES_FEATURES__CALENDAR_V1: "true"
+  GONES_FEATURES__AUTH_V1: "true"
+  GONES_FEATURES__ADMIN_V1: "true"
+  GONES_FEATURES__LEAGUE_SERVER: "true"
+  GONES_FEATURES__LIVE_SERVER: "true"
+  GONES_EVENT_IMAGES_S3_ENDPOINT: ${GONES_STAGING_OBJECT_ENDPOINT:?required EU R2 HTTPS endpoint}
+  GONES_EVENT_IMAGES_S3_BUCKET: ${GONES_STAGING_OBJECT_BUCKET:?required private environment bucket}
+  GONES_EVENT_IMAGES_S3_REGION: auto
+  GONES_EVENT_IMAGES_S3_ACCESS_KEY_FILE: /run/secrets/gones-staging/object-access
+  GONES_EVENT_IMAGES_S3_SECRET_KEY_FILE: /run/secrets/gones-staging/object-secret
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+
+services:
+  migrator:
+    <<: *runtime
+    image: ${GONES_RELEASE_MIGRATOR_IMAGE:?required registry manifest digest}
+    user: "1654:1654"
+    command: [database, update]
+    environment:
+      DOTNET_ENVIRONMENT: Production
+      GONES_DB_CONNECTION_FILE: /run/secrets/gones-staging/db-migration
+    secrets:
+      - { source: db-migration, target: /run/secrets/gones-staging/db-migration }
+
+  permissions:
+    <<: *runtime
+    # The existing backup image contains PG17 client tools, not a database server.
+    image: ${GONES_RELEASE_BACKUP_IMAGE:?required registry manifest digest}
+    user: "65532:65532"
+    cpus: 0.25
+    mem_limit: 128m
+    memswap_limit: 128m
+    entrypoint: [psql]
+    command: [--no-psqlrc, --set, ON_ERROR_STOP=1, --file, /etc/gones/grants.sql]
+    environment:
+      PGSERVICE: gones
+      PGSERVICEFILE: /run/secrets/gones-staging/db-permissions-service
+    secrets:
+      - { source: db-permissions-service, target: /run/secrets/gones-staging/db-permissions-service }
+    volumes:
+      - type: bind
+        source: ./deploy/shared-host/grants.sql
+        target: /etc/gones/grants.sql
+        read_only: true
+        bind: { create_host_path: false }
+    depends_on:
+      migrator: { condition: service_completed_successfully }
+
+  api:
+    <<: *runtime
+    image: ${GONES_RELEASE_API_IMAGE:?required registry manifest digest}
+    user: "1654:1654"
+    cpus: 0.5
+    mem_limit: 512m
+    memswap_limit: 512m
+    environment:
+      <<: *app-env
+      ASPNETCORE_ENVIRONMENT: Production
+      GONES_AUTH_PROVIDER: External
+      GONES_OAUTH_CALLBACK_ORIGIN: ${GONES_STAGING_ORIGIN:?required exact HTTPS origin}
+      GONES_GOOGLE_CLIENT_ID: ${GONES_STAGING_GOOGLE_CLIENT_ID:?required environment OAuth app}
+      GONES_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/gones-staging/google-secret
+      GONES_FACEBOOK_CLIENT_ID: ${GONES_STAGING_FACEBOOK_CLIENT_ID:?required environment OAuth app}
+      GONES_FACEBOOK_CLIENT_SECRET_FILE: /run/secrets/gones-staging/facebook-secret
+      GONES_BREVO_WEBHOOK_PATH_TOKEN_FILE: /run/secrets/gones-staging/webhook-token
+      GONES_FORWARDED_PROXIES: 172.30.10.2
+      GONES_FORWARDED_PROXY_HOP_LIMIT: "1"
+    secrets:
+      - { source: db-app, target: /run/secrets/gones-staging/db-app }
+      - { source: auth-signing, target: /run/secrets/gones-staging/auth-signing }
+      - { source: object-access, target: /run/secrets/gones-staging/object-access }
+      - { source: object-secret, target: /run/secrets/gones-staging/object-secret }
+      - { source: google-secret, target: /run/secrets/gones-staging/google-secret }
+      - { source: facebook-secret, target: /run/secrets/gones-staging/facebook-secret }
+      - { source: webhook-token, target: /run/secrets/gones-staging/webhook-token }
+      - { source: staging-policy, target: /run/secrets/gones-staging/staging-policy }
+      - { source: bootstrap-admin-email, target: /run/secrets/gones-staging/bootstrap-admin-email }
+      - { source: worker-wake-token, target: /run/secrets/gones-staging/worker-wake-token }
+    volumes:
+      - type: bind
+        source: /var/lib/gones/staging/worker-wake
+        target: /run/gones-worker-staging
+        read_only: true
+        bind: { create_host_path: false }
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+      otel-collector: { condition: service_started }
+    networks:
+      core: {}
+      edge: { ipv4_address: 172.30.10.10 }
+    # Inherits image's DB-free /health/live probe; this is not deep readiness.
+    restart: unless-stopped
+
+  worker:
+    <<: *runtime
+    image: ${GONES_RELEASE_WORKER_IMAGE:?required registry manifest digest}
+    user: "1654:1654"
+    cpus: 0.35
+    environment:
+      <<: *app-env
+      DOTNET_ENVIRONMENT: Production
+      GONES_AUTH_PROVIDER: Local
+      GONES_EMAIL_TRANSPORT: Brevo
+      GONES_BREVO_API_KEY_FILE: /run/secrets/gones-staging/brevo-key
+      GONES_BREVO_SENDER_EMAIL: ${GONES_STAGING_SENDER_EMAIL:?required verified environment sender}
+      GONES_BREVO_SENDER_NAME: Gones Staging
+    secrets:
+      - { source: db-app, target: /run/secrets/gones-staging/db-app }
+      - { source: auth-signing, target: /run/secrets/gones-staging/auth-signing }
+      - { source: object-access, target: /run/secrets/gones-staging/object-access }
+      - { source: object-secret, target: /run/secrets/gones-staging/object-secret }
+      - { source: brevo-key, target: /run/secrets/gones-staging/brevo-key }
+      - { source: staging-policy, target: /run/secrets/gones-staging/staging-policy }
+      - { source: bootstrap-admin-email, target: /run/secrets/gones-staging/bootstrap-admin-email }
+      - { source: worker-wake-token, target: /run/secrets/gones-staging/worker-wake-token }
+    volumes:
+      - type: bind
+        source: /var/lib/gones/staging/worker-wake
+        target: /run/gones-worker-staging
+        bind: { create_host_path: false }
+    depends_on:
+      permissions: { condition: service_completed_successfully }
+      otel-collector: { condition: service_started }
+    deploy: { replicas: 1 }
+    # Private wake interrupts polling; idle/health opt-in still requires W12 approval.
+    restart: unless-stopped
+
+  frontend:
+    <<: *runtime
+    image: ${GONES_RELEASE_FRONTEND_IMAGE:?required registry manifest digest}
+    user: "101:101"
+    cpus: 0.1
+    mem_limit: 64m
+    memswap_limit: 64m
+    environment:
+      GONES_DATA_MODE: server
+      GONES_API_BASE_URL: ${GONES_STAGING_ORIGIN:?required exact HTTPS origin}
+      GONES_AUTH_V1: "true"
+      GONES_ADMIN_V1: "true"
+    volumes:
+      - type: bind
+        source: ./deploy/shared-host/frontend-nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+        bind: { create_host_path: false }
+    tmpfs:
+      - /var/cache/nginx:size=16m,uid=101,gid=101
+      - /var/run:size=1m,uid=101,gid=101
+      - /tmp:size=8m,mode=1777
+    depends_on:
+      api: { condition: service_healthy }
+    networks:
+      edge: { ipv4_address: 172.30.10.20 }
+    restart: unless-stopped
+
+  otel-collector:
+    <<: *runtime
+    image: ${GONES_COLLECTOR_IMAGE:?required verified Collector manifest digest}
+    user: "10001:10001"
+    cpus: 0.15
+    mem_limit: 192m
+    memswap_limit: 192m
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    command: [--config=/etc/otelcol-contrib/config.yaml]
+    # I3 must supply a validated, bounded hosted config using this one auth file.
+    volumes:
+      - type: bind
+        source: /etc/gones/staging/telemetry/collector.yaml
+        target: /etc/otelcol-contrib/config.yaml
+        read_only: true
+        bind: { create_host_path: false }
+    secrets:
+      - { source: otel-auth, target: /run/secrets/gones-staging/otel-auth }
+    restart: unless-stopped
+
+  backup:
+    <<: *runtime
+    profiles: [tools]
+    image: ${GONES_RELEASE_BACKUP_IMAGE:?required registry manifest digest}
+    user: "65532:65532"
+    environment:
+      GONES_BACKUP_ROOT: /backups
+      GONES_BACKUP_DSN_FILE: /run/secrets/gones-staging/db-backup
+      GONES_BACKUP_KEY_FILE: /run/secrets/gones-staging/backup-key
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    secrets:
+      - { source: db-backup, target: /run/secrets/gones-staging/db-backup }
+      - { source: backup-key, target: /run/secrets/gones-staging/backup-key }
+    volumes:
+      - type: bind
+        source: /var/lib/gones/staging/backups
+        target: /backups
+        bind: { create_host_path: false }
+
+networks:
+  core:
+    name: gones-staging-core
+  # Host-created INTERNAL bridge 172.30.10.0/24; edge alone gets .2.
+  # External ownership prevents app down/up from removing/recreating edge attachment.
+  edge:
+    name: gones-staging-edge
+    external: true
+
+# Compose file secrets are read-only binds; host file UID/ACLs remain authoritative.
+secrets:
+  staging-policy: { file: /etc/gones/staging/secrets/staging-policy }
+  bootstrap-admin-email: { file: /etc/gones/staging/secrets/bootstrap-admin-email }
+  worker-wake-token: { file: /etc/gones/staging/secrets/worker-wake-token }
+  db-migration: { file: /etc/gones/staging/secrets/db-migration }
+  db-permissions-service: { file: /etc/gones/staging/secrets/db-permissions-service }
+  db-app: { file: /etc/gones/staging/secrets/db-app }
+  auth-signing: { file: /etc/gones/staging/secrets/auth-signing }
+  object-access: { file: /etc/gones/staging/secrets/object-access }
+  object-secret: { file: /etc/gones/staging/secrets/object-secret }
+  google-secret: { file: /etc/gones/staging/secrets/google-secret }
+  facebook-secret: { file: /etc/gones/staging/secrets/facebook-secret }
+  webhook-token: { file: /etc/gones/staging/secrets/webhook-token }
+  brevo-key: { file: /etc/gones/staging/secrets/brevo-key }
+  db-backup: { file: /etc/gones/staging/secrets/db-backup }
+  backup-key: { file: /etc/gones/staging/secrets/backup-key }
+  otel-auth: { file: /etc/gones/staging/secrets/otel-auth }
