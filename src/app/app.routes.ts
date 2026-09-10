@@ -6,6 +6,7 @@ import { eventCreatePowerGuard, powerUserGuard } from './shared/power-user.guard
 import { eventEditorCanDeactivate } from './features/events/event-create-leave.guard';
 
 const authRoutes: Routes = [
+  { path: 'owner-setup', loadComponent: () => import('./auth/owner-setup.component').then((m) => m.OwnerSetupComponent) },
   { path: 'login', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'login' } },
   { path: 'register', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'register' } },
   { path: 'auth/complete-profile', loadComponent: () => import('./auth/auth-entry.component').then((m) => m.AuthEntryComponent), data: { mode: 'complete-profile' } },

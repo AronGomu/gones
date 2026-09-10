@@ -14,10 +14,10 @@ public sealed record AdminBootstrapDecision(
     int ExitCode)
 {
     public static AdminBootstrapDecision Promoted(string email) =>
-        new(AdminBootstrapOutcome.Promoted, $"Promoted verified account '{email}' to Admin.", true, 0);
+        new(AdminBootstrapOutcome.Promoted, "Promoted verified account to Admin.", true, 0);
 
     public static AdminBootstrapDecision AlreadyAdmin(string email) =>
-        new(AdminBootstrapOutcome.AlreadyAdminNoOp, $"Account '{email}' is already Admin; bootstrap marker consumed.", true, 0);
+        new(AdminBootstrapOutcome.AlreadyAdminNoOp, "Account is already Admin; bootstrap marker consumed.", true, 0);
 
     public static AdminBootstrapDecision AlreadyConsumed() =>
         new(AdminBootstrapOutcome.AlreadyConsumedNoOp, "Admin bootstrap marker already consumed; safe no-op.", true, 0);

@@ -1,0 +1,2 @@
+Choisissez votre mot de passe et complétez votre profil propriétaire : {{ActionUrl}}
+Ce lien expire dans 24 heures. Son ouverture ne modifie rien. Un opérateur doit ensuite activer votre accès Admin.

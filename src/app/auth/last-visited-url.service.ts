@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 import { safeReturnUrl } from './return-url';
 
 /** Path prefixes that belong to the auth flow itself and must never become the post-login destination. */
-export const AUTH_PATH_PREFIXES = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/auth'] as const;
+export const AUTH_PATH_PREFIXES = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/owner-setup', '/auth'] as const;
 
 /** Tracks the last non-auth URL visited in this browsing session, so login can return the user there. */
 @Injectable({ providedIn: 'root' })

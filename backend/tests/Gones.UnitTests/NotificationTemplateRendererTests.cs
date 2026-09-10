@@ -6,6 +6,7 @@ public sealed class NotificationTemplateRendererTests
 {
     public static TheoryData<NotificationTemplateModel> Models => new()
     {
+        new OwnerSetupTemplateModel(new Uri("https://app.example/owner-setup#token=secret-value")),
         new VerifyEmailTemplateModel("Alice", new Uri("https://app.example/verify?token=secret-value")),
         new ResetPasswordTemplateModel("Alice", new Uri("https://app.example/reset?token=secret-value")),
         new RegistrationTemplateModel("Alice", "Legacy Lyon", new Uri("https://app.example/tournaments/legacy-lyon")),

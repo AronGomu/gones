@@ -17,6 +17,7 @@ public sealed class NotificationTemplateRenderer
     private static readonly IReadOnlyDictionary<string, (string French, string English)> Subjects =
         new Dictionary<string, (string French, string English)>(StringComparer.Ordinal)
         {
+            [NotificationTemplateKeys.OwnerSetup] = ("Configurez votre compte propriétaire", "Set up your owner account"),
             [NotificationTemplateKeys.VerifyEmail] = ("Vérifiez votre adresse email", "Verify your email address"),
             [NotificationTemplateKeys.ResetPassword] = ("Réinitialisez votre mot de passe", "Reset your password"),
             [NotificationTemplateKeys.Registration] = ("Inscription au tournoi confirmée", "Tournament registration confirmed"),
@@ -67,6 +68,10 @@ public sealed class NotificationTemplateRenderer
         var previewUrl = new Uri(PreviewUrl);
         return model switch
         {
+            OwnerSetupTemplateModel value => new Dictionary<string, string>
+            {
+                ["ActionUrl"] = Url(safePreview ? previewUrl : value.ActionUrl)
+            },
             VerifyEmailTemplateModel value => new Dictionary<string, string>
             {
                 ["Username"] = Text(value.Username, safePreview),

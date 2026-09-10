@@ -27,6 +27,7 @@ public sealed class GonesDbContext(DbContextOptions<GonesDbContext> options)
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<AccountActionToken> AccountActionTokens => Set<AccountActionToken>();
+    public DbSet<OwnerSetup> OwnerSetups => Set<OwnerSetup>();
     public DbSet<UserEmailHistory> UserEmailHistories => Set<UserEmailHistory>();
     public DbSet<ExternalIdentity> ExternalIdentities => Set<ExternalIdentity>();
     public DbSet<OAuthAttempt> OAuthAttempts => Set<OAuthAttempt>();

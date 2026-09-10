@@ -311,6 +311,7 @@ internal sealed class ExternalOAuthService(
 
         var profile = await client.ExchangeAsync(provider, code ?? string.Empty, cancellationToken);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await OwnerSetupService.LockAsync(database, cancellationToken);
         var attempt = await database.OAuthAttempts
             .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE id = {attemptId} FOR UPDATE")
             .SingleAsync(cancellationToken);
@@ -378,6 +379,7 @@ internal sealed class ExternalOAuthService(
     {
         if (string.IsNullOrWhiteSpace(request.CompletionTicket) || request.CompletionTicket.Length > 256) throw new InvalidOAuthTicketException();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await OwnerSetupService.LockAsync(database, cancellationToken);
         var hash = Hash(request.CompletionTicket);
         var attempt = await database.OAuthAttempts
             .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE completion_hash = {hash} FOR UPDATE")
@@ -417,6 +419,7 @@ internal sealed class ExternalOAuthService(
     {
         if (string.IsNullOrWhiteSpace(token) || token.Length > 256) throw new InvalidOAuthTicketException();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await OwnerSetupService.LockAsync(database, cancellationToken);
         var hash = Hash(token);
         var attempt = await database.OAuthAttempts
             .FromSqlInterpolated($"SELECT * FROM oauth_attempts WHERE email_verification_hash = {hash} FOR UPDATE")

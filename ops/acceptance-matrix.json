@@ -18,6 +18,11 @@
                     "detail": "register, verify, login and the write gate"
                 },
                 {
+                    "gate": "dotnet",
+                    "target": "backend/tests/Gones.IntegrationTests/OwnerSetupTests.cs",
+                    "detail": "fresh DB owner password setup, private promotion, normal login and Admin refresh; no public Admin"
+                },
+                {
                     "gate": "cypress",
                     "target": "cypress/e2e/auth-profile.cy.js",
                     "detail": "browser sign-up and profile"

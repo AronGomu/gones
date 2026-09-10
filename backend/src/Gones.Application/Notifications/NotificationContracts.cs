@@ -6,6 +6,7 @@ namespace Gones.Application.Notifications;
 
 public static class NotificationTemplateKeys
 {
+    public const string OwnerSetup = "owner-setup";
     public const string VerifyEmail = "verify-email";
     public const string ResetPassword = "reset-password";
     public const string Registration = "registration";
@@ -20,6 +21,7 @@ public static class NotificationTemplateKeys
 
 public abstract record NotificationTemplateModel;
 
+public sealed record OwnerSetupTemplateModel(Uri ActionUrl) : NotificationTemplateModel;
 public sealed record VerifyEmailTemplateModel(string Username, Uri ActionUrl) : NotificationTemplateModel;
 public sealed record ResetPasswordTemplateModel(string Username, Uri ActionUrl) : NotificationTemplateModel;
 public sealed record RegistrationTemplateModel(string Username, string TournamentName, Uri TournamentUrl) : NotificationTemplateModel;
@@ -120,6 +122,7 @@ public static class NotificationModelSerializer
 
     public static string TemplateKey(NotificationTemplateModel model) => model switch
     {
+        OwnerSetupTemplateModel => NotificationTemplateKeys.OwnerSetup,
         VerifyEmailTemplateModel => NotificationTemplateKeys.VerifyEmail,
         ResetPasswordTemplateModel => NotificationTemplateKeys.ResetPassword,
         RegistrationTemplateModel => NotificationTemplateKeys.Registration,
@@ -157,6 +160,7 @@ public static class NotificationModelSerializer
         {
             return templateKey switch
             {
+                NotificationTemplateKeys.OwnerSetup => Required<OwnerSetupTemplateModel>(json),
                 NotificationTemplateKeys.VerifyEmail => Required<VerifyEmailTemplateModel>(json),
                 NotificationTemplateKeys.ResetPassword => Required<ResetPasswordTemplateModel>(json),
                 NotificationTemplateKeys.Registration => Required<RegistrationTemplateModel>(json),

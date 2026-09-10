@@ -1,0 +1,2 @@
+Choose your password and complete your owner profile: {{ActionUrl}}
+This link expires in 24 hours. Opening it makes no changes. An operator must approve Admin access after setup.

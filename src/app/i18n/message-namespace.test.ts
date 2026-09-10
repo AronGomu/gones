@@ -31,9 +31,10 @@ function quotedTokens(blob: string): Set<string> {
 }
 
 function orphanMessageKeys(): string[] {
-  const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
-    .split('\0')
-    .filter(file => file && file !== CATALOG_PATH);
+  const files = [...new Set([
+    ...execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0'),
+    ...execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z', '--', 'src'], { encoding: 'utf8' }).split('\0')
+  ])].filter(file => file && file !== CATALOG_PATH);
   const blob = files
     .map(file => {
       try {
@@ -72,7 +73,7 @@ describe('message namespace', () => {
     );
   });
 
-  // Reads every tracked file, so it is I/O bound and slows down with the machine, not with the
+  // Reads tracked files plus nonignored untracked src files, so it is I/O bound and slows down with the
   // code under test. The default 5s timeout made it flake on a loaded runner; this is headroom,
   // not an expected duration.
   it('every key is referenced outside the catalog', () => {

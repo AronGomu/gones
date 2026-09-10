@@ -241,15 +241,17 @@ export from each, and a soak period before the legacy static build is retired (A
 
 ## 10. Admin bootstrap
 
-There is no seeded administrator. The first Admin is created by a deliberate operator action:
+There is no seeded administrator or generated password. Follow [Owner setup](OWNER_SETUP.md):
+private `owner setup` queues a link; owner submits their own password and required profile fields;
+private `owner promote` grants Admin only after verified setup. Finish with normal login, `/admin`,
+and reload before declaring owner access ready. Configure the owner only through private
+`GONES_BOOTSTRAP_ADMIN_EMAIL` or its exclusive `_FILE` setting, independently per environment.
 
-1. Register the account normally and verify its email address.
-2. Set `GONES_BOOTSTRAP_ADMIN_EMAIL` on the migrator job to that exact address.
-3. `docker compose run --rm migrator admin bootstrap --email <that address>`.
-
-The command refuses any address other than the configured one, refuses an unverified account, and is
-guarded by a one-shot marker: a second run is a **safe no-op**, not a second promotion. Promotion
-revokes the account's refresh sessions, so the new privileges require a fresh sign-in.
+The public confirmation endpoint never promotes or issues a session. Promotion consumes the existing
+one-shot marker and revokes refresh sessions. Reruns preserve identity/password and never recreate or
+re-promote a deleted/demoted established owner. Legacy `admin bootstrap --email` is retained only as
+an explicit private compatibility operation for unbound enrollment; it cannot bypass pending setup.
+See the linked runbook for resend cooldown, configuration binding, staging policy, and recovery.
 
 ## 11. Observability
 

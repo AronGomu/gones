@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = join(__dirname, '..', '..', '..');
 const routesSource = readFileSync(join(repoRoot, 'src', 'app', 'app.routes.ts'), 'utf-8');
 
-const AUTH_COMPONENT = 'auth/auth-entry.component';
+const AUTH_COMPONENTS = ['auth/auth-entry.component', 'auth/owner-setup.component'];
 const ABOUT_COMPONENT = 'features/menu/about.component';
 
 /**
@@ -60,7 +60,7 @@ describe('back-button-coverage', () => {
   });
 
   it('every routed page (except auth and breadcrumb roots) has a bottom back button', () => {
-    const nonAuthNonRootPaths = routedPaths.filter((p) => p !== AUTH_COMPONENT && !BREADCRUMB_ROOT_COMPONENTS.includes(p));
+    const nonAuthNonRootPaths = routedPaths.filter((p) => !AUTH_COMPONENTS.includes(p) && !BREADCRUMB_ROOT_COMPONENTS.includes(p));
     const missing: string[] = [];
     for (const path of nonAuthNonRootPaths) {
       const source = readComponentSource(path);
@@ -78,8 +78,10 @@ describe('back-button-coverage', () => {
   });
 
   it('auth pages stay top only', () => {
-    const source = readComponentSource(AUTH_COMPONENT);
-    expect(source).toContain('position="top"');
-    expect(source).not.toContain('position="bottom"');
+    for (const path of AUTH_COMPONENTS) {
+      const source = readComponentSource(path);
+      expect(source).toContain('position="top"');
+      expect(source).not.toContain('position="bottom"');
+    }
   });
 });

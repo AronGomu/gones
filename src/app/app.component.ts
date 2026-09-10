@@ -20,7 +20,7 @@ import { BreadcrumbItem, buildBreadcrumbs } from './app-breadcrumbs';
 import { PowerUserSettingsService } from './shared/power-user-settings.service';
 import { purgeRetiredLeagueDatabase } from './backend/local-archive-backend.service';
 
-const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password'];
+const AUTH_PATHS = ['/login', '/register', '/auth/complete-profile', '/verify-email', '/forgot-password', '/reset-password', '/owner-setup'];
 
 interface HeaderTournament {
   season: PersistedLeagueSeason | null;

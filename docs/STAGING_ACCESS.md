@@ -1,6 +1,6 @@
 # Staging access policy
 
-Staging restricts accounts and outbound email on the server. Public anonymous pages remain public. Production/local signup and email behavior remain unchanged. This is an eligibility policy, not invitation CRUD or owner setup: no invitation schema, public administration endpoint, fixture import, password generation, or Admin promotion is added.
+Staging restricts accounts and outbound email on the server. Public anonymous pages remain public. Production/local signup and email behavior remain unchanged. This is an eligibility policy, not invitation CRUD. [Owner setup](OWNER_SETUP.md) separately provides emailed password setup and private one-shot promotion under the same policy; there is no public administration endpoint, fixture import, or password generation.
 
 ## Private configuration
 
@@ -69,4 +69,4 @@ dotnet test backend/Gones.sln --no-restore --filter 'FullyQualifiedName~Staging|
 
 `StagingPolicyTests` covers strict config, private-file safety, exact addresses, cutoff equality, immutable reload semantics. `StagingMailTests` exercises real File/Brevo implementations with fake HTTP. `StagingAccessTests` uses isolated migrated PostgreSQL and fake OAuth; checks account mutation, applied revocation/re-invite, signed JWTs, refresh ancestry, account actions and OAuth. Proposal/outbox integration suites cover anonymous credentials, object access denial, historical mail, business commit, permanent failures and uncertainty holds. `StagingStartupTests` exercises API startup without DB configuration.
 
-Hosted marker/mount/revision verification, actual operator allowlists, live provider delivery, owner setup, and deployment readiness remain separate integration/release gates. Passing isolated tests does not attest a running staging environment.
+Hosted marker/mount/revision verification, actual operator allowlists, live provider delivery, actual owner login/Admin validation, and deployment readiness remain separate integration/release gates. Passing isolated tests does not attest a running staging environment.

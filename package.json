@@ -23,6 +23,7 @@
     "notification:smoke": "node scripts/smoke-notification.mjs",
     "scheduler:smoke": "node scripts/smoke-scheduler.mjs",
     "auth:smoke": "node scripts/smoke-account-lifecycle.mjs",
+    "auth:owner:smoke": "node scripts/smoke-owner-setup.mjs",
     "migration:smoke": "node scripts/smoke-migration.mjs",
     "e2e:ci": "node scripts/full-stack-ci.mjs",
     "audit:supply-chain": "node scripts/audit-supply-chain.mjs",

@@ -2,50 +2,59 @@ using System.Text.Json;
 using Gones.Domain.Identity;
 using Gones.Domain.Persistence;
 using Gones.Infrastructure.Persistence;
+using Gones.Infrastructure.Configuration;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using NodaTime;
 
 namespace Gones.Infrastructure.Identity;
 
-public sealed class AdminBootstrapService(GonesDbContext database, IClock clock)
+public sealed class AdminBootstrapService(GonesDbContext database, IClock clock, StagingAccessPolicy policy, IConfiguration configuration)
 {
-    public async Task<AdminBootstrapDecision> BootstrapAsync(string email, string? configuredBootstrapEmail, CancellationToken cancellationToken = default)
+    public async Task<AdminBootstrapDecision> BootstrapAsync(string email, string? configuredBootstrapEmail, CancellationToken cancellationToken = default, bool requireOwnerSetup = false)
     {
         AdminBootstrapPolicy.EnsureConfiguredEmailMatches(configuredBootstrapEmail, email);
         var normalizedEmail = AdminBootstrapPolicy.NormalizeEmail(email);
         var displayEmail = email.Trim();
         var now = clock.GetCurrentInstant();
+        if (!policy.IsEligible(email)) throw new InvalidOperationException("owner_setup_unavailable");
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        var setup = await OwnerSetupService.LockAsync(database, cancellationToken);
         var marker = await LockOrCreateMarkerAsync(now, cancellationToken);
+        if (marker.IsConsumed) return AdminBootstrapDecision.AlreadyConsumed();
+        if (setup.OwnerEmail is not null)
+        {
+            if (await OwnerSetupService.DisqualifyAsync(database, setup, cancellationToken))
+            {
+                await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                throw new InvalidOperationException("owner_setup_unavailable");
+            }
+            var options = OwnerSetupOptions.Load(configuration);
+            if (!setup.Enabled || setup.CompletedAt is null
+                || !setup.Matches(options.Email, options.Environment, options.PublicOrigin) || normalizedEmail != setup.OwnerEmail)
+                throw new InvalidOperationException("owner_setup_unavailable");
+        }
+        else if (requireOwnerSetup) throw new InvalidOperationException("owner_setup_unavailable");
         var user = await database.Users
             .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE normalized_email = {normalizedEmail} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("Bootstrap target account does not exist.");
 
         if (!user.EmailConfirmed)
-        {
             throw new InvalidOperationException("Bootstrap target account email must be verified.");
-        }
-
-        if (marker.IsConsumed)
-        {
-            var noop = user.GlobalRole == GlobalRoles.Admin
-                ? AdminBootstrapDecision.AlreadyAdmin(displayEmail)
-                : AdminBootstrapDecision.AlreadyConsumed();
-            database.AuditRecords.Add(NewAudit(user.Id, "admin.bootstrap.noop", "system_marker", AdminBootstrapPolicy.MarkerKey,
-                JsonSerializer.Serialize(new { outcome = noop.Outcome.ToString(), email = RedactEmail(displayEmail) }), now));
-            await database.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return noop;
-        }
+        if (string.IsNullOrWhiteSpace(user.PasswordHash)
+            || !await database.UserProfiles.AnyAsync(profile => profile.UserId == user.Id, cancellationToken)
+            || setup.OwnerEmail is not null && setup.UserId != user.Id)
+            throw new InvalidOperationException("Bootstrap target account must have a password and complete profile.");
 
         if (user.GlobalRole == GlobalRoles.Admin)
         {
             marker.Consume(user.Id, now);
             var already = AdminBootstrapDecision.AlreadyAdmin(displayEmail);
             database.AuditRecords.Add(NewAudit(user.Id, "admin.bootstrap.noop", "system_marker", AdminBootstrapPolicy.MarkerKey,
-                JsonSerializer.Serialize(new { outcome = already.Outcome.ToString(), email = RedactEmail(displayEmail) }), now));
+                JsonSerializer.Serialize(new { outcome = already.Outcome.ToString() }), now));
             await database.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return already;
@@ -70,8 +79,7 @@ public sealed class AdminBootstrapService(GonesDbContext database, IClock clock)
                 outcome = AdminBootstrapOutcome.Promoted.ToString(),
                 before = previousRole,
                 after = GlobalRoles.Admin,
-                fields = new[] { "globalRole", "securityStamp" },
-                email = RedactEmail(displayEmail)
+                fields = new[] { "globalRole", "securityStamp" }
             }),
             now));
         await database.SaveChangesAsync(cancellationToken);
@@ -86,30 +94,15 @@ public sealed class AdminBootstrapService(GonesDbContext database, IClock clock)
             .SingleOrDefaultAsync(cancellationToken);
         if (marker is not null) return marker;
 
-        database.SystemMarkers.Add(new SystemMarker
-        {
-            Key = AdminBootstrapPolicy.MarkerKey,
-            CreatedAt = now
-        });
-        try
-        {
-            await database.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            database.ChangeTracker.Clear();
-        }
+        await database.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO system_markers (id, version, key, created_at)
+            VALUES ({Guid.NewGuid()}, 1, {AdminBootstrapPolicy.MarkerKey}, {now})
+            ON CONFLICT (key) DO NOTHING
+            """, cancellationToken);
 
         return await database.SystemMarkers
             .FromSqlInterpolated($"SELECT * FROM system_markers WHERE key = {AdminBootstrapPolicy.MarkerKey} FOR UPDATE")
             .SingleAsync(cancellationToken);
-    }
-
-    private static string RedactEmail(string email)
-    {
-        var at = email.IndexOf('@');
-        if (at <= 1) return "***";
-        return $"{email[0]}***{email[at..]}";
     }
 
     private static AuditRecord NewAudit(Guid? actorId, string action, string entityType, string entityId, string diff, Instant now) => new()

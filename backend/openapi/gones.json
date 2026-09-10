@@ -1947,6 +1947,59 @@
         }
       }
     },
+    "/api/auth/owner-setup": {
+      "post": {
+        "tags": [
+          "OwnerSetupEndpoints"
+        ],
+        "operationId": "CompleteOwnerSetup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerSetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/users/me": {
       "get": {
         "tags": [
@@ -11909,6 +11962,41 @@
           }
         }
       },
+      "OwnerSetupRequest": {
+        "required": [
+          "token",
+          "username",
+          "firstName",
+          "lastName",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "firstName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "lastName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          }
+        }
+      },
       "PatchUserProfileRequest": {
         "required": [
           "username",
@@ -14252,6 +14340,9 @@
     },
     {
       "name": "AccountLifecycleEndpoints"
+    },
+    {
+      "name": "OwnerSetupEndpoints"
     },
     {
       "name": "ExternalOAuthEndpoints"

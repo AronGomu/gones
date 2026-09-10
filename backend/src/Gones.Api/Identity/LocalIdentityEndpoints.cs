@@ -65,6 +65,7 @@ internal static class LocalIdentityEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status409Conflict);
         auth.MapAccountLifecycleEndpoints(users);
+        auth.MapOwnerSetupEndpoints();
     }
 
     private static async Task<IResult> RegisterAsync(
@@ -97,6 +98,7 @@ internal static class LocalIdentityEndpoints
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await OwnerSetupService.LockAsync(database, cancellationToken);
         try
         {
             var result = await userManager.CreateAsync(user, request.Password);

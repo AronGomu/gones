@@ -26,6 +26,9 @@ if (args.Contains("--help", StringComparer.Ordinal))
         Usage: dotnet Gones.Migrator.dll database update
                dotnet Gones.Migrator.dll database seed
                dotnet Gones.Migrator.dll admin bootstrap --email <email>
+               dotnet Gones.Migrator.dll owner setup
+               dotnet Gones.Migrator.dll owner resend
+               dotnet Gones.Migrator.dll owner promote
                dotnet Gones.Migrator.dll notifications enqueue-test
                dotnet Gones.Migrator.dll import --bundle <file> [--bundle <file>...]
                    --manifest <file> --mapping <file>
@@ -41,6 +44,7 @@ if (args.Contains("--help", StringComparer.Ordinal))
 
 var databaseCommand = args.Length == 2 && args[0] == "database" && args[1] is "update" or "seed" ? args[1] : null;
 var notificationCommand = args.Length == 2 && args[0] == "notifications" && args[1] == "enqueue-test" ? args[1] : null;
+var ownerCommand = args.Length == 2 && args[0] == "owner" && args[1] is "setup" or "resend" or "promote" ? args[1] : null;
 MigrationImportOptions? importOptions = null;
 if (args.Length >= 1 && args[0] == "import")
 {
@@ -83,7 +87,7 @@ if (args.Length >= 2 && args[0] == "admin" && args[1] == "bootstrap")
     }
 }
 
-if (databaseCommand is null && notificationCommand is null && bootstrapEmail is null && importOptions is null)
+if (databaseCommand is null && notificationCommand is null && bootstrapEmail is null && importOptions is null && ownerCommand is null)
 {
     Console.Error.WriteLine("No migration command supplied. Use --help for usage.");
     Environment.ExitCode = 2;
@@ -92,7 +96,9 @@ if (databaseCommand is null && notificationCommand is null && bootstrapEmail is 
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Configuration.AddGonesSecretFiles();
-var workerWakeOptions = notificationCommand is not null ? WorkerWakeOptions.TryLoad(builder.Configuration) : null;
+var workerWakeOptions = notificationCommand is not null || ownerCommand is "setup" or "resend"
+    ? WorkerWakeOptions.TryLoad(builder.Configuration) : null;
+builder.Services.AddSingleton(StagingAccessPolicy.Load(builder.Configuration, builder.Environment.EnvironmentName));
 if (notificationCommand is not null && !builder.Configuration.GetValue<bool>("GONES_ALLOW_TEST_NOTIFICATION"))
 {
     throw new InvalidOperationException("GONES_ALLOW_TEST_NOTIFICATION=true is required for the test notification command.");
@@ -102,6 +108,7 @@ if (string.IsNullOrWhiteSpace(connectionString)) throw new InvalidOperationExcep
 builder.Services.AddGonesPersistence(connectionString);
 builder.Services.AddNotificationOutbox();
 builder.Services.AddScoped<AdminBootstrapService>();
+builder.Services.AddScoped<OwnerSetupService>();
 builder.Services.AddScoped<MigrationImportService>();
 using var host = builder.Build();
 using var scope = host.Services.CreateScope();
@@ -118,6 +125,38 @@ if (databaseCommand == "seed")
         ON CONFLICT (id) DO NOTHING;
         """);
     Console.WriteLine("Gones deterministic local seed complete.");
+}
+else if (ownerCommand is not null)
+{
+    try
+    {
+        var options = OwnerSetupOptions.Load(builder.Configuration);
+        if (ownerCommand == "promote")
+        {
+            var decision = await scope.ServiceProvider.GetRequiredService<AdminBootstrapService>()
+                .BootstrapAsync(options.Email, options.Email, requireOwnerSetup: true);
+            Console.WriteLine(decision.Message);
+            Environment.ExitCode = decision.ExitCode;
+        }
+        else
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<OwnerSetupService>()
+                .IssueAsync(options, ownerCommand == "resend");
+            Console.WriteLine(result.State);
+            Environment.ExitCode = result.Succeeded ? 0 : 1;
+            // IssueAsync has committed. A failed wake never changes the durable pending outcome.
+            if (result.Enqueued && workerWakeOptions is { } wakeOptions)
+            {
+                var wake = new WorkerWakeClient(wakeOptions, host.Services.GetRequiredService<ILogger<WorkerWakeClient>>());
+                await wake.SendAsync(CancellationToken.None);
+            }
+        }
+    }
+    catch (Exception exception) when (exception is InvalidOperationException or ArgumentException or DbUpdateException)
+    {
+        Console.Error.WriteLine("owner_setup_unavailable");
+        Environment.ExitCode = 1;
+    }
 }
 else if (bootstrapEmail is not null)
 {

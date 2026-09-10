@@ -58,6 +58,7 @@
 | draft organization | An organization with zero members: derived `isDraft`, cannot publish an event | `backend/src/Gones.Api/Organizations/OrganizationEndpoints.cs` |
 | identity | Local sign-up, email verification, refresh sessions | `backend/src/Gones.Api/Identity/LocalIdentityEndpoints.cs` |
 | eligibility | Staging account allowlist, credential cutoff, recipient policy | `backend/src/Gones.Infrastructure/Configuration/StagingAccessPolicy.cs` |
+| setup | Emailed owner password setup before private Admin promotion | `backend/src/Gones.Infrastructure/Identity/OwnerSetupService.cs`, `docs/OWNER_SETUP.md` |
 | registration | Participant sign-up and unregistration on an event | `backend/src/Gones.Api/Events/EventRegistrationEndpoints.cs` |
 | archive | Past results on three tiers — League → LeagueSeason → Tournament — served from `/api/archive` (formerly `/api/leagues-archive`, and before that `/api/leagues`, ADR 0022) | `backend/src/Gones.Api/Archive/PublicArchiveEndpoints.cs` |
 | league season | One run of a League: the middle archive tier, with a mandatory parent League. What used to be called a League | `backend/src/Gones.Domain/Archive/ArchiveLeagueSeason.cs` |

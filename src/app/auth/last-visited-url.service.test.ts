@@ -15,6 +15,13 @@ describe('LastVisitedUrlService', () => {
     expect(service.last()).toBe('/events');
   });
 
+  it('never retains an owner setup fragment as the login return URL', () => {
+    const service = new LastVisitedUrlService();
+    service.record('/events?view=list');
+    service.record('/owner-setup#token=fixture-secret');
+    expect(service.last() === '/events?view=list').toBe(true);
+  });
+
   it('ignores every auth path', () => {
     const service = new LastVisitedUrlService();
     service.record('/register');
