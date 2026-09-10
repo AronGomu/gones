@@ -84,3 +84,31 @@ V3. Direct I2a fixture-backed `docker compose ... config --quiet` was denied by 
 Files touched: `artifacts/staging-foundation-final-implementation-report.md` (new report); `artifacts/staging-foundation-plan.md` (conditional approval plus cost gate).
 
 I7a committed and fast-forward merged locally: `af5fd4f816423fa51bfc36eaf525ad0fe35e6ab6` (`docs(deploy): distinguish static publication from full-stack readiness`). After W10a feature commit `13fab8f` and merge `3f60da4`, local main ahead of origin/main by three commits; no push/deploy/cleanup. Parent explicit 28-file inventory plus secret-pattern scan passed; pre-merge ops 305/305, post-merge ops 307/307 passed. Original broad scanner was tool-denied because its exclusion literal referenced a protected path; explicit allowlist targeted only verified candidate files, no protected file access or policy change. Fresh w10b/i3 worktrees start from integrated `3f60da4`; read-only source scouts preparing remaining tickets. Publication held for G3 confirmation boundary. Initial preflight stop resolved by conditional timing approval. Plan/report approval update passed content assertions. Toolchain confirmed: Node v24.18.0, npm 11.16.0, .NET 10.0.300, Docker Compose 5.1.4. Parent baseline: `npx vitest run ops` → 18 files/301 tests pass. `npm run backend:test` exceeded 180s: unit 342 pass, architecture 20 pass, integration incomplete (not a failing assertion). Follow-up isolated `timeout 150s dotnet test backend/tests/Gones.IntegrationTests/Gones.IntegrationTests.csproj --configuration Release --no-build --filter 'FullyQualifiedName~NotificationOutboxTests' --logger 'console;verbosity=detailed'` → 16/16 pass, 1.3492 minutes. Harness works; full integration needs longer runtime. Existing dev API/Worker containers left untouched. I7a final evidence: worker 176 files/2280 tests, lint/typecheck/build/acceptance pass; independent final reviewer closed FR-001–FR-006. Parent reran host-contract tests 21/21, diff check passed, reviewed all changed hunks, secret-marker scan matched zero before staging only two intended paths. Logs in `.tmp/staging-foundation/`. Final commit/push condition not reached. No readiness claim.
+
+## Orchestration checkpoint — 2026-09-10
+
+## Ticket State List
+
+- [x] I1 — docs added. Evidence: `166f7df`; ops/content validation passed.
+- [x] I2 — shared-host Compose/config foundation merged. Evidence: `fc0d49f`; 64/64 contract tests; direct Compose gate blocked by protected-path guard.
+- [x] I3 — telemetry identity + hosted collector config merged. Evidence: `ba2458e`; unit447/447, architecture20/20, telemetry-health5/5, ops61/61, build passed.
+- [x] I4 — immutable publish/promote workflow merged. Evidence: `57746dc`; promotion/host tests 28/28, typecheck passed.
+- [x] I5 — bounded staging lifecycle + budget/backup contracts merged. Evidence: `2f36cbe`; 2299 tests, lint, typecheck passed.
+- [ ] I6 — W12 live soak/cost gate remains open.
+- [ ] I7b — production workflow enforcement needs live CI/provider verification.
+
+## Assumptions
+
+### A3 — Repo-only execution
+No provider purchase, deploy, system apply, or secret configuration performed.
+
+## User TODO
+
+- [ ] U5. Run both documented Compose `config --quiet` commands through approved path; protected-path guard blocked agent execution.
+- [ ] U6. Configure GHCR/OIDC/deploy endpoint/provider accounts, then run live staging soak + cost gate.
+
+## Validation
+
+`npm test -- --run ops/promotion-check.test.ts ops/shared-host-contract.test.ts ops/staging-operations.test.ts` → 75/75 passed.
+`npm run typecheck` → passed.
+`npm run lint` → passed.
