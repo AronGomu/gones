@@ -26,6 +26,16 @@ docker compose logs -f otel-collector
 
 Collector config lives at `deploy/otel-collector.yaml`. Replace `debug` exporter with any OTLP-compatible backend without app code changes.
 
+## Hosted Grafana Cloud collector
+
+Use `deploy/otel-collector-hosted.yaml` for hosted staging/production. Set these runtime-only collector variables:
+
+- `GRAFANA_CLOUD_OTLP_ENDPOINT`: Grafana Cloud OTLP gateway URL ending in `/otlp`.
+- `GRAFANA_CLOUD_INSTANCE_ID`: Grafana Cloud stack instance ID.
+- `GRAFANA_CLOUD_API_KEY`: write-only telemetry token; mount through the host secret manager.
+
+Do not put Grafana credentials in API/Worker images, repository files, logs, or Compose config committed to source. Set `GONES_RELEASE_VERSION`, `GONES_RELEASE_DIGEST`, and `GONES_DEPLOYMENT_ENVIRONMENT` from immutable deployment metadata; resource telemetry then identifies service, environment, release, and image digest.
+
 ## Correlated local delivery
 
 Operational notification probe is absent unless `GONES_ALLOW_TEST_NOTIFICATION=true`. Compose enables it only for loopback-bound local stack. Probe accepts no recipient, token, or body input.

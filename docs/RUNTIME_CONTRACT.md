@@ -192,7 +192,11 @@ until that decision is made.
 
 Set `OTEL_EXPORTER_OTLP_ENDPOINT` (and optionally `OTEL_EXPORTER_OTLP_PROTOCOL`) on API and Worker to
 any OpenTelemetry collector. Traces, metrics and logs are exported through it. Leaving it empty
-disables export; the applications keep running and keep writing to stdout.
+disables export; the applications keep running and keep writing to stdout. Set
+`GONES_RELEASE_VERSION`, `GONES_RELEASE_DIGEST`, and `GONES_DEPLOYMENT_ENVIRONMENT` from immutable
+build/deployment metadata so every resource identifies release and environment. The hosted Grafana
+Cloud collector profile is `deploy/otel-collector-hosted.yaml`; its endpoint, instance ID, and API key
+are collector-only runtime secrets.
 
 ### Log retention
 

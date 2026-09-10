@@ -24,6 +24,9 @@ describe('runtime configuration surface', () => {
     'GONES_AUTH_SIGNING_KEY_FILE',
     'GONES_SHUTDOWN_TIMEOUT_SECONDS',
     'OTEL_EXPORTER_OTLP_ENDPOINT',
+    'GONES_RELEASE_VERSION',
+    'GONES_RELEASE_DIGEST',
+    'GONES_DEPLOYMENT_ENVIRONMENT',
     'GONES_NOTIFICATION_LEASE_SECONDS',
     'GONES_BACKUP_ROOT',
     'GONES_BACKUP_KEY_FILE',
@@ -65,6 +68,17 @@ describe('generic host requirements', () => {
     ]) {
       expect(contract).toContain(requirement);
     }
+  });
+
+  it('keeps hosted collector credentials runtime-only', () => {
+    const collector = read('deploy/otel-collector-hosted.yaml');
+
+    expect(collector).toContain('basicauth/grafana');
+    expect(collector).toContain('${env:GRAFANA_CLOUD_INSTANCE_ID}');
+    expect(collector).toContain('${env:GRAFANA_CLOUD_API_KEY}');
+    expect(collector).toContain('${env:GRAFANA_CLOUD_OTLP_ENDPOINT}');
+    expect(collector).toContain('otlphttp/grafana');
+    expect(collector).not.toContain('debug:');
   });
 
   it('records the decision as an ADR', () => {

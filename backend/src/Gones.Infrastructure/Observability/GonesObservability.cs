@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
@@ -33,11 +34,12 @@ public static class GonesObservabilityExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
         var consoleExporter = ReadBoolean(configuration, "GONES_OTEL_CONSOLE_EXPORTER", defaultValue: false);
         var otlpExporter = !string.IsNullOrWhiteSpace(configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
-        var resource = ResourceBuilder.CreateDefault().AddService(serviceName, serviceVersion: "1.0.0");
+        var release = GonesReleaseIdentity.Load(configuration);
+        var resource = CreateResource(serviceName, release);
 
         services.AddSingleton<OperationalMetrics>();
         services.AddOpenTelemetry()
-            .ConfigureResource(builder => builder.AddService(serviceName, serviceVersion: "1.0.0"))
+            .ConfigureResource(builder => ConfigureResource(builder, serviceName, release))
             .WithTracing(tracing =>
             {
                 tracing.AddSource(GonesTelemetry.ActivitySourceName).AddHttpClientInstrumentation().AddNpgsql();
@@ -65,6 +67,16 @@ public static class GonesObservabilityExtensions
         return services;
     }
 
+    private static ResourceBuilder CreateResource(string serviceName, GonesReleaseIdentity release) =>
+        ConfigureResource(ResourceBuilder.CreateDefault(), serviceName, release);
+
+    private static ResourceBuilder ConfigureResource(ResourceBuilder builder, string serviceName, GonesReleaseIdentity release)
+    {
+        builder.AddService(serviceName, serviceVersion: release.Version)
+            .AddAttributes(release.Attributes);
+        return builder;
+    }
+
     private static bool ReadBoolean(IConfiguration configuration, string key, bool defaultValue)
     {
         var raw = configuration[key];
@@ -72,6 +84,47 @@ public static class GonesObservabilityExtensions
         return bool.TryParse(raw, out var value)
             ? value
             : throw new InvalidOperationException($"{key} must be true or false.");
+    }
+}
+
+public sealed record GonesReleaseIdentity(string Version, string Environment, string? Digest)
+{
+    public IReadOnlyDictionary<string, object> Attributes
+    {
+        get
+        {
+            var attributes = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["deployment.environment.name"] = Environment,
+                ["gones.release.version"] = Version
+            };
+            if (Digest is not null) attributes["gones.release.digest"] = Digest;
+            return attributes;
+        }
+    }
+
+    public static GonesReleaseIdentity Load(IConfiguration configuration)
+    {
+        var version = Clean(configuration["GONES_RELEASE_VERSION"])
+            ?? Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? "unknown";
+        var environment = Clean(configuration["GONES_DEPLOYMENT_ENVIRONMENT"])
+            ?? Clean(configuration["DOTNET_ENVIRONMENT"])
+            ?? Clean(configuration["ASPNETCORE_ENVIRONMENT"])
+            ?? "unknown";
+        var digest = Clean(configuration["GONES_RELEASE_DIGEST"]);
+        Validate(version, "GONES_RELEASE_VERSION", 128);
+        Validate(environment, "GONES_DEPLOYMENT_ENVIRONMENT", 64);
+        if (digest is not null) Validate(digest, "GONES_RELEASE_DIGEST", 256);
+        return new GonesReleaseIdentity(version, environment, digest);
+    }
+
+    private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static void Validate(string value, string key, int maximumLength)
+    {
+        if (value.Length > maximumLength || value.Any(char.IsControl))
+            throw new InvalidOperationException($"{key} is invalid.");
     }
 }
 

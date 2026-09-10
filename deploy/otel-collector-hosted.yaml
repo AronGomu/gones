@@ -1,0 +1,45 @@
+# Hosted OTLP collector for Grafana Cloud.
+# Mount credentials at runtime; never commit endpoint, instance ID, or API key values.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+extensions:
+  basicauth/grafana:
+    client_auth:
+      username: ${env:GRAFANA_CLOUD_INSTANCE_ID}
+      password: ${env:GRAFANA_CLOUD_API_KEY}
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 256
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 128
+
+exporters:
+  otlphttp/grafana:
+    endpoint: ${env:GRAFANA_CLOUD_OTLP_ENDPOINT}
+    auth:
+      authenticator: basicauth/grafana
+
+service:
+  extensions: [basicauth/grafana]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/grafana]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/grafana]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/grafana]

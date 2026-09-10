@@ -149,6 +149,9 @@ services:
       GONES_FORWARDED_PROXIES: 172.31.240.10
       GONES_FORWARDED_PROXY_HOP_LIMIT: "1"
       GONES_SHUTDOWN_TIMEOUT_SECONDS: "20"
+      GONES_RELEASE_VERSION: release-test
+      GONES_RELEASE_DIGEST: release-test-image
+      GONES_DEPLOYMENT_ENVIRONMENT: testing
       GONES_FEATURES__API_BACKEND: "true"
       GONES_FEATURES__CALENDAR_V1: "true"
       GONES_FEATURES__AUTH_V1: "true"
@@ -204,6 +207,9 @@ services:
       GONES_AUTH_SIGNING_KEY_FILE: /secrets/auth-signing-key
       GONES_PUBLIC_APP_ORIGIN: https://localhost:8443
       GONES_SHUTDOWN_TIMEOUT_SECONDS: "20"
+      GONES_RELEASE_VERSION: release-test
+      GONES_RELEASE_DIGEST: release-test-image
+      GONES_DEPLOYMENT_ENVIRONMENT: testing
       # Every server feature flag is on in the release candidate; nothing runs half-enabled (C44).
       GONES_FEATURES__API_BACKEND: "true"
       GONES_FEATURES__CALENDAR_V1: "true"
