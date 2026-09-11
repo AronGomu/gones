@@ -74,18 +74,26 @@ images once, scans them, publishes immutable GHCR images, attaches GitHub build 
 digest through workflow OIDC, then records the verified manifest. A staging push invokes only the fixed
 HTTPS deployment operation (`npm run release:deploy-staging`) under serialized `gones-staging-*`
 concurrency. Migration exit, source tree, config revision, staging gate and exact digest manifest are
-checked by `npm run release:promotion-check`; failure blocks rollout.
+checked immediately by `evaluateDeployment`; failure blocks staging evidence success. Successful
+deployment evidence is marked pending W12, not promotion-ready.
 
 Promotion evidence rejects changed source/config, mutable tags, missing signatures/attestations, failed
-migration and concurrent deployment. A future `main` handoff must reuse tested manifest/digests
-without rebuilding. No production deployment is claimed here.
+migration and concurrent deployment. The manual `main` workflow retrieves evidence by authenticated
+GitHub run/artifact IDs and emits exact tested digest refs without rebuilding, behind the `production`
+environment gate. It accepts no raw JSON. See [production handoff](docs/PRODUCTION_HANDOFF.md) for
+trust checks and external approval prerequisites. No production deployment is claimed here.
 
 Promotion also requires [W12 live soak evidence](docs/W12_LIVE_SOAK.md): continuous 72-hour,
 identity-bound operator/provider measurements, correct jobs and lower measured combined cost.
-Immediate deployment evidence lacks W12 and intentionally cannot pass promotion. Collect with
-`npm run release:w12`, then supply `--w12=<report>` to `release:promotion-check` or include top-level
-`w12` in the manual workflow context. Reports expire 24 hours after capture end. Local tests,
-fake-provider preflight and synthetic evidence do not prove the external live gate.
+Immediate deployment evidence lacks W12 and cannot pass `npm run release:promotion-check`.
+After capture, manually dispatch `finalize-staging.yml` on the unchanged staging SHA with the successful
+release's candidate run/artifact IDs. It authenticates that deployment, fetches W12 from the fixed
+HTTPS staging evidence service, validates promotion, and emits the final staging promotion artifact.
+The main handoff authenticates this successful first-attempt finalizer plus the original release chain.
+The live evidence endpoint, environment secrets/protection and actual soak remain external activation
+prerequisites. Local `--w12=<report>` remains review-only, never handoff input. Reports expire 24 hours
+after capture end. Local tests, fake-provider preflight and synthetic evidence do not prove the external
+live gate.
 
 ## 1. Serve it from the release image
 

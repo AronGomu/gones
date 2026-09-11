@@ -22,7 +22,7 @@ const required = (value, label, fail) => {
  * @param {object} context
  * @returns {{ok: boolean, findings: {check: string, message: string}[]}}
  */
-export function evaluatePromotion(context, now = Date.now()) {
+export function evaluateDeployment(context) {
   const findings = [];
   const fail = (check, message) => findings.push({ check, message });
   const candidate = context?.candidate ?? {};
@@ -79,12 +79,18 @@ export function evaluatePromotion(context, now = Date.now()) {
     if (current.configRevision !== configRevision) fail('config', `main config revision ${current.configRevision ?? 'missing'} differs from staged config ${configRevision}`);
   }
 
+  return { ok: findings.length === 0, findings };
+}
+
+/** Promotion always requires W12; the immediate deployment gate never grants promotion. */
+export function evaluatePromotion(context, now = Date.now()) {
+  const { findings } = evaluateDeployment(context);
+  const candidate = context?.candidate ?? {};
   const w12 = evaluateW12(context?.w12, {
-    sourceSha, tree: sourceTree, configRevision,
-    manifestDigest: manifest.manifestDigest, environment: 'staging'
+    sourceSha: candidate.sourceSha, tree: candidate.tree, configRevision: candidate.configRevision,
+    manifestDigest: context?.manifest?.manifestDigest, environment: 'staging'
   }, now);
   findings.push(...w12.findings);
-
   return { ok: findings.length === 0, findings };
 }
 

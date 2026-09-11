@@ -90,8 +90,8 @@ including symlinks, are never overwritten. Files use mode 0600. One capture owne
    ```
 
    Promotion revalidates all measurements and freshness, never trusts a stored `ok`/`passed` flag.
-   `--w12` supplies the same top-level `w12` field accepted by `evaluatePromotion`. To prepare JSON
-   for the existing manual promotion workflow, create a new context without replacing the original:
+   `--w12` supplies the same top-level `w12` field accepted by `evaluatePromotion`. To prepare a
+   local review context (not workflow input), create a new file without replacing the original:
 
    ```bash
    node --input-type=module -e 'import {readFileSync,writeFileSync} from "node:fs"; const [deployment,w12,out]=process.argv.slice(1); const e=JSON.parse(readFileSync(deployment,"utf8")); e.w12=JSON.parse(readFileSync(w12,"utf8")); writeFileSync(out,JSON.stringify(e)+"\n",{flag:"wx",mode:0o600});' /private/w12/deployment.json /private/w12/w12.json /private/w12/promotion.json
@@ -99,10 +99,13 @@ including symlinks, are never overwritten. Files use mode 0600. One capture owne
    ```
 
 5. O5. Independently review original provider records, their sanitized digests, candidate identity,
-   equivalent workload and complete cost accounting before submitting `promotion.json` to the
-   existing manual gate. Promotion must occur no later than 24 hours after capture end; finalizing
-   again does not refresh that deadline. Any source/config/manifest change requires a fresh soak.
-   Production approval remains separate; this flow performs no merge, push or deploy.
+   equivalent workload and complete cost accounting. The [manual handoff](PRODUCTION_HANDOFF.md)
+   accepts only authenticated successful finalizer run/artifact IDs, never local `promotion.json`.
+   Dispatch `finalize-staging.yml` with original release run/artifact IDs after the fixed staging
+   evidence service has the complete report. Its live endpoint/token configuration remains external.
+   Promotion must occur no later than 24 hours after capture end; finalizing again does not refresh
+   that deadline. Any source/config/manifest change requires a fresh soak. Production approval
+   remains separate; this flow performs no merge, push or deploy.
 
 ## Measurement semantics and acceptance
 
@@ -149,11 +152,17 @@ A SHA-256 digest binds a private source record only when the reviewer independen
 checks that record. Relabeling fabricated measurements `live-provider` cannot be detected from
 JSON alone. CLI does not manufacture live evidence; synthetic test fixtures are test-only.
 
-T2. `scripts/deploy-staging.mjs` emits deployment evidence without W12. Immediate staging workflow
-promotion checks now intentionally fail closed until the separate live report is supplied. The
-workflow still retains deployment evidence with `if: always()`. No 72-hour Actions job, provider
-runner, host auto-wake, preflight bypass or optional promotion-success switch is introduced.
-Use that original evidence in O4; manual main verification consumes the combined context in O5.
+T2. `scripts/deploy-staging.mjs` validates immediate deployment evidence, marks it `pending-w12`,
+and can succeed without claiming promotion. The workflow retains that deployment artifact with
+`if: always()`; failed releases remain ineligible. After capture, `finalize-staging.yml` accepts only
+successful first-attempt release run/artifact IDs, authenticates their GitHub provenance, and fetches
+W12 from the fixed HTTPS staging evidence service using environment secrets. Existing promotion/W12
+validation produces a final promotion artifact only on success. Main handoff authenticates that
+successful first-attempt finalizer plus the original release run/jobs/artifact chain. See
+[production handoff](PRODUCTION_HANDOFF.md) for the exact endpoint contract and activation prerequisites.
+Use original evidence in O4 for local review only; neither finalizer nor main accepts local combined
+JSON. No 72-hour Actions job, provider runner, host auto-wake, preflight bypass, optional W12 switch,
+failed-run exception, rerun workaround or arbitrary workflow trust is introduced.
 
 T3. Capture failures preserve prior checkpoints. Correct an invalid export from authoritative source
 records; never erase real failed jobs, observation gaps or provider discrepancies. Failed live

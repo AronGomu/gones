@@ -158,7 +158,8 @@ describe('W12 opt-in file-only CLI', () => {
     for (const command of ['start --live', 'resume --live', 'finalize --live', 'release:promotion-check']) expect(docs).toContain(command);
     expect(docs).toContain('Repo tests cannot prove provider suspension');
     expect(docs).toContain('not verification of provider signatures');
-    expect(docs).toContain('intentionally fail closed');
+    expect(docs).toContain('marks it `pending-w12`');
+    expect(docs).toContain('successful first-attempt finalizer plus the original release run/jobs/artifact chain');
     expect(docs).toContain('external prerequisite');
     expect(JSON.parse(readFileSync('package.json', 'utf8')).scripts['release:w12']).toBe('node scripts/w12-live-soak.mjs');
   });

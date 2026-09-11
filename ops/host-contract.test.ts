@@ -282,8 +282,8 @@ describe('deployment documentation boundaries', () => {
     expect(releaseWorkflow).toContain('npm run images:verify');
     expect(releaseWorkflow).toContain('release:publish');
     expect(releaseWorkflow).toContain('actions/attest-build-provenance');
-    expect(promotionWorkflow).toContain('release:promotion-check');
-    expect(promotionWorkflow).toContain('ref: main');
+    expect(promotionWorkflow).toContain('node scripts/production-handoff.mjs');
+    expect(promotionWorkflow).toContain('ref: ${{ github.sha }}');
     expect(promotionWorkflow).not.toContain('git push');
   });
 });
@@ -327,7 +327,11 @@ describe('immutable registry release build', () => {
     expect(workflow).toContain('cancel-in-progress: false');
     expect(workflow).toContain('environment: staging');
     expect(workflow).toContain('release:deploy-staging');
-    expect(workflow).toContain('release:promotion-check');
+    expect(workflow).not.toContain('run: npm run release:promotion-check');
+    expect(workflow).toContain('staging-deployment-evidence-${{ github.sha }}');
+    const finalizer = read('.github/workflows/finalize-staging.yml');
+    expect(finalizer).toContain('node scripts/finalize-staging.mjs');
+    expect(finalizer).toContain('staging-promotion-evidence-${{ github.sha }}');
     expect(workflow).not.toContain('docker compose up');
     expect(workflow).not.toContain('ssh ');
   });

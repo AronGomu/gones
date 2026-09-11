@@ -1,33 +1,51 @@
 name: Promote tested candidate to main
 
-# Manual gate only. It performs no merge, push or production deploy. Branch protection remains the
-# authority for merging; this check proves main has the staged tree/config and exact digest manifest.
+# Manual handoff only. No merge, push, image build or production deploy.
+# Required reviewers/branch restrictions on the production environment are external prerequisites.
 on:
   workflow_dispatch:
     inputs:
-      evidence_json:
-        description: JSON emitted by the successful staging promotion job
+      staging_run_id:
+        description: Successful first-attempt staging finalization run ID from this repository
+        required: true
+        type: string
+      staging_artifact_id:
+        description: Immutable staging-promotion-evidence artifact ID from that run
         required: true
         type: string
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: gones-production-handoff
+  cancel-in-progress: false
 
 jobs:
   verify:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
-      - name: Prepare supplied staging evidence
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Retrieve authenticated staging evidence and revalidate immutable handoff
         env:
-          EVIDENCE_JSON: ${{ inputs.evidence_json }}
-        run: |
-          mkdir -p reports/staging
-          node -e "require('node:fs').writeFileSync('reports/staging/evidence.json', process.env.EVIDENCE_JSON + '\\n')"
-      - name: Require unchanged main tree/config and tested digests
-        run: |
-          current_tree=$(git rev-parse HEAD^{tree})
-          node -e "const fs=require('node:fs'); const p='reports/staging/evidence.json'; const e=JSON.parse(fs.readFileSync(p)); e.current={tree:process.argv[1],configRevision:e.candidate.configRevision}; fs.writeFileSync(p, JSON.stringify(e)+'\\n')" "$current_tree"
-          npm run release:promotion-check -- --evidence=reports/staging/evidence.json
+          GITHUB_TOKEN: ${{ github.token }}
+          STAGING_RUN_ID: ${{ inputs.staging_run_id }}
+          STAGING_ARTIFACT_ID: ${{ inputs.staging_artifact_id }}
+          GONES_PRODUCTION_CONFIG_REVISION: ${{ vars.GONES_PRODUCTION_CONFIG_REVISION }}
+        run: node scripts/production-handoff.mjs
+      - uses: actions/upload-artifact@v5
+        with:
+          name: production-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/production/handoff.json
+          if-no-files-found: error
+          retention-days: 7

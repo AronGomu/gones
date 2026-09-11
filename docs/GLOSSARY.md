@@ -82,6 +82,8 @@
 | candidate | Builds and assembles the release candidate artifacts | `scripts/release-candidate.mjs` |
 | preflight | Nine mismatch gates deciding if a candidate ships | `scripts/release-preflight.mjs` |
 | W12 soak | Opt-in continuous 72-hour staging evidence contract; live operator measurements gate immutable promotion, local tests are not live proof | `scripts/w12-live-soak.mjs`, `docs/W12_LIVE_SOAK.md` |
+| handoff | Authenticated finalizer + original release chain, exact staged digests; no rebuild or deploy | `scripts/production-handoff.mjs`, `docs/PRODUCTION_HANDOFF.md` |
+| finalization | Post-soak GitHub-authenticated deployment + fixed-endpoint W12 validation; emits promotion evidence | `scripts/finalize-staging.mjs`, `docs/PRODUCTION_HANDOFF.md` |
 | rehearsal | Full stack dress run with fake providers, TLS | `scripts/release-rehearsal.mjs` |
 | smoke | Short post-deploy checks per subsystem | `scripts/smoke-full-stack.mjs` |
 | cypress | Browser end-to-end journeys, one file per flow | `cypress/e2e/` |

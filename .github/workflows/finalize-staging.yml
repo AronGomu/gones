@@ -1,0 +1,51 @@
+name: Finalize staging promotion evidence
+
+# Run after live W12 capture; never builds or deploys. Staging protection/config is external.
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful first-attempt release-images staging push run ID
+        required: true
+        type: string
+      candidate_artifact_id:
+        description: Immutable staging-deployment-evidence artifact ID from that run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: gones-staging-staging
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    if: github.ref == 'refs/heads/staging' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: staging
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+      - name: Authenticate deployment artifact and fetch fixed live W12 evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN_ID: ${{ inputs.candidate_run_id }}
+          CANDIDATE_ARTIFACT_ID: ${{ inputs.candidate_artifact_id }}
+          GONES_STAGING_EVIDENCE_URL: ${{ secrets.GONES_STAGING_EVIDENCE_URL }}
+          GONES_STAGING_EVIDENCE_TOKEN: ${{ secrets.GONES_STAGING_EVIDENCE_TOKEN }}
+        run: node scripts/finalize-staging.mjs
+      - uses: actions/upload-artifact@v5
+        with:
+          name: staging-promotion-evidence-${{ github.sha }}
+          path: reports/staging-finalized/evidence.json
+          if-no-files-found: error
+          retention-days: 7

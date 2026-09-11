@@ -186,11 +186,9 @@ jobs:
           GONES_STAGING_DEPLOY_URL: ${{ secrets.GONES_STAGING_DEPLOY_URL }}
           GONES_STAGING_DEPLOY_TOKEN: ${{ secrets.GONES_STAGING_DEPLOY_TOKEN }}
         run: npm run release:deploy-staging -- --evidence=reports/staging/evidence.json
-      - name: Require unchanged source, config and tested digests
-        run: npm run release:promotion-check -- --evidence=reports/staging/evidence.json
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: staging-promotion-evidence-${{ github.sha }}
+          name: staging-deployment-evidence-${{ github.sha }}
           path: reports/staging/evidence.json
           if-no-files-found: error
