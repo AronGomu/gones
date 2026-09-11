@@ -1,6 +1,6 @@
 # Staging foundation — implementation report
 
-State: **stopped at user-requested current-ticket boundary; partial implementation; main publication authorized; cost validation pending**.
+State: **repository implementation done; main synchronized; live staging/provider/cost validation blocked pending user-owned configuration and 72-hour execution**.
 
 ## Final publication checkpoint
 
@@ -112,3 +112,44 @@ No provider purchase, deploy, system apply, or secret configuration performed.
 `npm test -- --run ops/promotion-check.test.ts ops/shared-host-contract.test.ts ops/staging-operations.test.ts` → 75/75 passed.
 `npm run typecheck` → passed.
 `npm run lint` → passed.
+
+## Continuation — finish implementation
+
+## Ticket State List
+
+- [x] I6-A — immutable digest reuse in dedicated release/backup rehearsals. Evidence: `0b1d6aa`; independent review APPROVE; post-merge 72/72 focused tests; branch + main pushed. Effective Compose removes inherited release builds and pins all five digests with `pull_policy: never`.
+- [x] W12-A — opt-in live soak evidence contract. Evidence: `39e3ea4`; independent review APPROVE; post-merge 64/64 focused tests; branch + main pushed. Promotion now requires matching fresh ≥72h live evidence plus correctness, quota-reserve and lower-total-cost gates. Evidence remains operator attestation pending independent live verification.
+- [x] I7-B — authenticated immutable production handoff. Evidence: `d668734`; first review blocked unreachable producer, bounded repair added pending deployment evidence + authenticated live-W12 finalizer + chained production handoff; fresh review APPROVE; post-merge ops521/521, typecheck, lint; branch + main pushed. No image rebuild or production deploy.
+
+## Assumptions
+
+### A4 — Repo completion vs live readiness
+
+“Finish implementation” means complete remaining repository automation, merge and push each verified ticket. Provider setup, secrets, checkout, infrastructure apply, 72-hour execution and production deployment remain external gates; no local substitute will be reported as live evidence.
+
+## User TODO
+
+- [ ] U7. Supply provider/host/GitHub environment configuration privately, then run W12 72-hour staging gate. Verify: live evidence passes against exact candidate manifest.
+
+## Final repository state
+
+- [x] F1. Remaining repo implementation merged to `main`. Verify: `0b1d6aa` I6-A, `39e3ea4` W12-A, `d668734` I7-B are ancestors of `main` and `origin/main`.
+- [x] F2. Release rehearsal reuse fails closed and cannot implicitly rebuild five release images. Verify: independent review APPROVE; post-merge 72/72 focused tests.
+- [x] F3. Promotion requires fresh live W12 correctness/cost evidence. Verify: independent review APPROVE; post-merge 64/64 focused tests.
+- [x] F4. Production handoff authenticates finalizer + original release artifacts and emits exact digests only. Verify: independent review APPROVE; post-merge ops521/521, typecheck, lint.
+- [ ] F5. Live readiness. Verify: configure protected GitHub environments/endpoints/providers, execute continuous 72-hour W12 soak, independently review provider/cost records, finalize staging evidence. Blocked on U7; no local substitute.
+
+## Residual risks
+
+- R6. W12 measurements are trusted operator/provider attestations; relabelled synthetic data cannot be detected solely from JSON. Independent source-record review required.
+- R7. GitHub branch/environment protection, endpoint DNS ownership, credentials, host isolation, provider quotas and artifact retention are external config; repo declarations do not prove activation.
+- R8. Existing backup rehearsal lacks shared release lock; dedicated rehearsals must run sequentially as documented.
+- R9. Direct fixture-backed Compose `config --quiet` remains blocked by protected-path guard; U5/U4 operator command still required.
+
+## Final validation and cleanup
+
+- [x] C5. Full frontend/ops suite passed after all merges. Evidence: `npm test` → 185 files, 2505 tests passed.
+- [x] C6. Type/lint gates passed after I7-B merge. Evidence: `npm run typecheck`, `npm run lint` exit 0; ops 521/521 passed.
+- [x] C7. Initiative scratch removed. Removed `.tmp/make-parallel/`, `.tmp/staging-foundation/`, all associated clean worktrees, ticket plans and validation logs. Feature branches/commits retained per immutable-history policy.
+- [x] C8. Completed plan index removed. Removed `artifacts/staging-foundation-plan.md` per orchestrator final-cleanup contract; this report remains durable record.
+- [x] C9. Pre-existing user artifact preserved. `artifacts/GRILL_2026_09_09_staging-environment/` remains untracked and untouched; therefore worktree is intentionally not globally clean.
